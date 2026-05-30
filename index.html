@@ -630,14 +630,10 @@
         if (!text) return 0;
         const lw = word.toLowerCase();
         const lt = text.toLowerCase();
-        // Точное совпадение строки целиком
         if (lw === lt) return 100;
-        // Слово целиком входит как отдельное слово
         const wordBoundary = new RegExp(`\\b${lw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
         if (wordBoundary.test(text)) return 100;
-        // Содержит как подстроку
         if (lt.includes(lw)) return 90;
-        // Нечёткий поиск
         if (fuzzyEnabled && lw.length >= 3) {
             const words = lt.split(/\s+/);
             for (let w of words) {
@@ -765,34 +761,35 @@
             if (info.found && info.onlyDesc) matchOnlyByDescription.set(t.id, true); 
         } 
     }
+    // НЕ раскрываем родителей для поиска — только для отображения совпадений, но без авто-разворачивания
     function expandParentsForMatch(){ 
-        if (!currentSearchQuery.trim()) return; 
-        for (let t of currentTopics) 
-            if (topicRelevanceInfo.get(t.id)?.found) { 
-                let p = t.parent; 
-                while (p) { collapsedFolders.set(p, false); p = currentTopics.find(x => x.id === p)?.parent; } 
-            } 
+        // Пустая функция — больше не раскрываем папки автоматически
     }
     function renderTree(){
         const container = document.getElementById('topicTree'); if (!container) return;
-        container.innerHTML = ''; updateRelevance(); expandParentsForMatch();
+        container.innerHTML = ''; updateRelevance();
         const roots = sortByRelevance(currentTopics.filter(t => t.parent === null && isVisible(t)));
         for (let r of roots) renderNode(r, container);
         applyTreeFilter(); highlightActive(); attachEvents();
-        // Подсветка поиска в заголовках
         const words = getSearchWords();
         if (words.length) document.querySelectorAll('.node-title').forEach(el => highlightElement(el, words));
     }
     function renderNode(topic, parentEl){
         const children = getChildrenSorted(topic.id);
         const visibleKids = children.length > 0 && hasVisibleChildren(topic.id);
+        // Сохраняем состояние свёрнутости из collapsedFolders
         const collapsed = collapsedFolders.get(topic.id) === true;
         const node = document.createElement('div'); node.className = 'tree-node'; node.setAttribute('data-id', topic.id);
         if (matchOnlyByDescription.get(topic.id)) node.classList.add('search-match-description');
         const content = document.createElement('div'); content.className = 'tree-node-content';
         const toggle = document.createElement('span'); toggle.className = 'toggle-icon';
-        if (visibleKids) { toggle.innerHTML = collapsed ? '<i class="fas fa-chevron-right"></i>' : '<i class="fas fa-chevron-down"></i>'; }
-        else { toggle.classList.add('empty'); toggle.innerHTML = ''; }
+        if (visibleKids) { 
+            // Если есть дети и они видимы (с учётом поиска), показываем иконку в зависимости от состояния collapsed
+            toggle.innerHTML = collapsed ? '<i class="fas fa-chevron-right"></i>' : '<i class="fas fa-chevron-down"></i>'; 
+        } else { 
+            toggle.classList.add('empty'); 
+            toggle.innerHTML = ''; 
+        }
         content.appendChild(toggle);
         const icon = document.createElement('i'); icon.className = `fas ${topic.icon || 'fa-book'}`; icon.style.width = '20px';
         content.appendChild(icon);
@@ -803,7 +800,19 @@
             if (!collapsed) kidsDiv.classList.add('expanded');
             children.forEach(c => { if (isVisible(c)) renderNode(c, kidsDiv); });
             node.appendChild(kidsDiv);
-            toggle.addEventListener('click', (e) => { e.stopPropagation(); const newState = !collapsedFolders.get(topic.id); collapsedFolders.set(topic.id, newState); saveToStorage(); if (newState) { kidsDiv.classList.remove('expanded'); toggle.innerHTML = '<i class="fas fa-chevron-right"></i>'; } else { kidsDiv.classList.add('expanded'); toggle.innerHTML = '<i class="fas fa-chevron-down"></i>'; } });
+            toggle.addEventListener('click', (e) => { 
+                e.stopPropagation(); 
+                const newState = !collapsedFolders.get(topic.id); 
+                collapsedFolders.set(topic.id, newState); 
+                saveToStorage(); 
+                if (newState) { 
+                    kidsDiv.classList.remove('expanded'); 
+                    toggle.innerHTML = '<i class="fas fa-chevron-right"></i>'; 
+                } else { 
+                    kidsDiv.classList.add('expanded'); 
+                    toggle.innerHTML = '<i class="fas fa-chevron-down"></i>'; 
+                } 
+            });
         }
         parentEl.appendChild(node);
     }
@@ -814,7 +823,6 @@
     
     function setExampleWithScripts(container, html) {
         container.innerHTML = '';
-        // Для безопасного выполнения скриптов используем iframe
         const iframe = document.createElement('iframe');
         iframe.className = 'example-iframe';
         iframe.sandbox = 'allow-same-origin allow-scripts allow-popups allow-forms allow-modals';
@@ -862,7 +870,7 @@
                 link.addEventListener('click', (e) => { e.preventDefault(); const tid = link.getAttribute('data-topic-id'); if (tid && currentTopics.find(t => t.id === tid)) loadTopic(tid, true); });
             });
             exampleDiv.style.opacity = '1'; descDiv.style.opacity = '1';
-            updateNavButtons(); renderTree();
+            updateNavButtons(); renderTree(); // перерисовка для подсветки активной темы без изменения свёрнутости
             document.getElementById('unifiedCard').style.animation = 'cardAppear 0.3s ease-out';
             setTimeout(() => document.getElementById('unifiedCard').style.animation = '', 350);
         }, 150);
@@ -937,7 +945,9 @@
     async function init(){
         const loaded = await loadConfig();
         currentTopics = buildHierarchyOrder(loaded);
-        collapsedFolders.clear(); for (let t of currentTopics) if (currentTopics.some(c => c.parent === t.id)) collapsedFolders.set(t.id, true);
+        // ИНИЦИАЛИЗАЦИЯ: ВСЕ ПАПКИ СВЁРНУТЫ
+        collapsedFolders.clear(); 
+        for (let t of currentTopics) if (currentTopics.some(c => c.parent === t.id)) collapsedFolders.set(t.id, true);
         loadFromStorage();
         document.getElementById('hierarchySearchInput').value = currentSearchQuery;
         document.getElementById('searchInDescCheckbox').checked = searchInDescription;

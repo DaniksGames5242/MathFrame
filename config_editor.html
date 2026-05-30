@@ -48,6 +48,18 @@
         .file-menu button:hover {
             background: #3a3a44;
         }
+        .undo-redo {
+            display: flex;
+            gap: 5px;
+        }
+        .undo-redo button {
+            background: #2c2c34;
+            border: 1px solid #4a4a52;
+            padding: 4px 12px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 0.8rem;
+        }
         .status-area {
             font-size: 0.75rem;
             color: #8ab3ff;
@@ -248,9 +260,6 @@
             cursor: not-allowed;
             pointer-events: none;
         }
-        .tool-btn:hover:not(.disabled) {
-            background: #444;
-        }
         .mode-toggle {
             display: inline-flex;
             align-items: center;
@@ -259,11 +268,6 @@
             padding: 4px 10px;
             border-radius: 20px;
             font-size: 0.7rem;
-        }
-        .mode-toggle input {
-            width: auto;
-            margin: 0;
-            transform: scale(0.8);
         }
         .html-preview {
             border: 1px solid #444;
@@ -287,92 +291,34 @@
             min-height: 140px;
             overflow-y: auto;
         }
-        .rich-editor .inline-link.valid {
-            color: #8ab3ff;
-            text-decoration: underline;
-            cursor: pointer;
-        }
-        .rich-editor .inline-link.invalid {
-            color: #ff7b72;
-            text-decoration: line-through;
-        }
-        .json-editor {
-            font-family: 'Courier New', monospace;
-            font-size: 12px;
-            min-height: 500px;
-        }
-        .json-buttons {
-            display: flex;
-            gap: 10px;
-            margin-top: 10px;
-        }
-        .new-topic-bottom {
-            margin-top: 16px;
-            text-align: center;
-        }
-        .new-topic-bottom button {
-            width: 100%;
-            background: #2a3a4a;
-            border-radius: 30px;
-            padding: 8px;
-        }
-        .small-note {
-            font-size: 0.7rem;
-            color: #888;
-            margin-top: 4px;
-        }
-        .toast-area {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            left: 20px;
-            z-index: 1000;
-            display: flex;
-            justify-content: flex-end;
-        }
-        .toast {
-            background: #2a5a2a;
-            padding: 8px 20px;
-            border-radius: 40px;
-            font-size: 0.8rem;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
-            opacity: 0;
-            transition: opacity 0.2s;
-            pointer-events: none;
-        }
-        .toast.show {
-            opacity: 1;
-        }
-        .toast.error {
-            background: #5a2a2a;
-        }
+        .rich-editor .inline-link.valid { color: #8ab3ff; text-decoration: underline; cursor: pointer; }
+        .rich-editor .inline-link.invalid { color: #ff7b72; text-decoration: line-through; }
+        .json-editor { font-family: 'Courier New', monospace; font-size: 12px; min-height: 500px; }
+        .json-buttons { display: flex; gap: 10px; margin-top: 10px; }
+        .new-topic-bottom { margin-top: 16px; text-align: center; }
+        .new-topic-bottom button { width: 100%; background: #2a3a4a; border-radius: 30px; padding: 8px; }
+        .small-note { font-size: 0.7rem; color: #888; margin-top: 4px; }
+        .toast-area { position: fixed; bottom: 20px; right: 20px; left: 20px; z-index: 1000; display: flex; justify-content: flex-end; }
+        .toast { background: #2a5a2a; padding: 8px 20px; border-radius: 40px; font-size: 0.8rem; opacity: 0; transition: opacity 0.2s; pointer-events: none; }
+        .toast.show { opacity: 1; }
+        .toast.error { background: #5a2a2a; }
         .topic-selector-dialog {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: #1e1e1e;
-            border: 1px solid #555;
-            border-radius: 20px;
-            padding: 20px;
-            z-index: 1100;
-            width: 400px;
-            max-height: 500px;
-            overflow-y: auto;
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: #1e1e1e; border: 1px solid #555; border-radius: 20px; padding: 20px;
+            z-index: 1100; width: 400px; max-height: 500px; overflow-y: auto;
         }
-        .topic-selector-dialog input, .topic-selector-dialog select {
-            margin: 10px 0;
-            width: 100%;
+        .commits-list { max-height: 400px; overflow-y: auto; margin-top: 10px; }
+        .commit-item { background: #252525; margin: 5px 0; padding: 8px; border-radius: 8px; cursor: pointer; }
+        .commit-item:hover { background: #3a3a44; }
+        .warning-dialog {
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: #2a1a1a; border: 2px solid #ff7b72; border-radius: 20px; padding: 20px;
+            z-index: 1200; width: 450px; text-align: center;
         }
-        .overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0,0,0,0.7);
-            z-index: 1050;
-        }
+        .warning-dialog h2 { color: #ff7b72; margin-bottom: 15px; }
+        .warning-dialog p { margin-bottom: 20px; line-height: 1.5; }
+        .warning-dialog button { margin: 0 10px; padding: 8px 20px; }
+        .overlay-warning { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.85); z-index: 1150; }
     </style>
 </head>
 <body>
@@ -383,7 +329,12 @@
         <button id="importLocalBtn">Импорт локально</button>
         <button id="addShortBtn">Добавить из сокращённого</button>
         <button id="saveToGitHubBtn">Сохранить в GitHub</button>
+        <button id="resetLocalBtn">Сбросить локальные изменения</button>
         <button id="clearGitHubDataBtn">Сбросить токен</button>
+    </div>
+    <div class="undo-redo">
+        <button id="undoBtn" title="Отменить (Ctrl+Z)">↩ Отменить</button>
+        <button id="redoBtn" title="Вернуть (Ctrl+Y)">↪ Вернуть</button>
     </div>
     <div class="status-area" id="statusArea">Редактор готов</div>
 </div>
@@ -399,59 +350,40 @@
         <div class="new-topic-bottom">
             <button id="newBtn">+ Создать тему</button>
         </div>
-        <div class="small-note">Клик по теме — выделить. Перетащите за любой участок строки: в середину другой → сделать дочерней; между строк → изменить порядок.</div>
-        <div class="small-note">Автосохранение изменений темы при потере фокуса. Дубликаты ID удаляются автоматически.</div>
+        <div class="small-note">Клик — выделить. Перетащите за строку: в середину → сделать дочерней; между строк → изменить порядок.</div>
     </div>
 
     <div class="editor-panel">
         <div class="tabs">
             <button class="tab-btn active" data-tab="editor">Редактор темы</button>
             <button class="tab-btn" data-tab="json">JSON-редактор</button>
+            <button class="tab-btn" id="commitsTabBtn" data-tab="commits">Коммиты GitHub</button>
         </div>
         
         <div id="tab-editor" class="tab-content active">
             <div class="form-row">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
                     <label>ID (авто из названия)</label>
-                    <button id="manualSaveBtn" style="background: #2a4a5a; padding: 4px 12px; font-size: 0.7rem;">Сохранить тему</button>
+                    <button id="manualSaveBtn" style="background:#2a4a5a; padding:4px 12px; font-size:0.7rem;">Сохранить тему</button>
                 </div>
                 <input type="text" id="topicId" readonly>
             </div>
-            <div class="form-row">
-                <label>Название</label>
-                <input type="text" id="topicName">
-            </div>
-            <div class="form-row">
-                <label>Ключевые слова (через запятую)</label>
-                <input type="text" id="topicKeywords">
-            </div>
-            <div class="form-row">
-                <label>Родитель (parent)</label>
-                <select id="topicParent"></select>
-            </div>
-            <div class="form-row">
-                <label>Иконка</label>
-                <select id="topicIcon">
-                    <option value="fa-folder">fa-folder</option>
-                    <option value="fa-file-alt">fa-file-alt</option>
-                    <option value="fa-star">fa-star</option>
-                    <option value="fa-circle">fa-circle</option>
-                    <option value="fa-square">fa-square</option>
-                    <option value="fa-chalkboard">fa-chalkboard</option>
-                </select>
-            </div>
-            <div class="form-row">
-                <label>Класс (gradeLevel)</label>
-                <select id="topicGrade">
-                    <option>1</option><option>2</option><option>3</option><option>4</option><option>5</option>
-                    <option>6</option><option>7</option><option>8</option><option>9</option><option>10</option><option>11</option>
-                </select>
-            </div>
-            <div class="form-row">
-                <label>Пример (HTML-код)</label>
+            <div class="form-row"><label>Название</label><input type="text" id="topicName"></div>
+            <div class="form-row"><label>Ключевые слова (через запятую)</label><input type="text" id="topicKeywords"></div>
+            <div class="form-row"><label>Родитель</label><select id="topicParent"></select></div>
+            <div class="form-row"><label>Иконка</label><select id="topicIcon">
+                <option value="fa-folder">fa-folder</option><option value="fa-file-alt">fa-file-alt</option>
+                <option value="fa-star">fa-star</option><option value="fa-circle">fa-circle</option>
+                <option value="fa-square">fa-square</option><option value="fa-chalkboard">fa-chalkboard</option>
+            </select></div>
+            <div class="form-row"><label>Класс</label><select id="topicGrade">
+                <option>1</option><option>2</option><option>3</option><option>4</option><option>5</option>
+                <option>6</option><option>7</option><option>8</option><option>9</option><option>10</option><option>11</option>
+            </select></div>
+            <div class="form-row"><label>Пример (HTML-код)</label>
                 <textarea id="exampleHtmlSource" rows="8"></textarea>
                 <div class="html-preview">
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+                    <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
                         <span style="font-size:0.7rem;">Предпросмотр</span>
                         <button id="refreshPreviewBtn" class="tool-btn">Обновить</button>
                     </div>
@@ -459,7 +391,7 @@
                 </div>
             </div>
             <div class="form-row">
-                <label>Описание (визуальный редактор)</label>
+                <label>Описание</label>
                 <div class="toolbar">
                     <button class="tool-btn" id="boldBtn">B</button>
                     <button class="tool-btn" id="italicBtn">I</button>
@@ -470,12 +402,10 @@
                     <button class="tool-btn" id="leqSym">≤</button><button class="tool-btn" id="geqSym">≥</button>
                     <button class="tool-btn" id="timesSym">×</button><button class="tool-btn" id="divSym">÷</button>
                     <div class="mode-toggle">
-                        <input type="checkbox" id="plainTextMode">
-                        <label for="plainTextMode" style="font-size:0.7rem;">Обычный текст внутри форматирования</label>
+                        <input type="checkbox" id="plainTextMode"><label for="plainTextMode" style="font-size:0.7rem;">Обычный текст внутри форматирования</label>
                     </div>
                 </div>
                 <div id="descriptionEditor" class="rich-editor" contenteditable="true"></div>
-                <div class="small-note">При включённом режиме печать внутри жирного текста или ссылки не наследует форматирование.</div>
             </div>
         </div>
         
@@ -487,10 +417,20 @@
                 <button id="validateJsonBtn">Проверить JSON</button>
             </div>
         </div>
+        
+        <div id="tab-commits" class="tab-content">
+            <div class="form-row">
+                <button id="loadCommitsBtn" style="background:#2a4a5a;">Загрузить коммиты</button>
+                <button id="refreshCommitsBtn" style="margin-left:10px;">Обновить</button>
+            </div>
+            <div id="commitsList" class="commits-list">
+                <div class="small-note">Нажмите "Загрузить коммиты" для получения списка.</div>
+            </div>
+        </div>
     </div>
 </div>
 
-<div class="toast-area"><div id="toastMsg" class="toast"></div></div>
+<div id="toastMsg" class="toast" style="position:fixed; bottom:20px; right:20px; z-index:1000;"></div>
 
 <script>
     let topics = [];
@@ -499,49 +439,68 @@
     let searchQuery = '';
     let autoSaveEnabled = true;
     let plainTextMode = false;
-
-    // Авто-сохранение в localStorage
+    
+    // История действий (Undo/Redo)
+    let historyStack = [];
+    let historyIndex = -1;
+    const MAX_HISTORY = 100;
+    
+    function pushToHistory() {
+        if (!autoSaveEnabled) return;
+        const snapshot = JSON.stringify({ topics, selectedId, expandedState: Array.from(expandedState) });
+        if (historyIndex < historyStack.length - 1) {
+            historyStack = historyStack.slice(0, historyIndex + 1);
+        }
+        historyStack.push(snapshot);
+        if (historyStack.length > MAX_HISTORY) historyStack.shift();
+        historyIndex = historyStack.length - 1;
+        updateUndoRedoButtons();
+    }
+    
+    function undo() {
+        if (historyIndex > 0) {
+            historyIndex--;
+            restoreFromSnapshot(historyStack[historyIndex]);
+            showToast('Отменено');
+        }
+    }
+    
+    function redo() {
+        if (historyIndex < historyStack.length - 1) {
+            historyIndex++;
+            restoreFromSnapshot(historyStack[historyIndex]);
+            showToast('Возвращено');
+        }
+    }
+    
+    function restoreFromSnapshot(snapshot) {
+        const data = JSON.parse(snapshot);
+        topics = data.topics;
+        selectedId = data.selectedId;
+        expandedState = new Set(data.expandedState);
+        renderTree();
+        fillFormBySelectedNoSave();
+        updateJsonEditor();
+        saveToLocalStorage();
+        updateUndoRedoButtons();
+    }
+    
+    function updateUndoRedoButtons() {
+        const undoBtn = document.getElementById('undoBtn');
+        const redoBtn = document.getElementById('redoBtn');
+        if (undoBtn) undoBtn.style.opacity = historyIndex <= 0 ? '0.5' : '1';
+        if (redoBtn) redoBtn.style.opacity = historyIndex >= historyStack.length - 1 ? '0.5' : '1';
+    }
+    
+    // localStorage
     const STORAGE_KEY = 'geometry_editor_topics';
     const EXPANDED_KEY = 'geometry_editor_expanded';
-
-    const GITHUB_TOKEN = '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';
-    const GITHUB_OWNER = 'DaniksGames5242';
-    const GITHUB_REPO = 'MathFrame.github.io';
-    const GITHUB_PATH = 'config.json';
-    const GITHUB_BRANCH = 'main';
-
-    const exampleHtmlSource = document.getElementById('exampleHtmlSource');
-    const examplePreview = document.getElementById('examplePreview');
-    const refreshPreviewBtn = document.getElementById('refreshPreviewBtn');
-    const descriptionEditor = document.getElementById('descriptionEditor');
-    const topicNameInput = document.getElementById('topicName');
-    const topicKeywordsInput = document.getElementById('topicKeywords');
-    const topicParentSelect = document.getElementById('topicParent');
-    const topicIconSelect = document.getElementById('topicIcon');
-    const topicGradeSelect = document.getElementById('topicGrade');
-    const searchInput = document.getElementById('searchTopicsInput');
-    const jsonEditor = document.getElementById('jsonEditor');
-    const toastMsg = document.getElementById('toastMsg');
-    const plainTextCheckbox = document.getElementById('plainTextMode');
-
-    const boldBtn = document.getElementById('boldBtn');
-    const italicBtn = document.getElementById('italicBtn');
-    const clearFormatBtn = document.getElementById('clearFormatBtn');
-    const linkDescBtn = document.getElementById('linkDescBtn');
-    const sqrtSym = document.getElementById('sqrtSym');
-    const piSym = document.getElementById('piSym');
-    const alphaSym = document.getElementById('alphaSym');
-    const neqSym = document.getElementById('neqSym');
-    const leqSym = document.getElementById('leqSym');
-    const geqSym = document.getElementById('geqSym');
-    const timesSym = document.getElementById('timesSym');
-    const divSym = document.getElementById('divSym');
-
+    
     function saveToLocalStorage() {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(topics));
         localStorage.setItem(EXPANDED_KEY, JSON.stringify(Array.from(expandedState)));
     }
-
+    
     function loadFromLocalStorage() {
         const saved = localStorage.getItem(STORAGE_KEY);
         if (saved) {
@@ -552,70 +511,52 @@
                     topics.forEach((t, i) => { if (!t.order) t.order = i; if (!t.keywords) t.keywords = []; if (!t.icon) t.icon = 'fa-file-alt'; if (!t.example) t.example = ''; if (!t.description) t.description = '<p></p>'; });
                     selectedId = topics[0]?.id || null;
                     const savedExpanded = localStorage.getItem(EXPANDED_KEY);
-                    if (savedExpanded) {
-                        expandedState = new Set(JSON.parse(savedExpanded));
-                    } else {
-                        expandedState.clear();
-                        topics.forEach(t => { if (topics.some(ch => ch.parent === t.id)) expandedState.add(t.id); });
-                    }
-                    renderTree();
-                    fillFormBySelectedNoSave();
-                    updateJsonEditor();
-                    showToast('Данные восстановлены из кеша');
+                    if (savedExpanded) expandedState = new Set(JSON.parse(savedExpanded));
+                    else { expandedState.clear(); topics.forEach(t => { if (topics.some(ch => ch.parent === t.id)) expandedState.add(t.id); }); }
+                    renderTree(); fillFormBySelectedNoSave(); updateJsonEditor();
+                    pushToHistory();
                     return true;
                 }
             } catch(e) {}
         }
         return false;
     }
-
+    
     function showToast(text, isError = false) {
-        toastMsg.textContent = text;
-        toastMsg.classList.remove('show', 'error');
-        if (isError) toastMsg.classList.add('error');
-        toastMsg.classList.add('show');
-        setTimeout(() => toastMsg.classList.remove('show'), 2500);
+        const toast = document.getElementById('toastMsg');
+        toast.textContent = text;
+        toast.classList.remove('show', 'error');
+        if (isError) toast.classList.add('error');
+        toast.classList.add('show');
+        setTimeout(() => toast.classList.remove('show'), 2500);
     }
-
+    
     function removeDuplicateIds(data) {
         const seen = new Map();
         for (let i = data.length - 1; i >= 0; i--) {
             const item = data[i];
-            if (item && item.id) {
-                if (!seen.has(item.id)) {
-                    seen.set(item.id, item);
-                }
-            }
+            if (item && item.id && !seen.has(item.id)) seen.set(item.id, item);
         }
-        const result = Array.from(seen.values());
-        result.reverse();
-        return result;
+        return Array.from(seen.values()).reverse();
     }
-
+    
     function updatePreview() {
         let html = exampleHtmlSource.value;
-        if (!html.toLowerCase().includes('<html')) {
-            html = `<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body>${html}</body></html>`;
-        }
+        if (!html.toLowerCase().includes('<html')) html = `<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body>${html}</body></html>`;
         const doc = examplePreview.contentDocument || examplePreview.contentWindow.document;
-        doc.open();
-        doc.write(html);
-        doc.close();
+        doc.open(); doc.write(html); doc.close();
     }
     let previewTimeout = null;
-    exampleHtmlSource.addEventListener('input', () => {
-        if (previewTimeout) clearTimeout(previewTimeout);
-        previewTimeout = setTimeout(updatePreview, 400);
-    });
+    exampleHtmlSource.addEventListener('input', () => { clearTimeout(previewTimeout); previewTimeout = setTimeout(updatePreview, 400); });
     refreshPreviewBtn.addEventListener('click', updatePreview);
-
+    
     function transliterate(word) {
         const map = {'а':'a','б':'b','в':'v','г':'g','д':'d','е':'e','ё':'e','ж':'zh','з':'z','и':'i','й':'y',
             'к':'k','л':'l','м':'m','н':'n','о':'o','п':'p','р':'r','с':'s','т':'t','у':'u','ф':'f',
             'х':'h','ц':'ts','ч':'ch','ш':'sh','щ':'sch','ъ':'','ы':'y','ь':'','э':'e','ю':'yu','я':'ya'};
         return word.split('').map(ch => map[ch] || (/[a-zA-Z0-9]/i.test(ch) ? ch : '')).join('');
     }
-
+    
     function generateIdFromName(name, excludeId = null) {
         if (!name) return "topic";
         let base = transliterate(name.toLowerCase()).replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
@@ -624,7 +565,7 @@
         while (topics.some(t => t.id === candidate && t.id !== excludeId)) candidate = `${base}_${counter++}`;
         return candidate;
     }
-
+    
     let saveTimeout = null;
     function saveCurrentTopic(showMsg = false) {
         if (!autoSaveEnabled || !selectedId) return;
@@ -656,19 +597,14 @@
             fillFormFieldsOnly();
             updateJsonEditor();
             saveToLocalStorage();
+            pushToHistory();
             if (showMsg) showToast('Тема сохранена');
             document.getElementById('statusArea').innerText = `Сохранено: ${newName}`;
         }, 50);
     }
-
-    function manualSave() {
-        if (selectedId) {
-            saveCurrentTopic(true);
-        } else {
-            showToast('Нет выбранной темы', true);
-        }
-    }
-
+    
+    function manualSave() { if (selectedId) saveCurrentTopic(true); else showToast('Нет выбранной темы', true); }
+    
     function fillFormFieldsOnly() {
         if (!selectedId) return;
         const t = topics.find(t => t.id === selectedId);
@@ -682,7 +618,7 @@
         exampleHtmlSource.value = t.example || '';
         updatePreview();
     }
-
+    
     function fillFormBySelectedNoSave() {
         if (!selectedId) return;
         const t = topics.find(t => t.id === selectedId);
@@ -698,7 +634,7 @@
         exampleHtmlSource.value = t.example || '';
         updatePreview();
     }
-
+    
     function updateLinkColors() {
         document.querySelectorAll('#descriptionEditor .inline-link').forEach(link => {
             const exists = topics.some(t => t.id === link.getAttribute('data-topic-id'));
@@ -706,9 +642,9 @@
             link.classList.add(exists ? 'valid' : 'invalid');
         });
     }
-
+    
     function updateJsonEditor() { jsonEditor.value = JSON.stringify(topics, null, 2); }
-
+    
     function applyJson() {
         try {
             let parsed = JSON.parse(jsonEditor.value);
@@ -719,54 +655,31 @@
             selectedId = topics[0]?.id || null;
             expandedState.clear();
             topics.forEach(t => { if (topics.some(ch => ch.parent === t.id)) expandedState.add(t.id); });
-            renderTree(); fillFormBySelectedNoSave(); updateJsonEditor(); saveToLocalStorage();
+            renderTree(); fillFormBySelectedNoSave(); updateJsonEditor(); saveToLocalStorage(); pushToHistory();
             showToast('JSON применён');
         } catch(e) { showToast('Ошибка JSON', true); }
     }
-
-    function formatJson() {
-        try { jsonEditor.value = JSON.stringify(JSON.parse(jsonEditor.value), null, 2); showToast('Форматировано'); }
-        catch(e) { showToast('Ошибка форматирования', true); }
-    }
-    function validateJson() {
-        try { JSON.parse(jsonEditor.value); showToast('JSON корректен'); }
-        catch(e) { showToast('Ошибка: ' + e.message, true); }
-    }
-
+    
+    function formatJson() { try { jsonEditor.value = JSON.stringify(JSON.parse(jsonEditor.value), null, 2); showToast('Форматировано'); } catch(e) { showToast('Ошибка форматирования', true); } }
+    function validateJson() { try { JSON.parse(jsonEditor.value); showToast('JSON корректен'); } catch(e) { showToast('Ошибка: ' + e.message, true); } }
     function isCyclic(topicId, newParentId) {
         if (!newParentId) return false;
         let cur = newParentId;
         while (cur) { if (cur === topicId) return true; let p = topics.find(t => t.id === cur); if (!p) break; cur = p.parent; }
         return false;
     }
-
     function escapeHtml(str) { return String(str).replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'})[m]); }
-
-    // Drag and drop с автоматической прокруткой
+    
+    // Drag and drop с прокруткой
     let dragSourceId = null, dragTargetElement = null, dropMode = null;
     let scrollInterval = null;
-    const SCROLL_SPEED = 15;
-    const SCROLL_ZONE = 80;
-
+    const SCROLL_SPEED = 15, SCROLL_ZONE = 80;
     function startAutoScroll(direction) {
         if (scrollInterval) clearInterval(scrollInterval);
         const container = document.getElementById('topicList');
-        scrollInterval = setInterval(() => {
-            if (direction === 'up') {
-                container.scrollTop -= SCROLL_SPEED;
-            } else {
-                container.scrollTop += SCROLL_SPEED;
-            }
-        }, 30);
+        scrollInterval = setInterval(() => { container.scrollTop += direction === 'up' ? -SCROLL_SPEED : SCROLL_SPEED; }, 30);
     }
-
-    function stopAutoScroll() {
-        if (scrollInterval) {
-            clearInterval(scrollInterval);
-            scrollInterval = null;
-        }
-    }
-
+    function stopAutoScroll() { if (scrollInterval) { clearInterval(scrollInterval); scrollInterval = null; } }
     function handleDragStart(e) {
         const row = e.target.closest('.topic-row');
         if (!row) { e.preventDefault(); return; }
@@ -775,23 +688,13 @@
         e.dataTransfer.effectAllowed = 'move';
         row.classList.add('dragging');
     }
-
     function handleDragOver(e) {
         e.preventDefault();
-        e.dataTransfer.dropEffect = 'move';
-        
-        // Автоматическая прокрутка
         const container = document.getElementById('topicList');
         const rect = container.getBoundingClientRect();
-        const mouseY = e.clientY;
-        if (mouseY < rect.top + SCROLL_ZONE) {
-            startAutoScroll('up');
-        } else if (mouseY > rect.bottom - SCROLL_ZONE) {
-            startAutoScroll('down');
-        } else {
-            stopAutoScroll();
-        }
-        
+        if (e.clientY < rect.top + SCROLL_ZONE) startAutoScroll('up');
+        else if (e.clientY > rect.bottom - SCROLL_ZONE) startAutoScroll('down');
+        else stopAutoScroll();
         const row = e.target.closest('.topic-row');
         if (!row || row.getAttribute('data-id') === dragSourceId) return;
         const rowRect = row.getBoundingClientRect();
@@ -803,7 +706,6 @@
         else if (isLower) { row.classList.add('drag-over-bottom'); dropMode = 'after'; dragTargetElement = row; }
         else { row.classList.add('drag-over-child'); dropMode = 'child'; dragTargetElement = row; }
     }
-
     function handleDrop(e) {
         e.preventDefault();
         stopAutoScroll();
@@ -812,7 +714,6 @@
         const targetId = dragTargetElement.getAttribute('data-id');
         const target = topics.find(t => t.id === targetId);
         if (!source || !target) { cleanDrag(); return; }
-        
         if (dropMode === 'child') {
             if (isCyclic(dragSourceId, targetId)) { showToast('Циклическая зависимость', true); cleanDrag(); return; }
             source.parent = targetId;
@@ -835,26 +736,21 @@
             }
             showToast(`Порядок обновлён`);
         }
-        
         topics = removeDuplicateIds(topics);
         renderTree();
         if (selectedId === source.id) fillFormBySelectedNoSave();
         saveCurrentTopic(true);
         updateJsonEditor();
         saveToLocalStorage();
+        pushToHistory();
         cleanDrag();
     }
-    
-    function handleDragEnd(e) {
-        stopAutoScroll();
-        cleanDrag();
-    }
-    
+    function handleDragEnd(e) { stopAutoScroll(); cleanDrag(); }
     function cleanDrag() {
         document.querySelectorAll('.topic-row').forEach(r => r.classList.remove('drag-over-top', 'drag-over-bottom', 'drag-over-child', 'dragging'));
         dragSourceId = null; dragTargetElement = null; dropMode = null;
     }
-
+    
     function renderTree() {
         const container = document.getElementById('topicList');
         if (!container) return;
@@ -878,7 +774,7 @@
                 const hasChildren = topics.some(t => t.parent === node.id);
                 const expand = document.createElement('button'); expand.className = 'expand-btn'; expand.textContent = hasChildren ? (expandedState.has(node.id) ? '▼' : '▶') : '•';
                 expand.style.visibility = hasChildren ? 'visible' : 'hidden';
-                expand.onclick = (e) => { e.stopPropagation(); if (hasChildren) { if (expandedState.has(node.id)) expandedState.delete(node.id); else expandedState.add(node.id); renderTree(); saveToLocalStorage(); } };
+                expand.onclick = (e) => { e.stopPropagation(); if (hasChildren) { if (expandedState.has(node.id)) expandedState.delete(node.id); else expandedState.add(node.id); renderTree(); saveToLocalStorage(); pushToHistory(); } };
                 const iconSpan = document.createElement('span'); iconSpan.className = 'topic-icon-display';
                 const icons = { 'fa-folder':'📁', 'fa-file-alt':'📄', 'fa-star':'⭐', 'fa-circle':'⚫', 'fa-square':'⬛', 'fa-chalkboard':'📐' };
                 iconSpan.textContent = icons[node.icon] || '📄';
@@ -887,7 +783,7 @@
                 const pt = topics.find(p => p.id === node.parent); parentSpan.textContent = pt ? `(${pt.name})` : '(корень)';
                 left.appendChild(expand); left.appendChild(iconSpan); left.appendChild(nameSpan); left.appendChild(parentSpan);
                 const del = document.createElement('button'); del.className = 'del-topic'; del.textContent = '✖';
-                del.onclick = (e) => { e.stopPropagation(); if (confirm('Удалить тему?')) { topics = topics.filter(t => t.id !== node.id); if (selectedId === node.id) selectedId = topics[0]?.id || null; renderTree(); fillFormBySelectedNoSave(); updateJsonEditor(); saveToLocalStorage(); showToast('Тема удалена'); } };
+                del.onclick = (e) => { e.stopPropagation(); if (confirm('Удалить тему?')) { topics = topics.filter(t => t.id !== node.id); if (selectedId === node.id) selectedId = topics[0]?.id || null; renderTree(); fillFormBySelectedNoSave(); updateJsonEditor(); saveToLocalStorage(); pushToHistory(); showToast('Тема удалена'); } };
                 row.appendChild(left); row.appendChild(del);
                 row.addEventListener('click', (e) => { if (e.target === del || e.target === expand) return; saveCurrentTopic(false); selectedId = node.id; renderTree(); fillFormBySelectedNoSave(); });
                 li.appendChild(row);
@@ -901,11 +797,11 @@
         if (root) container.appendChild(root);
         else container.innerHTML = '<div style="padding:10px;">Нет тем</div>';
     }
-
+    
     // Импорт/экспорт
     function exportLocal() {
         const data = JSON.stringify(topics, null, 2);
-        const blob = new Blob([data], {type: 'application/json'});
+        const blob = new Blob([data], {type:'application/json'});
         const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'topics_backup.json'; a.click(); URL.revokeObjectURL(blob);
         showToast('Экспорт выполнен');
     }
@@ -921,13 +817,12 @@
                 selectedId = topics[0]?.id || null;
                 expandedState.clear();
                 topics.forEach(t => { if (topics.some(ch => ch.parent === t.id)) expandedState.add(t.id); });
-                renderTree(); fillFormBySelectedNoSave(); updateJsonEditor(); saveToLocalStorage();
+                renderTree(); fillFormBySelectedNoSave(); updateJsonEditor(); saveToLocalStorage(); pushToHistory();
                 showToast('Импорт выполнен');
             } catch(e) { showToast('Ошибка импорта', true); }
         };
         reader.readAsText(file);
     }
-
     function importShortJSON(file) {
         const reader = new FileReader();
         reader.onload = (e) => {
@@ -940,45 +835,111 @@
                     if (!Array.isArray(item) || item.length < 5) continue;
                     const [id, name, grade, kw, parent] = item;
                     if (existingIds.has(String(id))) continue;
-                    topics.push({
-                        id: String(id), name: String(name), gradeLevel: parseInt(grade) || 3,
+                    topics.push({ id: String(id), name: String(name), gradeLevel: parseInt(grade) || 3,
                         keywords: typeof kw === 'string' ? kw.split(',').map(k=>k.trim()).filter(k=>k) : [],
                         parent: parent === null || parent === '' ? null : String(parent),
-                        icon: 'fa-file-alt', example: 'В разработке', description: '<p>В разработке</p>',
-                        order: topics.length
-                    });
+                        icon: 'fa-file-alt', example: 'В разработке', description: '<p>В разработке</p>', order: topics.length });
                     added++;
                 }
                 if (added) {
                     topics = removeDuplicateIds(topics);
                     topics.forEach((t,i)=>t.order=i);
-                    renderTree(); fillFormBySelectedNoSave(); updateJsonEditor(); saveToLocalStorage();
+                    renderTree(); fillFormBySelectedNoSave(); updateJsonEditor(); saveToLocalStorage(); pushToHistory();
                     showToast(`Добавлено ${added} тем`);
                 } else showToast('Нет новых тем', true);
             } catch(e) { showToast('Ошибка', true); }
         };
         reader.readAsText(file);
     }
-
-    function saveToGitHub() {
-        if (!confirm('Вы уверены, что хотите сохранить текущий конфиг в GitHub? Файл config.json будет перезаписан.')) return;
-        const content = JSON.stringify(topics, null, 2);
-        const encoded = btoa(unescape(encodeURIComponent(content)));
-        showToast('Сохранение в GitHub...');
-        fetch(`https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${GITHUB_PATH}`, { headers: { 'Authorization': `token ${GITHUB_TOKEN}` } })
-        .then(res => res.json())
-        .then(data => fetch(`https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${GITHUB_PATH}`, {
-            method: 'PUT', headers: { 'Authorization': `token ${GITHUB_TOKEN}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message: 'Update config', content: encoded, sha: data.sha || null, branch: GITHUB_BRANCH })
-        }))
-        .then(res => res.json())
-        .then(data => { if (data.content) { showToast('Сохранено в GitHub'); document.getElementById('statusArea').innerText = 'Сохранено в GitHub'; } else showToast('Ошибка: ' + (data.message || '?'), true); })
-        .catch(err => showToast('Ошибка: ' + err.message, true));
+    
+    function resetLocalChanges() {
+        if (confirm('ВНИМАНИЕ! Это действие сбросит все несохранённые в GitHub изменения. Вы уверены?')) {
+            loadFromLocalStorage();
+            showToast('Локальные изменения сброшены к последнему сохранённому состоянию');
+        }
     }
-
-    function clearGitHubData() { localStorage.removeItem('github_token'); showToast('Локальные данные GitHub очищены'); }
-
-    // === РЕЖИМ ОБЫЧНОГО ТЕКСТА ===
+    
+    // GitHub коммиты
+    const GITHUB_TOKEN = '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';
+    const GITHUB_OWNER = 'DaniksGames5242';
+    const GITHUB_REPO = 'MathFrame.github.io';
+    const GITHUB_PATH = 'config.json';
+    const GITHUB_BRANCH = 'main';
+    
+    let commitsList = [];
+    async function loadCommits() {
+        showToast('Загрузка коммитов...');
+        try {
+            const res = await fetch(`https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/commits`, {
+                headers: { 'Authorization': `token ${GITHUB_TOKEN}` }
+            });
+            const data = await res.json();
+            if (Array.isArray(data)) {
+                commitsList = data;
+                displayCommits(commitsList);
+                showToast(`Загружено ${commitsList.length} коммитов`);
+            } else {
+                showToast('Ошибка загрузки коммитов', true);
+            }
+        } catch(e) { showToast('Ошибка: ' + e.message, true); }
+    }
+    
+    function displayCommits(commits) {
+        const container = document.getElementById('commitsList');
+        if (!container) return;
+        container.innerHTML = commits.map(c => `
+            <div class="commit-item" data-sha="${c.sha}">
+                <div><strong>${c.commit.message.split('\n')[0]}</strong></div>
+                <div style="font-size:0.7rem; color:#aaa;">${c.sha.substring(0,7)} - ${new Date(c.commit.author.date).toLocaleString()}</div>
+                <div style="font-size:0.7rem;">${c.commit.author.name}</div>
+            </div>
+        `).join('');
+        document.querySelectorAll('.commit-item').forEach(el => {
+            el.addEventListener('click', () => rollbackToCommit(el.dataset.sha));
+        });
+    }
+    
+    async function rollbackToCommit(sha) {
+        if (!confirm('ВНИМАНИЕ! Это действие перезапишет текущий config.json в репозитории на состояние выбранного коммита. Текущие несохранённые изменения будут потеряны. Продолжить?')) return;
+        showToast('Восстановление коммита...');
+        try {
+            const res = await fetch(`https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${GITHUB_PATH}?ref=${sha}`, {
+                headers: { 'Authorization': `token ${GITHUB_TOKEN}` }
+            });
+            const data = await res.json();
+            if (data.content) {
+                const content = atob(data.content);
+                const parsed = JSON.parse(content);
+                if (Array.isArray(parsed)) {
+                    topics = parsed;
+                    topics.forEach((t,i) => { if (!t.order) t.order = i; if (!t.keywords) t.keywords = []; if (!t.icon) t.icon = 'fa-file-alt'; if (!t.example) t.example = ''; if (!t.description) t.description = '<p></p>'; });
+                    selectedId = topics[0]?.id || null;
+                    expandedState.clear();
+                    topics.forEach(t => { if (topics.some(ch => ch.parent === t.id)) expandedState.add(t.id); });
+                    renderTree(); fillFormBySelectedNoSave(); updateJsonEditor(); saveToLocalStorage(); pushToHistory();
+                    showToast(`Восстановлен коммит ${sha.substring(0,7)}`);
+                }
+            } else throw new Error();
+        } catch(e) { showToast('Ошибка восстановления: ' + e.message, true); }
+    }
+    
+    // Предупреждение для опасных действий
+    function showWarningDialog(onConfirm, title = 'ВНИМАНИЕ!', message = '') {
+        const overlay = document.createElement('div'); overlay.className = 'overlay-warning';
+        const dialog = document.createElement('div'); dialog.className = 'warning-dialog';
+        dialog.innerHTML = `
+            <h2>⚠️ ${title} ⚠️</h2>
+            <p>${message || 'Это действие может привести к потере данных или необратимым изменениям.'}<br><br>Пожалуйста, убедитесь, что вы понимаете риски.</p>
+            <p><strong style="color:#ff7b72;">ПОДТВЕРДИТЕ ДЕЙСТВИЕ:</strong></p>
+            <div><button id="warningConfirmBtn" style="background:#5a2a2a;">ДА, Я ПОНИМАЮ РИСКИ</button><button id="warningCancelBtn">Отмена</button></div>
+        `;
+        document.body.appendChild(overlay);
+        document.body.appendChild(dialog);
+        document.getElementById('warningConfirmBtn').onclick = () => { onConfirm(); overlay.remove(); dialog.remove(); };
+        document.getElementById('warningCancelBtn').onclick = () => { overlay.remove(); dialog.remove(); };
+    }
+    
+    // === Режим обычного текста ===
     function insertPlainText(text) {
         const sel = window.getSelection();
         if (!sel.rangeCount) return false;
@@ -992,12 +953,11 @@
         sel.addRange(range);
         return true;
     }
-
     descriptionEditor.addEventListener('keydown', (e) => {
         if (!plainTextMode) return;
-        const allowed = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'PageUp', 'PageDown', 'Backspace', 'Delete', 'Enter', 'Tab', 'Escape'];
+        const allowed = ['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End','PageUp','PageDown','Backspace','Delete','Enter','Tab','Escape'];
         if (allowed.includes(e.key)) return;
-        if (e.ctrlKey && ['z', 'y', 'x', 'c', 'v', 'a'].includes(e.key.toLowerCase())) return;
+        if (e.ctrlKey && ['z','y','x','c','v','a'].includes(e.key.toLowerCase())) return;
         if (e.key === 'Enter' && e.shiftKey) return;
         if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
             e.preventDefault();
@@ -1005,12 +965,10 @@
             saveCurrentTopic(false);
         }
     });
-    
     descriptionEditor.addEventListener('paste', (e) => {
         if (plainTextMode) {
             e.preventDefault();
-            const text = (e.clipboardData || window.clipboardData).getData('text/plain');
-            insertPlainText(text);
+            insertPlainText((e.clipboardData || window.clipboardData).getData('text/plain'));
             updateLinkColors();
             saveCurrentTopic(false);
         }
@@ -1018,53 +976,23 @@
     
     function updateButtonsState() {
         const btns = [boldBtn, italicBtn, sqrtSym, piSym, alphaSym, neqSym, leqSym, geqSym, timesSym, divSym];
-        btns.forEach(btn => {
-            if (plainTextMode) {
-                btn.classList.add('disabled');
-            } else {
-                btn.classList.remove('disabled');
-            }
-        });
+        btns.forEach(btn => { if (plainTextMode) btn.classList.add('disabled'); else btn.classList.remove('disabled'); });
     }
+    plainTextCheckbox.addEventListener('change', (e) => { plainTextMode = e.target.checked; updateButtonsState(); descriptionEditor.focus(); });
     
-    plainTextCheckbox.addEventListener('change', (e) => {
-        plainTextMode = e.target.checked;
-        updateButtonsState();
-        descriptionEditor.focus();
-        if (plainTextMode) {
-            showToast('Режим обычного текста включён.');
-        } else {
-            showToast('Режим обычного текста выключен.');
-        }
-    });
-
-    // === ОСТАЛЬНЫЕ ФУНКЦИИ РЕДАКТОРА ===
     function clearFormatting() {
         document.execCommand('removeFormat');
         const sel = window.getSelection();
         if (sel.rangeCount > 0 && descriptionEditor.contains(sel.anchorNode)) {
             const range = sel.getRangeAt(0);
-            const links = descriptionEditor.querySelectorAll('.inline-link');
-            links.forEach(link => {
-                if (range.intersectsNode(link)) {
-                    const textNode = document.createTextNode(link.textContent);
-                    link.parentNode.replaceChild(textNode, link);
-                }
-            });
+            descriptionEditor.querySelectorAll('.inline-link').forEach(link => { if (range.intersectsNode(link)) { const textNode = document.createTextNode(link.textContent); link.parentNode.replaceChild(textNode, link); } });
         } else {
-            const links = descriptionEditor.querySelectorAll('.inline-link');
-            links.forEach(link => {
-                const textNode = document.createTextNode(link.textContent);
-                link.parentNode.replaceChild(textNode, link);
-            });
+            descriptionEditor.querySelectorAll('.inline-link').forEach(link => { const textNode = document.createTextNode(link.textContent); link.parentNode.replaceChild(textNode, link); });
         }
-        descriptionEditor.focus();
-        updateLinkColors();
-        saveCurrentTopic(false);
+        descriptionEditor.focus(); updateLinkColors(); saveCurrentTopic(false);
     }
-
-    let savedRange = null;
-    let savedText = '';
+    
+    let savedRange = null, savedText = '';
     function saveSelection() {
         const sel = window.getSelection();
         if (sel.rangeCount > 0 && descriptionEditor.contains(sel.anchorNode)) {
@@ -1075,7 +1003,7 @@
     descriptionEditor.addEventListener('mouseup', saveSelection);
     descriptionEditor.addEventListener('keyup', saveSelection);
     descriptionEditor.addEventListener('click', saveSelection);
-
+    
     function showTopicSelector(callback) {
         const others = topics.filter(t => t.id !== selectedId);
         if (!others.length) { alert('Нет других тем'); return; }
@@ -1095,29 +1023,18 @@
         dlg.querySelector('#tsOk').onclick = () => { const t = topics.find(t => t.id === sel.value); if (t) callback(t); close(); };
         dlg.querySelector('#tsCancel').onclick = close; ov.onclick = close;
     }
-
+    
     function insertTopicLink() {
         const sel = window.getSelection();
-        if (!sel.rangeCount || !descriptionEditor.contains(sel.anchorNode)) {
-            alert('Сначала выделите текст в описании');
-            return;
-        }
+        if (!sel.rangeCount || !descriptionEditor.contains(sel.anchorNode)) { alert('Выделите текст'); return; }
         const selectedText = sel.toString().trim();
-        if (!selectedText) {
-            alert('Выделите текст, который нужно сделать ссылкой');
-            return;
-        }
+        if (!selectedText) { alert('Выделите текст'); return; }
         const range = sel.getRangeAt(0).cloneRange();
-        
         showTopicSelector((topic) => {
             descriptionEditor.focus();
             const newSel = window.getSelection();
-            newSel.removeAllRanges();
-            newSel.addRange(range);
-            if (newSel.toString() !== selectedText) {
-                alert('Выделение изменилось, попробуйте ещё раз');
-                return;
-            }
+            newSel.removeAllRanges(); newSel.addRange(range);
+            if (newSel.toString() !== selectedText) { alert('Выделение изменилось'); return; }
             const span = document.createElement('span');
             span.className = 'inline-link';
             span.setAttribute('data-topic-id', topic.id);
@@ -1126,24 +1043,67 @@
             currentRange.deleteContents();
             currentRange.insertNode(span);
             const newRange = document.createRange();
-            newRange.setStartAfter(span);
-            newRange.setEndAfter(span);
-            newSel.removeAllRanges();
-            newSel.addRange(newRange);
+            newRange.setStartAfter(span); newRange.setEndAfter(span);
+            newSel.removeAllRanges(); newSel.addRange(newRange);
             updateLinkColors();
             saveCurrentTopic(true);
         });
     }
-
+    
     function newTopic() {
         const newId = generateIdFromName('Новая тема');
         topics.push({ id: newId, name: 'Новая тема', keywords: [], parent: null, icon: 'fa-file-alt', gradeLevel: 3, example: '', description: '<p>Новая тема</p>', order: topics.length });
         topics = removeDuplicateIds(topics);
         selectedId = newId; expandedState.add(newId);
-        renderTree(); fillFormBySelectedNoSave(); updateJsonEditor(); saveToLocalStorage();
+        renderTree(); fillFormBySelectedNoSave(); updateJsonEditor(); saveToLocalStorage(); pushToHistory();
         showToast('Тема создана');
     }
-
+    
+    function saveToGitHub() {
+        showWarningDialog(async () => {
+            const content = JSON.stringify(topics, null, 2);
+            const encoded = btoa(unescape(encodeURIComponent(content)));
+            showToast('Сохранение в GitHub...');
+            try {
+                const res = await fetch(`https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${GITHUB_PATH}`, { headers: { 'Authorization': `token ${GITHUB_TOKEN}` } });
+                const data = await res.json();
+                const sha = data.sha || null;
+                const putRes = await fetch(`https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${GITHUB_PATH}`, {
+                    method: 'PUT', headers: { 'Authorization': `token ${GITHUB_TOKEN}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: 'Update config', content: encoded, sha, branch: GITHUB_BRANCH })
+                });
+                const putData = await putRes.json();
+                if (putData.content) { showToast('Сохранено в GitHub'); document.getElementById('statusArea').innerText = 'Сохранено в GitHub'; }
+                else showToast('Ошибка: ' + (putData.message || '?'), true);
+            } catch(e) { showToast('Ошибка: ' + e.message, true); }
+        }, 'СОХРАНЕНИЕ В GITHUB', 'Вы собираетесь перезаписать файл config.json в репозитории. Это действие необратимо в рамках репозитория.');
+    }
+    
+    function clearGitHubData() { localStorage.removeItem('github_token'); showToast('Локальные данные GitHub очищены'); }
+    
+    // Инициализация DOM элементов
+    const exampleHtmlSource = document.getElementById('exampleHtmlSource');
+    const examplePreview = document.getElementById('examplePreview');
+    const refreshPreviewBtn = document.getElementById('refreshPreviewBtn');
+    const descriptionEditor = document.getElementById('descriptionEditor');
+    const topicNameInput = document.getElementById('topicName');
+    const topicKeywordsInput = document.getElementById('topicKeywords');
+    const topicParentSelect = document.getElementById('topicParent');
+    const topicIconSelect = document.getElementById('topicIcon');
+    const topicGradeSelect = document.getElementById('topicGrade');
+    const jsonEditor = document.getElementById('jsonEditor');
+    const plainTextCheckbox = document.getElementById('plainTextMode');
+    const boldBtn = document.getElementById('boldBtn');
+    const italicBtn = document.getElementById('italicBtn');
+    const sqrtSym = document.getElementById('sqrtSym');
+    const piSym = document.getElementById('piSym');
+    const alphaSym = document.getElementById('alphaSym');
+    const neqSym = document.getElementById('neqSym');
+    const leqSym = document.getElementById('leqSym');
+    const geqSym = document.getElementById('geqSym');
+    const timesSym = document.getElementById('timesSym');
+    const divSym = document.getElementById('divSym');
+    
     document.getElementById('newBtn').onclick = newTopic;
     document.getElementById('manualSaveBtn').onclick = manualSave;
     document.getElementById('exportLocalBtn').onclick = exportLocal;
@@ -1151,33 +1111,41 @@
     document.getElementById('localFileInput').onchange = (e) => { if(e.target.files[0]) importLocal(e.target.files[0]); e.target.value=''; };
     document.getElementById('addShortBtn').onclick = () => { const inp = document.createElement('input'); inp.type='file'; inp.accept='.json'; inp.onchange=(e)=>{ if(e.target.files[0]) importShortJSON(e.target.files[0]); }; inp.click(); };
     document.getElementById('saveToGitHubBtn').onclick = saveToGitHub;
+    document.getElementById('resetLocalBtn').onclick = resetLocalChanges;
     document.getElementById('clearGitHubDataBtn').onclick = clearGitHubData;
     document.getElementById('applyJsonBtn').onclick = applyJson;
     document.getElementById('formatJsonBtn').onclick = formatJson;
     document.getElementById('validateJsonBtn').onclick = validateJson;
+    document.getElementById('undoBtn').onclick = undo;
+    document.getElementById('redoBtn').onclick = redo;
+    document.getElementById('loadCommitsBtn').onclick = loadCommits;
+    document.getElementById('refreshCommitsBtn').onclick = loadCommits;
     
     boldBtn.onclick = () => { if (!plainTextMode) { document.execCommand('bold'); descriptionEditor.focus(); saveCurrentTopic(false); } };
     italicBtn.onclick = () => { if (!plainTextMode) { document.execCommand('italic'); descriptionEditor.focus(); saveCurrentTopic(false); } };
-    clearFormatBtn.onclick = clearFormatting;
-    linkDescBtn.onclick = insertTopicLink;
-    
-    const symbols = [sqrtSym, piSym, alphaSym, neqSym, leqSym, geqSym, timesSym, divSym];
-    symbols.forEach(btn => {
-        btn.onclick = () => { 
-            if (!plainTextMode) {
-                document.execCommand('insertText', false, btn.innerText); 
-                descriptionEditor.focus();
-                saveCurrentTopic(false);
-            }
-        };
+    document.getElementById('clearFormatBtn').onclick = clearFormatting;
+    document.getElementById('linkDescBtn').onclick = insertTopicLink;
+    [sqrtSym, piSym, alphaSym, neqSym, leqSym, geqSym, timesSym, divSym].forEach(btn => {
+        btn.onclick = () => { if (!plainTextMode) { document.execCommand('insertText', false, btn.innerText); descriptionEditor.focus(); saveCurrentTopic(false); } };
     });
     
     topicNameInput.addEventListener('input', function() { if (this.value.trim()) document.getElementById('topicId').value = generateIdFromName(this.value, selectedId); });
-    searchInput.addEventListener('input', (e) => { searchQuery = e.target.value.toLowerCase(); renderTree(); });
+    document.getElementById('searchTopicsInput').addEventListener('input', (e) => { searchQuery = e.target.value.toLowerCase(); renderTree(); });
     [topicNameInput, topicKeywordsInput, topicParentSelect, topicIconSelect, topicGradeSelect, exampleHtmlSource].forEach(f => f.addEventListener('blur', () => saveCurrentTopic(false)));
     descriptionEditor.addEventListener('blur', () => saveCurrentTopic(false));
+    
     document.querySelectorAll('.tab-btn').forEach(btn => {
         btn.onclick = () => {
+            if (btn.id === 'commitsTabBtn') {
+                showWarningDialog(() => {
+                    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                    btn.classList.add('active');
+                    document.getElementById(`tab-${btn.dataset.tab}`).classList.add('active');
+                    if (btn.dataset.tab === 'json') updateJsonEditor();
+                }, 'ВКЛАДКА КОММИТОВ', 'На этой вкладке вы можете просматривать коммиты репозитория и ОТКАТЫВАТЬ файл config.json к любому из них.\n\nОТКАТ ПЕРЕЗАПИШЕТ ТЕКУЩИЙ ФАЙЛ В РЕПОЗИТОРИИ И ЛОКАЛЬНЫЕ ДАННЫЕ.\n\nБудьте предельно внимательны!');
+                return;
+            }
             document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
             document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
             btn.classList.add('active');
@@ -1185,8 +1153,12 @@
             if (btn.dataset.tab === 'json') updateJsonEditor();
         };
     });
-
-    // Загрузка данных: сначала пробуем localStorage, потом config.json, потом демо
+    
+    window.addEventListener('keydown', (e) => {
+        if (e.ctrlKey && e.key === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
+        else if (e.ctrlKey && (e.key === 'y' || (e.shiftKey && e.key === 'Z'))) { e.preventDefault(); redo(); }
+    });
+    
     if (!loadFromLocalStorage()) {
         const demo = [{ id: "geometriya", name: "Геометрия", keywords: ["геометрия"], parent: null, icon: "fa-folder", gradeLevel: 3, example: "<div>Основы геометрии</div>", description: "<p>Изучает фигуры</p>", order: 1 }];
         fetch('config.json').then(r => r.ok ? r.json() : Promise.reject()).then(data => {
@@ -1196,14 +1168,13 @@
             topics.forEach((t,i) => { if (!t.order) t.order = i; if (!t.keywords) t.keywords = []; if (!t.icon) t.icon = 'fa-file-alt'; if (!t.example) t.example = ''; if (!t.description) t.description = '<p></p>'; });
             selectedId = topics[0]?.id || null; expandedState.clear();
             topics.forEach(t => { if (topics.some(ch => ch.parent === t.id)) expandedState.add(t.id); });
-            renderTree(); fillFormBySelectedNoSave(); updateJsonEditor(); saveToLocalStorage();
+            renderTree(); fillFormBySelectedNoSave(); updateJsonEditor(); saveToLocalStorage(); pushToHistory();
             showToast('config.json загружен');
         }).catch(() => {
             topics = demo; selectedId = "geometriya"; expandedState.add("geometriya");
-            renderTree(); fillFormBySelectedNoSave(); updateJsonEditor(); saveToLocalStorage();
+            renderTree(); fillFormBySelectedNoSave(); updateJsonEditor(); saveToLocalStorage(); pushToHistory();
         });
     }
-    
     updateButtonsState();
 </script>
 </body>
