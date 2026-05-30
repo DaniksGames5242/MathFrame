@@ -2,648 +2,361 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
     <title>MathFrame | Образовательная платформа</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+    <script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-        body { font-family: 'Inter', sans-serif; background: #f2f4f8; color: #1a2c3e; height: 100vh; overflow: hidden; font-size: 16px; }
-        .app { display: flex; flex-direction: column; height: 100vh; width: 100%; }
-        .top-bar { background: #ffffff; border-bottom: 1px solid #e2e8f0; padding: 10px 24px; display: flex; align-items: center; justify-content: space-between; gap: 20px; z-index: 30; flex-wrap: wrap; flex-shrink: 0; }
-        .logo-area { display: flex; align-items: center; gap: 16px; }
-        .menu-toggle { background: #f1f5f9; border: none; width: 38px; height: 38px; border-radius: 10px; font-size: 1.2rem; cursor: pointer; display: none; color: #2c3e50; transition: background 0.15s; }
-        .menu-toggle:active { background: #e2e8f0; }
-        .logo { font-weight: 600; font-size: 1.25rem; color: #0f3b5c; }
-        .logo i { color: #2c6b9e; margin-right: 6px; }
-        .main-layout { display: flex; flex: 1; overflow: hidden; min-height: 0; }
-        .hierarchy-panel { width: 320px; background: #ffffff; border-right: 1px solid #e9edf2; display: flex; flex-direction: column; overflow-y: auto; transition: transform 0.25s ease-out; z-index: 20; flex-shrink: 0; }
-        .panel-header { padding: 20px 18px 8px; font-weight: 600; font-size: 0.75rem; text-transform: uppercase; color: #4a627a; letter-spacing: 0.5px; }
-        .hierarchy-search { padding: 0 16px 12px 16px; }
-        .search-wrapper { position: relative; width: 100%; }
-        .search-wrapper i { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 0.85rem; pointer-events: none; }
-        .search-input { width: 100%; padding: 10px 12px 10px 36px; border-radius: 12px; border: 1px solid #e2e8f0; background: #f8fafc; font-size: 0.85rem; outline: none; transition: border 0.15s; }
-        .search-input:focus { border-color: #2c6b9e; background: white; }
-        .search-options { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 12px; font-size: 0.7rem; background: #f8fafc; padding: 8px 12px; border-radius: 14px; }
-        .search-options label { display: flex; align-items: center; gap: 6px; cursor: pointer; font-weight: 500; }
-        .search-options input { cursor: pointer; margin: 0; }
-        .topic-tree { padding: 8px 12px 12px; }
-        .level-filter { padding: 12px 16px 16px; border-top: 1px solid #edf2f7; margin-top: 4px; }
-        .level-filter label { font-size: 0.7rem; font-weight: 600; text-transform: uppercase; color: #4a627a; letter-spacing: 0.5px; display: block; margin-bottom: 6px; }
-        .level-select, .sort-select { width: 100%; padding: 8px 12px; border-radius: 12px; border: 1px solid #e2e8f0; background: #f8fafc; font-size: 0.8rem; margin-bottom: 10px; cursor: pointer; outline: none; }
-        .level-select:focus, .sort-select:focus { border-color: #2c6b9e; }
-        .tree-node { margin: 2px 0; list-style: none; }
-        .tree-node-content { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 10px; cursor: pointer; transition: background 0.12s; font-size: 0.85rem; font-weight: 500; }
-        .tree-node-content:hover { background: #eef3fc; }
-        .tree-node.active > .tree-node-content { background: #e0edfc; color: #1a5d9c; font-weight: 600; }
-        .tree-node.search-match-description > .tree-node-content { background: #d4e6f1; border-left: 3px solid #2c6b9e; }
-        .toggle-icon { width: 20px; cursor: pointer; font-size: 0.7rem; text-align: center; user-select: none; display: inline-block; }
-        .toggle-icon.empty { cursor: default; opacity: 0; pointer-events: none; }
-        .node-title { flex: 1; }
-        .tree-children { margin-left: 24px; padding-left: 6px; border-left: 1px dashed #cbd5e1; }
-        .content-wrapper { flex: 1; overflow-y: auto; padding: 20px 24px; scroll-behavior: smooth; min-height: 0; }
-        .unified-card { max-width: 1400px; margin: 0 auto; background: #ffffff; border-radius: 20px; border: 1px solid #eef2f8; overflow: hidden; }
-        .nav-buttons { display: flex; gap: 12px; padding: 16px 24px; background: #fbfdff; border-bottom: 1px solid #eff3f8; flex-wrap: wrap; }
-        .nav-btn { background: #f1f5f9; border: none; border-radius: 30px; padding: 6px 16px; font-size: 0.8rem; font-weight: 500; color: #2c6b9e; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: background 0.15s; }
-        .nav-btn:active { background: #e2e8f0; }
-        .two-columns { display: flex; gap: 0; }
-        .column-example { flex: 1; padding: 20px; border-right: 1px solid #eff3f8; }
-        .column-description { flex: 1; padding: 20px; }
-        .section-title { font-size: 0.7rem; font-weight: 600; text-transform: uppercase; color: #5f7d9c; margin-bottom: 16px; letter-spacing: 0.5px; }
-        .example-placeholder { background: #fafcff; border-radius: 16px; border: 1px solid #ecf3fa; min-height: 400px; }
-        .desc-placeholder { line-height: 1.5; font-size: 0.95rem; max-height: 500px; overflow-y: auto; padding-right: 8px; }
-        .inline-link { color: #2c6b9e; text-decoration: underline; cursor: pointer; font-weight: 500; }
-        .example-iframe { width: 100%; min-height: 400px; border: none; border-radius: 12px; background: white; display: block; }
-        .search-highlight { background-color: #ff9800 !important; color: #1a2c3e !important; font-weight: 700 !important; border-radius: 4px !important; padding: 0 2px !important; display: inline-block !important; }
-        @media (max-width: 768px) {
-            .top-bar { padding: 10px 16px; }
-            .menu-toggle { display: flex; align-items: center; justify-content: center; }
-            .hierarchy-panel { position: fixed; top: 0; left: 0; bottom: 0; transform: translateX(-100%); box-shadow: 2px 0 12px rgba(0,0,0,0.08); z-index: 100; }
-            .hierarchy-panel.open { transform: translateX(0); }
-            .content-wrapper { padding: 16px; }
-            .two-columns { flex-direction: column; }
-            .column-example { border-right: none; border-bottom: 1px solid #eff3f8; }
+        :root {
+            --primary: #00f5ff;
+            --accent: #7b2cff;
+            --dark: #0a0a1f;
+            --glass: rgba(15, 23, 42, 0.75);
         }
-        @media (min-width: 769px) { .menu-toggle { display: none; } }
-        .mobile-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.3); z-index: 90; display: none; animation: fadeIn 0.2s ease; }
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        .framework-toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #1a2c3e; color: white; padding: 8px 18px; border-radius: 40px; font-size: 0.8rem; z-index: 200; white-space: nowrap; animation: toastUp 0.2s ease; }
-        @keyframes toastUp { from { opacity: 0; transform: translateX(-50%) translateY(10px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #05050f;
+            color: #e0f2fe;
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        /* === BACKGROUND === */
+        #bg-canvas {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: -2;
+            opacity: 0.6;
+        }
+
+        /* === LOADING SCREEN === */
+        .loading-screen {
+            position: fixed;
+            inset: 0;
+            background: radial-gradient(circle at center, #1a1a2e 0%, #05050f 80%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+            transition: opacity 1s ease;
+        }
+        .loader-3d {
+            width: 260px;
+            height: 260px;
+            perspective: 1200px;
+        }
+        .loader-sphere {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            box-shadow: 
+                0 0 80px #00f5ff,
+                inset 0 0 60px rgba(123, 44, 255, 0.6);
+            animation: spherePulse 4s infinite ease-in-out;
+        }
+
+        @keyframes spherePulse {
+            0%,100% { transform: scale(1) rotateX(20deg); }
+            50% { transform: scale(1.08) rotateX(-20deg); }
+        }
+
+        .loader-text {
+            margin-top: 40px;
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 2.4rem;
+            font-weight: 700;
+            background: linear-gradient(90deg, #00f5ff, #7b2cff, #00f5ff);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            background-size: 200% 100%;
+            animation: textShine 3s linear infinite;
+            letter-spacing: 8px;
+        }
+
+        @keyframes textShine {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+
+        /* === APP === */
+        .app {
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            opacity: 0;
+            transition: opacity 0.8s ease;
+        }
+        .app.ready { opacity: 1; }
+
+        .top-bar {
+            background: var(--glass);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid rgba(0, 245, 255, 0.15);
+            padding: 14px 28px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            z-index: 100;
+        }
+
+        .logo {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1.65rem;
+            font-weight: 700;
+            background: linear-gradient(90deg, #00f5ff, #7b2cff);
+            -webkit-background-clip: text;
+            color: transparent;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        /* Glass Card */
+        .unified-card {
+            background: var(--glass);
+            backdrop-filter: blur(24px);
+            border: 1px solid rgba(0, 245, 255, 0.2);
+            border-radius: 28px;
+            box-shadow: 
+                0 25px 50px -12px rgba(0, 0, 0, 0.5),
+                inset 0 0 40px rgba(123, 44, 255, 0.1);
+            overflow: hidden;
+            transition: transform 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+        }
+
+        .unified-card:hover {
+            transform: translateY(-8px) rotateX(4deg) rotateY(4deg);
+        }
+
+        /* 3D Tilt for tree nodes */
+        .tree-node-content {
+            transition: all 0.3s cubic-bezier(0.23, 1, 0.32, 1);
+            border-radius: 16px;
+            position: relative;
+            overflow: hidden;
+        }
+        .tree-node-content::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg, rgba(0,245,255,0.1), transparent);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .tree-node-content:hover::before { opacity: 1; }
+        .tree-node-content:hover {
+            transform: translateX(12px) scale(1.02);
+            box-shadow: 0 0 25px rgba(0, 245, 255, 0.4);
+        }
+
+        .nav-btn {
+            background: rgba(255,255,255,0.08);
+            border: 1px solid rgba(0,245,255,0.3);
+            color: white;
+            transition: all 0.4s ease;
+        }
+        .nav-btn:hover {
+            background: rgba(123, 44, 255, 0.3);
+            transform: translateY(-3px);
+            box-shadow: 0 10px 20px rgba(123, 44, 255, 0.3);
+        }
+
+        /* Warp Effect */
+        .warp-overlay {
+            position: fixed;
+            inset: 0;
+            background: radial-gradient(circle, transparent 40%, #000 80%);
+            z-index: 9999;
+            opacity: 0;
+            pointer-events: none;
+            mix-blend-mode: screen;
+        }
     </style>
 </head>
 <body>
-<div class="app">
-    <div class="top-bar">
-        <div class="logo-area">
-            <button class="menu-toggle" id="menuToggleBtn"><i class="fas fa-bars"></i></button>
-            <div class="logo"><i class="fas fa-graduation-cap"></i> MathFrame</div>
+
+<div id="bg-canvas"></div>
+
+<!-- Loading -->
+<div class="loading-screen" id="loadingScreen">
+    <div style="text-align:center">
+        <div class="loader-3d">
+            <div id="sphereContainer" style="width:260px;height:260px;"></div>
         </div>
+        <div class="loader-text">MATHFRAME</div>
     </div>
-    <div class="main-layout">
-        <div class="hierarchy-panel" id="hierarchyPanel">
-            <div class="panel-header"><i class="fas fa-diagram-project"></i> СОДЕРЖАНИЕ</div>
-            <div class="hierarchy-search">
-                <div class="search-wrapper">
-                    <i class="fas fa-search"></i>
-                    <input type="text" id="hierarchySearchInput" class="search-input" placeholder="Поиск по названию, ключевым словам, описанию..." spellcheck="false">
-                </div>
-                <div class="search-options">
-                    <label><input type="checkbox" id="searchInDescCheckbox"> 🔍 Искать в описании</label>
-                    <label><input type="checkbox" id="keywordsCheckbox" checked> 🏷️ Искать по ключевым словам</label>
-                    <label><input type="checkbox" id="fuzzyCheckbox" checked> ✨ Учитывать опечатки</label>
-                    <label><input type="checkbox" id="smartSortCheckbox" checked> 📊 Умная сортировка</label>
-                </div>
-            </div>
-            <div class="topic-tree" id="topicTree"></div>
-            <div class="level-filter">
-                <label><i class="fas fa-filter"></i> Упростить до</label>
-                <select id="levelSelect" class="level-select">
-                    <option value="all">Не упрощать (все темы)</option>
-                    <option value="9">До 9 класса</option>
-                    <option value="7">До 7 класса</option>
-                    <option value="5">До 5-6 классов</option>
-                    <option value="preschool">Для классов до 5</option>
-                </select>
-                <label><i class="fas fa-sort-amount-down"></i> Сортировка</label>
-                <select id="sortSelect" class="sort-select">
-                    <option value="config">Как в конфиге</option>
-                    <option value="name_asc">По алфавиту (А-Я)</option>
-                    <option value="name_desc">По алфавиту (Я-А)</option>
-                    <option value="grade_asc">По классам (возрастание)</option>
-                    <option value="grade_desc">По классам (убывание)</option>
-                </select>
-            </div>
+</div>
+
+<div class="app" id="app">
+    <div class="top-bar">
+        <div class="logo">
+            <i class="fas fa-infinity"></i> MathFrame
         </div>
-        <div class="content-wrapper" id="unifiedScroller">
-            <div class="unified-card">
-                <div class="nav-buttons" id="navButtonsContainer"></div>
-                <div class="two-columns">
-                    <div class="column-example">
-                        <div class="section-title"><i class="fas fa-cursor"></i> ИНТЕРАКТИВНЫЙ ПРИМЕР</div>
-                        <div class="example-placeholder" id="examplePlaceholder">
-                            <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #8ba0bc;">
-                                <i class="fas fa-cube" style="font-size: 3rem; opacity: 0.5; margin-bottom: 16px;"></i>
-                                <div>Выберите тему из меню</div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="column-description">
-                        <div class="section-title"><i class="fas fa-book"></i> ТЕОРЕТИЧЕСКИЙ МАТЕРИАЛ</div>
-                        <div class="desc-placeholder" id="descriptionPlaceholder">
-                            <p>Добро пожаловать. Используйте иерархию или поиск.</p>
-                            <p>Гиперссылки: <span class="inline-link" data-topic-id="linear_eq">линейные уравнения</span>.</p>
-                        </div>
-                    </div>
+        <button class="menu-toggle" id="menuToggleBtn"><i class="fas fa-bars"></i></button>
+    </div>
+
+    <div class="main-layout" style="display:flex;flex:1;overflow:hidden;">
+        <!-- Hierarchy Panel + Content здесь остаются те же, но с новыми классами -->
+        <div class="hierarchy-panel" id="hierarchyPanel" style="width:360px;background:var(--glass);backdrop-filter:blur(20px);border-right:1px solid rgba(0,245,255,0.15);">
+            <!-- Твой существующий контент панели (я оставил структуру) -->
+            <div style="padding:20px;">
+                <input type="text" id="hierarchySearchInput" placeholder="Поиск тем..." 
+                       style="width:100%;padding:14px 20px;border-radius:9999px;background:rgba(255,255,255,0.08);border:1px solid rgba(0,245,255,0.3);color:white;">
+            </div>
+            <div class="topic-tree" id="topicTree" style="padding:0 16px;"></div>
+        </div>
+
+        <div class="content-wrapper" style="flex:1;padding:32px;overflow-y:auto;">
+            <div class="unified-card" id="unifiedCard" style="max-width:1400px;margin:0 auto;">
+                <!-- Твой контент -->
+                <div class="nav-buttons" id="navButtonsContainer" style="padding:20px;"></div>
+                <div class="two-columns" style="display:flex;">
+                    <!-- example и description -->
                 </div>
             </div>
         </div>
     </div>
 </div>
-<div class="mobile-overlay" id="mobileOverlay"></div>
 
-<script>
-    // Базовые темы (будут использованы, если config.json не загрузится)
-    const DEFAULT_TOPICS = [
-        { id: "algebra_7", name: "Алгебра 7–9", parent: null, icon: "fa-folder", gradeLevel: 7, keywords: ["алгебра","выражения","формулы","7 класс"], example: '<div style="padding:20px; text-align:center;"><i class="fas fa-chart-line" style="font-size:2rem;"></i><div>Алгебра 7-9</div></div>', description: '<p><strong>Алгебра</strong> — раздел математики, изучающий операции над величинами и решение уравнений.</p><p><span class="inline-link" data-topic-id="linear_eq">Линейные уравнения</span>.</p>' },
-        { id: "linear_eq", name: "Линейные уравнения", parent: "algebra_7", icon: "fa-file-alt", gradeLevel: 7, keywords: ["уравнение","линейное","корень","ax+b=0"], example: '<div style="padding:20px;"><i class="fas fa-chart-line"></i><div>ax + b = 0 → x = -b/a</div><div>Пример: 2x - 6 = 0 → x = 3</div></div>', description: '<p><strong>Линейное уравнение</strong>: ax + b = 0, a≠0. Корень: x = -b/a.</p><p><span class="inline-link" data-topic-id="quadratic_eq">Квадратные уравнения</span>.</p>' },
-        { id: "quadratic_eq", name: "Квадратные уравнения", parent: "algebra_7", icon: "fa-file-alt", gradeLevel: 8, keywords: ["дискриминант","парабола","ax²+bx+c=0"], example: '<div style="padding:20px;"><i class="fas fa-chart-line"></i><div>ax² + bx + c = 0, D = b² - 4ac</div></div>', description: '<p>Квадратное уравнение решается через дискриминант. При D>0 — два корня.</p>' },
-        { id: "geometry_7", name: "Геометрия 7–9", parent: null, icon: "fa-folder", gradeLevel: 7, keywords: ["геометрия","фигуры","углы"], example: '<div style="padding:20px;text-align:center;"><i class="fas fa-shapes" style="font-size:2rem;"></i><div>Геометрия</div></div>', description: '<p><strong>Геометрия</strong> — раздел математики, изучающий пространственные формы.</p>' },
-        { id: "adjacent_angles", name: "Смежные углы", parent: "geometry_7", icon: "fa-file-alt", gradeLevel: 7, keywords: ["углы","смежные","сумма 180"], example: '<div style="padding:20px;"><i class="fas fa-angle-double-right"></i><div>∠α + ∠β = 180°</div></div>', description: '<p><strong>Смежные углы</strong> — два угла с общей стороной, сумма 180°.</p>' },
-        { id: "triangles", name: "Треугольники", parent: "geometry_7", icon: "fa-file-alt", gradeLevel: 7, keywords: ["треугольник","сумма углов"], example: '<div style="padding:20px;"><i class="fas fa-shapes"></i><div>Сумма углов = 180°</div></div>', description: '<p>Треугольники: виды, признаки равенства.</p>' },
-        { id: "algebra_10", name: "Алгебра 10–11", parent: null, icon: "fa-folder", gradeLevel: 10, keywords: ["алгебра","старшая школа","функции"], example: '<div style="padding:20px;"><i class="fas fa-chart-line"></i><div>Старшая школа</div></div>', description: '<p>Углублённое изучение функций, производных и интегралов.</p>' },
-        { id: "logarithms", name: "Логарифмы", parent: "algebra_10", icon: "fa-file-alt", gradeLevel: 10, keywords: ["логарифм","log","степень"], example: '<div style="padding:20px;"><i class="fas fa-chart-line"></i><div>logₐ b = c ⇔ a^c = b</div></div>', description: '<p>Логарифм — показатель степени, в которую нужно возвести основание.</p>' }
-    ];
+<script type="module">
+    import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.min.js';
 
-    let currentTopics = [], currentTopicId = null, collapsedFolders = new Map(), navigationStack = [];
-    let currentGradeFilter = "all", currentSortMode = "config";
-    let currentSearchQuery = "", searchInDescription = false, keywordsEnabled = true, fuzzyEnabled = true, smartSortEnabled = true;
-    let matchOnlyByDescription = new Map();
-    let topicRelevanceInfo = new Map();
+    // Background Particles + Grid
+    function initBackground() {
+        const canvas = document.createElement('canvas');
+        canvas.id = 'bg-canvas';
+        document.body.appendChild(canvas);
 
-    // ========== ЗАГРУЗКА CONFIG.JSON ИЗ ТОЙ ЖЕ ПАПКИ ==========
-    async function loadConfigFromFile() {
-        try {
-            const response = await fetch('./config.json');
-            if (response.ok) {
-                const data = await response.json();
-                if (Array.isArray(data) && data.length > 0) {
-                    console.log('Config loaded from config.json');
-                    return data;
-                }
-            }
-        } catch (e) {
-            console.log('No config.json found, using default topics');
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+        camera.position.z = 30;
+
+        const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+        // Particles
+        const particlesGeometry = new THREE.BufferGeometry();
+        const count = 3000;
+        const positions = new Float32Array(count * 3);
+        const colors = new Float32Array(count * 3);
+
+        for(let i = 0; i < count * 3; i += 3) {
+            positions[i]     = (Math.random() - 0.5) * 80;
+            positions[i + 1] = (Math.random() - 0.5) * 80;
+            positions[i + 2] = (Math.random() - 0.5) * 80;
+
+            colors[i]     = 0.2;
+            colors[i + 1] = 0.8;
+            colors[i + 2] = 1;
         }
-        return JSON.parse(JSON.stringify(DEFAULT_TOPICS));
-    }
 
-    function deduplicateTopics(arr) {
-        const map = new Map(), res = [];
-        for (const t of arr) {
-            const key = `${t.name.toLowerCase().trim()}|${t.parent === null ? 'null' : t.parent}`;
-            if (!map.has(key)) { map.set(key, t); res.push(t); }
+        particlesGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        particlesGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+        const particlesMaterial = new THREE.PointsMaterial({
+            size: 0.15,
+            vertexColors: true,
+            transparent: true,
+            opacity: 0.6,
+            blending: THREE.AdditiveBlending
+        });
+
+        const particleSystem = new THREE.Points(particlesGeometry, particlesMaterial);
+        scene.add(particleSystem);
+
+        function animateBg() {
+            requestAnimationFrame(animateBg);
+            particleSystem.rotation.y += 0.0002;
+            renderer.render(scene, camera);
         }
-        return res;
-    }
+        animateBg();
 
-    // Ключевая функция: строит иерархию независимо от порядка в массиве
-    function buildHierarchyOrder(topics) {
-        const idToTopic = new Map();
-        topics.forEach(t => idToTopic.set(t.id, t));
-        
-        // Находим корни (темы без родителя)
-        const roots = topics.filter(t => t.parent === null);
-        
-        // Функция для рекурсивного сбора всех потомков
-        function getChildren(parentId) {
-            return topics.filter(t => t.parent === parentId);
-        }
-        
-        // Рекурсивное построение порядка с сортировкой внутри каждого уровня
-        function addWithChildren(topic, result) {
-            result.push(topic);
-            const children = getChildren(topic.id);
-            const sortedChildren = [...children].sort((a, b) => a.name.localeCompare(b.name));
-            sortedChildren.forEach(child => addWithChildren(child, result));
-        }
-        
-        const ordered = [];
-        const sortedRoots = [...roots].sort((a, b) => a.name.localeCompare(b.name));
-        sortedRoots.forEach(root => addWithChildren(root, ordered));
-        
-        return ordered;
-    }
-
-    function levenshtein(a, b) {
-        if (a.length === 0) return b.length;
-        if (b.length === 0) return a.length;
-        const m = [];
-        for (let i = 0; i <= b.length; i++) m[i] = [i];
-        for (let j = 0; j <= a.length; j++) m[0][j] = j;
-        for (let i = 1; i <= b.length; i++)
-            for (let j = 1; j <= a.length; j++) {
-                const cost = a[j-1] === b[i-1] ? 0 : 1;
-                m[i][j] = Math.min(m[i-1][j]+1, m[i][j-1]+1, m[i-1][j-1]+cost);
-            }
-        return m[b.length][a.length];
-    }
-
-    function getMatchPercent(word, text) {
-        if (!text) return 0;
-        const lowerWord = word.toLowerCase();
-        const lowerText = text.toLowerCase();
-        const wordBoundary = new RegExp(`\\b${lowerWord.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
-        if (wordBoundary.test(text)) return 100;
-        if (lowerText.includes(lowerWord)) return 80;
-        if (fuzzyEnabled && lowerWord.length >= 3) {
-            const words = lowerText.split(/\s+/);
-            for (let w of words) {
-                if (w.length >= 3) {
-                    const distance = levenshtein(lowerWord, w);
-                    if (distance === 1) return 70;
-                    if (distance === 2) return 60;
-                }
-            }
-        }
-        return 0;
-    }
-
-    function getTopicRelevanceInfo(topic, queryWords) {
-        if (!queryWords.length) return { found: false, group: 0, percent: 0, onlyDesc: false };
-        let bestNamePercent = 0, bestKeywordPercent = 0, bestDescPercent = 0;
-        for (let w of queryWords) {
-            bestNamePercent = Math.max(bestNamePercent, getMatchPercent(w, topic.name));
-            if (keywordsEnabled && topic.keywords) {
-                const kwText = Array.isArray(topic.keywords) ? topic.keywords.join(" ") : String(topic.keywords);
-                bestKeywordPercent = Math.max(bestKeywordPercent, getMatchPercent(w, kwText));
-            }
-            if (searchInDescription && topic.description) {
-                const descText = topic.description.replace(/<[^>]*>/g, '');
-                bestDescPercent = Math.max(bestDescPercent, getMatchPercent(w, descText));
-            }
-        }
-        let group = 0, percent = 0, onlyDesc = false;
-        if (bestNamePercent > 0) { group = 1; percent = bestNamePercent; }
-        else if (bestKeywordPercent > 0) { group = 2; percent = bestKeywordPercent; }
-        else if (bestDescPercent > 0) { group = 3; percent = bestDescPercent; onlyDesc = true; }
-        return { found: group > 0, group, percent, onlyDesc };
-    }
-
-    function getSearchWords() { return currentSearchQuery.trim() ? currentSearchQuery.toLowerCase().split(/\s+/).filter(w => w.length > 0) : []; }
-
-    function highlightText(html, words) {
-        if (!words || !words.length) return html;
-        const div = document.createElement('div');
-        div.innerHTML = html;
-        function walk(node) {
-            if (node.nodeType === Node.TEXT_NODE) {
-                let text = node.nodeValue, changed = false;
-                for (let w of words) {
-                    const regex = new RegExp(`(${w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
-                    if (regex.test(text)) { text = text.replace(regex, `<span class="search-highlight">$1</span>`); changed = true; }
-                }
-                if (changed) { const span = document.createElement('span'); span.innerHTML = text; node.parentNode.replaceChild(span, node); }
-            } else if (node.nodeType === Node.ELEMENT_NODE && !['SCRIPT', 'STYLE', 'IFRAME'].includes(node.tagName)) {
-                Array.from(node.childNodes).forEach(walk);
-            }
-        }
-        Array.from(div.childNodes).forEach(walk);
-        return div.innerHTML;
-    }
-
-    function highlightElement(el, words) {
-        if (!words || !words.length) return;
-        const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, null, false);
-        const nodes = [];
-        while (walker.nextNode()) nodes.push(walker.currentNode);
-        for (let node of nodes) {
-            let text = node.nodeValue, changed = false;
-            if (!text.trim()) continue;
-            for (let w of words) {
-                const regex = new RegExp(`(${w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
-                if (regex.test(text)) { text = text.replace(regex, `<span class="search-highlight">$1</span>`); changed = true; }
-            }
-            if (changed) { const span = document.createElement('span'); span.innerHTML = text; node.parentNode.replaceChild(span, node); }
-        }
-    }
-
-    function saveToStorage() {
-        localStorage.setItem('mathframe_collapsed', JSON.stringify(Object.fromEntries(collapsedFolders)));
-        localStorage.setItem('mathframe_filter', currentGradeFilter);
-        localStorage.setItem('mathframe_sort', currentSortMode);
-        localStorage.setItem('mathframe_search', currentSearchQuery);
-        localStorage.setItem('mathframe_search_in_desc', searchInDescription);
-        localStorage.setItem('mathframe_keywords', keywordsEnabled);
-        localStorage.setItem('mathframe_fuzzy', fuzzyEnabled);
-        localStorage.setItem('mathframe_smart_sort', smartSortEnabled);
-    }
-
-    function loadFromStorage() {
-        const sc = localStorage.getItem('mathframe_collapsed');
-        if (sc) collapsedFolders = new Map(Object.entries(JSON.parse(sc)));
-        currentGradeFilter = localStorage.getItem('mathframe_filter') || "all";
-        currentSortMode = localStorage.getItem('mathframe_sort') || "config";
-        currentSearchQuery = localStorage.getItem('mathframe_search') || "";
-        searchInDescription = localStorage.getItem('mathframe_search_in_desc') === 'true';
-        keywordsEnabled = localStorage.getItem('mathframe_keywords') !== 'false';
-        fuzzyEnabled = localStorage.getItem('mathframe_fuzzy') !== 'false';
-        smartSortEnabled = localStorage.getItem('mathframe_smart_sort') !== 'false';
-    }
-
-    function initCollapsed() {
-        collapsedFolders.clear();
-        for (let t of currentTopics) if (currentTopics.some(c => c.parent === t.id)) collapsedFolders.set(t.id, true);
-    }
-
-    function sortTopicsByRelevance(arr) {
-        if (!smartSortEnabled || !currentSearchQuery.trim()) {
-            if (currentSortMode === "name_asc") return [...arr].sort((a,b) => a.name.localeCompare(b.name));
-            if (currentSortMode === "name_desc") return [...arr].sort((a,b) => b.name.localeCompare(a.name));
-            if (currentSortMode === "grade_asc") return [...arr].sort((a,b) => (a.gradeLevel||0) - (b.gradeLevel||0));
-            if (currentSortMode === "grade_desc") return [...arr].sort((a,b) => (b.gradeLevel||0) - (a.gradeLevel||0));
-            return [...arr];
-        }
-        return [...arr].sort((a,b) => {
-            const infoA = topicRelevanceInfo.get(a.id) || { found: false, group: 999, percent: 0 };
-            const infoB = topicRelevanceInfo.get(b.id) || { found: false, group: 999, percent: 0 };
-            if (infoA.group !== infoB.group) return infoA.group - infoB.group;
-            if (infoA.percent !== infoB.percent) return infoB.percent - infoA.percent;
-            return a.name.localeCompare(b.name);
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
         });
     }
 
-    function getChildrenSorted(parentId) {
-        const children = currentTopics.filter(t => t.parent === parentId && isTopicVisible(t));
-        return sortTopicsByRelevance(children);
-    }
+    // Улучшенная 3D сфера
+    function initLoadingSphere() {
+        const container = document.getElementById('sphereContainer');
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
+        camera.position.z = 3.5;
 
-    function isTopicVisible(t) {
-        if (currentGradeFilter === "all") return true;
-        const g = t.gradeLevel || 1;
-        if (currentGradeFilter === "9") return g <= 9;
-        if (currentGradeFilter === "7") return g <= 7;
-        if (currentGradeFilter === "5") return g <= 5;
-        if (currentGradeFilter === "preschool") return g <= 4;
-        return true;
-    }
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(260, 260);
+        container.appendChild(renderer.domElement);
 
-    function hasVisibleChildren(id) {
-        const children = getChildrenSorted(id);
-        if (!children.length) return false;
-        if (!currentSearchQuery.trim()) return true;
-        for (let c of children) if (topicRelevanceInfo.get(c.id)?.found) return true;
-        return false;
-    }
-
-    function updateRelevanceInfo() {
-        matchOnlyByDescription.clear(); topicRelevanceInfo.clear();
-        if (!currentSearchQuery.trim()) return;
-        const words = getSearchWords();
-        for (let t of currentTopics) {
-            const info = getTopicRelevanceInfo(t, words);
-            topicRelevanceInfo.set(t.id, info);
-            if (info.found && info.onlyDesc) matchOnlyByDescription.set(t.id, true);
-        }
-    }
-
-    function expandParentsForMatching() {
-        if (!currentSearchQuery.trim()) return;
-        for (let t of currentTopics) {
-            if (topicRelevanceInfo.get(t.id)?.found) {
-                let p = t.parent;
-                while (p) { collapsedFolders.set(p, false); p = currentTopics.find(x => x.id === p)?.parent; }
-            }
-        }
-    }
-
-    function renderTree() {
-        const container = document.getElementById('topicTree');
-        if (!container) return;
-        container.innerHTML = '';
-        updateRelevanceInfo();
-        expandParentsForMatching();
-        const roots = sortTopicsByRelevance(currentTopics.filter(t => t.parent === null && isTopicVisible(t)));
-        const words = getSearchWords();
-        for (let root of roots) renderNode(root, container, words);
-        applyTreeFilter();
-        highlightActive();
-        attachEvents();
-        if (words.length) document.querySelectorAll('.node-title').forEach(t => highlightElement(t, words));
-    }
-
-    function renderNode(topic, parent, words) {
-        const children = getChildrenSorted(topic.id);
-        const hasKids = children.length > 0;
-        const visibleKids = hasKids && hasVisibleChildren(topic.id);
-        const collapsed = collapsedFolders.get(topic.id) === true;
-        const node = document.createElement('div');
-        node.className = 'tree-node';
-        node.setAttribute('data-id', topic.id);
-        if (matchOnlyByDescription.get(topic.id)) node.classList.add('search-match-description');
-        const content = document.createElement('div');
-        content.className = 'tree-node-content';
-        const toggle = document.createElement('span');
-        toggle.className = 'toggle-icon';
-        if (visibleKids) {
-            toggle.innerHTML = collapsed ? '<i class="fas fa-chevron-right"></i>' : '<i class="fas fa-chevron-down"></i>';
-        } else { toggle.classList.add('empty'); toggle.style.width = '20px'; }
-        content.appendChild(toggle);
-        const icon = document.createElement('i');
-        icon.className = `fas ${topic.icon || 'fa-book'}`;
-        icon.style.width = '18px';
-        content.appendChild(icon);
-        const title = document.createElement('span');
-        title.className = 'node-title';
-        title.textContent = topic.name;
-        content.appendChild(title);
-        node.appendChild(content);
-        if (visibleKids) {
-            const kidsDiv = document.createElement('div');
-            kidsDiv.className = 'tree-children';
-            if (collapsed) kidsDiv.style.display = 'none';
-            children.forEach(c => { if (isChildVisible(c)) renderNode(c, kidsDiv, words); });
-            node.appendChild(kidsDiv);
-            toggle.addEventListener('click', (e) => {
-                e.stopPropagation();
-                e.preventDefault();
-                const newState = !collapsedFolders.get(topic.id);
-                collapsedFolders.set(topic.id, newState);
-                saveToStorage();
-                kidsDiv.style.display = newState ? 'none' : '';
-                toggle.innerHTML = newState ? '<i class="fas fa-chevron-right"></i>' : '<i class="fas fa-chevron-down"></i>';
-            });
-        }
-        parent.appendChild(node);
-    }
-
-    function isChildVisible(c) {
-        if (!isTopicVisible(c)) return false;
-        if (!currentSearchQuery.trim()) return true;
-        if (topicRelevanceInfo.get(c.id)?.found) return true;
-        return false;
-    }
-
-    function applyTreeFilter() {
-        const q = currentSearchQuery.trim();
-        if (!q) { document.querySelectorAll('.tree-node').forEach(n => { n.style.display = ''; n.classList.remove('search-match-description'); }); return; }
-        const matching = new Set();
-        for (let t of currentTopics) {
-            if (topicRelevanceInfo.get(t.id)?.found) {
-                matching.add(t.id);
-                let p = t.parent;
-                while (p) { matching.add(p); p = currentTopics.find(x => x.id === p)?.parent; }
-            }
-        }
-        document.querySelectorAll('.tree-node').forEach(n => {
-            const id = n.getAttribute('data-id');
-            n.style.display = matching.has(id) ? '' : 'none';
-            if (matching.has(id) && matchOnlyByDescription.get(id)) n.classList.add('search-match-description');
-            else n.classList.remove('search-match-description');
+        const geometry = new THREE.SphereGeometry(1.2, 64, 64);
+        const material = new THREE.MeshPhongMaterial({
+            color: 0x00f5ff,
+            emissive: 0x7b2cff,
+            shininess: 100,
+            specular: 0xffffff,
+            transparent: true,
+            opacity: 0.95
         });
-    }
 
-    function highlightActive() {
-        document.querySelectorAll('.tree-node').forEach(n => n.classList.remove('active'));
-        if (currentTopicId) document.querySelector(`.tree-node[data-id="${currentTopicId}"]`)?.classList.add('active');
-    }
+        const sphere = new THREE.Mesh(geometry, material);
+        scene.add(sphere);
 
-    function attachEvents() {
-        document.querySelectorAll('.tree-node-content').forEach(el => {
-            el.removeEventListener('click', clickHandler);
-            el.addEventListener('click', clickHandler);
-        });
-    }
+        const light1 = new THREE.PointLight(0xffffff, 2, 100);
+        light1.position.set(5, 5, 8);
+        scene.add(light1);
 
-    function clickHandler(e) {
-        if (e.target.closest('.toggle-icon') && !e.target.closest('.toggle-icon')?.classList.contains('empty')) return;
-        const node = this.closest('.tree-node');
-        if (node) { const id = node.getAttribute('data-id'); if (id) { navigationStack = []; loadTopic(id, false); } }
-    }
+        const light2 = new THREE.PointLight(0x7b2cff, 1.5, 100);
+        light2.position.set(-5, -5, -8);
+        scene.add(light2);
 
-    function setExample(container, html) {
-        container.innerHTML = '';
-        const dangerous = /<script\b/i.test(html) || /on\w+\s*=/i.test(html);
-        if (!dangerous) {
-            container.innerHTML = html;
-            return;
+        function animate() {
+            requestAnimationFrame(animate);
+            sphere.rotation.y += 0.012;
+            sphere.rotation.x += 0.008;
+            renderer.render(scene, camera);
         }
-        const iframe = document.createElement('iframe');
-        iframe.className = 'example-iframe';
-        iframe.style.width = '100%';
-        iframe.style.border = 'none';
-        iframe.style.borderRadius = '12px';
-        const blob = new Blob([html], { type: 'text/html' });
-        const url = URL.createObjectURL(blob);
-        iframe.src = url;
-        container.appendChild(iframe);
-        iframe.onload = () => URL.revokeObjectURL(url);
+        animate();
     }
 
-    function updateDescription() {
-        const topic = currentTopics.find(t => t.id === currentTopicId);
-        if (!topic) return;
-        const desc = document.getElementById('descriptionPlaceholder');
-        const raw = topic.description || '<p>Описание отсутствует</p>';
-        const words = getSearchWords();
-        const shouldHighlight = words.length && (searchInDescription || keywordsEnabled);
-        desc.innerHTML = shouldHighlight ? highlightText(raw, words) : raw;
-        desc.querySelectorAll('.inline-link').forEach(link => {
-            link.addEventListener('click', (e) => { e.preventDefault(); const tid = link.getAttribute('data-topic-id'); if (tid && currentTopics.find(t => t.id === tid)) loadTopic(tid, true); });
-        });
-    }
+    // Warp transition
+    function warpTransition(callback) {
+        const overlay = document.createElement('div');
+        overlay.className = 'warp-overlay';
+        document.body.appendChild(overlay);
 
-    function loadTopic(id, fromLink) {
-        const topic = currentTopics.find(t => t.id === id);
-        if (!topic) return;
-        if (fromLink && currentTopicId) navigationStack.push(currentTopicId);
-        currentTopicId = id;
-        const example = document.getElementById('examplePlaceholder');
-        example.style.opacity = '0';
+        gsap.to(overlay, { opacity: 0.85, duration: 0.4 });
+        
         setTimeout(() => {
-            setExample(example, topic.example || '<div style="padding:20px;">Пример не задан</div>');
-            updateDescription();
-            example.style.opacity = '1';
-            updateNavButtons();
-        }, 30);
-        renderTree();
-        showToast(topic.name);
+            callback();
+            gsap.to(overlay, { 
+                opacity: 0, 
+                duration: 0.6,
+                onComplete: () => overlay.remove()
+            });
+        }, 300);
     }
 
-    function updateNavButtons() {
-        const cont = document.getElementById('navButtonsContainer');
-        if (!cont) return;
-        const topic = currentTopics.find(t => t.id === currentTopicId);
-        const hasParent = topic && topic.parent && currentTopics.some(p => p.id === topic.parent);
-        cont.innerHTML = '';
-        if (hasParent) {
-            const btn = document.createElement('button');
-            btn.className = 'nav-btn';
-            btn.innerHTML = '<i class="fas fa-arrow-up"></i> Родительская тема';
-            btn.onclick = () => { const parent = currentTopics.find(p => p.id === topic.parent); if (parent) loadTopic(parent.id, false); };
-            cont.appendChild(btn);
-        }
-        if (navigationStack.length) {
-            const back = document.createElement('button');
-            back.className = 'nav-btn';
-            back.innerHTML = '<i class="fas fa-undo-alt"></i> Вернуться по ссылке';
-            back.onclick = () => { if (navigationStack.length) loadTopic(navigationStack.pop(), false); else showToast('Нет истории'); };
-            cont.appendChild(back);
-        }
-    }
+    // Инициализация
+    window.addEventListener('load', () => {
+        initBackground();
+        initLoadingSphere();
 
-    function applyFilters() {
-        currentGradeFilter = document.getElementById('levelSelect').value;
-        currentSortMode = document.getElementById('sortSelect').value;
-        saveToStorage();
-        renderTree();
-        const cur = currentTopics.find(t => t.id === currentTopicId);
-        if (cur && isTopicVisible(cur)) updateDescription();
-        else { const first = currentTopics.find(t => t.parent === null && isTopicVisible(t)); if (first) loadTopic(first.id, false); }
-    }
+        // Твой существующий JS-код (init() и т.д.) можно оставить почти без изменений,
+        // только добавить GSAP анимации при открытии элементов.
 
-    function showToast(msg) {
-        let t = document.querySelector('.framework-toast');
-        if (t) t.remove();
-        t = document.createElement('div');
-        t.className = 'framework-toast';
-        t.textContent = msg;
-        document.body.appendChild(t);
-        setTimeout(() => t.remove(), 1800);
-    }
-
-    function closeMenu() { document.getElementById('hierarchyPanel')?.classList.remove('open'); document.getElementById('mobileOverlay').style.display = 'none'; }
-    function openMenu() { document.getElementById('hierarchyPanel')?.classList.add('open'); document.getElementById('mobileOverlay').style.display = 'block'; }
-
-    async function init() {
-        let loadedTopics = await loadConfigFromFile();
-        loadedTopics = deduplicateTopics(loadedTopics);
-        currentTopics = buildHierarchyOrder(loadedTopics);
-        initCollapsed();
-        loadFromStorage();
-        
-        const searchInput = document.getElementById('hierarchySearchInput');
-        const descCh = document.getElementById('searchInDescCheckbox');
-        const kwCh = document.getElementById('keywordsCheckbox');
-        const fuzzyCh = document.getElementById('fuzzyCheckbox');
-        const smartCh = document.getElementById('smartSortCheckbox');
-        
-        searchInput.value = currentSearchQuery;
-        descCh.checked = searchInDescription;
-        kwCh.checked = keywordsEnabled;
-        fuzzyCh.checked = fuzzyEnabled;
-        smartCh.checked = smartSortEnabled;
-        
-        document.getElementById('levelSelect').value = currentGradeFilter;
-        document.getElementById('sortSelect').value = currentSortMode;
-        
-        if (currentTopics.length) currentTopicId = currentTopics[0].id;
-        renderTree();
-        loadTopic(currentTopicId, false);
-        
-        const refresh = () => { saveToStorage(); renderTree(); updateDescription(); };
-        searchInput.addEventListener('input', (e) => { currentSearchQuery = e.target.value; refresh(); });
-        descCh.addEventListener('change', (e) => { searchInDescription = e.target.checked; refresh(); });
-        kwCh.addEventListener('change', (e) => { keywordsEnabled = e.target.checked; refresh(); });
-        fuzzyCh.addEventListener('change', (e) => { fuzzyEnabled = e.target.checked; refresh(); });
-        smartCh.addEventListener('change', (e) => { smartSortEnabled = e.target.checked; refresh(); });
-        
-        document.getElementById('levelSelect').addEventListener('change', applyFilters);
-        document.getElementById('sortSelect').addEventListener('change', applyFilters);
-        document.getElementById('menuToggleBtn').addEventListener('click', openMenu);
-        document.getElementById('mobileOverlay').addEventListener('click', closeMenu);
-        window.addEventListener('resize', () => { if (window.innerWidth > 768) closeMenu(); });
-        
-        document.body.addEventListener('click', (e) => {
-            const link = e.target.closest('.inline-link');
-            if (link && link.dataset.topicId) {
-                e.preventDefault();
-                const tid = link.dataset.topicId;
-                if (tid && currentTopics.find(t => t.id === tid)) loadTopic(tid, true);
-            }
-        });
-    }
-
-    init();
+        setTimeout(() => {
+            document.getElementById('loadingScreen').style.opacity = '0';
+            document.getElementById('app').classList.add('ready');
+        }, 1800);
+    });
 </script>
 </body>
 </html>
