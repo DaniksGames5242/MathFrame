@@ -13,7 +13,6 @@
             box-sizing: border-box;
             -webkit-tap-highlight-color: transparent;
         }
-
         body {
             font-family: 'Inter', sans-serif;
             background: linear-gradient(145deg, #f0f4fa 0%, #e6ecf4 100%);
@@ -21,8 +20,6 @@
             height: 100vh;
             overflow: hidden;
         }
-
-        /* ---------- Анимация загрузки с иконкой шляпы ---------- */
         .loading-overlay {
             position: fixed;
             top: 0;
@@ -36,20 +33,17 @@
             z-index: 10000;
             transition: opacity 0.8s cubic-bezier(0.2, 0.9, 0.4, 1.1), visibility 0.8s;
         }
-
         .loading-spinner {
             text-align: center;
             animation: floatPulse 2s infinite ease-in-out;
             filter: drop-shadow(0 0 20px rgba(0, 160, 255, 0.6));
         }
-
         .loading-spinner i {
             font-size: 5rem;
             color: #7bc5ff;
             animation: spin3D 1.2s infinite cubic-bezier(0.45, 0.05, 0.55, 0.95), glowPulse 1.6s infinite;
             display: inline-block;
         }
-
         .loading-spinner p {
             margin-top: 24px;
             font-weight: 700;
@@ -62,35 +56,29 @@
             letter-spacing: -0.3px;
             font-size: 1.3rem;
         }
-
         @keyframes spin3D {
             0% { transform: rotateY(0deg) rotateX(0deg) scale(1); }
             50% { transform: rotateY(180deg) rotateX(12deg) scale(1.08); }
             100% { transform: rotateY(360deg) rotateX(0deg) scale(1); }
         }
-
         @keyframes glowPulse {
             0% { text-shadow: 0 0 0px rgba(123,197,255,0); filter: drop-shadow(0 0 0px #7bc5ff); }
             50% { text-shadow: 0 0 20px rgba(123,197,255,0.8); filter: drop-shadow(0 0 14px #7bc5ff); }
             100% { text-shadow: 0 0 0px rgba(123,197,255,0); filter: drop-shadow(0 0 0px #7bc5ff); }
         }
-
         @keyframes shineMove {
             0% { background-position: 0% 50%; }
             100% { background-position: 200% 50%; }
         }
-
         @keyframes scaleSoft {
             0%, 100% { transform: scale(1); }
             50% { transform: scale(1.03); }
         }
-
         @keyframes floatPulse {
             0% { transform: translateY(0px); }
             50% { transform: translateY(-12px); }
             100% { transform: translateY(0px); }
         }
-
         .app {
             display: flex;
             flex-direction: column;
@@ -100,12 +88,10 @@
             transform: scale(0.98);
             transition: opacity 0.6s cubic-bezier(0.2, 0.9, 0.4, 1.2), transform 0.6s cubic-bezier(0.2, 0.9, 0.4, 1.2);
         }
-
         .app.content-visible {
             opacity: 1;
             transform: scale(1);
         }
-
         .top-bar {
             background: rgba(255, 255, 255, 0.85);
             border-bottom: 1px solid rgba(226, 232, 240, 0.8);
@@ -118,13 +104,11 @@
             flex-shrink: 0;
             box-shadow: 0 6px 14px rgba(0, 0, 0, 0.02);
         }
-
         .logo-area {
             display: flex;
             align-items: center;
             gap: 18px;
         }
-
         .home-btn, .menu-toggle {
             background: rgba(255, 255, 255, 0.9);
             border: 1px solid rgba(203, 213, 225, 0.5);
@@ -140,22 +124,18 @@
             justify-content: center;
             box-shadow: 0 2px 5px rgba(0,0,0,0.02);
         }
-
         .home-btn:hover, .menu-toggle:hover {
             background: white;
             transform: translateY(-2px);
             box-shadow: 0 8px 18px rgba(0,0,0,0.05);
             border-color: #cbdbe0;
         }
-
         .home-btn:active, .menu-toggle:active {
             transform: scale(0.94);
         }
-
         .menu-toggle {
             display: none;
         }
-
         .logo {
             font-weight: 700;
             font-size: 1.35rem;
@@ -167,13 +147,11 @@
             align-items: center;
             gap: 10px;
         }
-
         .main-layout {
             display: flex;
             flex: 1;
             overflow: hidden;
         }
-
         .hierarchy-panel {
             width: 320px;
             background: rgba(255, 255, 255, 0.96);
@@ -186,7 +164,6 @@
             flex-shrink: 0;
             box-shadow: 4px 0 25px rgba(0, 0, 0, 0.05);
         }
-
         .panel-header {
             padding: 22px 20px 12px;
             font-weight: 700;
@@ -195,7 +172,6 @@
             color: #4a627a;
             letter-spacing: 1px;
         }
-
         .hierarchy-search {
             padding: 0 16px 8px;
         }
@@ -322,7 +298,6 @@
             font-size: 0.7rem;
             color: #6b8cae;
         }
-
         .tree-children {
             overflow: hidden;
             transition: max-height 0.35s cubic-bezier(0.33, 1, 0.68, 1), opacity 0.25s;
@@ -377,7 +352,6 @@
         .node-title {
             flex: 1;
         }
-
         .content-wrapper {
             flex: 1;
             overflow-y: auto;
@@ -470,9 +444,6 @@
         @keyframes cardAppear {
             from { opacity: 0; transform: scale(0.98); }
             to { opacity: 1; transform: scale(1); }
-        }
-        .content-transition {
-            animation: fadeSlideUp 0.35s cubic-bezier(0.2, 0.9, 0.4, 1.1) forwards;
         }
         @media (max-width: 768px) {
             .top-bar { padding: 10px 18px; }
@@ -640,34 +611,26 @@
         return ordered;
     }
     function levenshtein(a,b) { const m=[]; for(let i=0;i<=b.length;i++) m[i]=[i]; for(let j=0;j<=a.length;j++) m[0][j]=j; for(let i=1;i<=b.length;i++) for(let j=1;j<=a.length;j++) m[i][j]=Math.min(m[i-1][j]+1,m[i][j-1]+1,m[i-1][j-1]+(a[j-1]===b[i-1]?0:1)); return m[b.length][a.length]; }
-
-    // Улучшенная функция поиска: точное совпадение даёт 100%, вхождение — 90%
     function getMatchPercent(word, text) {
         if (!text) return 0;
-        const lowerWord = word.toLowerCase();
-        const lowerText = text.toLowerCase();
-        // Точное совпадение строк
-        if (lowerWord === lowerText) return 100;
-        // Название содержит слово как подстроку (для частей)
-        if (lowerText.includes(lowerWord)) return 90;
-        // Границы слова (целое слово)
-        const wordBoundary = new RegExp(`\\b${lowerWord.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+        const lw = word.toLowerCase();
+        const lt = text.toLowerCase();
+        if (lw === lt) return 100;
+        if (lt.includes(lw)) return 90;
+        const wordBoundary = new RegExp(`\\b${lw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
         if (wordBoundary.test(text)) return 100;
-        if (lowerText.includes(lowerWord)) return 90;
-        // Нечёткий поиск
-        if (fuzzyEnabled && lowerWord.length >= 3) {
-            const words = lowerText.split(/\s+/);
+        if (fuzzyEnabled && lw.length >= 3) {
+            const words = lt.split(/\s+/);
             for (let w of words) {
                 if (w.length >= 3) {
-                    const distance = levenshtein(lowerWord, w);
-                    if (distance === 1) return 85;
-                    if (distance === 2) return 70;
+                    const d = levenshtein(lw, w);
+                    if (d === 1) return 85;
+                    if (d === 2) return 70;
                 }
             }
         }
         return 0;
     }
-
     function getRelevance(t, words) {
         if (!words.length) return { found: false };
         let bestName = 0, bestKw = 0, bestDesc = 0;
@@ -688,7 +651,6 @@
         else if (bestDesc > 0) { group = 3; percent = bestDesc; onlyDesc = true; }
         return { found: group > 0, group, percent, onlyDesc };
     }
-
     function getSearchWords() { return currentSearchQuery.trim() ? currentSearchQuery.toLowerCase().split(/\s+/).filter(w => w) : []; }
     function highlightText(html, words) { if (!words.length) return html; const div = document.createElement('div'); div.innerHTML = html; const walk = n => { if (n.nodeType === 3) { let t = n.nodeValue, changed = false; for (let w of words) { const rg = new RegExp(`(${w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi'); if (rg.test(t)) { t = t.replace(rg, '<span class="search-highlight">$1</span>'); changed = true; } } if (changed) { const s = document.createElement('span'); s.innerHTML = t; n.parentNode.replaceChild(s, n); } } else if (n.nodeType === 1 && !['SCRIPT','STYLE'].includes(n.tagName)) Array.from(n.childNodes).forEach(walk); }; Array.from(div.childNodes).forEach(walk); return div.innerHTML; }
     function saveToStorage(){ localStorage.setItem('mathframe_collapsed',JSON.stringify(Object.fromEntries(collapsedFolders))); localStorage.setItem('mathframe_filter',currentGradeFilter); localStorage.setItem('mathframe_sort',currentSortMode); localStorage.setItem('mathframe_search',currentSearchQuery); localStorage.setItem('mathframe_search_in_desc',searchInDescription); localStorage.setItem('mathframe_keywords',keywordsEnabled); localStorage.setItem('mathframe_fuzzy',fuzzyEnabled); localStorage.setItem('mathframe_smart_sort',smartSortEnabled); }
@@ -696,10 +658,52 @@
     function isVisible(t){ const g = t.gradeLevel || 1; if (currentGradeFilter === "all") return true; if (currentGradeFilter === "9") return g <= 9; if (currentGradeFilter === "7") return g <= 7; if (currentGradeFilter === "5") return g <= 5; if (currentGradeFilter === "preschool") return g <= 4; return true; }
     function sortByRelevance(arr){ if (!smartSortEnabled || !currentSearchQuery.trim()) { if (currentSortMode === "name_asc") return [...arr].sort((a,b)=>a.name.localeCompare(b.name)); if (currentSortMode === "name_desc") return [...arr].sort((a,b)=>b.name.localeCompare(a.name)); if (currentSortMode === "grade_asc") return [...arr].sort((a,b)=>(a.gradeLevel||0)-(b.gradeLevel||0)); if (currentSortMode === "grade_desc") return [...arr].sort((a,b)=>(b.gradeLevel||0)-(a.gradeLevel||0)); return [...arr]; } return [...arr].sort((a,b)=>{ const ia = topicRelevanceInfo.get(a.id) || { group: 999, percent: 0 }; const ib = topicRelevanceInfo.get(b.id) || { group: 999, percent: 0 }; if (ia.group !== ib.group) return ia.group - ib.group; if (ia.percent !== ib.percent) return ib.percent - ia.percent; return a.name.localeCompare(b.name); }); }
     function getChildrenSorted(id){ return sortByRelevance(currentTopics.filter(t => t.parent === id && isVisible(t))); }
-    function hasVisibleChildren(id){ const kids = getChildrenSorted(id); if (!kids.length) return false; if (!currentSearchQuery.trim()) return true; return kids.some(c => topicRelevanceInfo.get(c.id)?.found); }
-    function updateRelevance(){ matchOnlyByDescription.clear(); topicRelevanceInfo.clear(); if (!currentSearchQuery.trim()) return; const words = getSearchWords(); for (let t of currentTopics) { const info = getRelevance(t, words); topicRelevanceInfo.set(t.id, info); if (info.found && info.onlyDesc) matchOnlyByDescription.set(t.id, true); } }
-    function expandParentsForMatch(){ if (!currentSearchQuery.trim()) return; for (let t of currentTopics) if (topicRelevanceInfo.get(t.id)?.found) { let p = t.parent; while (p) { collapsedFolders.set(p, false); p = currentTopics.find(x => x.id === p)?.parent; } } }
-
+    
+    // Рекурсивная проверка наличия среди потомков темы, подходящей под поиск
+    function hasMatchingDescendant(id) {
+        if (!currentSearchQuery.trim()) return false;
+        const children = currentTopics.filter(t => t.parent === id && isVisible(t));
+        for (let child of children) {
+            if (topicRelevanceInfo.get(child.id)?.found) return true;
+            if (hasMatchingDescendant(child.id)) return true;
+        }
+        return false;
+    }
+    
+    function hasVisibleChildren(id){ 
+        const kids = getChildrenSorted(id);
+        if (!kids.length) return false;
+        if (!currentSearchQuery.trim()) return kids.length > 0;
+        // проверяем прямых детей или любых потомков
+        for (let c of kids) {
+            if (topicRelevanceInfo.get(c.id)?.found) return true;
+            if (hasMatchingDescendant(c.id)) return true;
+        }
+        return false;
+    }
+    
+    function updateRelevance(){ 
+        matchOnlyByDescription.clear(); 
+        topicRelevanceInfo.clear(); 
+        if (!currentSearchQuery.trim()) return; 
+        const words = getSearchWords(); 
+        for (let t of currentTopics) { 
+            const info = getRelevance(t, words); 
+            topicRelevanceInfo.set(t.id, info); 
+            if (info.found && info.onlyDesc) matchOnlyByDescription.set(t.id, true); 
+        } 
+    }
+    function expandParentsForMatch(){ 
+        if (!currentSearchQuery.trim()) return; 
+        for (let t of currentTopics) 
+            if (topicRelevanceInfo.get(t.id)?.found) { 
+                let p = t.parent; 
+                while (p) { 
+                    collapsedFolders.set(p, false); 
+                    p = currentTopics.find(x => x.id === p)?.parent; 
+                } 
+            } 
+    }
     function renderTree(){
         const container = document.getElementById('topicTree'); if (!container) return;
         container.innerHTML = ''; updateRelevance(); expandParentsForMatch();
@@ -735,7 +739,6 @@
     function highlightActive(){ document.querySelectorAll('.tree-node').forEach(n => n.classList.remove('active')); if (currentTopicId && currentTopicId !== 'welcome') document.querySelector(`.tree-node[data-id="${currentTopicId}"]`)?.classList.add('active'); }
     function attachEvents(){ document.querySelectorAll('.tree-node-content').forEach(el => { el.removeEventListener('click', clickHandler); el.addEventListener('click', clickHandler); }); }
     function clickHandler(e){ if (e.target.closest('.toggle-icon') && !e.target.closest('.toggle-icon')?.classList.contains('empty')) return; const node = this.closest('.tree-node'); if (node) { const id = node.getAttribute('data-id'); if (id) { if (window.innerWidth <= 768) closeMenu(); loadTopic(id, false); } } }
-
     function showWelcomeScreen() {
         currentTopicId = 'welcome';
         const exampleDiv = document.getElementById('examplePlaceholder');
@@ -750,7 +753,6 @@
             setTimeout(() => document.getElementById('unifiedCard').style.animation = '', 350);
         }, 150);
     }
-
     function loadTopic(id, fromLink) {
         if (id === 'welcome') { showWelcomeScreen(); return; }
         const topic = currentTopics.find(t => t.id === id);
@@ -776,12 +778,12 @@
         }, 150);
         showToast(topic.name);
     }
-
     function updateNavButtons(){
         const cont = document.getElementById('navButtonsContainer'); if (!cont) return;
         if (currentTopicId === 'welcome') {
             cont.innerHTML = '<button class="nav-btn" id="homeWelcomeBtn"><i class="fas fa-graduation-cap"></i> Главная</button>';
-            document.getElementById('homeWelcomeBtn')?.addEventListener('click', () => showWelcomeScreen());
+            const btn = document.getElementById('homeWelcomeBtn');
+            if (btn) btn.onclick = () => showWelcomeScreen();
             return;
         }
         const topic = currentTopics.find(t => t.id === currentTopicId);
@@ -802,7 +804,6 @@
             cont.appendChild(back);
         }
     }
-
     function applyFilters(){
         currentGradeFilter = document.getElementById('levelSelect').value;
         currentSortMode = document.getElementById('sortSelect').value;
@@ -824,17 +825,14 @@
             }
         } else { renderTree(); }
     }
-
     function showToast(msg){ let t = document.querySelector('.framework-toast'); if (t) t.remove(); t = document.createElement('div'); t.className = 'framework-toast'; t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), 1800); }
     function closeMenu(){ document.getElementById('hierarchyPanel')?.classList.remove('open'); const ov = document.getElementById('mobileOverlay'); if (ov) { ov.classList.remove('visible'); setTimeout(() => ov.style.display = 'none', 300); } }
     function openMenu(){ const panel = document.getElementById('hierarchyPanel'); const ov = document.getElementById('mobileOverlay'); if (!panel || !ov) return; panel.classList.add('open'); ov.style.left = panel.offsetWidth + 'px'; ov.style.display = 'block'; requestAnimationFrame(() => ov.classList.add('visible')); }
-
     async function init(){
         const loaded = await loadConfig();
         currentTopics = buildHierarchyOrder(loaded);
         collapsedFolders.clear(); for (let t of currentTopics) if (currentTopics.some(c => c.parent === t.id)) collapsedFolders.set(t.id, true);
         loadFromStorage();
-
         document.getElementById('hierarchySearchInput').value = currentSearchQuery;
         document.getElementById('searchInDescCheckbox').checked = searchInDescription;
         document.getElementById('keywordsCheckbox').checked = keywordsEnabled;
@@ -842,13 +840,10 @@
         document.getElementById('smartSortCheckbox').checked = smartSortEnabled;
         document.getElementById('levelSelect').value = currentGradeFilter;
         document.getElementById('sortSelect').value = currentSortMode;
-
         const searchPanel = document.getElementById('searchOptionsPanel');
         const chevron = document.getElementById('searchChevron');
         if (searchPanel) { searchPanel.classList.add('open'); chevron.style.transform = 'rotate(0deg)'; }
-
         showWelcomeScreen();
-
         const refresh = () => { saveToStorage(); renderTree(); if (currentTopicId && currentTopicId !== 'welcome') { const t = currentTopics.find(tt => tt.id === currentTopicId); if (t && isVisible(t)) { const descDiv = document.getElementById('descriptionPlaceholder'); const words = getSearchWords(); const shouldHighlight = words.length && (searchInDescription || keywordsEnabled); descDiv.innerHTML = shouldHighlight ? highlightText(t.description || '<p>Нет описания</p>', words) : (t.description || '<p>Нет описания</p>'); descDiv.querySelectorAll('.inline-link').forEach(link => { link.addEventListener('click', (e) => { e.preventDefault(); const tid = link.getAttribute('data-topic-id'); if (tid && currentTopics.find(tt => tt.id === tid)) loadTopic(tid, true); }); }); } } };
         document.getElementById('hierarchySearchInput').addEventListener('input', (e) => { currentSearchQuery = e.target.value; refresh(); });
         document.getElementById('searchInDescCheckbox').addEventListener('change', (e) => { searchInDescription = e.target.checked; refresh(); });
@@ -863,7 +858,6 @@
         window.addEventListener('resize', () => { if (window.innerWidth > 768) closeMenu(); });
         document.body.addEventListener('click', (e) => { const link = e.target.closest('.inline-link'); if (link && link.dataset.topicId) { e.preventDefault(); const tid = link.dataset.topicId; if (tid && currentTopics.find(t => t.id === tid)) loadTopic(tid, true); } });
         document.getElementById('searchOptionsToggle').addEventListener('click', () => { searchPanel.classList.toggle('open'); chevron.style.transform = searchPanel.classList.contains('open') ? 'rotate(0deg)' : 'rotate(180deg)'; });
-
         setTimeout(() => { const loader = document.getElementById('loadingOverlay'); if (loader) { loader.style.opacity = '0'; setTimeout(() => { loader.style.display = 'none'; document.getElementById('appRoot').classList.add('content-visible'); }, 700); } else document.getElementById('appRoot').classList.add('content-visible'); }, 800);
     }
     init();
