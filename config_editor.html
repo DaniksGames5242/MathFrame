@@ -330,7 +330,6 @@
         <button id="addShortBtn">Добавить из сокращённого</button>
         <button id="saveToGitHubBtn">Сохранить в GitHub</button>
         <button id="resetLocalBtn">Сбросить локальные изменения</button>
-        <button id="clearGitHubDataBtn">Сбросить токен</button>
     </div>
     <div class="undo-redo">
         <button id="undoBtn" title="Отменить (Ctrl+Z)">↩ Отменить</button>
@@ -490,7 +489,7 @@
         if (saved) {
             try {
                 const parsed = JSON.parse(saved);
-                if (Array.isArray(parsed)) {
+                if (Array.isArray(parsed) && parsed.length > 0) {
                     topics = parsed;
                     topics.forEach((t, i) => { if (!t.order) t.order = i; if (!t.keywords) t.keywords = []; if (!t.icon) t.icon = 'fa-file-alt'; if (!t.example) t.example = ''; if (!t.description) t.description = '<p></p>'; });
                     selectedId = topics[0]?.id || null;
@@ -938,8 +937,6 @@
         }, 'СОХРАНЕНИЕ В GITHUB', 'Вы собираетесь перезаписать файл config.json в репозитории. Это действие необратимо.');
     }
     
-    function clearGitHubData() { localStorage.removeItem('github_token'); showToast('Локальные данные GitHub очищены'); }
-    
     // ========== РЕЖИМ ОБЫЧНОГО ТЕКСТА ==========
     function insertPlainText(text) {
         const sel = window.getSelection();
@@ -1089,8 +1086,47 @@
     function formatJson() { try { jsonEditor.value = JSON.stringify(JSON.parse(jsonEditor.value), null, 2); showToast('Форматировано'); } catch(e) { showToast('Ошибка форматирования', true); } }
     function validateJson() { try { JSON.parse(jsonEditor.value); showToast('JSON корректен'); } catch(e) { showToast('Ошибка: ' + e.message, true); } }
     
+    // ========== ЗАГРУЗКА КОНФИГА ПРИ ОТКРЫТИИ ==========
+    async function loadInitialConfig() {
+        // Сначала пробуем загрузить config.json с сервера
+        try {
+            const response = await fetch('config.json');
+            if (response.ok) {
+                const data = await response.json();
+                if (Array.isArray(data) && data.length > 0) {
+                    topics = data;
+                    topics = removeDuplicateIds(topics);
+                    topics.forEach((t, i) => { if (!t.order) t.order = i; if (!t.keywords) t.keywords = []; if (!t.icon) t.icon = 'fa-file-alt'; if (!t.example) t.example = ''; if (!t.description) t.description = '<p></p>'; });
+                    selectedId = topics[0]?.id || null;
+                    expandedState.clear();
+                    topics.forEach(t => { if (topics.some(ch => ch.parent === t.id)) expandedState.add(t.id); });
+                    saveToLocalStorage();
+                    showToast('config.json загружен');
+                    return true;
+                }
+            }
+        } catch(e) {
+            console.log('Не удалось загрузить config.json');
+        }
+        
+        // Если config.json не загрузился, пробуем загрузить из localStorage
+        if (loadFromLocalStorage()) {
+            showToast('Данные восстановлены из кеша');
+            return true;
+        }
+        
+        // Если ничего нет, используем демо-данные
+        const demo = [{ id: "geometriya", name: "Геометрия", keywords: ["геометрия"], parent: null, icon: "fa-folder", gradeLevel: 3, example: "<div>Основы геометрии</div>", description: "<p>Изучает фигуры</p>", order: 1 }];
+        topics = demo;
+        selectedId = "geometriya";
+        expandedState.add("geometriya");
+        saveToLocalStorage();
+        showToast('Загружены демо-данные');
+        return true;
+    }
+    
     // ========== ИНИЦИАЛИЗАЦИЯ ==========
-    function init() {
+    async function init() {
         refreshPreviewBtn.onclick = updatePreview;
         exampleHtmlSource.addEventListener('input', () => { clearTimeout(previewTimeout); previewTimeout = setTimeout(updatePreview, 400); });
         
@@ -1102,7 +1138,6 @@
         document.getElementById('addShortBtn').onclick = () => { const inp = document.createElement('input'); inp.type='file'; inp.accept='.json'; inp.onchange=(e)=>{ if(e.target.files[0]) importShortJSON(e.target.files[0]); }; inp.click(); };
         document.getElementById('saveToGitHubBtn').onclick = saveToGitHub;
         document.getElementById('resetLocalBtn').onclick = resetLocalChanges;
-        document.getElementById('clearGitHubDataBtn').onclick = clearGitHubData;
         document.getElementById('applyJsonBtn').onclick = applyJson;
         document.getElementById('formatJsonBtn').onclick = formatJson;
         document.getElementById('validateJsonBtn').onclick = validateJson;
@@ -1151,22 +1186,12 @@
             else if (e.ctrlKey && (e.key === 'y' || (e.shiftKey && e.key === 'Z'))) { e.preventDefault(); redo(); }
         });
         
-        if (!loadFromLocalStorage()) {
-            const demo = [{ id: "geometriya", name: "Геометрия", keywords: ["геометрия"], parent: null, icon: "fa-folder", gradeLevel: 3, example: "<div>Основы геометрии</div>", description: "<p>Изучает фигуры</p>", order: 1 }];
-            fetch('config.json').then(r => r.ok ? r.json() : Promise.reject()).then(data => {
-                if (Array.isArray(data)) topics = data;
-                else throw new Error();
-                topics = removeDuplicateIds(topics);
-                topics.forEach((t,i) => { if (!t.order) t.order = i; if (!t.keywords) t.keywords = []; if (!t.icon) t.icon = 'fa-file-alt'; if (!t.example) t.example = ''; if (!t.description) t.description = '<p></p>'; });
-                selectedId = topics[0]?.id || null; expandedState.clear();
-                topics.forEach(t => { if (topics.some(ch => ch.parent === t.id)) expandedState.add(t.id); });
-                renderTree(); fillFormBySelectedNoSave(); updateJsonEditor(); saveToLocalStorage(); pushToHistory();
-                showToast('config.json загружен');
-            }).catch(() => {
-                topics = demo; selectedId = "geometriya"; expandedState.add("geometriya");
-                renderTree(); fillFormBySelectedNoSave(); updateJsonEditor(); saveToLocalStorage(); pushToHistory();
-            });
-        }
+        // Загружаем конфиг
+        await loadInitialConfig();
+        renderTree();
+        fillFormBySelectedNoSave();
+        updateJsonEditor();
+        pushToHistory();
         updateButtonsState();
     }
     
