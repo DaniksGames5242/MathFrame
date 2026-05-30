@@ -22,7 +22,7 @@
             overflow: hidden;
         }
 
-        /* ---------- Анимация загрузки (3D, глоу) ---------- */
+        /* ---------- Анимация загрузки (3D, глоу) с иконкой шляпы ---------- */
         .loading-overlay {
             position: fixed;
             top: 0;
@@ -176,7 +176,7 @@
             overflow: hidden;
         }
 
-        /* Панель иерархии (десктоп) */
+        /* Панель иерархии */
         .hierarchy-panel {
             width: 320px;
             background: rgba(255, 255, 255, 0.96);
@@ -327,7 +327,7 @@
             color: #6b8cae;
         }
 
-        /* Дерево тем — исправленная иерархия с анимацией */
+        /* Дерево тем — с плавными анимациями */
         .tree-children {
             overflow: hidden;
             transition: max-height 0.35s cubic-bezier(0.33, 1, 0.68, 1), opacity 0.25s;
@@ -383,7 +383,7 @@
             flex: 1;
         }
 
-        /* Контентные анимации */
+        /* Контентные анимации (переходы, появление) */
         .content-wrapper {
             flex: 1;
             overflow-y: auto;
@@ -430,12 +430,13 @@
             border-radius: 24px;
             border: 1px solid #ecf3fa;
             min-height: 420px;
-            transition: opacity 0.2s;
+            transition: opacity 0.2s ease, transform 0.2s ease;
             box-shadow: 0 6px 12px -8px rgba(0,0,0,0.05);
         }
         .desc-placeholder {
             line-height: 1.55;
             font-size: 0.95rem;
+            transition: opacity 0.2s ease, transform 0.2s ease;
         }
         .inline-link {
             color: #2c6b9e;
@@ -461,11 +462,24 @@
         .welcome-message {
             text-align: center;
             padding: 30px 20px;
+            animation: fadeSlideUp 0.5s cubic-bezier(0.2, 0.9, 0.4, 1.1);
         }
         .welcome-message i {
             font-size: 3.8rem;
             color: #2c6b9e;
             margin-bottom: 20px;
+        }
+        /* Анимация появления контента */
+        @keyframes fadeSlideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes cardAppear {
+            from { opacity: 0; transform: scale(0.98); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        .content-transition {
+            animation: fadeSlideUp 0.35s cubic-bezier(0.2, 0.9, 0.4, 1.1) forwards;
         }
         @media (max-width: 768px) {
             .top-bar { padding: 10px 18px; }
@@ -526,7 +540,11 @@
 </head>
 <body>
 <div class="loading-overlay" id="loadingOverlay">
-    <div class="loading-spinner"><i class="fas fa-cube"></i><p>MathFrame | immersive learning</p></div>
+    <div class="loading-spinner">
+        <!-- Иконка шляпы вместо куба -->
+        <i class="fas fa-graduation-cap"></i>
+        <p>MathFrame | immersive learning</p>
+    </div>
 </div>
 <div class="app" id="appRoot">
     <div class="top-bar">
@@ -582,7 +600,7 @@
             </div>
         </div>
         <div class="content-wrapper" id="unifiedScroller">
-            <div class="unified-card">
+            <div class="unified-card" id="unifiedCard">
                 <div class="nav-buttons" id="navButtonsContainer"></div>
                 <div class="two-columns">
                     <div class="column-example">
@@ -601,7 +619,7 @@
 <div class="mobile-overlay" id="mobileOverlay"></div>
 
 <script>
-    // ======================= БАЗОВЫЕ ТЕМЫ =======================
+    // ======================= БАЗОВЫЕ ТЕМЫ (всегда есть) =======================
     const DEFAULT_TOPICS = [
         { id: "algebra_7", name: "Алгебра 7–9", parent: null, icon: "fa-folder", gradeLevel: 7, keywords: ["алгебра","выражения","формулы","7 класс"], example: '<div style="padding:20px; text-align:center;"><i class="fas fa-chart-line" style="font-size:2rem;"></i><div>Алгебра 7-9</div></div>', description: '<p><strong>Алгебра</strong> — раздел математики, изучающий операции над величинами и решение уравнений.</p><p><span class="inline-link" data-topic-id="linear_eq">Линейные уравнения</span>.</p>' },
         { id: "linear_eq", name: "Линейные уравнения", parent: "algebra_7", icon: "fa-file-alt", gradeLevel: 7, keywords: ["уравнение","линейное","корень","ax+b=0"], example: '<div style="padding:20px;"><i class="fas fa-chart-line"></i><div>ax + b = 0 → x = -b/a</div><div>Пример: 2x - 6 = 0 → x = 3</div></div>', description: '<p><strong>Линейное уравнение</strong>: ax + b = 0, a≠0. Корень: x = -b/a.</p><p><span class="inline-link" data-topic-id="quadratic_eq">Квадратные уравнения</span>.</p>' },
@@ -618,8 +636,11 @@
     let currentSearchQuery = "", searchInDescription = false, keywordsEnabled = true, fuzzyEnabled = true, smartSortEnabled = true;
     let matchOnlyByDescription = new Map(), topicRelevanceInfo = new Map();
 
-    // ========== ЗАГРУЗКА И ПОСТРОЕНИЕ ИЕРАРХИИ ==========
-    async function loadConfig() { try { const r=await fetch('./config.json'); if(r.ok) return await r.json(); } catch(e){} return JSON.parse(JSON.stringify(DEFAULT_TOPICS)); }
+    // ========== ЗАГРУЗКА И ПОСТРОЕНИЕ ИЕРАРХИИ (всегда падает на DEFAULT_TOPICS, но config.json может добавить) ==========
+    async function loadConfig() { 
+        try { const r=await fetch('./config.json'); if(r.ok) return await r.json(); } catch(e){} 
+        return JSON.parse(JSON.stringify(DEFAULT_TOPICS)); 
+    }
     function buildHierarchyOrder(topics) {
         const ordered = [];
         const roots = topics.filter(t => t.parent === null).sort((a,b)=>a.name.localeCompare(b.name));
@@ -674,48 +695,157 @@
         parentEl.appendChild(node);
     }
     function applyTreeFilter(){ const q=currentSearchQuery.trim(); if(!q){ document.querySelectorAll('.tree-node').forEach(n=>n.style.display=''); return; } const matching=new Set(); for(let t of currentTopics) if(topicRelevanceInfo.get(t.id)?.found){ matching.add(t.id); let p=t.parent; while(p){ matching.add(p); p=currentTopics.find(x=>x.id===p)?.parent; } } document.querySelectorAll('.tree-node').forEach(n=>{ n.style.display=matching.has(n.getAttribute('data-id'))?'':'none'; }); }
-    function highlightActive(){ document.querySelectorAll('.tree-node').forEach(n=>n.classList.remove('active')); if(currentTopicId) document.querySelector(`.tree-node[data-id="${currentTopicId}"]`)?.classList.add('active'); }
+    function highlightActive(){ document.querySelectorAll('.tree-node').forEach(n=>n.classList.remove('active')); if(currentTopicId && currentTopicId!=='welcome') document.querySelector(`.tree-node[data-id="${currentTopicId}"]`)?.classList.add('active'); }
     function attachEvents(){ document.querySelectorAll('.tree-node-content').forEach(el=>{ el.removeEventListener('click',clickHandler); el.addEventListener('click',clickHandler); }); }
     function clickHandler(e){ if(e.target.closest('.toggle-icon') && !e.target.closest('.toggle-icon')?.classList.contains('empty')) return; const node=this.closest('.tree-node'); if(node){ const id=node.getAttribute('data-id'); if(id){ if(window.innerWidth<=768) closeMenu(); loadTopic(id,false); } } }
-    function loadTopic(id,fromLink){ const topic=currentTopics.find(t=>t.id===id); if(!topic) return; if(fromLink && currentTopicId) navigationStack.push(currentTopicId); currentTopicId=id; const exampleDiv=document.getElementById('examplePlaceholder'); exampleDiv.style.opacity='0'; setTimeout(()=>{ exampleDiv.innerHTML=topic.example||'<div style="padding:20px;">Пример отсутствует</div>'; exampleDiv.style.opacity='1'; updateDescription(); updateNavButtons(); renderTree(); },30); showToast(topic.name); }
-    function updateDescription(){ const topic=currentTopics.find(t=>t.id===currentTopicId); if(!topic) return; const descDiv=document.getElementById('descriptionPlaceholder'); const raw=topic.description||'<p>Нет описания</p>'; const words=getSearchWords(); const shouldHighlight=words.length && (searchInDescription||keywordsEnabled); descDiv.innerHTML=shouldHighlight?highlightText(raw,words):raw; descDiv.querySelectorAll('.inline-link').forEach(link=>{ link.addEventListener('click',(e)=>{ e.preventDefault(); const tid=link.getAttribute('data-topic-id'); if(tid && currentTopics.find(t=>t.id===tid)) loadTopic(tid,true); }); }); }
-    function updateNavButtons(){ const cont=document.getElementById('navButtonsContainer'); if(!cont) return; const topic=currentTopics.find(t=>t.id===currentTopicId); const hasParent=topic && topic.parent && currentTopics.some(p=>p.id===topic.parent); cont.innerHTML=''; if(hasParent){ const btn=document.createElement('button'); btn.className='nav-btn'; btn.innerHTML='<i class="fas fa-arrow-up"></i> Родительская тема'; btn.onclick=()=>{ if(topic.parent) loadTopic(topic.parent,false); }; cont.appendChild(btn); } if(navigationStack.length){ const back=document.createElement('button'); back.className='nav-btn'; back.innerHTML='<i class="fas fa-undo-alt"></i> Вернуться по ссылке'; back.onclick=()=>{ if(navigationStack.length) loadTopic(navigationStack.pop(),false); else showToast('Нет истории'); }; cont.appendChild(back); } }
-    function applyFilters(){ currentGradeFilter=document.getElementById('levelSelect').value; currentSortMode=document.getElementById('sortSelect').value; saveToStorage(); renderTree(); if(currentTopicId){ const cur=currentTopics.find(t=>t.id===currentTopicId); if(cur && isVisible(cur)) updateDescription(); else { const first=currentTopics.find(t=>t.parent===null && isVisible(t)); if(first) loadTopic(first.id,false); } } }
+
+    // ГЛАВНАЯ СТРАНИЦА — всегда отображается, независимо от конфига
+    function showWelcomeScreen() {
+        currentTopicId = 'welcome';
+        const exampleDiv = document.getElementById('examplePlaceholder');
+        const descDiv = document.getElementById('descriptionPlaceholder');
+        // плавное исчезновение и появление с анимацией
+        exampleDiv.style.opacity = '0';
+        descDiv.style.opacity = '0';
+        setTimeout(() => {
+            exampleDiv.innerHTML = `<div class="welcome-message"><i class="fas fa-graduation-cap"></i><h2 style="margin: 16px 0 10px;">MathFrame</h2><p>Современная платформа для изучения точных наук</p><p style="margin-top: 22px; opacity:0.7;">Выберите тему в меню или начните поиск</p></div>`;
+            descDiv.innerHTML = `<p style="font-size: 1rem;"><strong>Добро пожаловать!</strong><br>Адаптивный интерфейс, плавные анимации, умный поиск и качественные примеры.</p><p>Используйте дерево тем, фильтры и гиперссылки внутри материалов.</p>`;
+            exampleDiv.style.opacity = '1';
+            descDiv.style.opacity = '1';
+            updateNavButtons();
+            renderTree();  // обновляем подсветку (убираем активную тему)
+            // анимация карточки
+            document.getElementById('unifiedCard').style.animation = 'cardAppear 0.3s ease-out';
+        }, 150);
+    }
+
+    // Загрузка темы с анимациями перехода
+    function loadTopic(id, fromLink) {
+        if (id === 'welcome') { showWelcomeScreen(); return; }
+        const topic = currentTopics.find(t => t.id === id);
+        if (!topic) return;
+        if (fromLink && currentTopicId && currentTopicId !== 'welcome') navigationStack.push(currentTopicId);
+        currentTopicId = id;
+        const exampleDiv = document.getElementById('examplePlaceholder');
+        const descDiv = document.getElementById('descriptionPlaceholder');
+        // анимация исчезновения
+        exampleDiv.style.opacity = '0';
+        descDiv.style.opacity = '0';
+        setTimeout(() => {
+            exampleDiv.innerHTML = topic.example || '<div style="padding:20px;">Пример не задан</div>';
+            descDiv.innerHTML = (topic.description || '<p>Нет описания</p>');
+            const words = getSearchWords();
+            const shouldHighlight = words.length && (searchInDescription || keywordsEnabled);
+            if (shouldHighlight) descDiv.innerHTML = highlightText(descDiv.innerHTML, words);
+            descDiv.querySelectorAll('.inline-link').forEach(link => {
+                link.addEventListener('click', (e) => { e.preventDefault(); const tid = link.getAttribute('data-topic-id'); if (tid && currentTopics.find(t => t.id === tid)) loadTopic(tid, true); });
+            });
+            exampleDiv.style.opacity = '1';
+            descDiv.style.opacity = '1';
+            updateNavButtons();
+            renderTree();
+            // анимация карточки
+            document.getElementById('unifiedCard').style.animation = 'cardAppear 0.3s ease-out';
+            setTimeout(() => { document.getElementById('unifiedCard').style.animation = ''; }, 350);
+        }, 150);
+        showToast(topic.name);
+    }
+
+    function updateNavButtons(){
+        const cont = document.getElementById('navButtonsContainer');
+        if(!cont) return;
+        if(currentTopicId === 'welcome'){
+            cont.innerHTML = '<button class="nav-btn" id="homeWelcomeBtn"><i class="fas fa-graduation-cap"></i> Главная</button>';
+            const homeBtn = document.getElementById('homeWelcomeBtn');
+            if(homeBtn) homeBtn.onclick = () => showWelcomeScreen();
+            return;
+        }
+        const topic = currentTopics.find(t=>t.id===currentTopicId);
+        const hasParent = topic && topic.parent && currentTopics.some(p=>p.id===topic.parent);
+        cont.innerHTML = '';
+        if(hasParent){
+            const btn = document.createElement('button');
+            btn.className='nav-btn';
+            btn.innerHTML='<i class="fas fa-arrow-up"></i> Родительская тема';
+            btn.onclick = () => { if(topic.parent) loadTopic(topic.parent, false); };
+            cont.appendChild(btn);
+        }
+        if(navigationStack.length){
+            const back = document.createElement('button');
+            back.className='nav-btn';
+            back.innerHTML='<i class="fas fa-undo-alt"></i> Вернуться по ссылке';
+            back.onclick = () => { if(navigationStack.length) loadTopic(navigationStack.pop(), false); else showToast('Нет истории'); };
+            cont.appendChild(back);
+        }
+    }
+
+    function applyFilters(){
+        currentGradeFilter = document.getElementById('levelSelect').value;
+        currentSortMode = document.getElementById('sortSelect').value;
+        saveToStorage();
+        renderTree();
+        if(currentTopicId && currentTopicId !== 'welcome'){
+            const cur = currentTopics.find(t=>t.id===currentTopicId);
+            if(cur && isVisible(cur)){
+                const descDiv = document.getElementById('descriptionPlaceholder');
+                const words = getSearchWords();
+                const shouldHighlight = words.length && (searchInDescription || keywordsEnabled);
+                descDiv.innerHTML = shouldHighlight ? highlightText(cur.description || '<p>Нет описания</p>', words) : (cur.description || '<p>Нет описания</p>');
+                descDiv.querySelectorAll('.inline-link').forEach(link => {
+                    link.addEventListener('click', (e) => { e.preventDefault(); const tid = link.getAttribute('data-topic-id'); if(tid && currentTopics.find(t=>t.id===tid)) loadTopic(tid, true); });
+                });
+            } else {
+                const first = currentTopics.find(t=>t.parent===null && isVisible(t));
+                if(first) loadTopic(first.id, false);
+                else showWelcomeScreen();
+            }
+        } else {
+            renderTree();
+        }
+    }
+
     function showToast(msg){ let t=document.querySelector('.framework-toast'); if(t) t.remove(); t=document.createElement('div'); t.className='framework-toast'; t.textContent=msg; document.body.appendChild(t); setTimeout(()=>t.remove(),1800); }
     function closeMenu(){ document.getElementById('hierarchyPanel')?.classList.remove('open'); const ov=document.getElementById('mobileOverlay'); if(ov){ ov.classList.remove('visible'); setTimeout(()=>ov.style.display='none',300); } }
     function openMenu(){ const panel=document.getElementById('hierarchyPanel'); const ov=document.getElementById('mobileOverlay'); if(!panel||!ov) return; panel.classList.add('open'); ov.style.left=panel.offsetWidth+'px'; ov.style.display='block'; requestAnimationFrame(()=>ov.classList.add('visible')); }
+
     async function init(){
-        const loaded=await loadConfig();
-        currentTopics=buildHierarchyOrder(loaded);
-        collapsedFolders.clear(); for(let t of currentTopics) if(currentTopics.some(c=>c.parent===t.id)) collapsedFolders.set(t.id,true);
+        const loaded = await loadConfig();
+        currentTopics = buildHierarchyOrder(loaded);
+        collapsedFolders.clear(); 
+        for(let t of currentTopics) if(currentTopics.some(c=>c.parent===t.id)) collapsedFolders.set(t.id, true);
         loadFromStorage();
-        document.getElementById('hierarchySearchInput').value=currentSearchQuery;
-        document.getElementById('searchInDescCheckbox').checked=searchInDescription;
-        document.getElementById('keywordsCheckbox').checked=keywordsEnabled;
-        document.getElementById('fuzzyCheckbox').checked=fuzzyEnabled;
-        document.getElementById('smartSortCheckbox').checked=smartSortEnabled;
-        document.getElementById('levelSelect').value=currentGradeFilter;
-        document.getElementById('sortSelect').value=currentSortMode;
-        const searchPanel=document.getElementById('searchOptionsPanel');
-        const chevron=document.getElementById('searchChevron');
-        if(searchPanel){ searchPanel.classList.add('open'); chevron.style.transform='rotate(0deg)'; }
-        if(currentTopics.length) { currentTopicId=currentTopics[0].id; loadTopic(currentTopicId,false); }
-        else { document.getElementById('examplePlaceholder').innerHTML='<div class="welcome-message"><i class="fas fa-graduation-cap"></i><h2>MathFrame</h2><p>Нет данных</p></div>'; }
-        const refresh=()=>{ saveToStorage(); renderTree(); if(currentTopicId) updateDescription(); };
-        document.getElementById('hierarchySearchInput').addEventListener('input',(e)=>{ currentSearchQuery=e.target.value; refresh(); });
-        document.getElementById('searchInDescCheckbox').addEventListener('change',(e)=>{ searchInDescription=e.target.checked; refresh(); });
-        document.getElementById('keywordsCheckbox').addEventListener('change',(e)=>{ keywordsEnabled=e.target.checked; refresh(); });
-        document.getElementById('fuzzyCheckbox').addEventListener('change',(e)=>{ fuzzyEnabled=e.target.checked; refresh(); });
-        document.getElementById('smartSortCheckbox').addEventListener('change',(e)=>{ smartSortEnabled=e.target.checked; refresh(); });
-        document.getElementById('levelSelect').addEventListener('change',applyFilters);
-        document.getElementById('sortSelect').addEventListener('change',applyFilters);
-        document.getElementById('menuToggleBtn').addEventListener('click',openMenu);
-        document.getElementById('mobileOverlay').addEventListener('click',closeMenu);
-        document.getElementById('globalHomeBtn').addEventListener('click',()=>{ if(currentTopics.length) loadTopic(currentTopics[0].id,false); else showToast('Главная'); });
-        window.addEventListener('resize',()=>{ if(window.innerWidth>768) closeMenu(); });
-        document.body.addEventListener('click',(e)=>{ const link=e.target.closest('.inline-link'); if(link && link.dataset.topicId){ e.preventDefault(); const tid=link.dataset.topicId; if(tid && currentTopics.find(t=>t.id===tid)) loadTopic(tid,true); } });
-        document.getElementById('searchOptionsToggle').addEventListener('click',()=>{ searchPanel.classList.toggle('open'); chevron.style.transform=searchPanel.classList.contains('open')?'rotate(0deg)':'rotate(180deg)'; });
-        setTimeout(()=>{ const loader=document.getElementById('loadingOverlay'); if(loader){ loader.style.opacity='0'; setTimeout(()=>{ loader.style.display='none'; document.getElementById('appRoot').classList.add('content-visible'); },700); } else document.getElementById('appRoot').classList.add('content-visible'); },800);
+
+        document.getElementById('hierarchySearchInput').value = currentSearchQuery;
+        document.getElementById('searchInDescCheckbox').checked = searchInDescription;
+        document.getElementById('keywordsCheckbox').checked = keywordsEnabled;
+        document.getElementById('fuzzyCheckbox').checked = fuzzyEnabled;
+        document.getElementById('smartSortCheckbox').checked = smartSortEnabled;
+        document.getElementById('levelSelect').value = currentGradeFilter;
+        document.getElementById('sortSelect').value = currentSortMode;
+
+        const searchPanel = document.getElementById('searchOptionsPanel');
+        const chevron = document.getElementById('searchChevron');
+        if(searchPanel){ searchPanel.classList.add('open'); chevron.style.transform = 'rotate(0deg)'; }
+
+        // Всегда показываем главную страницу (приветствие) при загрузке
+        showWelcomeScreen();
+
+        const refresh = () => { saveToStorage(); renderTree(); if(currentTopicId && currentTopicId !== 'welcome'){ const t = currentTopics.find(tt=>tt.id===currentTopicId); if(t && isVisible(t)){ const descDiv=document.getElementById('descriptionPlaceholder'); const words=getSearchWords(); const shouldHighlight=words.length && (searchInDescription||keywordsEnabled); descDiv.innerHTML=shouldHighlight?highlightText(t.description||'<p>Нет описания</p>',words):(t.description||'<p>Нет описания</p>'); descDiv.querySelectorAll('.inline-link').forEach(link=>{ link.addEventListener('click',(e)=>{ e.preventDefault(); const tid=link.getAttribute('data-topic-id'); if(tid && currentTopics.find(tt=>tt.id===tid)) loadTopic(tid,true); }); }); } } };
+        document.getElementById('hierarchySearchInput').addEventListener('input', (e)=>{ currentSearchQuery=e.target.value; refresh(); });
+        document.getElementById('searchInDescCheckbox').addEventListener('change', (e)=>{ searchInDescription=e.target.checked; refresh(); });
+        document.getElementById('keywordsCheckbox').addEventListener('change', (e)=>{ keywordsEnabled=e.target.checked; refresh(); });
+        document.getElementById('fuzzyCheckbox').addEventListener('change', (e)=>{ fuzzyEnabled=e.target.checked; refresh(); });
+        document.getElementById('smartSortCheckbox').addEventListener('change', (e)=>{ smartSortEnabled=e.target.checked; refresh(); });
+        document.getElementById('levelSelect').addEventListener('change', applyFilters);
+        document.getElementById('sortSelect').addEventListener('change', applyFilters);
+        document.getElementById('menuToggleBtn').addEventListener('click', openMenu);
+        document.getElementById('mobileOverlay').addEventListener('click', closeMenu);
+        document.getElementById('globalHomeBtn').addEventListener('click', () => { showWelcomeScreen(); });
+        window.addEventListener('resize', () => { if(window.innerWidth > 768) closeMenu(); });
+        document.body.addEventListener('click', (e) => { const link = e.target.closest('.inline-link'); if(link && link.dataset.topicId){ e.preventDefault(); const tid = link.dataset.topicId; if(tid && currentTopics.find(t=>t.id===tid)) loadTopic(tid, true); } });
+        document.getElementById('searchOptionsToggle').addEventListener('click', () => { searchPanel.classList.toggle('open'); chevron.style.transform = searchPanel.classList.contains('open') ? 'rotate(0deg)' : 'rotate(180deg)'; });
+
+        setTimeout(() => { const loader = document.getElementById('loadingOverlay'); if(loader){ loader.style.opacity='0'; setTimeout(()=>{ loader.style.display='none'; document.getElementById('appRoot').classList.add('content-visible'); },700); } else document.getElementById('appRoot').classList.add('content-visible'); }, 800);
     }
     init();
 </script>
