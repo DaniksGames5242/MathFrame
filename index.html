@@ -22,7 +22,7 @@
             overflow: hidden;
         }
 
-        /* ---------- Анимация загрузки (3D, глоу) с иконкой шляпы ---------- */
+        /* ---------- Анимация загрузки с иконкой шляпы ---------- */
         .loading-overlay {
             position: fixed;
             top: 0;
@@ -91,7 +91,6 @@
             100% { transform: translateY(0px); }
         }
 
-        /* Плавный выход загрузки и вход контента */
         .app {
             display: flex;
             flex-direction: column;
@@ -107,7 +106,6 @@
             transform: scale(1);
         }
 
-        /* Верхняя панель */
         .top-bar {
             background: rgba(255, 255, 255, 0.85);
             border-bottom: 1px solid rgba(226, 232, 240, 0.8);
@@ -176,7 +174,6 @@
             overflow: hidden;
         }
 
-        /* Панель иерархии */
         .hierarchy-panel {
             width: 320px;
             background: rgba(255, 255, 255, 0.96);
@@ -199,7 +196,6 @@
             letter-spacing: 1px;
         }
 
-        /* Поиск и фильтры */
         .hierarchy-search {
             padding: 0 16px 8px;
         }
@@ -327,7 +323,6 @@
             color: #6b8cae;
         }
 
-        /* Дерево тем — с плавными анимациями */
         .tree-children {
             overflow: hidden;
             transition: max-height 0.35s cubic-bezier(0.33, 1, 0.68, 1), opacity 0.25s;
@@ -383,7 +378,6 @@
             flex: 1;
         }
 
-        /* Контентные анимации (переходы, появление) */
         .content-wrapper {
             flex: 1;
             overflow-y: auto;
@@ -469,7 +463,6 @@
             color: #2c6b9e;
             margin-bottom: 20px;
         }
-        /* Анимация появления контента */
         @keyframes fadeSlideUp {
             from { opacity: 0; transform: translateY(20px); }
             to { opacity: 1; transform: translateY(0); }
@@ -541,7 +534,6 @@
 <body>
 <div class="loading-overlay" id="loadingOverlay">
     <div class="loading-spinner">
-        <!-- Иконка шляпы вместо куба -->
         <i class="fas fa-graduation-cap"></i>
         <p>MathFrame | immersive learning</p>
     </div>
@@ -560,7 +552,7 @@
             <div class="hierarchy-search">
                 <div class="search-wrapper">
                     <i class="fas fa-search"></i>
-                    <input type="text" id="hierarchySearchInput" class="search-input" placeholder="Поиск по темам, ключевым словам...">
+                    <input type="text" id="hierarchySearchInput" class="search-input" placeholder="Поиск по названию, ключевым словам...">
                 </div>
                 <div class="search-options-header" id="searchOptionsToggle">
                     <span><i class="fas fa-sliders-h"></i> Параметры поиска</span>
@@ -619,7 +611,7 @@
 <div class="mobile-overlay" id="mobileOverlay"></div>
 
 <script>
-    // ======================= БАЗОВЫЕ ТЕМЫ (всегда есть) =======================
+    // ======================= БАЗОВЫЕ ТЕМЫ =======================
     const DEFAULT_TOPICS = [
         { id: "algebra_7", name: "Алгебра 7–9", parent: null, icon: "fa-folder", gradeLevel: 7, keywords: ["алгебра","выражения","формулы","7 класс"], example: '<div style="padding:20px; text-align:center;"><i class="fas fa-chart-line" style="font-size:2rem;"></i><div>Алгебра 7-9</div></div>', description: '<p><strong>Алгебра</strong> — раздел математики, изучающий операции над величинами и решение уравнений.</p><p><span class="inline-link" data-topic-id="linear_eq">Линейные уравнения</span>.</p>' },
         { id: "linear_eq", name: "Линейные уравнения", parent: "algebra_7", icon: "fa-file-alt", gradeLevel: 7, keywords: ["уравнение","линейное","корень","ax+b=0"], example: '<div style="padding:20px;"><i class="fas fa-chart-line"></i><div>ax + b = 0 → x = -b/a</div><div>Пример: 2x - 6 = 0 → x = 3</div></div>', description: '<p><strong>Линейное уравнение</strong>: ax + b = 0, a≠0. Корень: x = -b/a.</p><p><span class="inline-link" data-topic-id="quadratic_eq">Квадратные уравнения</span>.</p>' },
@@ -636,7 +628,6 @@
     let currentSearchQuery = "", searchInDescription = false, keywordsEnabled = true, fuzzyEnabled = true, smartSortEnabled = true;
     let matchOnlyByDescription = new Map(), topicRelevanceInfo = new Map();
 
-    // ========== ЗАГРУЗКА И ПОСТРОЕНИЕ ИЕРАРХИИ (всегда падает на DEFAULT_TOPICS, но config.json может добавить) ==========
     async function loadConfig() { 
         try { const r=await fetch('./config.json'); if(r.ok) return await r.json(); } catch(e){} 
         return JSON.parse(JSON.stringify(DEFAULT_TOPICS)); 
@@ -649,77 +640,117 @@
         return ordered;
     }
     function levenshtein(a,b) { const m=[]; for(let i=0;i<=b.length;i++) m[i]=[i]; for(let j=0;j<=a.length;j++) m[0][j]=j; for(let i=1;i<=b.length;i++) for(let j=1;j<=a.length;j++) m[i][j]=Math.min(m[i-1][j]+1,m[i][j-1]+1,m[i-1][j-1]+(a[j-1]===b[i-1]?0:1)); return m[b.length][a.length]; }
-    function getMatchPercent(word,text) { if(!text) return 0; const lw=word.toLowerCase(), lt=text.toLowerCase(); if(new RegExp(`\\b${lw.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}\\b`,'i').test(text)) return 100; if(lt.includes(lw)) return 80; if(fuzzyEnabled && lw.length>=3) for(let w of lt.split(/\s+/)) if(w.length>=3 && levenshtein(lw,w)<=2) return w.length>=3? (levenshtein(lw,w)===1?70:60) :0; return 0; }
-    function getRelevance(t,words){ if(!words.length) return {found:false}; let np=0,kp=0,dp=0; for(let w of words){ np=Math.max(np,getMatchPercent(w,t.name)); if(keywordsEnabled && t.keywords) kp=Math.max(kp,getMatchPercent(w,Array.isArray(t.keywords)?t.keywords.join(" "):String(t.keywords))); if(searchInDescription && t.description) dp=Math.max(dp,getMatchPercent(w,t.description.replace(/<[^>]*>/g,''))); } let g=0,p=0,od=false; if(np>0){g=1;p=np;} else if(kp>0){g=2;p=kp;} else if(dp>0){g=3;p=dp;od=true;} return {found:g>0,group:g,percent:p,onlyDesc:od}; }
-    function getSearchWords(){ return currentSearchQuery.trim()?currentSearchQuery.toLowerCase().split(/\s+/).filter(w=>w):[]; }
-    function highlightText(html,words){ if(!words.length) return html; const div=document.createElement('div'); div.innerHTML=html; const walk=n=>{ if(n.nodeType===3){ let t=n.nodeValue,ch=false; for(let w of words){ const rg=new RegExp(`(${w.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')})`,'gi'); if(rg.test(t)){ t=t.replace(rg,'<span class="search-highlight">$1</span>'); ch=true; } } if(ch){ const s=document.createElement('span'); s.innerHTML=t; n.parentNode.replaceChild(s,n); } } else if(n.nodeType===1 && !['SCRIPT','STYLE'].includes(n.tagName)) Array.from(n.childNodes).forEach(walk); }; Array.from(div.childNodes).forEach(walk); return div.innerHTML; }
+
+    // Улучшенная функция поиска: точное совпадение даёт 100%, вхождение — 90%
+    function getMatchPercent(word, text) {
+        if (!text) return 0;
+        const lowerWord = word.toLowerCase();
+        const lowerText = text.toLowerCase();
+        // Точное совпадение строк
+        if (lowerWord === lowerText) return 100;
+        // Название содержит слово как подстроку (для частей)
+        if (lowerText.includes(lowerWord)) return 90;
+        // Границы слова (целое слово)
+        const wordBoundary = new RegExp(`\\b${lowerWord.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+        if (wordBoundary.test(text)) return 100;
+        if (lowerText.includes(lowerWord)) return 90;
+        // Нечёткий поиск
+        if (fuzzyEnabled && lowerWord.length >= 3) {
+            const words = lowerText.split(/\s+/);
+            for (let w of words) {
+                if (w.length >= 3) {
+                    const distance = levenshtein(lowerWord, w);
+                    if (distance === 1) return 85;
+                    if (distance === 2) return 70;
+                }
+            }
+        }
+        return 0;
+    }
+
+    function getRelevance(t, words) {
+        if (!words.length) return { found: false };
+        let bestName = 0, bestKw = 0, bestDesc = 0;
+        for (let w of words) {
+            bestName = Math.max(bestName, getMatchPercent(w, t.name));
+            if (keywordsEnabled && t.keywords) {
+                const kwText = Array.isArray(t.keywords) ? t.keywords.join(" ") : String(t.keywords);
+                bestKw = Math.max(bestKw, getMatchPercent(w, kwText));
+            }
+            if (searchInDescription && t.description) {
+                const descText = t.description.replace(/<[^>]*>/g, '');
+                bestDesc = Math.max(bestDesc, getMatchPercent(w, descText));
+            }
+        }
+        let group = 0, percent = 0, onlyDesc = false;
+        if (bestName > 0) { group = 1; percent = bestName; }
+        else if (bestKw > 0) { group = 2; percent = bestKw; }
+        else if (bestDesc > 0) { group = 3; percent = bestDesc; onlyDesc = true; }
+        return { found: group > 0, group, percent, onlyDesc };
+    }
+
+    function getSearchWords() { return currentSearchQuery.trim() ? currentSearchQuery.toLowerCase().split(/\s+/).filter(w => w) : []; }
+    function highlightText(html, words) { if (!words.length) return html; const div = document.createElement('div'); div.innerHTML = html; const walk = n => { if (n.nodeType === 3) { let t = n.nodeValue, changed = false; for (let w of words) { const rg = new RegExp(`(${w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi'); if (rg.test(t)) { t = t.replace(rg, '<span class="search-highlight">$1</span>'); changed = true; } } if (changed) { const s = document.createElement('span'); s.innerHTML = t; n.parentNode.replaceChild(s, n); } } else if (n.nodeType === 1 && !['SCRIPT','STYLE'].includes(n.tagName)) Array.from(n.childNodes).forEach(walk); }; Array.from(div.childNodes).forEach(walk); return div.innerHTML; }
     function saveToStorage(){ localStorage.setItem('mathframe_collapsed',JSON.stringify(Object.fromEntries(collapsedFolders))); localStorage.setItem('mathframe_filter',currentGradeFilter); localStorage.setItem('mathframe_sort',currentSortMode); localStorage.setItem('mathframe_search',currentSearchQuery); localStorage.setItem('mathframe_search_in_desc',searchInDescription); localStorage.setItem('mathframe_keywords',keywordsEnabled); localStorage.setItem('mathframe_fuzzy',fuzzyEnabled); localStorage.setItem('mathframe_smart_sort',smartSortEnabled); }
-    function loadFromStorage(){ const sc=localStorage.getItem('mathframe_collapsed'); if(sc) collapsedFolders=new Map(Object.entries(JSON.parse(sc))); currentGradeFilter=localStorage.getItem('mathframe_filter')||"all"; currentSortMode=localStorage.getItem('mathframe_sort')||"config"; currentSearchQuery=localStorage.getItem('mathframe_search')||""; searchInDescription=localStorage.getItem('mathframe_search_in_desc')==='true'; keywordsEnabled=localStorage.getItem('mathframe_keywords')!=='false'; fuzzyEnabled=localStorage.getItem('mathframe_fuzzy')!=='false'; smartSortEnabled=localStorage.getItem('mathframe_smart_sort')!=='false'; }
-    function isVisible(t){ const g=t.gradeLevel||1; if(currentGradeFilter==="all") return true; if(currentGradeFilter==="9") return g<=9; if(currentGradeFilter==="7") return g<=7; if(currentGradeFilter==="5") return g<=5; if(currentGradeFilter==="preschool") return g<=4; return true; }
-    function sortByRelevance(arr){ if(!smartSortEnabled || !currentSearchQuery.trim()){ if(currentSortMode==="name_asc") return [...arr].sort((a,b)=>a.name.localeCompare(b.name)); if(currentSortMode==="name_desc") return [...arr].sort((a,b)=>b.name.localeCompare(a.name)); if(currentSortMode==="grade_asc") return [...arr].sort((a,b)=>(a.gradeLevel||0)-(b.gradeLevel||0)); if(currentSortMode==="grade_desc") return [...arr].sort((a,b)=>(b.gradeLevel||0)-(a.gradeLevel||0)); return [...arr]; } return [...arr].sort((a,b)=>{ const ia=topicRelevanceInfo.get(a.id)||{group:999,percent:0}, ib=topicRelevanceInfo.get(b.id)||{group:999,percent:0}; if(ia.group!==ib.group) return ia.group-ib.group; if(ia.percent!==ib.percent) return ib.percent-ia.percent; return a.name.localeCompare(b.name); }); }
-    function getChildrenSorted(id){ return sortByRelevance(currentTopics.filter(t=>t.parent===id && isVisible(t))); }
-    function hasVisibleChildren(id){ const kids=getChildrenSorted(id); if(!kids.length) return false; if(!currentSearchQuery.trim()) return true; return kids.some(c=>topicRelevanceInfo.get(c.id)?.found); }
-    function updateRelevance(){ matchOnlyByDescription.clear(); topicRelevanceInfo.clear(); if(!currentSearchQuery.trim()) return; const words=getSearchWords(); for(let t of currentTopics){ const info=getRelevance(t,words); topicRelevanceInfo.set(t.id,info); if(info.found && info.onlyDesc) matchOnlyByDescription.set(t.id,true); } }
-    function expandParentsForMatch(){ if(!currentSearchQuery.trim()) return; for(let t of currentTopics) if(topicRelevanceInfo.get(t.id)?.found){ let p=t.parent; while(p){ collapsedFolders.set(p,false); p=currentTopics.find(x=>x.id===p)?.parent; } } }
+    function loadFromStorage(){ const sc = localStorage.getItem('mathframe_collapsed'); if (sc) collapsedFolders = new Map(Object.entries(JSON.parse(sc))); currentGradeFilter = localStorage.getItem('mathframe_filter') || "all"; currentSortMode = localStorage.getItem('mathframe_sort') || "config"; currentSearchQuery = localStorage.getItem('mathframe_search') || ""; searchInDescription = localStorage.getItem('mathframe_search_in_desc') === 'true'; keywordsEnabled = localStorage.getItem('mathframe_keywords') !== 'false'; fuzzyEnabled = localStorage.getItem('mathframe_fuzzy') !== 'false'; smartSortEnabled = localStorage.getItem('mathframe_smart_sort') !== 'false'; }
+    function isVisible(t){ const g = t.gradeLevel || 1; if (currentGradeFilter === "all") return true; if (currentGradeFilter === "9") return g <= 9; if (currentGradeFilter === "7") return g <= 7; if (currentGradeFilter === "5") return g <= 5; if (currentGradeFilter === "preschool") return g <= 4; return true; }
+    function sortByRelevance(arr){ if (!smartSortEnabled || !currentSearchQuery.trim()) { if (currentSortMode === "name_asc") return [...arr].sort((a,b)=>a.name.localeCompare(b.name)); if (currentSortMode === "name_desc") return [...arr].sort((a,b)=>b.name.localeCompare(a.name)); if (currentSortMode === "grade_asc") return [...arr].sort((a,b)=>(a.gradeLevel||0)-(b.gradeLevel||0)); if (currentSortMode === "grade_desc") return [...arr].sort((a,b)=>(b.gradeLevel||0)-(a.gradeLevel||0)); return [...arr]; } return [...arr].sort((a,b)=>{ const ia = topicRelevanceInfo.get(a.id) || { group: 999, percent: 0 }; const ib = topicRelevanceInfo.get(b.id) || { group: 999, percent: 0 }; if (ia.group !== ib.group) return ia.group - ib.group; if (ia.percent !== ib.percent) return ib.percent - ia.percent; return a.name.localeCompare(b.name); }); }
+    function getChildrenSorted(id){ return sortByRelevance(currentTopics.filter(t => t.parent === id && isVisible(t))); }
+    function hasVisibleChildren(id){ const kids = getChildrenSorted(id); if (!kids.length) return false; if (!currentSearchQuery.trim()) return true; return kids.some(c => topicRelevanceInfo.get(c.id)?.found); }
+    function updateRelevance(){ matchOnlyByDescription.clear(); topicRelevanceInfo.clear(); if (!currentSearchQuery.trim()) return; const words = getSearchWords(); for (let t of currentTopics) { const info = getRelevance(t, words); topicRelevanceInfo.set(t.id, info); if (info.found && info.onlyDesc) matchOnlyByDescription.set(t.id, true); } }
+    function expandParentsForMatch(){ if (!currentSearchQuery.trim()) return; for (let t of currentTopics) if (topicRelevanceInfo.get(t.id)?.found) { let p = t.parent; while (p) { collapsedFolders.set(p, false); p = currentTopics.find(x => x.id === p)?.parent; } } }
 
     function renderTree(){
-        const container=document.getElementById('topicTree'); if(!container) return;
-        container.innerHTML=''; updateRelevance(); expandParentsForMatch();
-        const roots=sortByRelevance(currentTopics.filter(t=>t.parent===null && isVisible(t)));
-        for(let r of roots) renderNode(r,container);
+        const container = document.getElementById('topicTree'); if (!container) return;
+        container.innerHTML = ''; updateRelevance(); expandParentsForMatch();
+        const roots = sortByRelevance(currentTopics.filter(t => t.parent === null && isVisible(t)));
+        for (let r of roots) renderNode(r, container);
         applyTreeFilter(); highlightActive(); attachEvents();
     }
-    function renderNode(topic,parentEl){
-        const children=getChildrenSorted(topic.id);
-        const hasKids=children.length>0;
-        const visibleKids=hasKids && hasVisibleChildren(topic.id);
-        const collapsed=collapsedFolders.get(topic.id)===true;
-        const node=document.createElement('div'); node.className='tree-node'; node.setAttribute('data-id',topic.id);
-        if(matchOnlyByDescription.get(topic.id)) node.classList.add('search-match-description');
-        const content=document.createElement('div'); content.className='tree-node-content';
-        const toggle=document.createElement('span'); toggle.className='toggle-icon';
-        if(visibleKids){ toggle.innerHTML=collapsed?'<i class="fas fa-chevron-right"></i>':'<i class="fas fa-chevron-down"></i>'; }
-        else { toggle.classList.add('empty'); toggle.innerHTML=''; }
+    function renderNode(topic, parentEl){
+        const children = getChildrenSorted(topic.id);
+        const visibleKids = children.length > 0 && hasVisibleChildren(topic.id);
+        const collapsed = collapsedFolders.get(topic.id) === true;
+        const node = document.createElement('div'); node.className = 'tree-node'; node.setAttribute('data-id', topic.id);
+        if (matchOnlyByDescription.get(topic.id)) node.classList.add('search-match-description');
+        const content = document.createElement('div'); content.className = 'tree-node-content';
+        const toggle = document.createElement('span'); toggle.className = 'toggle-icon';
+        if (visibleKids) { toggle.innerHTML = collapsed ? '<i class="fas fa-chevron-right"></i>' : '<i class="fas fa-chevron-down"></i>'; }
+        else { toggle.classList.add('empty'); toggle.innerHTML = ''; }
         content.appendChild(toggle);
-        const icon=document.createElement('i'); icon.className=`fas ${topic.icon||'fa-book'}`; icon.style.width='20px';
+        const icon = document.createElement('i'); icon.className = `fas ${topic.icon || 'fa-book'}`; icon.style.width = '20px';
         content.appendChild(icon);
-        const title=document.createElement('span'); title.className='node-title'; title.textContent=topic.name;
+        const title = document.createElement('span'); title.className = 'node-title'; title.textContent = topic.name;
         content.appendChild(title); node.appendChild(content);
-        if(visibleKids){
-            const kidsDiv=document.createElement('div'); kidsDiv.className='tree-children';
-            if(!collapsed) kidsDiv.classList.add('expanded');
-            children.forEach(c=>{ if(isVisible(c)) renderNode(c,kidsDiv); });
+        if (visibleKids) {
+            const kidsDiv = document.createElement('div'); kidsDiv.className = 'tree-children';
+            if (!collapsed) kidsDiv.classList.add('expanded');
+            children.forEach(c => { if (isVisible(c)) renderNode(c, kidsDiv); });
             node.appendChild(kidsDiv);
-            toggle.addEventListener('click',(e)=>{ e.stopPropagation(); const newState=!collapsedFolders.get(topic.id); collapsedFolders.set(topic.id,newState); saveToStorage(); if(newState){ kidsDiv.classList.remove('expanded'); toggle.innerHTML='<i class="fas fa-chevron-right"></i>'; } else { kidsDiv.classList.add('expanded'); toggle.innerHTML='<i class="fas fa-chevron-down"></i>'; } });
+            toggle.addEventListener('click', (e) => { e.stopPropagation(); const newState = !collapsedFolders.get(topic.id); collapsedFolders.set(topic.id, newState); saveToStorage(); if (newState) { kidsDiv.classList.remove('expanded'); toggle.innerHTML = '<i class="fas fa-chevron-right"></i>'; } else { kidsDiv.classList.add('expanded'); toggle.innerHTML = '<i class="fas fa-chevron-down"></i>'; } });
         }
         parentEl.appendChild(node);
     }
-    function applyTreeFilter(){ const q=currentSearchQuery.trim(); if(!q){ document.querySelectorAll('.tree-node').forEach(n=>n.style.display=''); return; } const matching=new Set(); for(let t of currentTopics) if(topicRelevanceInfo.get(t.id)?.found){ matching.add(t.id); let p=t.parent; while(p){ matching.add(p); p=currentTopics.find(x=>x.id===p)?.parent; } } document.querySelectorAll('.tree-node').forEach(n=>{ n.style.display=matching.has(n.getAttribute('data-id'))?'':'none'; }); }
-    function highlightActive(){ document.querySelectorAll('.tree-node').forEach(n=>n.classList.remove('active')); if(currentTopicId && currentTopicId!=='welcome') document.querySelector(`.tree-node[data-id="${currentTopicId}"]`)?.classList.add('active'); }
-    function attachEvents(){ document.querySelectorAll('.tree-node-content').forEach(el=>{ el.removeEventListener('click',clickHandler); el.addEventListener('click',clickHandler); }); }
-    function clickHandler(e){ if(e.target.closest('.toggle-icon') && !e.target.closest('.toggle-icon')?.classList.contains('empty')) return; const node=this.closest('.tree-node'); if(node){ const id=node.getAttribute('data-id'); if(id){ if(window.innerWidth<=768) closeMenu(); loadTopic(id,false); } } }
+    function applyTreeFilter(){ const q = currentSearchQuery.trim(); if (!q) { document.querySelectorAll('.tree-node').forEach(n => n.style.display = ''); return; } const matching = new Set(); for (let t of currentTopics) if (topicRelevanceInfo.get(t.id)?.found) { matching.add(t.id); let p = t.parent; while (p) { matching.add(p); p = currentTopics.find(x => x.id === p)?.parent; } } document.querySelectorAll('.tree-node').forEach(n => { n.style.display = matching.has(n.getAttribute('data-id')) ? '' : 'none'; }); }
+    function highlightActive(){ document.querySelectorAll('.tree-node').forEach(n => n.classList.remove('active')); if (currentTopicId && currentTopicId !== 'welcome') document.querySelector(`.tree-node[data-id="${currentTopicId}"]`)?.classList.add('active'); }
+    function attachEvents(){ document.querySelectorAll('.tree-node-content').forEach(el => { el.removeEventListener('click', clickHandler); el.addEventListener('click', clickHandler); }); }
+    function clickHandler(e){ if (e.target.closest('.toggle-icon') && !e.target.closest('.toggle-icon')?.classList.contains('empty')) return; const node = this.closest('.tree-node'); if (node) { const id = node.getAttribute('data-id'); if (id) { if (window.innerWidth <= 768) closeMenu(); loadTopic(id, false); } } }
 
-    // ГЛАВНАЯ СТРАНИЦА — всегда отображается, независимо от конфига
     function showWelcomeScreen() {
         currentTopicId = 'welcome';
         const exampleDiv = document.getElementById('examplePlaceholder');
         const descDiv = document.getElementById('descriptionPlaceholder');
-        // плавное исчезновение и появление с анимацией
-        exampleDiv.style.opacity = '0';
-        descDiv.style.opacity = '0';
+        exampleDiv.style.opacity = '0'; descDiv.style.opacity = '0';
         setTimeout(() => {
             exampleDiv.innerHTML = `<div class="welcome-message"><i class="fas fa-graduation-cap"></i><h2 style="margin: 16px 0 10px;">MathFrame</h2><p>Современная платформа для изучения точных наук</p><p style="margin-top: 22px; opacity:0.7;">Выберите тему в меню или начните поиск</p></div>`;
             descDiv.innerHTML = `<p style="font-size: 1rem;"><strong>Добро пожаловать!</strong><br>Адаптивный интерфейс, плавные анимации, умный поиск и качественные примеры.</p><p>Используйте дерево тем, фильтры и гиперссылки внутри материалов.</p>`;
-            exampleDiv.style.opacity = '1';
-            descDiv.style.opacity = '1';
-            updateNavButtons();
-            renderTree();  // обновляем подсветку (убираем активную тему)
-            // анимация карточки
+            exampleDiv.style.opacity = '1'; descDiv.style.opacity = '1';
+            updateNavButtons(); renderTree();
             document.getElementById('unifiedCard').style.animation = 'cardAppear 0.3s ease-out';
+            setTimeout(() => document.getElementById('unifiedCard').style.animation = '', 350);
         }, 150);
     }
 
-    // Загрузка темы с анимациями перехода
     function loadTopic(id, fromLink) {
         if (id === 'welcome') { showWelcomeScreen(); return; }
         const topic = currentTopics.find(t => t.id === id);
@@ -728,53 +759,46 @@
         currentTopicId = id;
         const exampleDiv = document.getElementById('examplePlaceholder');
         const descDiv = document.getElementById('descriptionPlaceholder');
-        // анимация исчезновения
-        exampleDiv.style.opacity = '0';
-        descDiv.style.opacity = '0';
+        exampleDiv.style.opacity = '0'; descDiv.style.opacity = '0';
         setTimeout(() => {
             exampleDiv.innerHTML = topic.example || '<div style="padding:20px;">Пример не задан</div>';
-            descDiv.innerHTML = (topic.description || '<p>Нет описания</p>');
+            let descHtml = topic.description || '<p>Нет описания</p>';
             const words = getSearchWords();
             const shouldHighlight = words.length && (searchInDescription || keywordsEnabled);
-            if (shouldHighlight) descDiv.innerHTML = highlightText(descDiv.innerHTML, words);
+            descDiv.innerHTML = shouldHighlight ? highlightText(descHtml, words) : descHtml;
             descDiv.querySelectorAll('.inline-link').forEach(link => {
                 link.addEventListener('click', (e) => { e.preventDefault(); const tid = link.getAttribute('data-topic-id'); if (tid && currentTopics.find(t => t.id === tid)) loadTopic(tid, true); });
             });
-            exampleDiv.style.opacity = '1';
-            descDiv.style.opacity = '1';
-            updateNavButtons();
-            renderTree();
-            // анимация карточки
+            exampleDiv.style.opacity = '1'; descDiv.style.opacity = '1';
+            updateNavButtons(); renderTree();
             document.getElementById('unifiedCard').style.animation = 'cardAppear 0.3s ease-out';
-            setTimeout(() => { document.getElementById('unifiedCard').style.animation = ''; }, 350);
+            setTimeout(() => document.getElementById('unifiedCard').style.animation = '', 350);
         }, 150);
         showToast(topic.name);
     }
 
     function updateNavButtons(){
-        const cont = document.getElementById('navButtonsContainer');
-        if(!cont) return;
-        if(currentTopicId === 'welcome'){
+        const cont = document.getElementById('navButtonsContainer'); if (!cont) return;
+        if (currentTopicId === 'welcome') {
             cont.innerHTML = '<button class="nav-btn" id="homeWelcomeBtn"><i class="fas fa-graduation-cap"></i> Главная</button>';
-            const homeBtn = document.getElementById('homeWelcomeBtn');
-            if(homeBtn) homeBtn.onclick = () => showWelcomeScreen();
+            document.getElementById('homeWelcomeBtn')?.addEventListener('click', () => showWelcomeScreen());
             return;
         }
-        const topic = currentTopics.find(t=>t.id===currentTopicId);
-        const hasParent = topic && topic.parent && currentTopics.some(p=>p.id===topic.parent);
+        const topic = currentTopics.find(t => t.id === currentTopicId);
+        const hasParent = topic && topic.parent && currentTopics.some(p => p.id === topic.parent);
         cont.innerHTML = '';
-        if(hasParent){
+        if (hasParent) {
             const btn = document.createElement('button');
-            btn.className='nav-btn';
-            btn.innerHTML='<i class="fas fa-arrow-up"></i> Родительская тема';
-            btn.onclick = () => { if(topic.parent) loadTopic(topic.parent, false); };
+            btn.className = 'nav-btn';
+            btn.innerHTML = '<i class="fas fa-arrow-up"></i> Родительская тема';
+            btn.onclick = () => { if (topic.parent) loadTopic(topic.parent, false); };
             cont.appendChild(btn);
         }
-        if(navigationStack.length){
+        if (navigationStack.length) {
             const back = document.createElement('button');
-            back.className='nav-btn';
-            back.innerHTML='<i class="fas fa-undo-alt"></i> Вернуться по ссылке';
-            back.onclick = () => { if(navigationStack.length) loadTopic(navigationStack.pop(), false); else showToast('Нет истории'); };
+            back.className = 'nav-btn';
+            back.innerHTML = '<i class="fas fa-undo-alt"></i> Вернуться по ссылке';
+            back.onclick = () => { if (navigationStack.length) loadTopic(navigationStack.pop(), false); else showToast('Нет истории'); };
             cont.appendChild(back);
         }
     }
@@ -782,37 +806,33 @@
     function applyFilters(){
         currentGradeFilter = document.getElementById('levelSelect').value;
         currentSortMode = document.getElementById('sortSelect').value;
-        saveToStorage();
-        renderTree();
-        if(currentTopicId && currentTopicId !== 'welcome'){
-            const cur = currentTopics.find(t=>t.id===currentTopicId);
-            if(cur && isVisible(cur)){
+        saveToStorage(); renderTree();
+        if (currentTopicId && currentTopicId !== 'welcome') {
+            const cur = currentTopics.find(t => t.id === currentTopicId);
+            if (cur && isVisible(cur)) {
                 const descDiv = document.getElementById('descriptionPlaceholder');
                 const words = getSearchWords();
                 const shouldHighlight = words.length && (searchInDescription || keywordsEnabled);
                 descDiv.innerHTML = shouldHighlight ? highlightText(cur.description || '<p>Нет описания</p>', words) : (cur.description || '<p>Нет описания</p>');
                 descDiv.querySelectorAll('.inline-link').forEach(link => {
-                    link.addEventListener('click', (e) => { e.preventDefault(); const tid = link.getAttribute('data-topic-id'); if(tid && currentTopics.find(t=>t.id===tid)) loadTopic(tid, true); });
+                    link.addEventListener('click', (e) => { e.preventDefault(); const tid = link.getAttribute('data-topic-id'); if (tid && currentTopics.find(t => t.id === tid)) loadTopic(tid, true); });
                 });
             } else {
-                const first = currentTopics.find(t=>t.parent===null && isVisible(t));
-                if(first) loadTopic(first.id, false);
+                const first = currentTopics.find(t => t.parent === null && isVisible(t));
+                if (first) loadTopic(first.id, false);
                 else showWelcomeScreen();
             }
-        } else {
-            renderTree();
-        }
+        } else { renderTree(); }
     }
 
-    function showToast(msg){ let t=document.querySelector('.framework-toast'); if(t) t.remove(); t=document.createElement('div'); t.className='framework-toast'; t.textContent=msg; document.body.appendChild(t); setTimeout(()=>t.remove(),1800); }
-    function closeMenu(){ document.getElementById('hierarchyPanel')?.classList.remove('open'); const ov=document.getElementById('mobileOverlay'); if(ov){ ov.classList.remove('visible'); setTimeout(()=>ov.style.display='none',300); } }
-    function openMenu(){ const panel=document.getElementById('hierarchyPanel'); const ov=document.getElementById('mobileOverlay'); if(!panel||!ov) return; panel.classList.add('open'); ov.style.left=panel.offsetWidth+'px'; ov.style.display='block'; requestAnimationFrame(()=>ov.classList.add('visible')); }
+    function showToast(msg){ let t = document.querySelector('.framework-toast'); if (t) t.remove(); t = document.createElement('div'); t.className = 'framework-toast'; t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), 1800); }
+    function closeMenu(){ document.getElementById('hierarchyPanel')?.classList.remove('open'); const ov = document.getElementById('mobileOverlay'); if (ov) { ov.classList.remove('visible'); setTimeout(() => ov.style.display = 'none', 300); } }
+    function openMenu(){ const panel = document.getElementById('hierarchyPanel'); const ov = document.getElementById('mobileOverlay'); if (!panel || !ov) return; panel.classList.add('open'); ov.style.left = panel.offsetWidth + 'px'; ov.style.display = 'block'; requestAnimationFrame(() => ov.classList.add('visible')); }
 
     async function init(){
         const loaded = await loadConfig();
         currentTopics = buildHierarchyOrder(loaded);
-        collapsedFolders.clear(); 
-        for(let t of currentTopics) if(currentTopics.some(c=>c.parent===t.id)) collapsedFolders.set(t.id, true);
+        collapsedFolders.clear(); for (let t of currentTopics) if (currentTopics.some(c => c.parent === t.id)) collapsedFolders.set(t.id, true);
         loadFromStorage();
 
         document.getElementById('hierarchySearchInput').value = currentSearchQuery;
@@ -825,27 +845,26 @@
 
         const searchPanel = document.getElementById('searchOptionsPanel');
         const chevron = document.getElementById('searchChevron');
-        if(searchPanel){ searchPanel.classList.add('open'); chevron.style.transform = 'rotate(0deg)'; }
+        if (searchPanel) { searchPanel.classList.add('open'); chevron.style.transform = 'rotate(0deg)'; }
 
-        // Всегда показываем главную страницу (приветствие) при загрузке
         showWelcomeScreen();
 
-        const refresh = () => { saveToStorage(); renderTree(); if(currentTopicId && currentTopicId !== 'welcome'){ const t = currentTopics.find(tt=>tt.id===currentTopicId); if(t && isVisible(t)){ const descDiv=document.getElementById('descriptionPlaceholder'); const words=getSearchWords(); const shouldHighlight=words.length && (searchInDescription||keywordsEnabled); descDiv.innerHTML=shouldHighlight?highlightText(t.description||'<p>Нет описания</p>',words):(t.description||'<p>Нет описания</p>'); descDiv.querySelectorAll('.inline-link').forEach(link=>{ link.addEventListener('click',(e)=>{ e.preventDefault(); const tid=link.getAttribute('data-topic-id'); if(tid && currentTopics.find(tt=>tt.id===tid)) loadTopic(tid,true); }); }); } } };
-        document.getElementById('hierarchySearchInput').addEventListener('input', (e)=>{ currentSearchQuery=e.target.value; refresh(); });
-        document.getElementById('searchInDescCheckbox').addEventListener('change', (e)=>{ searchInDescription=e.target.checked; refresh(); });
-        document.getElementById('keywordsCheckbox').addEventListener('change', (e)=>{ keywordsEnabled=e.target.checked; refresh(); });
-        document.getElementById('fuzzyCheckbox').addEventListener('change', (e)=>{ fuzzyEnabled=e.target.checked; refresh(); });
-        document.getElementById('smartSortCheckbox').addEventListener('change', (e)=>{ smartSortEnabled=e.target.checked; refresh(); });
+        const refresh = () => { saveToStorage(); renderTree(); if (currentTopicId && currentTopicId !== 'welcome') { const t = currentTopics.find(tt => tt.id === currentTopicId); if (t && isVisible(t)) { const descDiv = document.getElementById('descriptionPlaceholder'); const words = getSearchWords(); const shouldHighlight = words.length && (searchInDescription || keywordsEnabled); descDiv.innerHTML = shouldHighlight ? highlightText(t.description || '<p>Нет описания</p>', words) : (t.description || '<p>Нет описания</p>'); descDiv.querySelectorAll('.inline-link').forEach(link => { link.addEventListener('click', (e) => { e.preventDefault(); const tid = link.getAttribute('data-topic-id'); if (tid && currentTopics.find(tt => tt.id === tid)) loadTopic(tid, true); }); }); } } };
+        document.getElementById('hierarchySearchInput').addEventListener('input', (e) => { currentSearchQuery = e.target.value; refresh(); });
+        document.getElementById('searchInDescCheckbox').addEventListener('change', (e) => { searchInDescription = e.target.checked; refresh(); });
+        document.getElementById('keywordsCheckbox').addEventListener('change', (e) => { keywordsEnabled = e.target.checked; refresh(); });
+        document.getElementById('fuzzyCheckbox').addEventListener('change', (e) => { fuzzyEnabled = e.target.checked; refresh(); });
+        document.getElementById('smartSortCheckbox').addEventListener('change', (e) => { smartSortEnabled = e.target.checked; refresh(); });
         document.getElementById('levelSelect').addEventListener('change', applyFilters);
         document.getElementById('sortSelect').addEventListener('change', applyFilters);
         document.getElementById('menuToggleBtn').addEventListener('click', openMenu);
         document.getElementById('mobileOverlay').addEventListener('click', closeMenu);
-        document.getElementById('globalHomeBtn').addEventListener('click', () => { showWelcomeScreen(); });
-        window.addEventListener('resize', () => { if(window.innerWidth > 768) closeMenu(); });
-        document.body.addEventListener('click', (e) => { const link = e.target.closest('.inline-link'); if(link && link.dataset.topicId){ e.preventDefault(); const tid = link.dataset.topicId; if(tid && currentTopics.find(t=>t.id===tid)) loadTopic(tid, true); } });
+        document.getElementById('globalHomeBtn').addEventListener('click', () => showWelcomeScreen());
+        window.addEventListener('resize', () => { if (window.innerWidth > 768) closeMenu(); });
+        document.body.addEventListener('click', (e) => { const link = e.target.closest('.inline-link'); if (link && link.dataset.topicId) { e.preventDefault(); const tid = link.dataset.topicId; if (tid && currentTopics.find(t => t.id === tid)) loadTopic(tid, true); } });
         document.getElementById('searchOptionsToggle').addEventListener('click', () => { searchPanel.classList.toggle('open'); chevron.style.transform = searchPanel.classList.contains('open') ? 'rotate(0deg)' : 'rotate(180deg)'; });
 
-        setTimeout(() => { const loader = document.getElementById('loadingOverlay'); if(loader){ loader.style.opacity='0'; setTimeout(()=>{ loader.style.display='none'; document.getElementById('appRoot').classList.add('content-visible'); },700); } else document.getElementById('appRoot').classList.add('content-visible'); }, 800);
+        setTimeout(() => { const loader = document.getElementById('loadingOverlay'); if (loader) { loader.style.opacity = '0'; setTimeout(() => { loader.style.display = 'none'; document.getElementById('appRoot').classList.add('content-visible'); }, 700); } else document.getElementById('appRoot').classList.add('content-visible'); }, 800);
     }
     init();
 </script>
