@@ -91,6 +91,7 @@
             gap: 2px;
             max-height: 55vh;
             overflow-y: auto;
+            scroll-behavior: smooth;
         }
         .tree-item {
             list-style: none;
@@ -242,7 +243,12 @@
             cursor: pointer;
             color: #ddd;
         }
-        .tool-btn:hover {
+        .tool-btn.disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
+        .tool-btn:hover:not(.disabled) {
             background: #444;
         }
         .mode-toggle {
@@ -468,10 +474,8 @@
                         <label for="plainTextMode" style="font-size:0.7rem;">Обычный текст внутри форматирования</label>
                     </div>
                 </div>
-                <!-- Здесь будет два редактора: обычный (с поддержкой форматирования) и plaintext-only -->
                 <div id="descriptionEditor" class="rich-editor" contenteditable="true"></div>
-                <div id="descriptionEditorPlain" class="rich-editor" contenteditable="plaintext-only" style="display: none;"></div>
-                <div class="small-note">Включите режим, чтобы печатать внутри жирного текста или ссылки без наследования форматирования.</div>
+                <div class="small-note">При включённом режиме печать внутри жирного текста или ссылки не наследует форматирование.</div>
             </div>
         </div>
         
@@ -496,6 +500,10 @@
     let autoSaveEnabled = true;
     let plainTextMode = false;
 
+    // Авто-сохранение в localStorage
+    const STORAGE_KEY = 'geometry_editor_topics';
+    const EXPANDED_KEY = 'geometry_editor_expanded';
+
     const GITHUB_TOKEN = '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';
     const GITHUB_OWNER = 'DaniksGames5242';
     const GITHUB_REPO = 'MathFrame.github.io';
@@ -506,7 +514,6 @@
     const examplePreview = document.getElementById('examplePreview');
     const refreshPreviewBtn = document.getElementById('refreshPreviewBtn');
     const descriptionEditor = document.getElementById('descriptionEditor');
-    const descriptionEditorPlain = document.getElementById('descriptionEditorPlain');
     const topicNameInput = document.getElementById('topicName');
     const topicKeywordsInput = document.getElementById('topicKeywords');
     const topicParentSelect = document.getElementById('topicParent');
@@ -516,6 +523,51 @@
     const jsonEditor = document.getElementById('jsonEditor');
     const toastMsg = document.getElementById('toastMsg');
     const plainTextCheckbox = document.getElementById('plainTextMode');
+
+    const boldBtn = document.getElementById('boldBtn');
+    const italicBtn = document.getElementById('italicBtn');
+    const clearFormatBtn = document.getElementById('clearFormatBtn');
+    const linkDescBtn = document.getElementById('linkDescBtn');
+    const sqrtSym = document.getElementById('sqrtSym');
+    const piSym = document.getElementById('piSym');
+    const alphaSym = document.getElementById('alphaSym');
+    const neqSym = document.getElementById('neqSym');
+    const leqSym = document.getElementById('leqSym');
+    const geqSym = document.getElementById('geqSym');
+    const timesSym = document.getElementById('timesSym');
+    const divSym = document.getElementById('divSym');
+
+    function saveToLocalStorage() {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(topics));
+        localStorage.setItem(EXPANDED_KEY, JSON.stringify(Array.from(expandedState)));
+    }
+
+    function loadFromLocalStorage() {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+            try {
+                const parsed = JSON.parse(saved);
+                if (Array.isArray(parsed)) {
+                    topics = parsed;
+                    topics.forEach((t, i) => { if (!t.order) t.order = i; if (!t.keywords) t.keywords = []; if (!t.icon) t.icon = 'fa-file-alt'; if (!t.example) t.example = ''; if (!t.description) t.description = '<p></p>'; });
+                    selectedId = topics[0]?.id || null;
+                    const savedExpanded = localStorage.getItem(EXPANDED_KEY);
+                    if (savedExpanded) {
+                        expandedState = new Set(JSON.parse(savedExpanded));
+                    } else {
+                        expandedState.clear();
+                        topics.forEach(t => { if (topics.some(ch => ch.parent === t.id)) expandedState.add(t.id); });
+                    }
+                    renderTree();
+                    fillFormBySelectedNoSave();
+                    updateJsonEditor();
+                    showToast('Данные восстановлены из кеша');
+                    return true;
+                }
+            } catch(e) {}
+        }
+        return false;
+    }
 
     function showToast(text, isError = false) {
         toastMsg.textContent = text;
@@ -586,8 +638,7 @@
             let newIcon = topicIconSelect.value;
             let newGrade = parseInt(topicGradeSelect.value);
             let exampleVal = exampleHtmlSource.value;
-            // Берем содержимое из активного редактора
-            let descriptionVal = plainTextMode ? descriptionEditorPlain.innerHTML : descriptionEditor.innerHTML;
+            let descriptionVal = descriptionEditor.innerHTML;
             let keywordsArray = topicKeywordsInput.value.trim().split(',').map(k => k.trim()).filter(k => k);
             let newId = generateIdFromName(newName, selectedId);
             if (newParent && isCyclic(newId, newParent)) { if (showMsg) showToast('Циклическая зависимость', true); return; }
@@ -604,6 +655,7 @@
             renderTree();
             fillFormFieldsOnly();
             updateJsonEditor();
+            saveToLocalStorage();
             if (showMsg) showToast('Тема сохранена');
             document.getElementById('statusArea').innerText = `Сохранено: ${newName}`;
         }, 50);
@@ -640,9 +692,7 @@
         topicKeywordsInput.value = t.keywords?.join(', ') || '';
         topicIconSelect.value = t.icon || 'fa-file-alt';
         topicGradeSelect.value = t.gradeLevel || 3;
-        // Заполняем оба редактора
         descriptionEditor.innerHTML = t.description || '';
-        descriptionEditorPlain.innerHTML = t.description || '';
         updateLinkColors();
         topicParentSelect.innerHTML = '<option value="">(нет)</option>' + topics.filter(p => p.id !== selectedId).map(p => `<option value="${p.id}" ${t.parent === p.id ? 'selected' : ''}>${escapeHtml(p.name)} (${p.id})</option>`).join('');
         exampleHtmlSource.value = t.example || '';
@@ -669,7 +719,7 @@
             selectedId = topics[0]?.id || null;
             expandedState.clear();
             topics.forEach(t => { if (topics.some(ch => ch.parent === t.id)) expandedState.add(t.id); });
-            renderTree(); fillFormBySelectedNoSave(); updateJsonEditor();
+            renderTree(); fillFormBySelectedNoSave(); updateJsonEditor(); saveToLocalStorage();
             showToast('JSON применён');
         } catch(e) { showToast('Ошибка JSON', true); }
     }
@@ -692,8 +742,31 @@
 
     function escapeHtml(str) { return String(str).replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'})[m]); }
 
-    // Drag and drop
+    // Drag and drop с автоматической прокруткой
     let dragSourceId = null, dragTargetElement = null, dropMode = null;
+    let scrollInterval = null;
+    const SCROLL_SPEED = 15;
+    const SCROLL_ZONE = 80;
+
+    function startAutoScroll(direction) {
+        if (scrollInterval) clearInterval(scrollInterval);
+        const container = document.getElementById('topicList');
+        scrollInterval = setInterval(() => {
+            if (direction === 'up') {
+                container.scrollTop -= SCROLL_SPEED;
+            } else {
+                container.scrollTop += SCROLL_SPEED;
+            }
+        }, 30);
+    }
+
+    function stopAutoScroll() {
+        if (scrollInterval) {
+            clearInterval(scrollInterval);
+            scrollInterval = null;
+        }
+    }
+
     function handleDragStart(e) {
         const row = e.target.closest('.topic-row');
         if (!row) { e.preventDefault(); return; }
@@ -702,20 +775,38 @@
         e.dataTransfer.effectAllowed = 'move';
         row.classList.add('dragging');
     }
+
     function handleDragOver(e) {
         e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        
+        // Автоматическая прокрутка
+        const container = document.getElementById('topicList');
+        const rect = container.getBoundingClientRect();
+        const mouseY = e.clientY;
+        if (mouseY < rect.top + SCROLL_ZONE) {
+            startAutoScroll('up');
+        } else if (mouseY > rect.bottom - SCROLL_ZONE) {
+            startAutoScroll('down');
+        } else {
+            stopAutoScroll();
+        }
+        
         const row = e.target.closest('.topic-row');
         if (!row || row.getAttribute('data-id') === dragSourceId) return;
-        const rect = row.getBoundingClientRect(), y = e.clientY;
-        const isUpper = y < rect.top + rect.height * 0.4;
-        const isLower = y > rect.bottom - rect.height * 0.4;
+        const rowRect = row.getBoundingClientRect();
+        const y = e.clientY;
+        const isUpper = y < rowRect.top + rowRect.height * 0.4;
+        const isLower = y > rowRect.bottom - rowRect.height * 0.4;
         document.querySelectorAll('.topic-row').forEach(r => r.classList.remove('drag-over-top', 'drag-over-bottom', 'drag-over-child'));
         if (isUpper) { row.classList.add('drag-over-top'); dropMode = 'before'; dragTargetElement = row; }
         else if (isLower) { row.classList.add('drag-over-bottom'); dropMode = 'after'; dragTargetElement = row; }
         else { row.classList.add('drag-over-child'); dropMode = 'child'; dragTargetElement = row; }
     }
+
     function handleDrop(e) {
         e.preventDefault();
+        stopAutoScroll();
         if (!dragTargetElement || !dragSourceId) { cleanDrag(); return; }
         const source = topics.find(t => t.id === dragSourceId);
         const targetId = dragTargetElement.getAttribute('data-id');
@@ -750,8 +841,15 @@
         if (selectedId === source.id) fillFormBySelectedNoSave();
         saveCurrentTopic(true);
         updateJsonEditor();
+        saveToLocalStorage();
         cleanDrag();
     }
+    
+    function handleDragEnd(e) {
+        stopAutoScroll();
+        cleanDrag();
+    }
+    
     function cleanDrag() {
         document.querySelectorAll('.topic-row').forEach(r => r.classList.remove('drag-over-top', 'drag-over-bottom', 'drag-over-child', 'dragging'));
         dragSourceId = null; dragTargetElement = null; dropMode = null;
@@ -775,12 +873,12 @@
                 row.addEventListener('dragstart', handleDragStart);
                 row.addEventListener('dragover', handleDragOver);
                 row.addEventListener('drop', handleDrop);
-                row.addEventListener('dragend', cleanDrag);
+                row.addEventListener('dragend', handleDragEnd);
                 const left = document.createElement('div'); left.className = 'topic-info';
                 const hasChildren = topics.some(t => t.parent === node.id);
                 const expand = document.createElement('button'); expand.className = 'expand-btn'; expand.textContent = hasChildren ? (expandedState.has(node.id) ? '▼' : '▶') : '•';
                 expand.style.visibility = hasChildren ? 'visible' : 'hidden';
-                expand.onclick = (e) => { e.stopPropagation(); if (hasChildren) { if (expandedState.has(node.id)) expandedState.delete(node.id); else expandedState.add(node.id); renderTree(); } };
+                expand.onclick = (e) => { e.stopPropagation(); if (hasChildren) { if (expandedState.has(node.id)) expandedState.delete(node.id); else expandedState.add(node.id); renderTree(); saveToLocalStorage(); } };
                 const iconSpan = document.createElement('span'); iconSpan.className = 'topic-icon-display';
                 const icons = { 'fa-folder':'📁', 'fa-file-alt':'📄', 'fa-star':'⭐', 'fa-circle':'⚫', 'fa-square':'⬛', 'fa-chalkboard':'📐' };
                 iconSpan.textContent = icons[node.icon] || '📄';
@@ -789,7 +887,7 @@
                 const pt = topics.find(p => p.id === node.parent); parentSpan.textContent = pt ? `(${pt.name})` : '(корень)';
                 left.appendChild(expand); left.appendChild(iconSpan); left.appendChild(nameSpan); left.appendChild(parentSpan);
                 const del = document.createElement('button'); del.className = 'del-topic'; del.textContent = '✖';
-                del.onclick = (e) => { e.stopPropagation(); if (confirm('Удалить тему?')) { topics = topics.filter(t => t.id !== node.id); if (selectedId === node.id) selectedId = topics[0]?.id || null; renderTree(); fillFormBySelectedNoSave(); updateJsonEditor(); showToast('Тема удалена'); } };
+                del.onclick = (e) => { e.stopPropagation(); if (confirm('Удалить тему?')) { topics = topics.filter(t => t.id !== node.id); if (selectedId === node.id) selectedId = topics[0]?.id || null; renderTree(); fillFormBySelectedNoSave(); updateJsonEditor(); saveToLocalStorage(); showToast('Тема удалена'); } };
                 row.appendChild(left); row.appendChild(del);
                 row.addEventListener('click', (e) => { if (e.target === del || e.target === expand) return; saveCurrentTopic(false); selectedId = node.id; renderTree(); fillFormBySelectedNoSave(); });
                 li.appendChild(row);
@@ -823,7 +921,7 @@
                 selectedId = topics[0]?.id || null;
                 expandedState.clear();
                 topics.forEach(t => { if (topics.some(ch => ch.parent === t.id)) expandedState.add(t.id); });
-                renderTree(); fillFormBySelectedNoSave(); updateJsonEditor();
+                renderTree(); fillFormBySelectedNoSave(); updateJsonEditor(); saveToLocalStorage();
                 showToast('Импорт выполнен');
             } catch(e) { showToast('Ошибка импорта', true); }
         };
@@ -854,7 +952,7 @@
                 if (added) {
                     topics = removeDuplicateIds(topics);
                     topics.forEach((t,i)=>t.order=i);
-                    renderTree(); fillFormBySelectedNoSave(); updateJsonEditor();
+                    renderTree(); fillFormBySelectedNoSave(); updateJsonEditor(); saveToLocalStorage();
                     showToast(`Добавлено ${added} тем`);
                 } else showToast('Нет новых тем', true);
             } catch(e) { showToast('Ошибка', true); }
@@ -880,97 +978,96 @@
 
     function clearGitHubData() { localStorage.removeItem('github_token'); showToast('Локальные данные GitHub очищены'); }
 
-    // === РЕЖИМ ОБЫЧНОГО ТЕКСТА — ИСПОЛЬЗУЕМ contenteditable="plaintext-only" ===
-    // Это нативная возможность HTML — при включённом режиме весь ввод и вставка автоматически теряют форматирование [citation:8]
-    plainTextCheckbox.addEventListener('change', (e) => {
-        plainTextMode = e.target.checked;
-        if (plainTextMode) {
-            // Переключаемся на plaintext-only редактор
-            descriptionEditor.style.display = 'none';
-            descriptionEditorPlain.style.display = 'block';
-            // Копируем содержимое
-            descriptionEditorPlain.innerHTML = descriptionEditor.innerHTML;
-            // Сохраняем изменения после переключения
-            setTimeout(() => saveCurrentTopic(true), 100);
-        } else {
-            descriptionEditorPlain.style.display = 'none';
-            descriptionEditor.style.display = 'block';
-            descriptionEditor.innerHTML = descriptionEditorPlain.innerHTML;
-            setTimeout(() => saveCurrentTopic(true), 100);
-        }
-    });
-
-    // Синхронизация содержимого при вводе в plaintext-редакторе
-    descriptionEditorPlain.addEventListener('input', () => {
-        if (plainTextMode) {
-            descriptionEditor.innerHTML = descriptionEditorPlain.innerHTML;
-            updateLinkColors();
-        }
-    });
-    descriptionEditor.addEventListener('input', () => {
-        if (!plainTextMode) {
-            descriptionEditorPlain.innerHTML = descriptionEditor.innerHTML;
-        }
-        updateLinkColors();
-    });
-
-    // === РЕДАКТОР ОПИСАНИЯ ===
-    function clearFormatting() {
-        // Очищаем формат в активном редакторе
-        if (plainTextMode) {
-            descriptionEditorPlain.focus();
-            document.execCommand('selectAll', false, null);
-            document.execCommand('removeFormat', false, null);
-            // Снимаем выделение
-            const sel = window.getSelection();
-            sel.removeAllRanges();
-        } else {
-            descriptionEditor.focus();
-            document.execCommand('removeFormat', false, null);
-            const sel = window.getSelection();
-            if (sel.rangeCount > 0 && descriptionEditor.contains(sel.anchorNode)) {
-                const range = sel.getRangeAt(0);
-                const links = descriptionEditor.querySelectorAll('.inline-link');
-                links.forEach(link => {
-                    if (range.intersectsNode(link)) {
-                        const textNode = document.createTextNode(link.textContent);
-                        link.parentNode.replaceChild(textNode, link);
-                    }
-                });
-            } else {
-                const links = descriptionEditor.querySelectorAll('.inline-link');
-                links.forEach(link => {
-                    const textNode = document.createTextNode(link.textContent);
-                    link.parentNode.replaceChild(textNode, link);
-                });
-            }
-        }
-        updateLinkColors();
-        saveCurrentTopic(true);
+    // === РЕЖИМ ОБЫЧНОГО ТЕКСТА ===
+    function insertPlainText(text) {
+        const sel = window.getSelection();
+        if (!sel.rangeCount) return false;
+        const range = sel.getRangeAt(0);
+        range.deleteContents();
+        const textNode = document.createTextNode(text);
+        range.insertNode(textNode);
+        range.setStartAfter(textNode);
+        range.setEndAfter(textNode);
+        sel.removeAllRanges();
+        sel.addRange(range);
+        return true;
     }
 
-    // Обработка вставки для обоих редакторов
+    descriptionEditor.addEventListener('keydown', (e) => {
+        if (!plainTextMode) return;
+        const allowed = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'PageUp', 'PageDown', 'Backspace', 'Delete', 'Enter', 'Tab', 'Escape'];
+        if (allowed.includes(e.key)) return;
+        if (e.ctrlKey && ['z', 'y', 'x', 'c', 'v', 'a'].includes(e.key.toLowerCase())) return;
+        if (e.key === 'Enter' && e.shiftKey) return;
+        if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
+            e.preventDefault();
+            insertPlainText(e.key);
+            saveCurrentTopic(false);
+        }
+    });
+    
     descriptionEditor.addEventListener('paste', (e) => {
-        e.preventDefault();
-        const text = (e.clipboardData || window.clipboardData).getData('text/plain');
-        document.execCommand('insertText', false, text);
+        if (plainTextMode) {
+            e.preventDefault();
+            const text = (e.clipboardData || window.clipboardData).getData('text/plain');
+            insertPlainText(text);
+            updateLinkColors();
+            saveCurrentTopic(false);
+        }
+    });
+    
+    function updateButtonsState() {
+        const btns = [boldBtn, italicBtn, sqrtSym, piSym, alphaSym, neqSym, leqSym, geqSym, timesSym, divSym];
+        btns.forEach(btn => {
+            if (plainTextMode) {
+                btn.classList.add('disabled');
+            } else {
+                btn.classList.remove('disabled');
+            }
+        });
+    }
+    
+    plainTextCheckbox.addEventListener('change', (e) => {
+        plainTextMode = e.target.checked;
+        updateButtonsState();
+        descriptionEditor.focus();
+        if (plainTextMode) {
+            showToast('Режим обычного текста включён.');
+        } else {
+            showToast('Режим обычного текста выключен.');
+        }
+    });
+
+    // === ОСТАЛЬНЫЕ ФУНКЦИИ РЕДАКТОРА ===
+    function clearFormatting() {
+        document.execCommand('removeFormat');
+        const sel = window.getSelection();
+        if (sel.rangeCount > 0 && descriptionEditor.contains(sel.anchorNode)) {
+            const range = sel.getRangeAt(0);
+            const links = descriptionEditor.querySelectorAll('.inline-link');
+            links.forEach(link => {
+                if (range.intersectsNode(link)) {
+                    const textNode = document.createTextNode(link.textContent);
+                    link.parentNode.replaceChild(textNode, link);
+                }
+            });
+        } else {
+            const links = descriptionEditor.querySelectorAll('.inline-link');
+            links.forEach(link => {
+                const textNode = document.createTextNode(link.textContent);
+                link.parentNode.replaceChild(textNode, link);
+            });
+        }
+        descriptionEditor.focus();
         updateLinkColors();
         saveCurrentTopic(false);
-    });
-    descriptionEditorPlain.addEventListener('paste', (e) => {
-        e.preventDefault();
-        const text = (e.clipboardData || window.clipboardData).getData('text/plain');
-        document.execCommand('insertText', false, text);
-        updateLinkColors();
-        saveCurrentTopic(false);
-    });
+    }
 
     let savedRange = null;
     let savedText = '';
     function saveSelection() {
-        const activeEditor = plainTextMode ? descriptionEditorPlain : descriptionEditor;
         const sel = window.getSelection();
-        if (sel.rangeCount > 0 && activeEditor.contains(sel.anchorNode)) {
+        if (sel.rangeCount > 0 && descriptionEditor.contains(sel.anchorNode)) {
             savedRange = sel.getRangeAt(0).cloneRange();
             savedText = sel.toString();
         }
@@ -978,9 +1075,6 @@
     descriptionEditor.addEventListener('mouseup', saveSelection);
     descriptionEditor.addEventListener('keyup', saveSelection);
     descriptionEditor.addEventListener('click', saveSelection);
-    descriptionEditorPlain.addEventListener('mouseup', saveSelection);
-    descriptionEditorPlain.addEventListener('keyup', saveSelection);
-    descriptionEditorPlain.addEventListener('click', saveSelection);
 
     function showTopicSelector(callback) {
         const others = topics.filter(t => t.id !== selectedId);
@@ -1003,9 +1097,8 @@
     }
 
     function insertTopicLink() {
-        const activeEditor = plainTextMode ? descriptionEditorPlain : descriptionEditor;
         const sel = window.getSelection();
-        if (!sel.rangeCount || !activeEditor.contains(sel.anchorNode)) {
+        if (!sel.rangeCount || !descriptionEditor.contains(sel.anchorNode)) {
             alert('Сначала выделите текст в описании');
             return;
         }
@@ -1017,7 +1110,7 @@
         const range = sel.getRangeAt(0).cloneRange();
         
         showTopicSelector((topic) => {
-            activeEditor.focus();
+            descriptionEditor.focus();
             const newSel = window.getSelection();
             newSel.removeAllRanges();
             newSel.addRange(range);
@@ -1047,7 +1140,8 @@
         topics.push({ id: newId, name: 'Новая тема', keywords: [], parent: null, icon: 'fa-file-alt', gradeLevel: 3, example: '', description: '<p>Новая тема</p>', order: topics.length });
         topics = removeDuplicateIds(topics);
         selectedId = newId; expandedState.add(newId);
-        renderTree(); fillFormBySelectedNoSave(); updateJsonEditor(); showToast('Тема создана');
+        renderTree(); fillFormBySelectedNoSave(); updateJsonEditor(); saveToLocalStorage();
+        showToast('Тема создана');
     }
 
     document.getElementById('newBtn').onclick = newTopic;
@@ -1061,33 +1155,27 @@
     document.getElementById('applyJsonBtn').onclick = applyJson;
     document.getElementById('formatJsonBtn').onclick = formatJson;
     document.getElementById('validateJsonBtn').onclick = validateJson;
-    document.getElementById('boldBtn').onclick = () => { 
-        if (plainTextMode) return;
-        document.execCommand('bold'); 
-        descriptionEditor.focus();
-        saveCurrentTopic(false);
-    };
-    document.getElementById('italicBtn').onclick = () => { 
-        if (plainTextMode) return;
-        document.execCommand('italic'); 
-        descriptionEditor.focus();
-        saveCurrentTopic(false);
-    };
-    document.getElementById('clearFormatBtn').onclick = clearFormatting;
-    document.getElementById('linkDescBtn').onclick = insertTopicLink;
-    ['sqrtSym','piSym','alphaSym','neqSym','leqSym','geqSym','timesSym','divSym'].forEach(s => {
-        document.getElementById(s).onclick = () => { 
-            if (plainTextMode) return;
-            document.execCommand('insertText', false, document.getElementById(s).innerText); 
-            descriptionEditor.focus();
-            saveCurrentTopic(false);
+    
+    boldBtn.onclick = () => { if (!plainTextMode) { document.execCommand('bold'); descriptionEditor.focus(); saveCurrentTopic(false); } };
+    italicBtn.onclick = () => { if (!plainTextMode) { document.execCommand('italic'); descriptionEditor.focus(); saveCurrentTopic(false); } };
+    clearFormatBtn.onclick = clearFormatting;
+    linkDescBtn.onclick = insertTopicLink;
+    
+    const symbols = [sqrtSym, piSym, alphaSym, neqSym, leqSym, geqSym, timesSym, divSym];
+    symbols.forEach(btn => {
+        btn.onclick = () => { 
+            if (!plainTextMode) {
+                document.execCommand('insertText', false, btn.innerText); 
+                descriptionEditor.focus();
+                saveCurrentTopic(false);
+            }
         };
     });
+    
     topicNameInput.addEventListener('input', function() { if (this.value.trim()) document.getElementById('topicId').value = generateIdFromName(this.value, selectedId); });
     searchInput.addEventListener('input', (e) => { searchQuery = e.target.value.toLowerCase(); renderTree(); });
     [topicNameInput, topicKeywordsInput, topicParentSelect, topicIconSelect, topicGradeSelect, exampleHtmlSource].forEach(f => f.addEventListener('blur', () => saveCurrentTopic(false)));
     descriptionEditor.addEventListener('blur', () => saveCurrentTopic(false));
-    descriptionEditorPlain.addEventListener('blur', () => saveCurrentTopic(false));
     document.querySelectorAll('.tab-btn').forEach(btn => {
         btn.onclick = () => {
             document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -1098,19 +1186,25 @@
         };
     });
 
-    const demo = [{ id: "geometriya", name: "Геометрия", keywords: ["геометрия"], parent: null, icon: "fa-folder", gradeLevel: 3, example: "<div>Основы геометрии</div>", description: "<p>Изучает фигуры</p>", order: 1 }];
-    fetch('config.json').then(r => r.ok ? r.json() : Promise.reject()).then(data => {
-        if (Array.isArray(data)) topics = data;
-        else throw new Error();
-        topics = removeDuplicateIds(topics);
-        topics.forEach((t,i) => { if (!t.order) t.order = i; if (!t.keywords) t.keywords = []; if (!t.icon) t.icon = 'fa-file-alt'; if (!t.example) t.example = ''; if (!t.description) t.description = '<p></p>'; });
-        selectedId = topics[0]?.id || null; expandedState.clear();
-        topics.forEach(t => { if (topics.some(ch => ch.parent === t.id)) expandedState.add(t.id); });
-        renderTree(); fillFormBySelectedNoSave(); updateJsonEditor(); showToast('config.json загружен');
-    }).catch(() => {
-        topics = demo; selectedId = "geometriya"; expandedState.add("geometriya");
-        renderTree(); fillFormBySelectedNoSave(); updateJsonEditor();
-    });
+    // Загрузка данных: сначала пробуем localStorage, потом config.json, потом демо
+    if (!loadFromLocalStorage()) {
+        const demo = [{ id: "geometriya", name: "Геометрия", keywords: ["геометрия"], parent: null, icon: "fa-folder", gradeLevel: 3, example: "<div>Основы геометрии</div>", description: "<p>Изучает фигуры</p>", order: 1 }];
+        fetch('config.json').then(r => r.ok ? r.json() : Promise.reject()).then(data => {
+            if (Array.isArray(data)) topics = data;
+            else throw new Error();
+            topics = removeDuplicateIds(topics);
+            topics.forEach((t,i) => { if (!t.order) t.order = i; if (!t.keywords) t.keywords = []; if (!t.icon) t.icon = 'fa-file-alt'; if (!t.example) t.example = ''; if (!t.description) t.description = '<p></p>'; });
+            selectedId = topics[0]?.id || null; expandedState.clear();
+            topics.forEach(t => { if (topics.some(ch => ch.parent === t.id)) expandedState.add(t.id); });
+            renderTree(); fillFormBySelectedNoSave(); updateJsonEditor(); saveToLocalStorage();
+            showToast('config.json загружен');
+        }).catch(() => {
+            topics = demo; selectedId = "geometriya"; expandedState.add("geometriya");
+            renderTree(); fillFormBySelectedNoSave(); updateJsonEditor(); saveToLocalStorage();
+        });
+    }
+    
+    updateButtonsState();
 </script>
 </body>
 </html>

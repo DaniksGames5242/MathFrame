@@ -400,6 +400,9 @@
             min-height: 420px;
             transition: opacity 0.2s ease, transform 0.2s ease;
             box-shadow: 0 6px 12px -8px rgba(0,0,0,0.05);
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
         .desc-placeholder {
             line-height: 1.55;
@@ -464,7 +467,6 @@
             .column-example { border-right: none; border-bottom: 1px solid #eff3f8; }
             .content-wrapper { padding: 16px; }
         }
-        /* Оверлей только справа от панели — не размывает весь экран */
         .mobile-overlay {
             position: fixed;
             top: 0;
@@ -504,7 +506,8 @@
         }
         .example-iframe {
             width: 100%;
-            min-height: 400px;
+            height: 100%;
+            min-height: 420px;
             border: none;
             border-radius: 20px;
             background: white;
@@ -602,7 +605,8 @@
         { id: "adjacent_angles", name: "Смежные углы", parent: "geometry_7", icon: "fa-file-alt", gradeLevel: 7, keywords: ["углы","смежные","сумма 180"], example: '<div style="padding:20px;"><i class="fas fa-angle-double-right"></i><div>∠α + ∠β = 180°</div><canvas id="anglesCanvas" width="300" height="200" style="border:1px solid #ccc; margin-top:15px;"></canvas><script>const actx = document.getElementById("anglesCanvas")?.getContext("2d"); if(actx){ actx.beginPath(); actx.moveTo(50,100); actx.lineTo(250,100); actx.stroke(); actx.beginPath(); actx.moveTo(150,100); actx.lineTo(150,40); actx.stroke(); actx.fillStyle="red"; actx.fillRect(145,95,10,10); }<\/script></div>', description: '<p><strong>Смежные углы</strong> — два угла с общей стороной, сумма 180°.</p>' },
         { id: "triangles", name: "Треугольники", parent: "geometry_7", icon: "fa-file-alt", gradeLevel: 7, keywords: ["треугольник","сумма углов"], example: '<div style="padding:20px;"><i class="fas fa-shapes"></i><div>Сумма углов = 180°</div><canvas id="triCanvas" width="300" height="200" style="border:1px solid #ccc; margin-top:15px;"></canvas><script>const tctx = document.getElementById("triCanvas")?.getContext("2d"); if(tctx){ tctx.beginPath(); tctx.moveTo(150,30); tctx.lineTo(50,170); tctx.lineTo(250,170); tctx.closePath(); tctx.stroke(); tctx.fillStyle="#c4e0fa"; tctx.fill(); }<\/script></div>', description: '<p>Треугольники: виды, признаки равенства.</p>' },
         { id: "algebra_10", name: "Алгебра 10–11", parent: "math_root", icon: "fa-folder", gradeLevel: 10, keywords: ["алгебра","старшая школа","функции"], example: '<div style="padding:20px;"><i class="fas fa-chart-line"></i><div>Старшая школа</div><canvas id="funcCanvas" width="300" height="200" style="border:1px solid #ccc;"></canvas><script>const fctx = document.getElementById("funcCanvas")?.getContext("2d"); if(fctx){ fctx.beginPath(); for(let x=0;x<=300;x+=10){ let y = 100 - (x-150)*(x-150)/200; fctx.lineTo(x,y); } fctx.stroke(); }<\/script></div>', description: '<p>Углублённое изучение функций, производных и интегралов.</p>' },
-        { id: "logarithms", name: "Логарифмы", parent: "algebra_10", icon: "fa-file-alt", gradeLevel: 10, keywords: ["логарифм","log","степень"], example: '<div style="padding:20px;"><i class="fas fa-chart-line"></i><div>logₐ b = c ⇔ a^c = b</div><div id="logDemo"></div><script>document.getElementById("logDemo").innerHTML = "<p>log₂8 = 3, так как 2³=8</p>";<\/script></div>', description: '<p>Логарифм — показатель степени, в которую нужно возвести основание.</p>' }
+        { id: "logarithms", name: "Логарифмы", parent: "algebra_10", icon: "fa-file-alt", gradeLevel: 10, keywords: ["логарифм","log","степень"], example: '<div style="padding:20px;"><i class="fas fa-chart-line"></i><div>logₐ b = c ⇔ a^c = b</div><div id="logDemo"></div><script>document.getElementById("logDemo").innerHTML = "<p>log₂8 = 3, так как 2³=8</p>";<\/script></div>', description: '<p>Логарифм — показатель степени, в которую нужно возвести основание.</p>' },
+        { id: "straight_line", name: "Прямая", parent: "geometry_7", icon: "fa-file-alt", gradeLevel: 7, keywords: ["прямая","линия"], example: '<div style="padding:20px;"><i class="fas fa-chart-line"></i><div>Прямая линия: y = kx + b</div><canvas id="straightCanvas" width="300" height="200" style="border:1px solid #ccc;"></canvas><script>const sctx = document.getElementById("straightCanvas")?.getContext("2d"); if(sctx){ sctx.beginPath(); sctx.moveTo(0,100); sctx.lineTo(300,150); sctx.stroke(); }<\/script></div>', description: '<p><strong>Прямая</strong> — бесконечная линия, не имеющая изгибов.</p>' }
     ];
 
     let currentTopics = [], currentTopicId = null, collapsedFolders = new Map(), navigationStack = [];
@@ -626,13 +630,23 @@
         if (!text) return 0;
         const lw = word.toLowerCase();
         const lt = text.toLowerCase();
+        // Точное совпадение строки целиком
         if (lw === lt) return 100;
-        if (lt.includes(lw)) return 90;
+        // Слово целиком входит как отдельное слово
         const wordBoundary = new RegExp(`\\b${lw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
         if (wordBoundary.test(text)) return 100;
+        // Содержит как подстроку
+        if (lt.includes(lw)) return 90;
+        // Нечёткий поиск
         if (fuzzyEnabled && lw.length >= 3) {
             const words = lt.split(/\s+/);
-            for (let w of words) if (w.length >= 3 && levenshtein(lw, w) <= 2) return levenshtein(lw, w) === 1 ? 85 : 70;
+            for (let w of words) {
+                if (w.length >= 3) {
+                    const d = levenshtein(lw, w);
+                    if (d === 1) return 85;
+                    if (d === 2) return 70;
+                }
+            }
         }
         return 0;
     }
@@ -651,11 +665,73 @@
         return { found: group > 0, group, percent, onlyDesc };
     }
     function getSearchWords() { return currentSearchQuery.trim() ? currentSearchQuery.toLowerCase().split(/\s+/).filter(w => w) : []; }
-    function highlightText(html, words) { if (!words.length) return html; const div = document.createElement('div'); div.innerHTML = html; const walk = n => { if (n.nodeType === 3) { let t = n.nodeValue, changed = false; for (let w of words) { const rg = new RegExp(`(${w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi'); if (rg.test(t)) { t = t.replace(rg, '<span class="search-highlight">$1</span>'); changed = true; } } if (changed) { const s = document.createElement('span'); s.innerHTML = t; n.parentNode.replaceChild(s, n); } } else if (n.nodeType === 1 && !['SCRIPT','STYLE'].includes(n.tagName)) Array.from(n.childNodes).forEach(walk); }; Array.from(div.childNodes).forEach(walk); return div.innerHTML; }
+    function highlightText(html, words) { 
+        if (!words.length) return html; 
+        const div = document.createElement('div'); 
+        div.innerHTML = html; 
+        const walk = n => { 
+            if (n.nodeType === 3) { 
+                let t = n.nodeValue, changed = false; 
+                for (let w of words) { 
+                    const rg = new RegExp(`(${w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi'); 
+                    if (rg.test(t)) { 
+                        t = t.replace(rg, '<span class="search-highlight">$1</span>'); 
+                        changed = true; 
+                    } 
+                } 
+                if (changed) { 
+                    const s = document.createElement('span'); 
+                    s.innerHTML = t; 
+                    n.parentNode.replaceChild(s, n); 
+                } 
+            } else if (n.nodeType === 1 && !['SCRIPT','STYLE'].includes(n.tagName)) { 
+                Array.from(n.childNodes).forEach(walk); 
+            } 
+        }; 
+        Array.from(div.childNodes).forEach(walk); 
+        return div.innerHTML; 
+    }
+    function highlightElement(el, words) {
+        if (!words.length) return;
+        const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, null, false);
+        const nodes = [];
+        while (walker.nextNode()) nodes.push(walker.currentNode);
+        for (let node of nodes) {
+            let text = node.nodeValue, changed = false;
+            if (!text.trim()) continue;
+            for (let w of words) {
+                const regex = new RegExp(`(${w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+                if (regex.test(text)) {
+                    text = text.replace(regex, `<span class="search-highlight">$1</span>`);
+                    changed = true;
+                }
+            }
+            if (changed) {
+                const span = document.createElement('span');
+                span.innerHTML = text;
+                node.parentNode.replaceChild(span, node);
+            }
+        }
+    }
     function saveToStorage(){ localStorage.setItem('mathframe_collapsed',JSON.stringify(Object.fromEntries(collapsedFolders))); localStorage.setItem('mathframe_filter',currentGradeFilter); localStorage.setItem('mathframe_sort',currentSortMode); localStorage.setItem('mathframe_search',currentSearchQuery); localStorage.setItem('mathframe_search_in_desc',searchInDescription); localStorage.setItem('mathframe_keywords',keywordsEnabled); localStorage.setItem('mathframe_fuzzy',fuzzyEnabled); localStorage.setItem('mathframe_smart_sort',smartSortEnabled); }
     function loadFromStorage(){ const sc = localStorage.getItem('mathframe_collapsed'); if (sc) collapsedFolders = new Map(Object.entries(JSON.parse(sc))); currentGradeFilter = localStorage.getItem('mathframe_filter') || "all"; currentSortMode = localStorage.getItem('mathframe_sort') || "config"; currentSearchQuery = localStorage.getItem('mathframe_search') || ""; searchInDescription = localStorage.getItem('mathframe_search_in_desc') === 'true'; keywordsEnabled = localStorage.getItem('mathframe_keywords') !== 'false'; fuzzyEnabled = localStorage.getItem('mathframe_fuzzy') !== 'false'; smartSortEnabled = localStorage.getItem('mathframe_smart_sort') !== 'false'; }
     function isVisible(t){ const g = t.gradeLevel || 1; if (currentGradeFilter === "all") return true; if (currentGradeFilter === "9") return g <= 9; if (currentGradeFilter === "7") return g <= 7; if (currentGradeFilter === "5") return g <= 5; if (currentGradeFilter === "preschool") return g <= 4; return true; }
-    function sortByRelevance(arr){ if (!smartSortEnabled || !currentSearchQuery.trim()) { if (currentSortMode === "name_asc") return [...arr].sort((a,b)=>a.name.localeCompare(b.name)); if (currentSortMode === "name_desc") return [...arr].sort((a,b)=>b.name.localeCompare(a.name)); if (currentSortMode === "grade_asc") return [...arr].sort((a,b)=>(a.gradeLevel||0)-(b.gradeLevel||0)); if (currentSortMode === "grade_desc") return [...arr].sort((a,b)=>(b.gradeLevel||0)-(a.gradeLevel||0)); return [...arr]; } return [...arr].sort((a,b)=>{ const ia = topicRelevanceInfo.get(a.id) || { group: 999, percent: 0 }; const ib = topicRelevanceInfo.get(b.id) || { group: 999, percent: 0 }; if (ia.group !== ib.group) return ia.group - ib.group; if (ia.percent !== ib.percent) return ib.percent - ia.percent; return a.name.localeCompare(b.name); }); }
+    function sortByRelevance(arr){ 
+        if (!smartSortEnabled || !currentSearchQuery.trim()) { 
+            if (currentSortMode === "name_asc") return [...arr].sort((a,b)=>a.name.localeCompare(b.name)); 
+            if (currentSortMode === "name_desc") return [...arr].sort((a,b)=>b.name.localeCompare(a.name)); 
+            if (currentSortMode === "grade_asc") return [...arr].sort((a,b)=>(a.gradeLevel||0)-(b.gradeLevel||0)); 
+            if (currentSortMode === "grade_desc") return [...arr].sort((a,b)=>(b.gradeLevel||0)-(a.gradeLevel||0)); 
+            return [...arr]; 
+        } 
+        return [...arr].sort((a,b)=>{ 
+            const ia = topicRelevanceInfo.get(a.id) || { group: 999, percent: 0 }; 
+            const ib = topicRelevanceInfo.get(b.id) || { group: 999, percent: 0 }; 
+            if (ia.group !== ib.group) return ia.group - ib.group; 
+            if (ia.percent !== ib.percent) return ib.percent - ia.percent; 
+            return a.name.localeCompare(b.name); 
+        }); 
+    }
     function getChildrenSorted(id){ return sortByRelevance(currentTopics.filter(t => t.parent === id && isVisible(t))); }
     
     function hasMatchingDescendant(id) {
@@ -703,6 +779,9 @@
         const roots = sortByRelevance(currentTopics.filter(t => t.parent === null && isVisible(t)));
         for (let r of roots) renderNode(r, container);
         applyTreeFilter(); highlightActive(); attachEvents();
+        // Подсветка поиска в заголовках
+        const words = getSearchWords();
+        if (words.length) document.querySelectorAll('.node-title').forEach(el => highlightElement(el, words));
     }
     function renderNode(topic, parentEl){
         const children = getChildrenSorted(topic.id);
@@ -735,14 +814,14 @@
     
     function setExampleWithScripts(container, html) {
         container.innerHTML = '';
-        const isDangerous = /<script\b/i.test(html);
-        if (!isDangerous) {
-            container.innerHTML = html;
-            return;
-        }
+        // Для безопасного выполнения скриптов используем iframe
         const iframe = document.createElement('iframe');
         iframe.className = 'example-iframe';
         iframe.sandbox = 'allow-same-origin allow-scripts allow-popups allow-forms allow-modals';
+        iframe.style.width = '100%';
+        iframe.style.height = '100%';
+        iframe.style.minHeight = '420px';
+        iframe.style.border = 'none';
         const blob = new Blob([html], { type: 'text/html' });
         const url = URL.createObjectURL(blob);
         iframe.src = url;
