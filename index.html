@@ -464,6 +464,7 @@
             .column-example { border-right: none; border-bottom: 1px solid #eff3f8; }
             .content-wrapper { padding: 16px; }
         }
+        /* Оверлей только справа от панели — не размывает весь экран */
         .mobile-overlay {
             position: fixed;
             top: 0;
@@ -472,6 +473,7 @@
             bottom: 0;
             background: rgba(0, 0, 0, 0.3);
             backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
             z-index: 100;
             display: none;
             opacity: 0;
@@ -499,6 +501,14 @@
         @keyframes toastSlide {
             from { opacity: 0; transform: translateX(-50%) translateY(30px); }
             to { opacity: 1; transform: translateX(-50%) translateY(0); }
+        }
+        .example-iframe {
+            width: 100%;
+            min-height: 400px;
+            border: none;
+            border-radius: 20px;
+            background: white;
+            display: block;
         }
     </style>
 </head>
@@ -584,14 +594,15 @@
 <script>
     // ======================= БАЗОВЫЕ ТЕМЫ =======================
     const DEFAULT_TOPICS = [
-        { id: "algebra_7", name: "Алгебра 7–9", parent: null, icon: "fa-folder", gradeLevel: 7, keywords: ["алгебра","выражения","формулы","7 класс"], example: '<div style="padding:20px; text-align:center;"><i class="fas fa-chart-line" style="font-size:2rem;"></i><div>Алгебра 7-9</div></div>', description: '<p><strong>Алгебра</strong> — раздел математики, изучающий операции над величинами и решение уравнений.</p><p><span class="inline-link" data-topic-id="linear_eq">Линейные уравнения</span>.</p>' },
-        { id: "linear_eq", name: "Линейные уравнения", parent: "algebra_7", icon: "fa-file-alt", gradeLevel: 7, keywords: ["уравнение","линейное","корень","ax+b=0"], example: '<div style="padding:20px;"><i class="fas fa-chart-line"></i><div>ax + b = 0 → x = -b/a</div><div>Пример: 2x - 6 = 0 → x = 3</div></div>', description: '<p><strong>Линейное уравнение</strong>: ax + b = 0, a≠0. Корень: x = -b/a.</p><p><span class="inline-link" data-topic-id="quadratic_eq">Квадратные уравнения</span>.</p>' },
-        { id: "quadratic_eq", name: "Квадратные уравнения", parent: "algebra_7", icon: "fa-file-alt", gradeLevel: 8, keywords: ["дискриминант","парабола","ax²+bx+c=0"], example: '<div style="padding:20px;"><i class="fas fa-chart-line"></i><div>ax² + bx + c = 0, D = b² - 4ac</div></div>', description: '<p>Квадратное уравнение решается через дискриминант. При D>0 — два корня.</p>' },
-        { id: "geometry_7", name: "Геометрия 7–9", parent: null, icon: "fa-folder", gradeLevel: 7, keywords: ["геометрия","фигуры","углы"], example: '<div style="padding:20px;text-align:center;"><i class="fas fa-shapes" style="font-size:2rem;"></i><div>Геометрия</div></div>', description: '<p><strong>Геометрия</strong> — раздел математики, изучающий пространственные формы.</p>' },
-        { id: "adjacent_angles", name: "Смежные углы", parent: "geometry_7", icon: "fa-file-alt", gradeLevel: 7, keywords: ["углы","смежные","сумма 180"], example: '<div style="padding:20px;"><i class="fas fa-angle-double-right"></i><div>∠α + ∠β = 180°</div></div>', description: '<p><strong>Смежные углы</strong> — два угла с общей стороной, сумма 180°.</p>' },
-        { id: "triangles", name: "Треугольники", parent: "geometry_7", icon: "fa-file-alt", gradeLevel: 7, keywords: ["треугольник","сумма углов"], example: '<div style="padding:20px;"><i class="fas fa-shapes"></i><div>Сумма углов = 180°</div></div>', description: '<p>Треугольники: виды, признаки равенства.</p>' },
-        { id: "algebra_10", name: "Алгебра 10–11", parent: null, icon: "fa-folder", gradeLevel: 10, keywords: ["алгебра","старшая школа","функции"], example: '<div style="padding:20px;"><i class="fas fa-chart-line"></i><div>Старшая школа</div></div>', description: '<p>Углублённое изучение функций, производных и интегралов.</p>' },
-        { id: "logarithms", name: "Логарифмы", parent: "algebra_10", icon: "fa-file-alt", gradeLevel: 10, keywords: ["логарифм","log","степень"], example: '<div style="padding:20px;"><i class="fas fa-chart-line"></i><div>logₐ b = c ⇔ a^c = b</div></div>', description: '<p>Логарифм — показатель степени, в которую нужно возвести основание.</p>' }
+        { id: "math_root", name: "Математика", parent: null, icon: "fa-folder", gradeLevel: 5, keywords: ["математика"], example: '<div style="padding:20px;"><h3>Математика</h3><p>Основы математики</p></div>', description: '<p>Главный раздел математики</p>' },
+        { id: "algebra_7", name: "Алгебра 7–9", parent: "math_root", icon: "fa-folder", gradeLevel: 7, keywords: ["алгебра","выражения","формулы","7 класс"], example: '<div style="padding:20px; text-align:center;"><i class="fas fa-chart-line" style="font-size:2rem;"></i><div>Алгебра 7-9</div></div>', description: '<p><strong>Алгебра</strong> — раздел математики, изучающий операции над величинами и решение уравнений.</p><p><span class="inline-link" data-topic-id="linear_eq">Линейные уравнения</span>.</p>' },
+        { id: "linear_eq", name: "Линейные уравнения", parent: "algebra_7", icon: "fa-file-alt", gradeLevel: 7, keywords: ["уравнение","линейное","корень","ax+b=0"], example: '<div style="padding:20px;"><i class="fas fa-chart-line"></i><div>ax + b = 0 → x = -b/a</div><div>Пример: 2x - 6 = 0 → x = 3</div><div><canvas id="lineCanvas" width="300" height="200" style="border:1px solid #ccc; margin-top:15px;"></canvas></div><script>const ctx = document.getElementById("lineCanvas")?.getContext("2d"); if(ctx){ ctx.clearRect(0,0,300,200); ctx.beginPath(); ctx.moveTo(0,100); ctx.lineTo(300,100); ctx.stroke(); ctx.fillStyle="red"; ctx.fillRect(140,95,20,10); }<\/script></div>', description: '<p><strong>Линейное уравнение</strong>: ax + b = 0, a≠0. Корень: x = -b/a.</p><p><span class="inline-link" data-topic-id="quadratic_eq">Квадратные уравнения</span>.</p>' },
+        { id: "quadratic_eq", name: "Квадратные уравнения", parent: "algebra_7", icon: "fa-file-alt", gradeLevel: 8, keywords: ["дискриминант","парабола","ax²+bx+c=0"], example: '<div style="padding:20px;"><i class="fas fa-chart-line"></i><div>ax² + bx + c = 0, D = b² - 4ac</div><div id="quadraticDemo"></div><script>const d = document.getElementById("quadraticDemo"); if(d){ d.innerHTML = "<p>Динамический пример: при a=1,b=-3,c=2 → корни: 1 и 2</p>"; }<\/script></div>', description: '<p>Квадратное уравнение решается через дискриминант. При D>0 — два корня.</p>' },
+        { id: "geometry_7", name: "Геометрия 7–9", parent: "math_root", icon: "fa-folder", gradeLevel: 7, keywords: ["геометрия","фигуры","углы"], example: '<div style="padding:20px;text-align:center;"><i class="fas fa-shapes" style="font-size:2rem;"></i><div>Геометрия</div><canvas id="geomCanvas" width="300" height="200" style="border:1px solid #ccc; margin-top:15px;"></canvas><script>const gctx = document.getElementById("geomCanvas")?.getContext("2d"); if(gctx){ gctx.beginPath(); gctx.rect(50,50,200,100); gctx.stroke(); gctx.fillStyle="#a0c4ff"; gctx.fillRect(50,50,200,100); }<\/script></div>', description: '<p><strong>Геометрия</strong> — раздел математики, изучающий пространственные формы.</p>' },
+        { id: "adjacent_angles", name: "Смежные углы", parent: "geometry_7", icon: "fa-file-alt", gradeLevel: 7, keywords: ["углы","смежные","сумма 180"], example: '<div style="padding:20px;"><i class="fas fa-angle-double-right"></i><div>∠α + ∠β = 180°</div><canvas id="anglesCanvas" width="300" height="200" style="border:1px solid #ccc; margin-top:15px;"></canvas><script>const actx = document.getElementById("anglesCanvas")?.getContext("2d"); if(actx){ actx.beginPath(); actx.moveTo(50,100); actx.lineTo(250,100); actx.stroke(); actx.beginPath(); actx.moveTo(150,100); actx.lineTo(150,40); actx.stroke(); actx.fillStyle="red"; actx.fillRect(145,95,10,10); }<\/script></div>', description: '<p><strong>Смежные углы</strong> — два угла с общей стороной, сумма 180°.</p>' },
+        { id: "triangles", name: "Треугольники", parent: "geometry_7", icon: "fa-file-alt", gradeLevel: 7, keywords: ["треугольник","сумма углов"], example: '<div style="padding:20px;"><i class="fas fa-shapes"></i><div>Сумма углов = 180°</div><canvas id="triCanvas" width="300" height="200" style="border:1px solid #ccc; margin-top:15px;"></canvas><script>const tctx = document.getElementById("triCanvas")?.getContext("2d"); if(tctx){ tctx.beginPath(); tctx.moveTo(150,30); tctx.lineTo(50,170); tctx.lineTo(250,170); tctx.closePath(); tctx.stroke(); tctx.fillStyle="#c4e0fa"; tctx.fill(); }<\/script></div>', description: '<p>Треугольники: виды, признаки равенства.</p>' },
+        { id: "algebra_10", name: "Алгебра 10–11", parent: "math_root", icon: "fa-folder", gradeLevel: 10, keywords: ["алгебра","старшая школа","функции"], example: '<div style="padding:20px;"><i class="fas fa-chart-line"></i><div>Старшая школа</div><canvas id="funcCanvas" width="300" height="200" style="border:1px solid #ccc;"></canvas><script>const fctx = document.getElementById("funcCanvas")?.getContext("2d"); if(fctx){ fctx.beginPath(); for(let x=0;x<=300;x+=10){ let y = 100 - (x-150)*(x-150)/200; fctx.lineTo(x,y); } fctx.stroke(); }<\/script></div>', description: '<p>Углублённое изучение функций, производных и интегралов.</p>' },
+        { id: "logarithms", name: "Логарифмы", parent: "algebra_10", icon: "fa-file-alt", gradeLevel: 10, keywords: ["логарифм","log","степень"], example: '<div style="padding:20px;"><i class="fas fa-chart-line"></i><div>logₐ b = c ⇔ a^c = b</div><div id="logDemo"></div><script>document.getElementById("logDemo").innerHTML = "<p>log₂8 = 3, так как 2³=8</p>";<\/script></div>', description: '<p>Логарифм — показатель степени, в которую нужно возвести основание.</p>' }
     ];
 
     let currentTopics = [], currentTopicId = null, collapsedFolders = new Map(), navigationStack = [];
@@ -621,13 +632,7 @@
         if (wordBoundary.test(text)) return 100;
         if (fuzzyEnabled && lw.length >= 3) {
             const words = lt.split(/\s+/);
-            for (let w of words) {
-                if (w.length >= 3) {
-                    const d = levenshtein(lw, w);
-                    if (d === 1) return 85;
-                    if (d === 2) return 70;
-                }
-            }
+            for (let w of words) if (w.length >= 3 && levenshtein(lw, w) <= 2) return levenshtein(lw, w) === 1 ? 85 : 70;
         }
         return 0;
     }
@@ -636,14 +641,8 @@
         let bestName = 0, bestKw = 0, bestDesc = 0;
         for (let w of words) {
             bestName = Math.max(bestName, getMatchPercent(w, t.name));
-            if (keywordsEnabled && t.keywords) {
-                const kwText = Array.isArray(t.keywords) ? t.keywords.join(" ") : String(t.keywords);
-                bestKw = Math.max(bestKw, getMatchPercent(w, kwText));
-            }
-            if (searchInDescription && t.description) {
-                const descText = t.description.replace(/<[^>]*>/g, '');
-                bestDesc = Math.max(bestDesc, getMatchPercent(w, descText));
-            }
+            if (keywordsEnabled && t.keywords) bestKw = Math.max(bestKw, getMatchPercent(w, Array.isArray(t.keywords) ? t.keywords.join(" ") : String(t.keywords)));
+            if (searchInDescription && t.description) bestDesc = Math.max(bestDesc, getMatchPercent(w, t.description.replace(/<[^>]*>/g, '')));
         }
         let group = 0, percent = 0, onlyDesc = false;
         if (bestName > 0) { group = 1; percent = bestName; }
@@ -659,7 +658,6 @@
     function sortByRelevance(arr){ if (!smartSortEnabled || !currentSearchQuery.trim()) { if (currentSortMode === "name_asc") return [...arr].sort((a,b)=>a.name.localeCompare(b.name)); if (currentSortMode === "name_desc") return [...arr].sort((a,b)=>b.name.localeCompare(a.name)); if (currentSortMode === "grade_asc") return [...arr].sort((a,b)=>(a.gradeLevel||0)-(b.gradeLevel||0)); if (currentSortMode === "grade_desc") return [...arr].sort((a,b)=>(b.gradeLevel||0)-(a.gradeLevel||0)); return [...arr]; } return [...arr].sort((a,b)=>{ const ia = topicRelevanceInfo.get(a.id) || { group: 999, percent: 0 }; const ib = topicRelevanceInfo.get(b.id) || { group: 999, percent: 0 }; if (ia.group !== ib.group) return ia.group - ib.group; if (ia.percent !== ib.percent) return ib.percent - ia.percent; return a.name.localeCompare(b.name); }); }
     function getChildrenSorted(id){ return sortByRelevance(currentTopics.filter(t => t.parent === id && isVisible(t))); }
     
-    // Рекурсивная проверка наличия среди потомков темы, подходящей под поиск
     function hasMatchingDescendant(id) {
         if (!currentSearchQuery.trim()) return false;
         const children = currentTopics.filter(t => t.parent === id && isVisible(t));
@@ -674,7 +672,6 @@
         const kids = getChildrenSorted(id);
         if (!kids.length) return false;
         if (!currentSearchQuery.trim()) return kids.length > 0;
-        // проверяем прямых детей или любых потомков
         for (let c of kids) {
             if (topicRelevanceInfo.get(c.id)?.found) return true;
             if (hasMatchingDescendant(c.id)) return true;
@@ -683,8 +680,7 @@
     }
     
     function updateRelevance(){ 
-        matchOnlyByDescription.clear(); 
-        topicRelevanceInfo.clear(); 
+        matchOnlyByDescription.clear(); topicRelevanceInfo.clear(); 
         if (!currentSearchQuery.trim()) return; 
         const words = getSearchWords(); 
         for (let t of currentTopics) { 
@@ -698,10 +694,7 @@
         for (let t of currentTopics) 
             if (topicRelevanceInfo.get(t.id)?.found) { 
                 let p = t.parent; 
-                while (p) { 
-                    collapsedFolders.set(p, false); 
-                    p = currentTopics.find(x => x.id === p)?.parent; 
-                } 
+                while (p) { collapsedFolders.set(p, false); p = currentTopics.find(x => x.id === p)?.parent; } 
             } 
     }
     function renderTree(){
@@ -739,6 +732,24 @@
     function highlightActive(){ document.querySelectorAll('.tree-node').forEach(n => n.classList.remove('active')); if (currentTopicId && currentTopicId !== 'welcome') document.querySelector(`.tree-node[data-id="${currentTopicId}"]`)?.classList.add('active'); }
     function attachEvents(){ document.querySelectorAll('.tree-node-content').forEach(el => { el.removeEventListener('click', clickHandler); el.addEventListener('click', clickHandler); }); }
     function clickHandler(e){ if (e.target.closest('.toggle-icon') && !e.target.closest('.toggle-icon')?.classList.contains('empty')) return; const node = this.closest('.tree-node'); if (node) { const id = node.getAttribute('data-id'); if (id) { if (window.innerWidth <= 768) closeMenu(); loadTopic(id, false); } } }
+    
+    function setExampleWithScripts(container, html) {
+        container.innerHTML = '';
+        const isDangerous = /<script\b/i.test(html);
+        if (!isDangerous) {
+            container.innerHTML = html;
+            return;
+        }
+        const iframe = document.createElement('iframe');
+        iframe.className = 'example-iframe';
+        iframe.sandbox = 'allow-same-origin allow-scripts allow-popups allow-forms allow-modals';
+        const blob = new Blob([html], { type: 'text/html' });
+        const url = URL.createObjectURL(blob);
+        iframe.src = url;
+        container.appendChild(iframe);
+        iframe.onload = () => URL.revokeObjectURL(url);
+    }
+    
     function showWelcomeScreen() {
         currentTopicId = 'welcome';
         const exampleDiv = document.getElementById('examplePlaceholder');
@@ -746,7 +757,7 @@
         exampleDiv.style.opacity = '0'; descDiv.style.opacity = '0';
         setTimeout(() => {
             exampleDiv.innerHTML = `<div class="welcome-message"><i class="fas fa-graduation-cap"></i><h2 style="margin: 16px 0 10px;">MathFrame</h2><p>Современная платформа для изучения точных наук</p><p style="margin-top: 22px; opacity:0.7;">Выберите тему в меню или начните поиск</p></div>`;
-            descDiv.innerHTML = `<p style="font-size: 1rem;"><strong>Добро пожаловать!</strong><br>Адаптивный интерфейс, плавные анимации, умный поиск и качественные примеры.</p><p>Используйте дерево тем, фильтры и гиперссылки внутри материалов.</p>`;
+            descDiv.innerHTML = `<p style="font-size: 1rem;"><strong>Добро пожаловать!</strong><br>Адаптивный интерфейс, плавные анимации, умный поиск и качественные примеры.</p><p>Интерактивные примеры поддерживают JavaScript, Canvas и динамическую графику.</p>`;
             exampleDiv.style.opacity = '1'; descDiv.style.opacity = '1';
             updateNavButtons(); renderTree();
             document.getElementById('unifiedCard').style.animation = 'cardAppear 0.3s ease-out';
@@ -763,7 +774,7 @@
         const descDiv = document.getElementById('descriptionPlaceholder');
         exampleDiv.style.opacity = '0'; descDiv.style.opacity = '0';
         setTimeout(() => {
-            exampleDiv.innerHTML = topic.example || '<div style="padding:20px;">Пример не задан</div>';
+            setExampleWithScripts(exampleDiv, topic.example || '<div style="padding:20px;">Пример не задан</div>');
             let descHtml = topic.description || '<p>Нет описания</p>';
             const words = getSearchWords();
             const shouldHighlight = words.length && (searchInDescription || keywordsEnabled);
@@ -826,8 +837,24 @@
         } else { renderTree(); }
     }
     function showToast(msg){ let t = document.querySelector('.framework-toast'); if (t) t.remove(); t = document.createElement('div'); t.className = 'framework-toast'; t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), 1800); }
-    function closeMenu(){ document.getElementById('hierarchyPanel')?.classList.remove('open'); const ov = document.getElementById('mobileOverlay'); if (ov) { ov.classList.remove('visible'); setTimeout(() => ov.style.display = 'none', 300); } }
-    function openMenu(){ const panel = document.getElementById('hierarchyPanel'); const ov = document.getElementById('mobileOverlay'); if (!panel || !ov) return; panel.classList.add('open'); ov.style.left = panel.offsetWidth + 'px'; ov.style.display = 'block'; requestAnimationFrame(() => ov.classList.add('visible')); }
+    function closeMenu(){ 
+        document.getElementById('hierarchyPanel')?.classList.remove('open'); 
+        const ov = document.getElementById('mobileOverlay'); 
+        if (ov) { 
+            ov.classList.remove('visible'); 
+            setTimeout(() => { if(ov.style.display !== 'none') ov.style.display = 'none'; }, 300);
+        } 
+    }
+    function openMenu(){ 
+        const panel = document.getElementById('hierarchyPanel'); 
+        const ov = document.getElementById('mobileOverlay'); 
+        if (!panel || !ov) return; 
+        panel.classList.add('open'); 
+        const panelWidth = panel.offsetWidth;
+        ov.style.left = panelWidth + 'px';
+        ov.style.display = 'block'; 
+        requestAnimationFrame(() => ov.classList.add('visible')); 
+    }
     async function init(){
         const loaded = await loadConfig();
         currentTopics = buildHierarchyOrder(loaded);
