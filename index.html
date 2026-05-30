@@ -2,361 +2,335 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
     <title>MathFrame | Образовательная платформа</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
-    <script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <style>
-        :root {
-            --primary: #00f5ff;
-            --accent: #7b2cff;
-            --dark: #0a0a1f;
-            --glass: rgba(15, 23, 42, 0.75);
-        }
-
-        * { margin:0; padding:0; box-sizing:border-box; }
-        body {
-            font-family: 'Inter', sans-serif;
-            background: #05050f;
-            color: #e0f2fe;
-            overflow: hidden;
-            height: 100vh;
-        }
-
-        /* === BACKGROUND === */
-        #bg-canvas {
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body { font-family: 'Inter', sans-serif; background: #f2f4f8; color: #1a2c3e; height: 100vh; overflow: hidden; font-size: 16px; }
+        
+        /* LOADING OVERLAY */
+        .loading-overlay {
             position: fixed;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
-            z-index: -2;
-            opacity: 0.6;
-        }
-
-        /* === LOADING SCREEN === */
-        .loading-screen {
-            position: fixed;
-            inset: 0;
-            background: radial-gradient(circle at center, #1a1a2e 0%, #05050f 80%);
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: #f2f4f8;
             display: flex;
             align-items: center;
             justify-content: center;
             z-index: 10000;
-            transition: opacity 1s ease;
+            transition: opacity 0.5s ease, visibility 0.5s;
+            backdrop-filter: blur(2px);
         }
-        .loader-3d {
-            width: 260px;
-            height: 260px;
-            perspective: 1200px;
+        .loading-spinner {
+            text-align: center;
+            animation: fadeInUp 0.4s ease;
         }
-        .loader-sphere {
-            width: 100%;
-            height: 100%;
-            border-radius: 50%;
-            box-shadow: 
-                0 0 80px #00f5ff,
-                inset 0 0 60px rgba(123, 44, 255, 0.6);
-            animation: spherePulse 4s infinite ease-in-out;
+        .loading-spinner i {
+            font-size: 3rem;
+            color: #2c6b9e;
+            animation: spin 1.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
         }
-
-        @keyframes spherePulse {
-            0%,100% { transform: scale(1) rotateX(20deg); }
-            50% { transform: scale(1.08) rotateX(-20deg); }
+        .loading-spinner p {
+            margin-top: 16px;
+            font-weight: 500;
+            color: #2c6b9e;
         }
-
-        .loader-text {
-            margin-top: 40px;
-            font-family: 'Space Grotesk', sans-serif;
-            font-size: 2.4rem;
-            font-weight: 700;
-            background: linear-gradient(90deg, #00f5ff, #7b2cff, #00f5ff);
-            -webkit-background-clip: text;
-            background-clip: text;
-            color: transparent;
-            background-size: 200% 100%;
-            animation: textShine 3s linear infinite;
-            letter-spacing: 8px;
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(12px); }
+            to { opacity: 1; transform: translateY(0); }
         }
-
-        @keyframes textShine {
-            0% { background-position: 200% 0; }
-            100% { background-position: -200% 0; }
-        }
-
-        /* === APP === */
-        .app {
-            height: 100vh;
-            display: flex;
-            flex-direction: column;
-            opacity: 0;
-            transition: opacity 0.8s ease;
-        }
-        .app.ready { opacity: 1; }
-
+        
+        .app { display: flex; flex-direction: column; height: 100vh; width: 100%; }
         .top-bar {
-            background: var(--glass);
-            backdrop-filter: blur(20px);
-            border-bottom: 1px solid rgba(0, 245, 255, 0.15);
-            padding: 14px 28px;
+            background: #ffffffcc;
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid #e2e8f0;
+            padding: 10px 24px;
             display: flex;
             align-items: center;
             justify-content: space-between;
-            z-index: 100;
+            gap: 20px;
+            z-index: 30;
+            flex-wrap: wrap;
+            flex-shrink: 0;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.02);
         }
-
-        .logo {
-            font-family: 'Space Grotesk', sans-serif;
-            font-size: 1.65rem;
-            font-weight: 700;
-            background: linear-gradient(90deg, #00f5ff, #7b2cff);
-            -webkit-background-clip: text;
-            color: transparent;
+        .logo-area { display: flex; align-items: center; gap: 16px; }
+        .home-btn {
+            background: #f1f5f9;
+            border: none;
+            width: 38px;
+            height: 38px;
+            border-radius: 12px;
+            cursor: pointer;
+            color: #2c6b9e;
+            font-size: 1.1rem;
+            transition: all 0.2s cubic-bezier(0.2, 0.9, 0.4, 1.1);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .home-btn:active { transform: scale(0.94); background: #e2e8f0; }
+        .menu-toggle {
+            background: #f1f5f9;
+            border: none;
+            width: 38px;
+            height: 38px;
+            border-radius: 12px;
+            font-size: 1.2rem;
+            cursor: pointer;
+            display: none;
+            color: #2c3e50;
+            transition: all 0.2s ease;
+        }
+        .menu-toggle:active { transform: scale(0.94); background: #e2e8f0; }
+        .logo { font-weight: 600; font-size: 1.25rem; color: #0f3b5c; display: flex; align-items: center; gap: 8px; }
+        .logo i { color: #2c6b9e; font-size: 1.3rem; }
+        .main-layout { display: flex; flex: 1; overflow: hidden; min-height: 0; }
+        .hierarchy-panel {
+            width: 320px;
+            background: #ffffff;
+            border-right: 1px solid #e9edf2;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+            transition: transform 0.3s cubic-bezier(0.2, 0.9, 0.4, 1.1);
+            z-index: 20;
+            flex-shrink: 0;
+        }
+        .panel-header { padding: 20px 18px 8px; font-weight: 600; font-size: 0.75rem; text-transform: uppercase; color: #4a627a; letter-spacing: 0.5px; }
+        .hierarchy-search { padding: 0 16px 12px 16px; }
+        .search-wrapper { position: relative; width: 100%; }
+        .search-wrapper i { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 0.85rem; pointer-events: none; }
+        .search-input { width: 100%; padding: 12px 12px 12px 38px; border-radius: 16px; border: 1px solid #e2e8f0; background: #f8fafc; font-size: 0.85rem; outline: none; transition: all 0.2s; }
+        .search-input:focus { border-color: #2c6b9e; background: white; box-shadow: 0 0 0 3px rgba(44,107,158,0.1); }
+        
+        /* collapsible search options */
+        .search-options-header {
             display: flex;
             align-items: center;
-            gap: 12px;
+            justify-content: space-between;
+            padding: 10px 8px 8px 8px;
+            margin-top: 8px;
+            cursor: pointer;
+            border-radius: 14px;
+            background: #fbfdff;
+            transition: background 0.2s;
         }
-
-        /* Glass Card */
-        .unified-card {
-            background: var(--glass);
-            backdrop-filter: blur(24px);
-            border: 1px solid rgba(0, 245, 255, 0.2);
-            border-radius: 28px;
-            box-shadow: 
-                0 25px 50px -12px rgba(0, 0, 0, 0.5),
-                inset 0 0 40px rgba(123, 44, 255, 0.1);
+        .search-options-header:hover { background: #f1f5f9; }
+        .search-options-header span { font-size: 0.75rem; font-weight: 600; color: #2c6b9e; letter-spacing: 0.3px; }
+        .search-options-header i { font-size: 0.7rem; color: #5f7d9c; transition: transform 0.25s ease; }
+        .search-options-panel {
             overflow: hidden;
-            transition: transform 0.4s cubic-bezier(0.23, 1, 0.32, 1);
-        }
-
-        .unified-card:hover {
-            transform: translateY(-8px) rotateX(4deg) rotateY(4deg);
-        }
-
-        /* 3D Tilt for tree nodes */
-        .tree-node-content {
-            transition: all 0.3s cubic-bezier(0.23, 1, 0.32, 1);
+            transition: max-height 0.35s cubic-bezier(0.33, 1, 0.68, 1), padding 0.2s;
+            max-height: 0;
+            padding: 0 8px;
+            background: #ffffff;
             border-radius: 16px;
-            position: relative;
-            overflow: hidden;
         }
-        .tree-node-content::before {
-            content: '';
-            position: absolute;
-            inset: 0;
-            background: linear-gradient(135deg, rgba(0,245,255,0.1), transparent);
-            opacity: 0;
-            transition: opacity 0.3s;
+        .search-options-panel.open { max-height: 180px; padding: 8px 8px 12px 8px; margin-top: 6px; }
+        .search-options-grid { display: flex; flex-wrap: wrap; gap: 12px; font-size: 0.75rem; background: #f8fafc; padding: 10px 12px; border-radius: 16px; }
+        .search-options-grid label { display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 500; }
+        .search-options-grid input { cursor: pointer; margin: 0; }
+        
+        .topic-tree { padding: 8px 12px 12px; }
+        .level-filter { padding: 12px 16px 16px; border-top: 1px solid #edf2f7; margin-top: 4px; }
+        .level-filter label { font-size: 0.7rem; font-weight: 600; text-transform: uppercase; color: #4a627a; letter-spacing: 0.5px; display: block; margin-bottom: 6px; }
+        .level-select, .sort-select { width: 100%; padding: 10px 12px; border-radius: 14px; border: 1px solid #e2e8f0; background: #f8fafc; font-size: 0.8rem; margin-bottom: 10px; cursor: pointer; transition: all 0.2s; }
+        .level-select:focus, .sort-select:focus { border-color: #2c6b9e; box-shadow: 0 0 0 2px rgba(44,107,158,0.1); }
+        
+        /* tree animations */
+        .tree-node-content { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 12px; cursor: pointer; transition: all 0.15s ease; font-size: 0.85rem; font-weight: 500; }
+        .tree-node-content:hover { background: #eef3fc; transform: translateX(3px); }
+        .tree-node.active > .tree-node-content { background: #e0edfc; color: #1a5d9c; font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,0.02); }
+        .tree-children { margin-left: 24px; padding-left: 6px; border-left: 1px dashed #cbd5e1; transition: all 0.2s; }
+        
+        /* content transitions */
+        .content-wrapper { flex: 1; overflow-y: auto; padding: 20px 24px; scroll-behavior: smooth; min-height: 0; }
+        .unified-card { max-width: 1400px; margin: 0 auto; background: #ffffff; border-radius: 28px; border: 1px solid #eef2f8; overflow: hidden; transition: transform 0.2s, box-shadow 0.3s; box-shadow: 0 6px 14px rgba(0,0,0,0.02); }
+        .nav-buttons { display: flex; gap: 12px; padding: 16px 24px; background: #fbfdff; border-bottom: 1px solid #eff3f8; flex-wrap: wrap; }
+        .nav-btn { background: #f1f5f9; border: none; border-radius: 40px; padding: 8px 20px; font-size: 0.8rem; font-weight: 500; color: #2c6b9e; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; transition: all 0.2s ease; }
+        .nav-btn:active { transform: scale(0.95); background: #e2e8f0; }
+        .two-columns { display: flex; gap: 0; }
+        .column-example { flex: 1; padding: 20px; border-right: 1px solid #eff3f8; transition: background 0.1s; }
+        .column-description { flex: 1; padding: 20px; }
+        .section-title { font-size: 0.7rem; font-weight: 600; text-transform: uppercase; color: #5f7d9c; margin-bottom: 16px; letter-spacing: 0.5px; }
+        .example-placeholder { background: #fafcff; border-radius: 20px; border: 1px solid #ecf3fa; min-height: 400px; transition: opacity 0.2s ease; }
+        .desc-placeholder { line-height: 1.5; font-size: 0.95rem; max-height: 500px; overflow-y: auto; padding-right: 8px; animation: fadeSlide 0.2s ease; }
+        .inline-link { color: #2c6b9e; text-decoration: underline; cursor: pointer; font-weight: 500; transition: opacity 0.15s; }
+        .inline-link:active { opacity: 0.7; }
+        .example-iframe { width: 100%; min-height: 400px; border: none; border-radius: 18px; background: white; display: block; }
+        .search-highlight { background-color: #ffd966 !important; color: #1a2c3e !important; font-weight: 700 !important; border-radius: 6px !important; padding: 0 2px !important; }
+        
+        /* mobile & overlays */
+        @media (max-width: 768px) {
+            .top-bar { padding: 10px 16px; }
+            .menu-toggle { display: flex; align-items: center; justify-content: center; }
+            .hierarchy-panel { position: fixed; top: 0; left: 0; bottom: 0; transform: translateX(-100%); box-shadow: 2px 0 18px rgba(0,0,0,0.12); z-index: 100; background: white; }
+            .hierarchy-panel.open { transform: translateX(0); }
+            .content-wrapper { padding: 16px; }
+            .two-columns { flex-direction: column; }
+            .column-example { border-right: none; border-bottom: 1px solid #eff3f8; }
         }
-        .tree-node-content:hover::before { opacity: 1; }
-        .tree-node-content:hover {
-            transform: translateX(12px) scale(1.02);
-            box-shadow: 0 0 25px rgba(0, 245, 255, 0.4);
-        }
-
-        .nav-btn {
-            background: rgba(255,255,255,0.08);
-            border: 1px solid rgba(0,245,255,0.3);
-            color: white;
-            transition: all 0.4s ease;
-        }
-        .nav-btn:hover {
-            background: rgba(123, 44, 255, 0.3);
-            transform: translateY(-3px);
-            box-shadow: 0 10px 20px rgba(123, 44, 255, 0.3);
-        }
-
-        /* Warp Effect */
-        .warp-overlay {
-            position: fixed;
-            inset: 0;
-            background: radial-gradient(circle, transparent 40%, #000 80%);
-            z-index: 9999;
-            opacity: 0;
-            pointer-events: none;
-            mix-blend-mode: screen;
-        }
+        @media (min-width: 769px) { .menu-toggle { display: none; } }
+        .mobile-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.3); backdrop-filter: blur(2px); z-index: 90; display: none; animation: fadeIn 0.2s ease; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .framework-toast { position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%); background: #1e2a3a; color: white; padding: 10px 22px; border-radius: 48px; font-size: 0.8rem; z-index: 200; white-space: nowrap; animation: toastUp 0.3s cubic-bezier(0.2, 0.9, 0.4, 1.1); backdrop-filter: blur(8px); background: rgba(30,42,58,0.9); }
+        @keyframes toastUp { from { opacity: 0; transform: translateX(-50%) translateY(16px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+        @keyframes fadeSlide { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+        
+        .welcome-grid { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 24px; }
+        .welcome-card { background: #f8fafc; border-radius: 20px; padding: 14px 18px; cursor: pointer; transition: all 0.2s; border: 1px solid #eef2f8; flex: 1 1 180px; text-align: center; font-weight: 500; }
+        .welcome-card:hover { background: #eef3fc; transform: translateY(-3px); box-shadow: 0 8px 18px rgba(0,0,0,0.05); }
+        .welcome-card i { font-size: 1.6rem; margin-bottom: 10px; color: #2c6b9e; }
     </style>
 </head>
 <body>
-
-<div id="bg-canvas"></div>
-
-<!-- Loading -->
-<div class="loading-screen" id="loadingScreen">
-    <div style="text-align:center">
-        <div class="loader-3d">
-            <div id="sphereContainer" style="width:260px;height:260px;"></div>
-        </div>
-        <div class="loader-text">MATHFRAME</div>
+<div class="loading-overlay" id="loadingOverlay">
+    <div class="loading-spinner">
+        <i class="fas fa-cog fa-spin"></i>
+        <p>MathFrame загружается...</p>
     </div>
 </div>
-
-<div class="app" id="app">
+<div class="app">
     <div class="top-bar">
-        <div class="logo">
-            <i class="fas fa-infinity"></i> MathFrame
+        <div class="logo-area">
+            <button class="menu-toggle" id="menuToggleBtn"><i class="fas fa-bars"></i></button>
+            <div class="logo"><i class="fas fa-graduation-cap"></i> MathFrame</div>
+            <button class="home-btn" id="globalHomeBtn" title="Главная"><i class="fas fa-home"></i></button>
         </div>
-        <button class="menu-toggle" id="menuToggleBtn"><i class="fas fa-bars"></i></button>
     </div>
-
-    <div class="main-layout" style="display:flex;flex:1;overflow:hidden;">
-        <!-- Hierarchy Panel + Content здесь остаются те же, но с новыми классами -->
-        <div class="hierarchy-panel" id="hierarchyPanel" style="width:360px;background:var(--glass);backdrop-filter:blur(20px);border-right:1px solid rgba(0,245,255,0.15);">
-            <!-- Твой существующий контент панели (я оставил структуру) -->
-            <div style="padding:20px;">
-                <input type="text" id="hierarchySearchInput" placeholder="Поиск тем..." 
-                       style="width:100%;padding:14px 20px;border-radius:9999px;background:rgba(255,255,255,0.08);border:1px solid rgba(0,245,255,0.3);color:white;">
+    <div class="main-layout">
+        <div class="hierarchy-panel" id="hierarchyPanel">
+            <div class="panel-header"><i class="fas fa-diagram-project"></i> СОДЕРЖАНИЕ</div>
+            <div class="hierarchy-search">
+                <div class="search-wrapper">
+                    <i class="fas fa-search"></i>
+                    <input type="text" id="hierarchySearchInput" class="search-input" placeholder="Поиск по названию, ключевым словам..." spellcheck="false">
+                </div>
+                <!-- collapsible search options -->
+                <div class="search-options-header" id="searchOptionsToggle">
+                    <span><i class="fas fa-sliders-h" style="margin-right: 6px;"></i> Параметры поиска</span>
+                    <i class="fas fa-chevron-down" id="searchChevron"></i>
+                </div>
+                <div class="search-options-panel" id="searchOptionsPanel">
+                    <div class="search-options-grid">
+                        <label><input type="checkbox" id="searchInDescCheckbox"> <i class="far fa-file-alt"></i> В описании</label>
+                        <label><input type="checkbox" id="keywordsCheckbox" checked> <i class="fas fa-tags"></i> Ключевые слова</label>
+                        <label><input type="checkbox" id="fuzzyCheckbox" checked> <i class="fas fa-spell-check"></i> Учитывать опечатки</label>
+                        <label><input type="checkbox" id="smartSortCheckbox" checked> <i class="fas fa-chart-line"></i> Умная сортировка</label>
+                    </div>
+                </div>
             </div>
-            <div class="topic-tree" id="topicTree" style="padding:0 16px;"></div>
+            <div class="topic-tree" id="topicTree"></div>
+            <div class="level-filter">
+                <label><i class="fas fa-filter"></i> Упростить до</label>
+                <select id="levelSelect" class="level-select">
+                    <option value="all">Не упрощать (все темы)</option>
+                    <option value="9">До 9 класса</option>
+                    <option value="7">До 7 класса</option>
+                    <option value="5">До 5-6 классов</option>
+                    <option value="preschool">Для классов до 5</option>
+                </select>
+                <label><i class="fas fa-sort-amount-down"></i> Сортировка</label>
+                <select id="sortSelect" class="sort-select">
+                    <option value="config">Как в конфиге</option>
+                    <option value="name_asc">По алфавиту (А-Я)</option>
+                    <option value="name_desc">По алфавиту (Я-А)</option>
+                    <option value="grade_asc">По классам (возрастание)</option>
+                    <option value="grade_desc">По классам (убывание)</option>
+                </select>
+            </div>
         </div>
-
-        <div class="content-wrapper" style="flex:1;padding:32px;overflow-y:auto;">
-            <div class="unified-card" id="unifiedCard" style="max-width:1400px;margin:0 auto;">
-                <!-- Твой контент -->
-                <div class="nav-buttons" id="navButtonsContainer" style="padding:20px;"></div>
-                <div class="two-columns" style="display:flex;">
-                    <!-- example и description -->
+        <div class="content-wrapper" id="unifiedScroller">
+            <div class="unified-card" id="unifiedCard">
+                <div class="nav-buttons" id="navButtonsContainer"></div>
+                <div class="two-columns">
+                    <div class="column-example">
+                        <div class="section-title"><i class="fas fa-cursor"></i> ИНТЕРАКТИВНЫЙ ПРИМЕР</div>
+                        <div class="example-placeholder" id="examplePlaceholder"></div>
+                    </div>
+                    <div class="column-description">
+                        <div class="section-title"><i class="fas fa-book"></i> ТЕОРЕТИЧЕСКИЙ МАТЕРИАЛ</div>
+                        <div class="desc-placeholder" id="descriptionPlaceholder"></div>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 </div>
+<div class="mobile-overlay" id="mobileOverlay"></div>
 
-<script type="module">
-    import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.min.js';
+<script>
+    const DEFAULT_TOPICS = [
+        { id: "algebra_7", name: "Алгебра 7–9", parent: null, icon: "fa-folder", gradeLevel: 7, keywords: ["алгебра","выражения","формулы","7 класс"], example: '<div style="padding:20px; text-align:center;"><i class="fas fa-chart-line" style="font-size:2rem;"></i><div>Алгебра 7-9</div></div>', description: '<p><strong>Алгебра</strong> — раздел математики, изучающий операции над величинами и решение уравнений.</p><p><span class="inline-link" data-topic-id="linear_eq">Линейные уравнения</span>.</p>' },
+        { id: "linear_eq", name: "Линейные уравнения", parent: "algebra_7", icon: "fa-file-alt", gradeLevel: 7, keywords: ["уравнение","линейное","корень","ax+b=0"], example: '<div style="padding:20px;"><i class="fas fa-chart-line"></i><div>ax + b = 0 → x = -b/a</div><div>Пример: 2x - 6 = 0 → x = 3</div></div>', description: '<p><strong>Линейное уравнение</strong>: ax + b = 0, a≠0. Корень: x = -b/a.</p><p><span class="inline-link" data-topic-id="quadratic_eq">Квадратные уравнения</span>.</p>' },
+        { id: "quadratic_eq", name: "Квадратные уравнения", parent: "algebra_7", icon: "fa-file-alt", gradeLevel: 8, keywords: ["дискриминант","парабола","ax²+bx+c=0"], example: '<div style="padding:20px;"><i class="fas fa-chart-line"></i><div>ax² + bx + c = 0, D = b² - 4ac</div></div>', description: '<p>Квадратное уравнение решается через дискриминант. При D>0 — два корня.</p>' },
+        { id: "geometry_7", name: "Геометрия 7–9", parent: null, icon: "fa-folder", gradeLevel: 7, keywords: ["геометрия","фигуры","углы"], example: '<div style="padding:20px;text-align:center;"><i class="fas fa-shapes" style="font-size:2rem;"></i><div>Геометрия</div></div>', description: '<p><strong>Геометрия</strong> — раздел математики, изучающий пространственные формы.</p>' },
+        { id: "adjacent_angles", name: "Смежные углы", parent: "geometry_7", icon: "fa-file-alt", gradeLevel: 7, keywords: ["углы","смежные","сумма 180"], example: '<div style="padding:20px;"><i class="fas fa-angle-double-right"></i><div>∠α + ∠β = 180°</div></div>', description: '<p><strong>Смежные углы</strong> — два угла с общей стороной, сумма 180°.</p>' },
+        { id: "triangles", name: "Треугольники", parent: "geometry_7", icon: "fa-file-alt", gradeLevel: 7, keywords: ["треугольник","сумма углов"], example: '<div style="padding:20px;"><i class="fas fa-shapes"></i><div>Сумма углов = 180°</div></div>', description: '<p>Треугольники: виды, признаки равенства.</p>' },
+        { id: "algebra_10", name: "Алгебра 10–11", parent: null, icon: "fa-folder", gradeLevel: 10, keywords: ["алгебра","старшая школа","функции"], example: '<div style="padding:20px;"><i class="fas fa-chart-line"></i><div>Старшая школа</div></div>', description: '<p>Углублённое изучение функций, производных и интегралов.</p>' },
+        { id: "logarithms", name: "Логарифмы", parent: "algebra_10", icon: "fa-file-alt", gradeLevel: 10, keywords: ["логарифм","log","степень"], example: '<div style="padding:20px;"><i class="fas fa-chart-line"></i><div>logₐ b = c ⇔ a^c = b</div></div>', description: '<p>Логарифм — показатель степени, в которую нужно возвести основание.</p>' }
+    ];
 
-    // Background Particles + Grid
-    function initBackground() {
-        const canvas = document.createElement('canvas');
-        canvas.id = 'bg-canvas';
-        document.body.appendChild(canvas);
+    let currentTopics = [], currentTopicId = null, collapsedFolders = new Map(), navigationStack = [];
+    let currentGradeFilter = "all", currentSortMode = "config";
+    let currentSearchQuery = "", searchInDescription = false, keywordsEnabled = true, fuzzyEnabled = true, smartSortEnabled = true;
+    let matchOnlyByDescription = new Map();
+    let topicRelevanceInfo = new Map();
 
-        const scene = new THREE.Scene();
-        const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
-        camera.position.z = 30;
-
-        const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-
-        // Particles
-        const particlesGeometry = new THREE.BufferGeometry();
-        const count = 3000;
-        const positions = new Float32Array(count * 3);
-        const colors = new Float32Array(count * 3);
-
-        for(let i = 0; i < count * 3; i += 3) {
-            positions[i]     = (Math.random() - 0.5) * 80;
-            positions[i + 1] = (Math.random() - 0.5) * 80;
-            positions[i + 2] = (Math.random() - 0.5) * 80;
-
-            colors[i]     = 0.2;
-            colors[i + 1] = 0.8;
-            colors[i + 2] = 1;
-        }
-
-        particlesGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-        particlesGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-
-        const particlesMaterial = new THREE.PointsMaterial({
-            size: 0.15,
-            vertexColors: true,
-            transparent: true,
-            opacity: 0.6,
-            blending: THREE.AdditiveBlending
-        });
-
-        const particleSystem = new THREE.Points(particlesGeometry, particlesMaterial);
-        scene.add(particleSystem);
-
-        function animateBg() {
-            requestAnimationFrame(animateBg);
-            particleSystem.rotation.y += 0.0002;
-            renderer.render(scene, camera);
-        }
-        animateBg();
-
-        window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        });
+    async function loadConfigFromFile() {
+        try {
+            const response = await fetch('./config.json');
+            if (response.ok) {
+                const data = await response.json();
+                if (Array.isArray(data) && data.length) return data;
+            }
+        } catch(e) {}
+        return JSON.parse(JSON.stringify(DEFAULT_TOPICS));
     }
-
-    // Улучшенная 3D сфера
-    function initLoadingSphere() {
-        const container = document.getElementById('sphereContainer');
-        const scene = new THREE.Scene();
-        const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
-        camera.position.z = 3.5;
-
-        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-        renderer.setSize(260, 260);
-        container.appendChild(renderer.domElement);
-
-        const geometry = new THREE.SphereGeometry(1.2, 64, 64);
-        const material = new THREE.MeshPhongMaterial({
-            color: 0x00f5ff,
-            emissive: 0x7b2cff,
-            shininess: 100,
-            specular: 0xffffff,
-            transparent: true,
-            opacity: 0.95
-        });
-
-        const sphere = new THREE.Mesh(geometry, material);
-        scene.add(sphere);
-
-        const light1 = new THREE.PointLight(0xffffff, 2, 100);
-        light1.position.set(5, 5, 8);
-        scene.add(light1);
-
-        const light2 = new THREE.PointLight(0x7b2cff, 1.5, 100);
-        light2.position.set(-5, -5, -8);
-        scene.add(light2);
-
-        function animate() {
-            requestAnimationFrame(animate);
-            sphere.rotation.y += 0.012;
-            sphere.rotation.x += 0.008;
-            renderer.render(scene, camera);
-        }
-        animate();
+    function deduplicateTopics(arr) { const map = new Map(); arr.forEach(t => { const key = `${t.name.toLowerCase()}|${t.parent === null ? 'null' : t.parent}`; if (!map.has(key)) map.set(key,t); }); return Array.from(map.values()); }
+    function buildHierarchyOrder(topics) {
+        const ordered = [];
+        const roots = topics.filter(t => t.parent === null).sort((a,b)=>a.name.localeCompare(b.name));
+        function addWithChildren(t) { ordered.push(t); topics.filter(c=>c.parent===t.id).sort((a,b)=>a.name.localeCompare(b.name)).forEach(ch => addWithChildren(ch)); }
+        roots.forEach(r => addWithChildren(r));
+        return ordered;
     }
-
-    // Warp transition
-    function warpTransition(callback) {
-        const overlay = document.createElement('div');
-        overlay.className = 'warp-overlay';
-        document.body.appendChild(overlay);
-
-        gsap.to(overlay, { opacity: 0.85, duration: 0.4 });
-        
-        setTimeout(() => {
-            callback();
-            gsap.to(overlay, { 
-                opacity: 0, 
-                duration: 0.6,
-                onComplete: () => overlay.remove()
-            });
-        }, 300);
-    }
-
-    // Инициализация
-    window.addEventListener('load', () => {
-        initBackground();
-        initLoadingSphere();
-
-        // Твой существующий JS-код (init() и т.д.) можно оставить почти без изменений,
-        // только добавить GSAP анимации при открытии элементов.
-
-        setTimeout(() => {
-            document.getElementById('loadingScreen').style.opacity = '0';
-            document.getElementById('app').classList.add('ready');
-        }, 1800);
-    });
+    function levenshtein(a,b) { const matrix = []; for(let i=0;i<=b.length;i++) matrix[i]=[i]; for(let j=0;j<=a.length;j++) matrix[0][j]=j; for(let i=1;i<=b.length;i++) for(let j=1;j<=a.length;j++) { const cost = a[j-1]===b[i-1]?0:1; matrix[i][j]=Math.min(matrix[i-1][j]+1, matrix[i][j-1]+1, matrix[i-1][j-1]+cost); } return matrix[b.length][a.length]; }
+    function getMatchPercent(word, text) { if(!text) return 0; const lowerWord=word.toLowerCase(), lowerText=text.toLowerCase(); const boundRegex=new RegExp(`\\b${lowerWord.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}\\b`,'i'); if(boundRegex.test(text)) return 100; if(lowerText.includes(lowerWord)) return 80; if(fuzzyEnabled && lowerWord.length>=3) { const words = lowerText.split(/\s+/); for(let w of words) if(w.length>=3){ const dist=levenshtein(lowerWord,w); if(dist===1) return 70; if(dist===2) return 60; } } return 0; }
+    function getTopicRelevanceInfo(topic, queryWords) { if(!queryWords.length) return {found:false}; let nameP=0,kwP=0,descP=0; for(let w of queryWords){ nameP=Math.max(nameP,getMatchPercent(w,topic.name)); if(keywordsEnabled && topic.keywords) kwP=Math.max(kwP,getMatchPercent(w,Array.isArray(topic.keywords)?topic.keywords.join(" "):String(topic.keywords))); if(searchInDescription && topic.description) descP=Math.max(descP,getMatchPercent(w,topic.description.replace(/<[^>]*>/g,''))); } let group=0,percent=0,onlyDesc=false; if(nameP>0){group=1;percent=nameP;} else if(kwP>0){group=2;percent=kwP;} else if(descP>0){group=3;percent=descP;onlyDesc=true;} return {found:group>0,group,percent,onlyDesc}; }
+    function getSearchWords() { return currentSearchQuery.trim()?currentSearchQuery.toLowerCase().split(/\s+/).filter(w=>w.length>0):[]; }
+    function highlightText(html,words) { if(!words.length) return html; const div=document.createElement('div'); div.innerHTML=html; function walk(node){ if(node.nodeType===Node.TEXT_NODE){ let text=node.nodeValue; for(let w of words){ const regex=new RegExp(`(${w.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')})`,'gi'); if(regex.test(text)) text=text.replace(regex,`<span class="search-highlight">$1</span>`); } if(text!==node.nodeValue){ const span=document.createElement('span'); span.innerHTML=text; node.parentNode.replaceChild(span,node); } } else if(node.nodeType===Node.ELEMENT_NODE && !['SCRIPT','STYLE'].includes(node.tagName)) Array.from(node.childNodes).forEach(walk); } Array.from(div.childNodes).forEach(walk); return div.innerHTML; }
+    function saveToStorage(){ localStorage.setItem('mathframe_collapsed',JSON.stringify(Object.fromEntries(collapsedFolders))); localStorage.setItem('mathframe_filter',currentGradeFilter); localStorage.setItem('mathframe_sort',currentSortMode); localStorage.setItem('mathframe_search',currentSearchQuery); localStorage.setItem('mathframe_search_in_desc',searchInDescription); localStorage.setItem('mathframe_keywords',keywordsEnabled); localStorage.setItem('mathframe_fuzzy',fuzzyEnabled); localStorage.setItem('mathframe_smart_sort',smartSortEnabled); }
+    function loadFromStorage(){ const sc=localStorage.getItem('mathframe_collapsed'); if(sc) collapsedFolders=new Map(Object.entries(JSON.parse(sc))); currentGradeFilter=localStorage.getItem('mathframe_filter')||"all"; currentSortMode=localStorage.getItem('mathframe_sort')||"config"; currentSearchQuery=localStorage.getItem('mathframe_search')||""; searchInDescription=localStorage.getItem('mathframe_search_in_desc')==='true'; keywordsEnabled=localStorage.getItem('mathframe_keywords')!=='false'; fuzzyEnabled=localStorage.getItem('mathframe_fuzzy')!=='false'; smartSortEnabled=localStorage.getItem('mathframe_smart_sort')!=='false'; }
+    function updateRelevanceInfo(){ matchOnlyByDescription.clear(); topicRelevanceInfo.clear(); if(!currentSearchQuery.trim()) return; const words=getSearchWords(); for(let t of currentTopics){ const info=getTopicRelevanceInfo(t,words); topicRelevanceInfo.set(t.id,info); if(info.found && info.onlyDesc) matchOnlyByDescription.set(t.id,true); } }
+    function expandParentsForMatching(){ if(!currentSearchQuery.trim()) return; for(let t of currentTopics){ if(topicRelevanceInfo.get(t.id)?.found){ let p=t.parent; while(p){ collapsedFolders.set(p,false); p=currentTopics.find(x=>x.id===p)?.parent; } } } }
+    function isTopicVisible(t){ const g=t.gradeLevel||1; if(currentGradeFilter==="all") return true; if(currentGradeFilter==="9") return g<=9; if(currentGradeFilter==="7") return g<=7; if(currentGradeFilter==="5") return g<=5; if(currentGradeFilter==="preschool") return g<=4; return true; }
+    function sortTopicsByRelevance(arr){ if(!smartSortEnabled || !currentSearchQuery.trim()){ if(currentSortMode==="name_asc") return [...arr].sort((a,b)=>a.name.localeCompare(b.name)); if(currentSortMode==="name_desc") return [...arr].sort((a,b)=>b.name.localeCompare(a.name)); if(currentSortMode==="grade_asc") return [...arr].sort((a,b)=>(a.gradeLevel||0)-(b.gradeLevel||0)); if(currentSortMode==="grade_desc") return [...arr].sort((a,b)=>(b.gradeLevel||0)-(a.gradeLevel||0)); return [...arr]; } return [...arr].sort((a,b)=>{ const ia=topicRelevanceInfo.get(a.id)||{group:999,percent:0}, ib=topicRelevanceInfo.get(b.id)||{group:999,percent:0}; if(ia.group!==ib.group) return ia.group-ib.group; if(ia.percent!==ib.percent) return ib.percent-ia.percent; return a.name.localeCompare(b.name); }); }
+    function getChildrenSorted(parentId){ return sortTopicsByRelevance(currentTopics.filter(t=>t.parent===parentId && isTopicVisible(t))); }
+    function hasVisibleChildren(id){ const kids=getChildrenSorted(id); if(!kids.length) return false; if(!currentSearchQuery.trim()) return true; return kids.some(c=>topicRelevanceInfo.get(c.id)?.found); }
+    function renderTree(){ const container=document.getElementById('topicTree'); if(!container) return; container.innerHTML=''; updateRelevanceInfo(); expandParentsForMatching(); const roots=sortTopicsByRelevance(currentTopics.filter(t=>t.parent===null && isTopicVisible(t))); const words=getSearchWords(); for(let root of roots) renderNode(root,container,words); applyTreeFilter(); highlightActive(); attachEvents(); if(words.length) document.querySelectorAll('.node-title').forEach(t=>highlightElement(t,words)); }
+    function renderNode(topic,parent,words){ const children=getChildrenSorted(topic.id); const hasKids=children.length>0; const visibleKids=hasKids && hasVisibleChildren(topic.id); const collapsed=collapsedFolders.get(topic.id)===true; const node=document.createElement('div'); node.className='tree-node'; node.setAttribute('data-id',topic.id); if(matchOnlyByDescription.get(topic.id)) node.classList.add('search-match-description'); const content=document.createElement('div'); content.className='tree-node-content'; const toggle=document.createElement('span'); toggle.className='toggle-icon'; if(visibleKids){ toggle.innerHTML=collapsed?'<i class="fas fa-chevron-right"></i>':'<i class="fas fa-chevron-down"></i>'; } else { toggle.classList.add('empty'); toggle.style.width='20px'; } content.appendChild(toggle); const icon=document.createElement('i'); icon.className=`fas ${topic.icon||'fa-book'}`; icon.style.width='18px'; content.appendChild(icon); const title=document.createElement('span'); title.className='node-title'; title.textContent=topic.name; content.appendChild(title); node.appendChild(content); if(visibleKids){ const kidsDiv=document.createElement('div'); kidsDiv.className='tree-children'; if(collapsed) kidsDiv.style.display='none'; children.forEach(c=>{ if(isTopicVisible(c)) renderNode(c,kidsDiv,words); }); node.appendChild(kidsDiv); toggle.addEventListener('click',(e)=>{ e.stopPropagation(); const newState=!collapsedFolders.get(topic.id); collapsedFolders.set(topic.id,newState); saveToStorage(); kidsDiv.style.display=newState?'none':''; toggle.innerHTML=newState?'<i class="fas fa-chevron-right"></i>':'<i class="fas fa-chevron-down"></i>'; }); } parent.appendChild(node); }
+    function isChildVisible(c){ return isTopicVisible(c) && (!currentSearchQuery.trim() || topicRelevanceInfo.get(c.id)?.found); }
+    function applyTreeFilter(){ const q=currentSearchQuery.trim(); if(!q){ document.querySelectorAll('.tree-node').forEach(n=>{ n.style.display=''; n.classList.remove('search-match-description'); }); return; } const matching=new Set(); for(let t of currentTopics){ if(topicRelevanceInfo.get(t.id)?.found){ matching.add(t.id); let p=t.parent; while(p){ matching.add(p); p=currentTopics.find(x=>x.id===p)?.parent; } } } document.querySelectorAll('.tree-node').forEach(n=>{ const id=n.getAttribute('data-id'); n.style.display=matching.has(id)?'': 'none'; if(matching.has(id) && matchOnlyByDescription.get(id)) n.classList.add('search-match-description'); else n.classList.remove('search-match-description'); }); }
+    function highlightActive(){ document.querySelectorAll('.tree-node').forEach(n=>n.classList.remove('active')); if(currentTopicId && currentTopicId !== 'welcome') document.querySelector(`.tree-node[data-id="${currentTopicId}"]`)?.classList.add('active'); }
+    function attachEvents(){ document.querySelectorAll('.tree-node-content').forEach(el=>{ el.removeEventListener('click',clickHandler); el.addEventListener('click',clickHandler); }); }
+    function clickHandler(e){ if(e.target.closest('.toggle-icon') && !e.target.closest('.toggle-icon')?.classList.contains('empty')) return; const node=this.closest('.tree-node'); if(node){ const id=node.getAttribute('data-id'); if(id){ if(window.innerWidth<=768) closeMenu(); loadTopic(id,false); } } }
+    function setExample(container,html){ container.innerHTML=''; const dangerous=/<script\b/i.test(html)||/on\w+\s*=/i.test(html); if(!dangerous){ container.innerHTML=html; return; } const iframe=document.createElement('iframe'); iframe.className='example-iframe'; iframe.style.width='100%'; iframe.style.border='none'; iframe.style.borderRadius='18px'; const blob=new Blob([html],{type:'text/html'}); const url=URL.createObjectURL(blob); iframe.src=url; container.appendChild(iframe); iframe.onload=()=>URL.revokeObjectURL(url); }
+    function updateDescription(){ if(currentTopicId==='welcome') return; const topic=currentTopics.find(t=>t.id===currentTopicId); if(!topic) return; const descDiv=document.getElementById('descriptionPlaceholder'); const raw=topic.description||'<p>Описание отсутствует</p>'; const words=getSearchWords(); const shouldHighlight=words.length && (searchInDescription||keywordsEnabled); descDiv.innerHTML=shouldHighlight?highlightText(raw,words):raw; descDiv.querySelectorAll('.inline-link').forEach(link=>{ link.addEventListener('click',(e)=>{ e.preventDefault(); const tid=link.getAttribute('data-topic-id'); if(tid && currentTopics.find(t=>t.id===tid)) loadTopic(tid,true); }); }); }
+    function showWelcomeScreen(){ currentTopicId='welcome'; const exampleDiv=document.getElementById('examplePlaceholder'); const descDiv=document.getElementById('descriptionPlaceholder'); exampleDiv.innerHTML=`<div style="padding:28px; text-align:center;"><i class="fas fa-chalkboard-teacher" style="font-size: 3rem; color:#2c6b9e; margin-bottom:16px;"></i><h3 style="margin-bottom: 12px;">MathFrame</h3><p style="color:#4a627a;">Интерактивная платформа для изучения математики</p><div class="welcome-grid"><div class="welcome-card" data-welcome-topic="linear_eq"><i class="fas fa-chart-line"></i><div>Линейные уравнения</div></div><div class="welcome-card" data-welcome-topic="triangles"><i class="fas fa-shapes"></i><div>Треугольники</div></div><div class="welcome-card" data-welcome-topic="quadratic_eq"><i class="fas fa-paragraph"></i><div>Квадратные уравнения</div></div></div></div>`; descDiv.innerHTML=`<p><strong>Добро пожаловать в MathFrame</strong> — современную образовательную среду.</p><p>Изучайте алгебру и геометрию через интерактивные примеры, пользуйтесь древовидным меню и интеллектуальным поиском.</p><p>Выберите тему из левого меню или карточки выше, чтобы начать.</p>`; const cards=document.querySelectorAll('.welcome-card'); cards.forEach(card=>{ card.addEventListener('click',()=>{ const tid=card.dataset.welcomeTopic; if(tid && currentTopics.find(t=>t.id===tid)) loadTopic(tid,true); }); }); updateNavButtons(); }
+    function loadTopic(id, fromLink){ if(id==='welcome'){ showWelcomeScreen(); renderTree(); return; } const topic=currentTopics.find(t=>t.id===id); if(!topic) return; if(fromLink && currentTopicId && currentTopicId!=='welcome') navigationStack.push(currentTopicId); currentTopicId=id; const exampleDiv=document.getElementById('examplePlaceholder'); exampleDiv.style.opacity='0'; setTimeout(()=>{ setExample(exampleDiv,topic.example||'<div style="padding:20px;">Пример не задан</div>'); updateDescription(); exampleDiv.style.opacity='1'; updateNavButtons(); renderTree(); showToast(topic.name); },30); }
+    function updateNavButtons(){ const container=document.getElementById('navButtonsContainer'); if(!container) return; if(currentTopicId==='welcome'){ container.innerHTML='<button class="nav-btn" id="homeWelcomeBtn"><i class="fas fa-graduation-cap"></i> Главная</button>'; const homeBtn=document.getElementById('homeWelcomeBtn'); if(homeBtn) homeBtn.onclick=()=>{ if(currentTopicId!=='welcome') showWelcomeScreen(); else showToast('Вы уже на главной'); }; return; } const topic=currentTopics.find(t=>t.id===currentTopicId); const hasParent=topic&&topic.parent&&currentTopics.some(p=>p.id===topic.parent); container.innerHTML=''; if(hasParent){ const btn=document.createElement('button'); btn.className='nav-btn'; btn.innerHTML='<i class="fas fa-arrow-up"></i> Родительская тема'; btn.onclick=()=>{ const parent=topic.parent; if(parent) loadTopic(parent,false); }; container.appendChild(btn); } if(navigationStack.length){ const back=document.createElement('button'); back.className='nav-btn'; back.innerHTML='<i class="fas fa-undo-alt"></i> Вернуться по ссылке'; back.onclick=()=>{ if(navigationStack.length) loadTopic(navigationStack.pop(),false); else showToast('Нет истории'); }; container.appendChild(back); } }
+    function applyFilters(){ currentGradeFilter=document.getElementById('levelSelect').value; currentSortMode=document.getElementById('sortSelect').value; saveToStorage(); renderTree(); if(currentTopicId!=='welcome'){ const cur=currentTopics.find(t=>t.id===currentTopicId); if(cur && isTopicVisible(cur)) updateDescription(); else{ const first=currentTopics.find(t=>t.parent===null && isTopicVisible(t)); if(first) loadTopic(first.id,false); else showWelcomeScreen(); } } else { renderTree(); } }
+    function showToast(msg){ let t=document.querySelector('.framework-toast'); if(t) t.remove(); t=document.createElement('div'); t.className='framework-toast'; t.textContent=msg; document.body.appendChild(t); setTimeout(()=>t.remove(),1800); }
+    function closeMenu(){ document.getElementById('hierarchyPanel')?.classList.remove('open'); document.getElementById('mobileOverlay').style.display='none'; }
+    function openMenu(){ document.getElementById('hierarchyPanel')?.classList.add('open'); document.getElementById('mobileOverlay').style.display='block'; }
+    function highlightElement(el,words){ if(!words.length) return; const walker=document.createTreeWalker(el,NodeFilter.SHOW_TEXT,null,false); const nodes=[]; while(walker.nextNode()) nodes.push(walker.currentNode); for(let node of nodes){ let text=node.nodeValue; let changed=false; for(let w of words){ const regex=new RegExp(`(${w.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')})`,'gi'); if(regex.test(text)){ text=text.replace(regex,`<span class="search-highlight">$1</span>`); changed=true;} } if(changed){ const span=document.createElement('span'); span.innerHTML=text; node.parentNode.replaceChild(span,node); } } }
+    async function init(){ const loaded=await loadConfigFromFile(); let uniq=deduplicateTopics(loaded); currentTopics=buildHierarchyOrder(uniq); collapsedFolders.clear(); for(let t of currentTopics) if(currentTopics.some(c=>c.parent===t.id)) collapsedFolders.set(t.id,true); loadFromStorage(); document.getElementById('hierarchySearchInput').value=currentSearchQuery; document.getElementById('searchInDescCheckbox').checked=searchInDescription; document.getElementById('keywordsCheckbox').checked=keywordsEnabled; document.getElementById('fuzzyCheckbox').checked=fuzzyEnabled; document.getElementById('smartSortCheckbox').checked=smartSortEnabled; document.getElementById('levelSelect').value=currentGradeFilter; document.getElementById('sortSelect').value=currentSortMode; showWelcomeScreen(); renderTree(); const refresh=()=>{ saveToStorage(); renderTree(); if(currentTopicId!=='welcome') updateDescription(); }; document.getElementById('hierarchySearchInput').addEventListener('input',(e)=>{ currentSearchQuery=e.target.value; refresh(); }); document.getElementById('searchInDescCheckbox').addEventListener('change',(e)=>{searchInDescription=e.target.checked; refresh();}); document.getElementById('keywordsCheckbox').addEventListener('change',(e)=>{keywordsEnabled=e.target.checked; refresh();}); document.getElementById('fuzzyCheckbox').addEventListener('change',(e)=>{fuzzyEnabled=e.target.checked; refresh();}); document.getElementById('smartSortCheckbox').addEventListener('change',(e)=>{smartSortEnabled=e.target.checked; refresh();}); document.getElementById('levelSelect').addEventListener('change',applyFilters); document.getElementById('sortSelect').addEventListener('change',applyFilters); document.getElementById('menuToggleBtn').addEventListener('click',openMenu); document.getElementById('mobileOverlay').addEventListener('click',closeMenu); document.getElementById('globalHomeBtn').addEventListener('click',()=>{ if(currentTopicId!=='welcome') showWelcomeScreen(); else showToast('Вы уже на главной'); }); window.addEventListener('resize',()=>{if(window.innerWidth>768) closeMenu();}); document.body.addEventListener('click',(e)=>{const link=e.target.closest('.inline-link'); if(link && link.dataset.topicId){ e.preventDefault(); const tid=link.dataset.topicId; if(tid && currentTopics.find(t=>t.id===tid)) loadTopic(tid,true);}}); const searchToggle=document.getElementById('searchOptionsToggle'); const panel=document.getElementById('searchOptionsPanel'); const chevron=document.getElementById('searchChevron'); if(searchToggle){ searchToggle.addEventListener('click',()=>{ panel.classList.toggle('open'); chevron.style.transform=panel.classList.contains('open')?'rotate(180deg)':'rotate(0deg)'; }); } setTimeout(()=>{ const loader=document.getElementById('loadingOverlay'); if(loader) loader.style.opacity='0'; setTimeout(()=>{if(loader) loader.style.display='none';},500); },350); }
+    init();
 </script>
 </body>
 </html>
