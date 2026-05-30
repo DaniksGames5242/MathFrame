@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Редактор тем · Геометрия</title>
     <style>
         * {
@@ -10,78 +10,62 @@
             margin: 0;
             padding: 0;
         }
+
         body {
-            background: #111;
-            color: #ddd;
-            font-family: system-ui, -apple-system, 'Segoe UI', monospace;
+            background: #0f0f12;
+            color: #e3e3e8;
+            font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
             padding: 20px;
         }
+
+        .top-bar {
+            background: #18181c;
+            border: 1px solid #2c2c34;
+            border-radius: 12px;
+            padding: 8px 20px;
+            margin-bottom: 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+        .file-menu {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .file-menu button {
+            background: #2c2c34;
+            border: 1px solid #4a4a52;
+            padding: 6px 14px;
+            border-radius: 20px;
+            color: #ddd;
+            cursor: pointer;
+            font-size: 0.75rem;
+            transition: 0.1s;
+        }
+        .file-menu button:hover {
+            background: #3a3a44;
+        }
+        .status-area {
+            font-size: 0.75rem;
+            color: #8ab3ff;
+        }
+
         .container {
             display: flex;
             flex-wrap: wrap;
             gap: 20px;
-            max-width: 1600px;
-            margin: 0 auto;
-            position: relative;
         }
-        .corner-menu {
-            position: absolute;
-            top: 0;
-            left: 0;
-            z-index: 100;
-        }
-        .file-menu {
-            position: relative;
-            display: inline-block;
-        }
-        .file-menu-btn {
-            background: #2a2a2a;
-            color: #aaa;
-            border: 1px solid #444;
-            padding: 4px 12px;
-            font-size: 0.8rem;
-            cursor: pointer;
-            font-family: inherit;
-        }
-        .file-menu-btn:hover {
-            background: #3a3a3a;
-            color: #ddd;
-        }
-        .file-dropdown {
-            display: none;
-            position: absolute;
-            top: 100%;
-            left: 0;
-            background: #252525;
-            border: 1px solid #444;
-            min-width: 180px;
-            z-index: 101;
-        }
-        .file-dropdown.show {
-            display: block;
-        }
-        .file-dropdown button {
-            display: block;
-            width: 100%;
-            padding: 8px 12px;
-            background: none;
-            border: none;
-            color: #ddd;
-            text-align: left;
-            font-size: 0.75rem;
-            cursor: pointer;
-            font-family: inherit;
-        }
-        .file-dropdown button:hover {
-            background: #3a3a3a;
-        }
+
         .list-panel {
             flex: 1.2;
             min-width: 280px;
             background: #1e1e1e;
             border: 1px solid #333;
+            border-radius: 16px;
             padding: 12px;
-            margin-top: 0;
         }
         .list-panel h3 {
             font-size: 1rem;
@@ -97,6 +81,7 @@
             padding: 6px 10px;
             background: #111;
             border: 1px solid #3a3a3a;
+            border-radius: 20px;
             color: #eee;
             font-size: 0.85rem;
         }
@@ -104,7 +89,7 @@
             display: flex;
             flex-direction: column;
             gap: 2px;
-            max-height: 45vh;
+            max-height: 55vh;
             overflow-y: auto;
         }
         .tree-item {
@@ -120,22 +105,32 @@
         .topic-row {
             background: #252525;
             padding: 6px 8px;
-            cursor: pointer;
             border: 1px solid #3a3a3a;
+            border-radius: 10px;
             display: flex;
             justify-content: space-between;
             align-items: center;
             margin: 2px 0;
+            cursor: grab;
+            transition: 0.05s linear;
+        }
+        .topic-row:active {
+            cursor: grabbing;
         }
         .topic-row.selected {
             background: #2a3a4a;
             border-color: #5a7a9a;
         }
-        .topic-row.dragging {
-            opacity: 0.4;
+        .topic-row.drag-over-top {
+            border-top: 3px solid #7a9a5a;
+            border-bottom: none;
         }
-        .topic-row.drag-over {
-            border: 2px solid #7a9a5a;
+        .topic-row.drag-over-bottom {
+            border-bottom: 3px solid #7a9a5a;
+            border-top: none;
+        }
+        .topic-row.drag-over-child {
+            border: 2px solid #5a9a7a;
             background: #2a3a2a;
         }
         .topic-info {
@@ -143,16 +138,7 @@
             align-items: center;
             gap: 8px;
             flex: 1;
-        }
-        .drag-area {
-            cursor: grab;
-            padding: 0 8px;
-            color: #777;
-            user-select: none;
-            font-size: 16px;
-        }
-        .drag-area:active {
-            cursor: grabbing;
+            pointer-events: none;
         }
         .topic-name {
             font-size: 0.9rem;
@@ -174,9 +160,7 @@
             cursor: pointer;
             font-size: 1rem;
             padding: 0 5px;
-        }
-        .del-topic:hover {
-            color: #f88;
+            pointer-events: auto;
         }
         .expand-btn {
             background: none;
@@ -185,12 +169,14 @@
             cursor: pointer;
             width: 20px;
             font-size: 12px;
-            text-align: center;
+            pointer-events: auto;
         }
+
         .editor-panel {
             flex: 2.5;
             background: #1e1e1e;
             border: 1px solid #333;
+            border-radius: 16px;
             padding: 16px;
         }
         .tabs {
@@ -223,7 +209,7 @@
         }
         label {
             display: block;
-            font-size: 0.8rem;
+            font-size: 0.75rem;
             margin-bottom: 4px;
             color: #aaa;
         }
@@ -231,10 +217,10 @@
             width: 100%;
             background: #111;
             border: 1px solid #3a3a3a;
-            padding: 8px 10px;
+            border-radius: 12px;
+            padding: 8px 12px;
             color: #eee;
             font-size: 0.9rem;
-            font-family: inherit;
         }
         textarea {
             font-family: 'Courier New', monospace;
@@ -245,49 +231,59 @@
             flex-wrap: wrap;
             gap: 5px;
             margin-bottom: 8px;
-            background: #252525;
-            padding: 6px;
         }
         .tool-btn {
             background: #333;
             border: 1px solid #555;
-            padding: 4px 8px;
-            font-size: 0.8rem;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 0.75rem;
             cursor: pointer;
             color: #ddd;
         }
         .tool-btn:hover {
             background: #444;
         }
-        .small-note {
-            font-size: 0.7rem;
-            color: #888;
-            margin-top: 4px;
-        }
         .html-preview {
             border: 1px solid #444;
+            border-radius: 12px;
             background: #1a1a1a;
             padding: 8px;
             margin-top: 8px;
         }
         .preview-frame {
             width: 100%;
-            min-height: 300px;
+            min-height: 250px;
             background: #fff;
             border: none;
+            border-radius: 8px;
         }
         .rich-editor {
             background: #111;
             border: 1px solid #3a3a3a;
-            padding: 8px;
-            min-height: 120px;
-            color: #eee;
+            border-radius: 12px;
+            padding: 10px;
+            min-height: 140px;
             overflow-y: auto;
         }
-        .rich-editor .inline-link {
+        .rich-editor .inline-link.valid {
             color: #8ab3ff;
             text-decoration: underline;
             cursor: pointer;
+        }
+        .rich-editor .inline-link.invalid {
+            color: #ff7b72;
+            text-decoration: line-through;
+        }
+        .json-editor {
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            min-height: 500px;
+        }
+        .json-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
         }
         .new-topic-bottom {
             margin-top: 16px;
@@ -296,6 +292,38 @@
         .new-topic-bottom button {
             width: 100%;
             background: #2a3a4a;
+            border-radius: 30px;
+            padding: 8px;
+        }
+        .small-note {
+            font-size: 0.7rem;
+            color: #888;
+            margin-top: 4px;
+        }
+        .toast-area {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            left: 20px;
+            z-index: 1000;
+            display: flex;
+            justify-content: flex-end;
+        }
+        .toast {
+            background: #2a5a2a;
+            padding: 8px 20px;
+            border-radius: 40px;
+            font-size: 0.8rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+            opacity: 0;
+            transition: opacity 0.2s;
+            pointer-events: none;
+        }
+        .toast.show {
+            opacity: 1;
+        }
+        .toast.error {
+            background: #5a2a2a;
         }
         .topic-selector-dialog {
             position: fixed;
@@ -304,24 +332,16 @@
             transform: translate(-50%, -50%);
             background: #1e1e1e;
             border: 1px solid #555;
+            border-radius: 20px;
             padding: 20px;
-            z-index: 1000;
+            z-index: 1100;
             width: 400px;
             max-height: 500px;
             overflow-y: auto;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
         }
-        .topic-selector-dialog input {
+        .topic-selector-dialog input, .topic-selector-dialog select {
             margin: 10px 0;
             width: 100%;
-        }
-        .topic-selector-dialog select {
-            margin: 10px 0;
-            width: 100%;
-            height: 200px;
-        }
-        .topic-selector-dialog button {
-            margin-top: 10px;
         }
         .overlay {
             position: fixed;
@@ -330,62 +350,25 @@
             right: 0;
             bottom: 0;
             background: rgba(0,0,0,0.7);
-            z-index: 999;
-        }
-        .status-msg {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            background: #2a5a2a;
-            padding: 8px 16px;
-            border-radius: 8px;
-            font-size: 0.8rem;
-            z-index: 1000;
-            opacity: 0;
-            transition: opacity 0.3s;
-        }
-        .status-msg.show {
-            opacity: 1;
-        }
-        .editor-header {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 12px;
-            gap: 8px;
-        }
-        .editor-header button {
-            flex: 1;
-        }
-        .json-editor {
-            font-family: 'Courier New', monospace;
-            font-size: 13px;
-            min-height: 500px;
-        }
-        .json-buttons {
-            display: flex;
-            gap: 10px;
-            margin-top: 10px;
-        }
-        input[readonly] {
-            background: #2a2a2a;
-            color: #aaa;
+            z-index: 1050;
         }
     </style>
 </head>
 <body>
-<div class="container">
-    <!-- Компактное меню в левом верхнем углу -->
-    <div class="corner-menu">
-        <div class="file-menu">
-            <button class="file-menu-btn" id="fileMenuBtn">Файл ▼</button>
-            <div class="file-dropdown" id="fileDropdown">
-                <button id="addShortBtn">Добавить из сокращённого JSON</button>
-                <button id="saveToGitHubBtn">Сохранить в GitHub</button>
-            </div>
-        </div>
-    </div>
-    <input type="file" id="shortFileInput" accept=".json" style="display: none;">
 
+<div class="top-bar">
+    <div class="file-menu">
+        <button id="exportLocalBtn">Экспорт локально</button>
+        <button id="importLocalBtn">Импорт локально</button>
+        <button id="addShortBtn">Добавить из сокращённого</button>
+        <button id="saveToGitHubBtn">Сохранить в GitHub</button>
+        <button id="clearGitHubDataBtn">Сбросить токен</button>
+    </div>
+    <div class="status-area" id="statusArea">Редактор готов</div>
+</div>
+<input type="file" id="localFileInput" accept=".json" style="display: none;">
+
+<div class="container">
     <div class="list-panel">
         <h3>Список тем</h3>
         <div class="search-box">
@@ -395,8 +378,8 @@
         <div class="new-topic-bottom">
             <button id="newBtn">+ Создать тему</button>
         </div>
-        <div class="small-note">Клик по теме — редактирование. Перетащите за [⋮⋮] — изменить порядок. Перетащите за название — сделать дочерней.</div>
-        <div class="small-note" style="margin-top: 8px;">Изменения сохраняются автоматически</div>
+        <div class="small-note">Клик по теме — выделить. Перетащите за любой участок строки: в середину другой → сделать дочерней; между строк → изменить порядок.</div>
+        <div class="small-note">Автосохранение изменений темы при потере фокуса.</div>
     </div>
 
     <div class="editor-panel">
@@ -406,21 +389,17 @@
         </div>
         
         <div id="tab-editor" class="tab-content active">
-            <div class="editor-header">
-                <button id="saveCurrentBtn" style="background:#2a4a5a;">Сохранить тему</button>
-                <button id="deleteCurrentBtn" style="background:#3a1e1e;">Удалить</button>
-            </div>
             <div class="form-row">
                 <label>ID (авто из названия)</label>
                 <input type="text" id="topicId" readonly>
             </div>
             <div class="form-row">
                 <label>Название</label>
-                <input type="text" id="topicName" placeholder="Например: Квадратное уравнение">
+                <input type="text" id="topicName">
             </div>
             <div class="form-row">
                 <label>Ключевые слова (через запятую)</label>
-                <input type="text" id="topicKeywords" placeholder="уравнение, линейное, корень, 7 класс">
+                <input type="text" id="topicKeywords">
             </div>
             <div class="form-row">
                 <label>Родитель (parent)</label>
@@ -446,22 +425,22 @@
             </div>
             <div class="form-row">
                 <label>Пример (HTML-код)</label>
-                <textarea id="exampleHtmlSource" rows="4" placeholder="HTML-код примера"></textarea>
+                <textarea id="exampleHtmlSource" rows="8"></textarea>
                 <div class="html-preview">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                        <div style="font-size:0.7rem; color:#aaa;">Предпросмотр:</div>
-                        <button id="refreshPreviewBtn" class="tool-btn" style="padding: 2px 8px;">Обновить</button>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+                        <span style="font-size:0.7rem;">Предпросмотр</span>
+                        <button id="refreshPreviewBtn" class="tool-btn">Обновить</button>
                     </div>
-                    <iframe id="examplePreview" class="preview-frame" sandbox="allow-same-origin allow-scripts allow-popups allow-forms"></iframe>
+                    <iframe id="examplePreview" class="preview-frame" sandbox="allow-same-origin allow-scripts allow-popups allow-forms allow-modals"></iframe>
                 </div>
             </div>
             <div class="form-row">
                 <label>Описание (визуальный редактор)</label>
                 <div class="toolbar">
-                    <button type="button" class="tool-btn" id="boldBtn">B</button>
-                    <button type="button" class="tool-btn" id="italicBtn">I</button>
-                    <button type="button" class="tool-btn" id="clearFormatBtn">Очистить формат</button>
-                    <button type="button" class="tool-btn" id="linkDescBtn">Ссылка на тему</button>
+                    <button class="tool-btn" id="boldBtn">B</button>
+                    <button class="tool-btn" id="italicBtn">I</button>
+                    <button class="tool-btn" id="clearFormatBtn">Очистить формат</button>
+                    <button class="tool-btn" id="linkDescBtn">Ссылка на тему</button>
                     <button class="tool-btn" id="sqrtSym">√</button><button class="tool-btn" id="piSym">π</button>
                     <button class="tool-btn" id="alphaSym">α</button><button class="tool-btn" id="neqSym">≠</button>
                     <button class="tool-btn" id="leqSym">≤</button><button class="tool-btn" id="geqSym">≥</button>
@@ -476,12 +455,13 @@
             <div class="json-buttons">
                 <button id="applyJsonBtn">Применить JSON</button>
                 <button id="formatJsonBtn">Форматировать</button>
+                <button id="validateJsonBtn">Проверить JSON</button>
             </div>
-            <div class="small-note">Редактируйте весь конфиг в формате JSON. После применения все изменения вступят в силу.</div>
         </div>
     </div>
 </div>
-<div id="statusMsg" class="status-msg"></div>
+
+<div class="toast-area"><div id="toastMsg" class="toast"></div></div>
 
 <script>
     let topics = [];
@@ -490,10 +470,16 @@
     let searchQuery = '';
     let autoSaveEnabled = true;
 
+    // GitHub параметры
+    const GITHUB_TOKEN = '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';
+    const GITHUB_OWNER = 'DaniksGames5242';
+    const GITHUB_REPO = 'MathFrame.github.io';
+    const GITHUB_PATH = 'config.json';
+    const GITHUB_BRANCH = 'main';
+
     const exampleHtmlSource = document.getElementById('exampleHtmlSource');
     const examplePreview = document.getElementById('examplePreview');
     const refreshPreviewBtn = document.getElementById('refreshPreviewBtn');
-    const statusMsg = document.getElementById('statusMsg');
     const descriptionEditor = document.getElementById('descriptionEditor');
     const topicNameInput = document.getElementById('topicName');
     const topicKeywordsInput = document.getElementById('topicKeywords');
@@ -502,683 +488,410 @@
     const topicGradeSelect = document.getElementById('topicGrade');
     const searchInput = document.getElementById('searchTopicsInput');
     const jsonEditor = document.getElementById('jsonEditor');
+    const toastMsg = document.getElementById('toastMsg');
 
-    // Параметры GitHub (встроены)
-    const GITHUB_TOKEN = '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';
-    const GITHUB_OWNER = 'DaniksGames5242';
-    const GITHUB_REPO = 'MathFrame.github.io';
-    const GITHUB_PATH = 'config.json';
-    const GITHUB_BRANCH = 'main';
-
-    function showMessage(text, isError = false) {
-        statusMsg.textContent = text;
-        statusMsg.style.backgroundColor = isError ? '#5a2a2a' : '#2a5a2a';
-        statusMsg.classList.add('show');
-        setTimeout(() => statusMsg.classList.remove('show'), 2000);
+    function showToast(text, isError = false) {
+        toastMsg.textContent = text;
+        toastMsg.classList.remove('show', 'error');
+        if (isError) toastMsg.classList.add('error');
+        toastMsg.classList.add('show');
+        setTimeout(() => toastMsg.classList.remove('show'), 2500);
     }
 
     function updatePreview() {
-        const html = exampleHtmlSource.value;
+        let html = exampleHtmlSource.value;
+        if (!html.toLowerCase().includes('<html')) {
+            html = `<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body>${html}</body></html>`;
+        }
         const doc = examplePreview.contentDocument || examplePreview.contentWindow.document;
         doc.open();
         doc.write(html);
         doc.close();
     }
     let previewTimeout = null;
-    function schedulePreview() {
+    exampleHtmlSource.addEventListener('input', () => {
         if (previewTimeout) clearTimeout(previewTimeout);
-        previewTimeout = setTimeout(updatePreview, 300);
-    }
-    exampleHtmlSource.addEventListener('input', schedulePreview);
+        previewTimeout = setTimeout(updatePreview, 400);
+    });
     refreshPreviewBtn.addEventListener('click', updatePreview);
 
     function transliterate(word) {
-        const map = {
-            'а':'a','б':'b','в':'v','г':'g','д':'d','е':'e','ё':'e','ж':'zh','з':'z','и':'i','й':'y',
+        const map = {'а':'a','б':'b','в':'v','г':'g','д':'d','е':'e','ё':'e','ж':'zh','з':'z','и':'i','й':'y',
             'к':'k','л':'l','м':'m','н':'n','о':'o','п':'p','р':'r','с':'s','т':'t','у':'u','ф':'f',
-            'х':'h','ц':'ts','ч':'ch','ш':'sh','щ':'sch','ъ':'','ы':'y','ь':'','э':'e','ю':'yu','я':'ya'
-        };
+            'х':'h','ц':'ts','ч':'ch','ш':'sh','щ':'sch','ъ':'','ы':'y','ь':'','э':'e','ю':'yu','я':'ya'};
         return word.split('').map(ch => map[ch] || (/[a-zA-Z0-9]/i.test(ch) ? ch : '')).join('');
     }
 
     function generateIdFromName(name, excludeId = null) {
         if (!name) return "topic";
-        let translit = transliterate(name.toLowerCase());
-        let base = translit.replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+        let base = transliterate(name.toLowerCase()).replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
         if (base === "") base = "topic";
-        let candidate = base;
-        let counter = 1;
-        while (topics.some(t => t.id === candidate && t.id !== excludeId)) {
-            candidate = `${base}_${counter++}`;
-        }
+        let candidate = base, counter = 1;
+        while (topics.some(t => t.id === candidate && t.id !== excludeId)) candidate = `${base}_${counter++}`;
         return candidate;
     }
 
     let saveTimeout = null;
-    function saveCurrentTopic(showToast = false) {
-        if (!autoSaveEnabled) return;
+    function saveCurrentTopic(showMsg = false) {
+        if (!autoSaveEnabled || !selectedId) return;
         if (saveTimeout) clearTimeout(saveTimeout);
         saveTimeout = setTimeout(() => {
-            if (!selectedId) return;
             const idx = topics.findIndex(t => t.id === selectedId);
             if (idx === -1) return;
-            
             const newName = topicNameInput.value.trim();
             if (!newName) return;
-            
             let newParent = topicParentSelect.value || null;
             let newIcon = topicIconSelect.value;
             let newGrade = parseInt(topicGradeSelect.value);
             let exampleVal = exampleHtmlSource.value;
             let descriptionVal = descriptionEditor.innerHTML;
-            
-            let keywordsStr = topicKeywordsInput.value.trim();
-            let keywordsArray = keywordsStr ? keywordsStr.split(',').map(k => k.trim()).filter(k => k) : [];
-            
+            let keywordsArray = topicKeywordsInput.value.trim().split(',').map(k => k.trim()).filter(k => k);
             let newId = generateIdFromName(newName, selectedId);
-            
-            if (newParent && isCyclic(newId, newParent)) {
-                if (showToast) showMessage('Ошибка: циклическая зависимость', true);
-                return;
-            }
-            
-            let updated = { ...topics[idx], 
-                id: newId, 
-                name: newName, 
-                keywords: keywordsArray,
-                parent: newParent, 
-                icon: newIcon, 
-                gradeLevel: newGrade, 
-                example: exampleVal, 
-                description: descriptionVal 
-            };
-            
+            if (newParent && isCyclic(newId, newParent)) { if (showMsg) showToast('Циклическая зависимость', true); return; }
+            let updated = { ...topics[idx], id: newId, name: newName, keywords: keywordsArray,
+                parent: newParent, icon: newIcon, gradeLevel: newGrade, example: exampleVal, description: descriptionVal };
             let newTopics = [...topics];
             if (newId !== selectedId) {
                 newTopics = newTopics.filter(t => t.id !== selectedId);
                 for (let t of newTopics) if (t.parent === selectedId) t.parent = newId;
                 newTopics.push(updated);
-            } else {
-                newTopics[idx] = updated;
-            }
-            
+            } else newTopics[idx] = updated;
             topics = newTopics;
             selectedId = updated.id;
             renderTree();
             fillFormFieldsOnly();
             updateJsonEditor();
-            if (showToast) showMessage('Тема сохранена');
+            if (showMsg) showToast('Тема сохранена');
+            document.getElementById('statusArea').innerText = `Сохранено: ${newName}`;
         }, 50);
     }
-    
+
     function fillFormFieldsOnly() {
         if (!selectedId) return;
-        const topic = topics.find(t => t.id === selectedId);
-        if (!topic) return;
-        document.getElementById('topicId').value = topic.id;
-        topicNameInput.value = topic.name;
-        topicKeywordsInput.value = topic.keywords?.join(', ') || '';
-        topicIconSelect.value = topic.icon || 'fa-file-alt';
-        topicGradeSelect.value = topic.gradeLevel || 3;
-        const parentSel = topicParentSelect;
-        parentSel.innerHTML = '<option value="">(нет)</option>' + topics.filter(p => p.id !== selectedId).map(p => `<option value="${p.id}" ${topic.parent === p.id ? 'selected' : ''}>${escapeHtml(p.name)} (${p.id})</option>`).join('');
-        exampleHtmlSource.value = topic.example || '';
+        const t = topics.find(t => t.id === selectedId);
+        if (!t) return;
+        document.getElementById('topicId').value = t.id;
+        topicNameInput.value = t.name;
+        topicKeywordsInput.value = t.keywords?.join(', ') || '';
+        topicIconSelect.value = t.icon || 'fa-file-alt';
+        topicGradeSelect.value = t.gradeLevel || 3;
+        topicParentSelect.innerHTML = '<option value="">(нет)</option>' + topics.filter(p => p.id !== selectedId).map(p => `<option value="${p.id}" ${t.parent === p.id ? 'selected' : ''}>${escapeHtml(p.name)} (${p.id})</option>`).join('');
+        exampleHtmlSource.value = t.example || '';
         updatePreview();
     }
-    
+
     function fillFormBySelectedNoSave() {
         if (!selectedId) return;
-        const topic = topics.find(t => t.id === selectedId);
-        if (!topic) return;
-        document.getElementById('topicId').value = topic.id;
-        topicNameInput.value = topic.name;
-        topicKeywordsInput.value = topic.keywords?.join(', ') || '';
-        topicIconSelect.value = topic.icon || 'fa-file-alt';
-        topicGradeSelect.value = topic.gradeLevel || 3;
-        descriptionEditor.innerHTML = topic.description || '';
-        const parentSel = topicParentSelect;
-        parentSel.innerHTML = '<option value="">(нет)</option>' + topics.filter(p => p.id !== selectedId).map(p => `<option value="${p.id}" ${topic.parent === p.id ? 'selected' : ''}>${escapeHtml(p.name)} (${p.id})</option>`).join('');
-        exampleHtmlSource.value = topic.example || '';
+        const t = topics.find(t => t.id === selectedId);
+        if (!t) return;
+        document.getElementById('topicId').value = t.id;
+        topicNameInput.value = t.name;
+        topicKeywordsInput.value = t.keywords?.join(', ') || '';
+        topicIconSelect.value = t.icon || 'fa-file-alt';
+        topicGradeSelect.value = t.gradeLevel || 3;
+        descriptionEditor.innerHTML = t.description || '';
+        updateLinkColors();
+        topicParentSelect.innerHTML = '<option value="">(нет)</option>' + topics.filter(p => p.id !== selectedId).map(p => `<option value="${p.id}" ${t.parent === p.id ? 'selected' : ''}>${escapeHtml(p.name)} (${p.id})</option>`).join('');
+        exampleHtmlSource.value = t.example || '';
         updatePreview();
     }
-    
-    function updateJsonEditor() {
-        jsonEditor.value = JSON.stringify(topics, null, 2);
+
+    function updateLinkColors() {
+        document.querySelectorAll('#descriptionEditor .inline-link').forEach(link => {
+            const exists = topics.some(t => t.id === link.getAttribute('data-topic-id'));
+            link.classList.remove('valid', 'invalid');
+            link.classList.add(exists ? 'valid' : 'invalid');
+        });
     }
+
+    function updateJsonEditor() { jsonEditor.value = JSON.stringify(topics, null, 2); }
 
     function applyJson() {
         try {
             const parsed = JSON.parse(jsonEditor.value);
-            if (!Array.isArray(parsed)) throw new Error('Должен быть массив');
+            if (!Array.isArray(parsed)) throw new Error();
             topics = parsed;
-            topics.forEach((t, idx) => {
-                if (!t.hasOwnProperty('order')) t.order = idx;
-                if (!t.hasOwnProperty('keywords')) t.keywords = [];
-                if (!t.hasOwnProperty('icon')) t.icon = 'fa-file-alt';
-                if (!t.hasOwnProperty('example')) t.example = '';
-                if (!t.hasOwnProperty('description')) t.description = '<p></p>';
-            });
+            topics.forEach((t, i) => { if (!t.order) t.order = i; if (!t.keywords) t.keywords = []; if (!t.icon) t.icon = 'fa-file-alt'; if (!t.example) t.example = ''; if (!t.description) t.description = '<p></p>'; });
             selectedId = topics[0]?.id || null;
             expandedState.clear();
             topics.forEach(t => { if (topics.some(ch => ch.parent === t.id)) expandedState.add(t.id); });
-            renderTree();
-            fillFormBySelectedNoSave();
-            updateJsonEditor();
-            showMessage('JSON применён');
-        } catch(e) {
-            showMessage('Ошибка JSON: ' + e.message, true);
-        }
+            renderTree(); fillFormBySelectedNoSave(); updateJsonEditor();
+            showToast('JSON применён');
+        } catch(e) { showToast('Ошибка JSON', true); }
     }
 
     function formatJson() {
-        try {
-            const parsed = JSON.parse(jsonEditor.value);
-            jsonEditor.value = JSON.stringify(parsed, null, 2);
-            showMessage('JSON отформатирован');
-        } catch(e) {
-            showMessage('Ошибка форматирования: ' + e.message, true);
+        try { jsonEditor.value = JSON.stringify(JSON.parse(jsonEditor.value), null, 2); showToast('Форматировано'); }
+        catch(e) { showToast('Ошибка форматирования', true); }
+    }
+    function validateJson() {
+        try { JSON.parse(jsonEditor.value); showToast('JSON корректен'); }
+        catch(e) { showToast('Ошибка: ' + e.message, true); }
+    }
+
+    function isCyclic(topicId, newParentId) {
+        if (!newParentId) return false;
+        let cur = newParentId;
+        while (cur) { if (cur === topicId) return true; let p = topics.find(t => t.id === cur); if (!p) break; cur = p.parent; }
+        return false;
+    }
+
+    function escapeHtml(str) { return String(str).replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'})[m]); }
+
+    // Drag and drop (исправленный)
+    let dragSourceId = null, dragTargetElement = null, dropMode = null;
+    function handleDragStart(e) {
+        const row = e.target.closest('.topic-row');
+        if (!row) { e.preventDefault(); return; }
+        dragSourceId = row.getAttribute('data-id');
+        e.dataTransfer.setData('text/plain', dragSourceId);
+        e.dataTransfer.effectAllowed = 'move';
+        row.classList.add('dragging');
+    }
+    function handleDragOver(e) {
+        e.preventDefault();
+        const row = e.target.closest('.topic-row');
+        if (!row || row.getAttribute('data-id') === dragSourceId) return;
+        const rect = row.getBoundingClientRect(), y = e.clientY;
+        const isUpper = y < rect.top + rect.height * 0.4;
+        const isLower = y > rect.bottom - rect.height * 0.4;
+        document.querySelectorAll('.topic-row').forEach(r => r.classList.remove('drag-over-top', 'drag-over-bottom', 'drag-over-child'));
+        if (isUpper) { row.classList.add('drag-over-top'); dropMode = 'before'; dragTargetElement = row; }
+        else if (isLower) { row.classList.add('drag-over-bottom'); dropMode = 'after'; dragTargetElement = row; }
+        else { row.classList.add('drag-over-child'); dropMode = 'child'; dragTargetElement = row; }
+    }
+    function handleDrop(e) {
+        e.preventDefault();
+        if (!dragTargetElement || !dragSourceId) { cleanDrag(); return; }
+        const source = topics.find(t => t.id === dragSourceId);
+        const targetId = dragTargetElement.getAttribute('data-id');
+        const target = topics.find(t => t.id === targetId);
+        if (!source || !target) { cleanDrag(); return; }
+        
+        // Применяем изменения
+        if (dropMode === 'child') {
+            if (isCyclic(dragSourceId, targetId)) { showToast('Циклическая зависимость', true); cleanDrag(); return; }
+            source.parent = targetId;
+            showToast(`"${source.name}" теперь дочерняя для "${target.name}"`);
+        } else {
+            // При перемещении между строками может смениться родитель
+            let newParent = target.parent;
+            if (source.parent !== newParent) {
+                if (isCyclic(dragSourceId, newParent)) { showToast('Циклическая зависимость', true); cleanDrag(); return; }
+                source.parent = newParent;
+            }
+            // Переупорядочиваем
+            let siblings = topics.filter(t => t.parent === source.parent).sort((a,b) => (a.order||0) - (b.order||0));
+            const srcIdx = siblings.findIndex(s => s.id === dragSourceId);
+            const tgtIdx = siblings.findIndex(s => s.id === targetId);
+            if (srcIdx !== -1 && tgtIdx !== -1) {
+                siblings.splice(srcIdx, 1);
+                let insertPos = tgtIdx;
+                if (dropMode === 'after') insertPos = tgtIdx + 1;
+                siblings.splice(insertPos, 0, source);
+                siblings.forEach((s, i) => s.order = i);
+            }
+            showToast(`Порядок обновлён`);
         }
+        
+        // Перерисовываем и сохраняем
+        renderTree();
+        // Обновляем форму для выбранной темы (если она была перетаскиваема)
+        if (selectedId === source.id) fillFormBySelectedNoSave();
+        saveCurrentTopic(true);
+        updateJsonEditor();
+        cleanDrag();
     }
-    
-    function matchesSearch(topic) {
-        if (!searchQuery) return true;
-        const query = searchQuery.toLowerCase();
-        return topic.id.toLowerCase().includes(query) || topic.name.toLowerCase().includes(query);
+    function cleanDrag() {
+        document.querySelectorAll('.topic-row').forEach(r => r.classList.remove('drag-over-top', 'drag-over-bottom', 'drag-over-child', 'dragging'));
+        dragSourceId = null; dragTargetElement = null; dropMode = null;
     }
-    
+
     function renderTree() {
         const container = document.getElementById('topicList');
         if (!container) return;
-        
-        let visibleIds = new Set();
-        if (searchQuery) {
-            const matchingIds = new Set();
-            topics.forEach(t => {
-                if (matchesSearch(t)) {
-                    matchingIds.add(t.id);
-                    let parent = t.parent;
-                    while (parent) {
-                        matchingIds.add(parent);
-                        const parentTopic = topics.find(p => p.id === parent);
-                        parent = parentTopic ? parentTopic.parent : null;
-                    }
-                }
-            });
-            visibleIds = matchingIds;
-        }
-        
         function renderNode(parentId, level = 0) {
-            const children = topics.filter(t => t.parent === parentId).sort((a,b) => (a.order || 0) - (b.order || 0));
-            const filteredChildren = searchQuery ? children.filter(c => visibleIds.has(c.id)) : children;
-            if (filteredChildren.length === 0 && parentId !== null) return null;
-            const ul = document.createElement('ul');
-            ul.className = 'tree-item';
-            ul.style.paddingLeft = level > 0 ? '18px' : '0';
-            for (let node of filteredChildren) {
-                const li = document.createElement('li');
-                li.style.listStyle = 'none';
-                const rowDiv = document.createElement('div');
-                rowDiv.className = `topic-row ${selectedId === node.id ? 'selected' : ''}`;
-                rowDiv.setAttribute('data-id', node.id);
-                
-                const leftInfo = document.createElement('div');
-                leftInfo.className = 'topic-info';
-                
+            const children = topics.filter(t => t.parent === parentId).sort((a,b) => (a.order||0) - (b.order||0));
+            if (!children.length && parentId !== null) return null;
+            const ul = document.createElement('ul'); ul.className = 'tree-item'; ul.style.paddingLeft = level > 0 ? '18px' : '0';
+            for (let node of children) {
+                if (searchQuery && !node.id.toLowerCase().includes(searchQuery) && !node.name.toLowerCase().includes(searchQuery)) continue;
+                const li = document.createElement('li'); li.style.listStyle = 'none';
+                const row = document.createElement('div');
+                row.className = `topic-row ${selectedId === node.id ? 'selected' : ''}`;
+                row.setAttribute('data-id', node.id);
+                row.setAttribute('data-parent', node.parent || '');
+                row.setAttribute('draggable', 'true');
+                row.addEventListener('dragstart', handleDragStart);
+                row.addEventListener('dragover', handleDragOver);
+                row.addEventListener('drop', handleDrop);
+                row.addEventListener('dragend', cleanDrag);
+                const left = document.createElement('div'); left.className = 'topic-info';
                 const hasChildren = topics.some(t => t.parent === node.id);
-                const expandBtn = document.createElement('button');
-                expandBtn.className = 'expand-btn';
-                expandBtn.textContent = hasChildren ? (expandedState.has(node.id) ? '▼' : '▶') : '•';
-                expandBtn.style.visibility = hasChildren ? 'visible' : 'hidden';
-                expandBtn.onclick = (e) => {
-                    e.stopPropagation();
-                    if (hasChildren) {
-                        if (expandedState.has(node.id)) expandedState.delete(node.id);
-                        else expandedState.add(node.id);
-                        renderTree();
-                    }
-                };
-                
-                const dragHandle = document.createElement('span');
-                dragHandle.className = 'drag-area';
-                dragHandle.textContent = '⋮⋮';
-                dragHandle.draggable = true;
-                
-                const iconSpan = document.createElement('span');
-                iconSpan.className = 'topic-icon-display';
-                const iconMap = { 'fa-folder':'📁', 'fa-file-alt':'📄', 'fa-star':'⭐', 'fa-circle':'⚫', 'fa-square':'⬛', 'fa-chalkboard':'📐' };
-                iconSpan.textContent = iconMap[node.icon] || '📄';
-                
-                const nameSpan = document.createElement('span');
-                nameSpan.className = 'topic-name';
-                nameSpan.textContent = node.name;
-                nameSpan.draggable = true;
-                
-                const parentSpan = document.createElement('span');
-                parentSpan.className = 'topic-parent';
-                const parentTopic = topics.find(p => p.id === node.parent);
-                parentSpan.textContent = parentTopic ? `(${parentTopic.name})` : '(корень)';
-                
-                leftInfo.appendChild(expandBtn);
-                leftInfo.appendChild(dragHandle);
-                leftInfo.appendChild(iconSpan);
-                leftInfo.appendChild(nameSpan);
-                leftInfo.appendChild(parentSpan);
-                
-                const delBtn = document.createElement('button');
-                delBtn.className = 'del-topic';
-                delBtn.textContent = '✖';
-                delBtn.onclick = (e) => {
-                    e.stopPropagation();
-                    if (confirm('Удалить тему и все дочерние?')) {
-                        const removeWithChildren = (id, list) => {
-                            let newList = list.filter(t => t.id !== id);
-                            const childs = list.filter(t => t.parent === id);
-                            for (let c of childs) newList = removeWithChildren(c.id, newList);
-                            return newList;
-                        };
-                        topics = removeWithChildren(node.id, topics);
-                        if (selectedId === node.id) selectedId = topics[0]?.id || null;
-                        renderTree();
-                        fillFormBySelectedNoSave();
-                        updateJsonEditor();
-                        showMessage('Тема удалена');
-                    }
-                };
-                
-                rowDiv.appendChild(leftInfo);
-                rowDiv.appendChild(delBtn);
-                
-                dragHandle.addEventListener('dragstart', (e) => {
-                    e.stopPropagation();
-                    e.dataTransfer.setData('text/plain', JSON.stringify({ type: 'reorder', id: node.id }));
-                    e.dataTransfer.effectAllowed = 'move';
-                    rowDiv.classList.add('dragging');
-                });
-                dragHandle.addEventListener('dragend', (e) => {
-                    rowDiv.classList.remove('dragging');
-                    document.querySelectorAll('.topic-row').forEach(el => el.classList.remove('drag-over'));
-                });
-                
-                nameSpan.addEventListener('dragstart', (e) => {
-                    e.stopPropagation();
-                    e.dataTransfer.setData('text/plain', JSON.stringify({ type: 'reparent', id: node.id }));
-                    e.dataTransfer.effectAllowed = 'move';
-                    rowDiv.classList.add('dragging');
-                });
-                nameSpan.addEventListener('dragend', (e) => {
-                    rowDiv.classList.remove('dragging');
-                    document.querySelectorAll('.topic-row').forEach(el => el.classList.remove('drag-over'));
-                });
-                
-                rowDiv.addEventListener('dragover', (e) => {
-                    e.preventDefault();
-                    e.dataTransfer.dropEffect = 'move';
-                    if (!rowDiv.classList.contains('drag-over')) rowDiv.classList.add('drag-over');
-                });
-                rowDiv.addEventListener('dragleave', () => {
-                    rowDiv.classList.remove('drag-over');
-                });
-                
-                rowDiv.addEventListener('drop', (e) => {
-                    e.preventDefault();
-                    rowDiv.classList.remove('drag-over');
-                    const rawData = e.dataTransfer.getData('text/plain');
-                    if (!rawData) return;
-                    const data = JSON.parse(rawData);
-                    const sourceId = data.id;
-                    const targetId = node.id;
-                    if (sourceId === targetId) return;
-                    
-                    if (data.type === 'reorder') {
-                        const sourceTopic = topics.find(t => t.id === sourceId);
-                        const targetTopic = topics.find(t => t.id === targetId);
-                        if (sourceTopic && targetTopic && sourceTopic.parent === targetTopic.parent) {
-                            const srcOrder = sourceTopic.order || 0;
-                            const tgtOrder = targetTopic.order || 0;
-                            sourceTopic.order = tgtOrder;
-                            targetTopic.order = srcOrder;
-                            renderTree();
-                            saveCurrentTopic(false);
-                            updateJsonEditor();
-                        }
-                    } 
-                    else if (data.type === 'reparent') {
-                        const sourceTopic = topics.find(t => t.id === sourceId);
-                        if (!sourceTopic) return;
-                        let cyclic = false;
-                        let check = targetId;
-                        while (check) {
-                            if (check === sourceId) { cyclic = true; break; }
-                            const parentTopic = topics.find(t => t.id === check);
-                            check = parentTopic ? parentTopic.parent : null;
-                        }
-                        if (cyclic) {
-                            alert('Нельзя сделать тему дочерней для самой себя или её потомка');
-                            return;
-                        }
-                        sourceTopic.parent = targetId;
-                        const siblings = topics.filter(t => t.parent === targetId);
-                        sourceTopic.order = siblings.length;
-                        renderTree();
-                        saveCurrentTopic(false);
-                        updateJsonEditor();
-                    }
-                });
-                
-                rowDiv.addEventListener('click', (e) => {
-                    if (e.target === expandBtn || e.target === delBtn || e.target === dragHandle || e.target === nameSpan) return;
-                    saveCurrentTopic(false);
-                    selectedId = node.id;
-                    renderTree();
-                    fillFormBySelectedNoSave();
-                    updateJsonEditor();
-                });
-                
-                li.appendChild(rowDiv);
-                if (hasChildren && expandedState.has(node.id)) {
-                    const childUl = renderNode(node.id, level + 1);
-                    if (childUl) li.appendChild(childUl);
-                }
+                const expand = document.createElement('button'); expand.className = 'expand-btn'; expand.textContent = hasChildren ? (expandedState.has(node.id) ? '▼' : '▶') : '•';
+                expand.style.visibility = hasChildren ? 'visible' : 'hidden';
+                expand.onclick = (e) => { e.stopPropagation(); if (hasChildren) { if (expandedState.has(node.id)) expandedState.delete(node.id); else expandedState.add(node.id); renderTree(); } };
+                const iconSpan = document.createElement('span'); iconSpan.className = 'topic-icon-display';
+                const icons = { 'fa-folder':'📁', 'fa-file-alt':'📄', 'fa-star':'⭐', 'fa-circle':'⚫', 'fa-square':'⬛', 'fa-chalkboard':'📐' };
+                iconSpan.textContent = icons[node.icon] || '📄';
+                const nameSpan = document.createElement('span'); nameSpan.className = 'topic-name'; nameSpan.textContent = node.name;
+                const parentSpan = document.createElement('span'); parentSpan.className = 'topic-parent';
+                const pt = topics.find(p => p.id === node.parent); parentSpan.textContent = pt ? `(${pt.name})` : '(корень)';
+                left.appendChild(expand); left.appendChild(iconSpan); left.appendChild(nameSpan); left.appendChild(parentSpan);
+                const del = document.createElement('button'); del.className = 'del-topic'; del.textContent = '✖';
+                del.onclick = (e) => { e.stopPropagation(); if (confirm('Удалить тему?')) { topics = topics.filter(t => t.id !== node.id); if (selectedId === node.id) selectedId = topics[0]?.id || null; renderTree(); fillFormBySelectedNoSave(); updateJsonEditor(); showToast('Тема удалена'); } };
+                row.appendChild(left); row.appendChild(del);
+                row.addEventListener('click', (e) => { if (e.target === del || e.target === expand) return; saveCurrentTopic(false); selectedId = node.id; renderTree(); fillFormBySelectedNoSave(); });
+                li.appendChild(row);
+                if (hasChildren && expandedState.has(node.id)) { const childUl = renderNode(node.id, level + 1); if (childUl) li.appendChild(childUl); }
                 ul.appendChild(li);
             }
             return ul;
         }
-        
-        const rootUl = renderNode(null);
+        const root = renderNode(null);
         container.innerHTML = '';
-        if (rootUl) container.appendChild(rootUl);
+        if (root) container.appendChild(root);
         else container.innerHTML = '<div style="padding:10px;">Нет тем</div>';
     }
-    
-    function isCyclic(topicId, newParentId) {
-        if (!newParentId) return false;
-        let current = newParentId;
-        while (current) {
-            if (current === topicId) return true;
-            let parentObj = topics.find(t => t.id === current);
-            if (!parentObj) break;
-            current = parentObj.parent;
-        }
-        return false;
+
+    // Импорт/экспорт
+    function exportLocal() {
+        const data = JSON.stringify(topics, null, 2);
+        const blob = new Blob([data], {type: 'application/json'});
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'topics_backup.json'; a.click(); URL.revokeObjectURL(blob);
+        showToast('Экспорт выполнен');
     }
-    
-    function newTopic() {
-        saveCurrentTopic(false);
-        const baseName = 'Новая тема';
-        const newId = generateIdFromName(baseName);
-        topics.push({ 
-            id: newId, name: baseName, keywords: [], parent: null, icon: 'fa-file-alt', 
-            gradeLevel: 3, example: '', description: '<p>Новая тема</p>', 
-            order: topics.length 
-        });
-        selectedId = newId;
-        expandedState.add(newId);
-        renderTree();
-        fillFormBySelectedNoSave();
-        updateJsonEditor();
-        showMessage('Тема создана');
-    }
-    
-    async function loadConfigFromServer() {
-        try {
-            const response = await fetch('config.json');
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            const imported = await response.json();
-            if (Array.isArray(imported)) {
+    function importLocal(file) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const imported = JSON.parse(e.target.result);
+                if (!Array.isArray(imported)) throw new Error();
                 topics = imported;
-                topics.forEach((t, idx) => {
-                    if (!t.hasOwnProperty('order')) t.order = idx;
-                    if (!t.hasOwnProperty('keywords')) t.keywords = [];
-                    if (!t.hasOwnProperty('icon')) t.icon = 'fa-file-alt';
-                    if (!t.hasOwnProperty('example')) t.example = '';
-                    if (!t.hasOwnProperty('description')) t.description = '<p></p>';
-                });
+                topics.forEach((t,i) => { if (!t.order) t.order = i; if (!t.keywords) t.keywords = []; if (!t.icon) t.icon = 'fa-file-alt'; if (!t.example) t.example = ''; if (!t.description) t.description = '<p></p>'; });
                 selectedId = topics[0]?.id || null;
                 expandedState.clear();
                 topics.forEach(t => { if (topics.some(ch => ch.parent === t.id)) expandedState.add(t.id); });
-                renderTree();
-                fillFormBySelectedNoSave();
-                updateJsonEditor();
-                showMessage('config.json загружен');
-            } else throw new Error('Не массив');
-        } catch(e) {
-            console.log('Автозагрузка config.json не удалась, используются демо-данные');
-        }
+                renderTree(); fillFormBySelectedNoSave(); updateJsonEditor();
+                showToast('Импорт выполнен');
+            } catch(e) { showToast('Ошибка импорта', true); }
+        };
+        reader.readAsText(file);
     }
-    
+
     function importShortJSON(file) {
         const reader = new FileReader();
         reader.onload = (e) => {
             try {
                 const imported = JSON.parse(e.target.result);
                 if (!Array.isArray(imported)) throw new Error();
-                const newTopics = [];
-                const skippedIds = [];
-                const existingIds = new Set(topics.map(t => t.id));
-                
+                const existing = new Set(topics.map(t => t.id));
+                let added = 0;
                 for (const item of imported) {
                     if (!Array.isArray(item) || item.length < 5) continue;
-                    const [id, name, gradeLevel, keywordsStr, parent] = item;
-                    const idStr = String(id);
-                    if (existingIds.has(idStr)) {
-                        skippedIds.push(idStr);
-                        continue;
-                    }
-                    let keywordsArray = [];
-                    if (keywordsStr && typeof keywordsStr === 'string') {
-                        keywordsArray = keywordsStr.split(',').map(k => k.trim()).filter(k => k);
-                    }
-                    newTopics.push({
-                        id: idStr, name: String(name), gradeLevel: parseInt(gradeLevel) || 3,
-                        keywords: keywordsArray, parent: parent === null || parent === '' ? null : String(parent),
+                    const [id, name, grade, kw, parent] = item;
+                    if (existing.has(String(id))) continue;
+                    topics.push({
+                        id: String(id), name: String(name), gradeLevel: parseInt(grade) || 3,
+                        keywords: typeof kw === 'string' ? kw.split(',').map(k=>k.trim()).filter(k=>k) : [],
+                        parent: parent === null || parent === '' ? null : String(parent),
                         icon: 'fa-file-alt', example: 'В разработке', description: '<p>В разработке</p>',
-                        order: topics.length + newTopics.length
+                        order: topics.length
                     });
+                    added++;
                 }
-                
-                if (newTopics.length === 0) {
-                    showMessage('Нет новых тем для добавления', true);
-                    return;
-                }
-                
-                topics.push(...newTopics);
-                topics.forEach((t, idx) => { t.order = idx; });
-                renderTree();
-                fillFormBySelectedNoSave();
-                updateJsonEditor();
-                showMessage(`Добавлено ${newTopics.length} тем(ы)`);
-            } catch(err) { 
-                showMessage('Ошибка при разборе сокращённого JSON', true); 
-            }
+                if (added) { topics.forEach((t,i)=>t.order=i); renderTree(); fillFormBySelectedNoSave(); updateJsonEditor(); showToast(`Добавлено ${added} тем`); }
+                else showToast('Нет новых тем', true);
+            } catch(e) { showToast('Ошибка', true); }
         };
         reader.readAsText(file);
     }
-    
-    // Сохранение в GitHub — все параметры встроены
+
     function saveToGitHub() {
+        if (!confirm('Вы уверены, что хотите сохранить текущий конфиг в GitHub? Файл config.json будет перезаписан.')) return;
         const content = JSON.stringify(topics, null, 2);
-        const encodedContent = btoa(unescape(encodeURIComponent(content)));
-        
-        fetch(`https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${GITHUB_PATH}`, {
-            headers: { 'Authorization': `token ${GITHUB_TOKEN}` }
-        })
+        const encoded = btoa(unescape(encodeURIComponent(content)));
+        showToast('Сохранение в GitHub...');
+        fetch(`https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${GITHUB_PATH}`, { headers: { 'Authorization': `token ${GITHUB_TOKEN}` } })
         .then(res => res.json())
-        .then(data => {
-            const sha = data.sha || null;
-            return fetch(`https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${GITHUB_PATH}`, {
-                method: 'PUT',
-                headers: {
-                    'Authorization': `token ${GITHUB_TOKEN}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    message: 'Обновление конфигурации через редактор тем',
-                    content: encodedContent,
-                    sha: sha,
-                    branch: GITHUB_BRANCH
-                })
-            });
-        })
+        .then(data => fetch(`https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${GITHUB_PATH}`, {
+            method: 'PUT', headers: { 'Authorization': `token ${GITHUB_TOKEN}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message: 'Update config', content: encoded, sha: data.sha || null, branch: GITHUB_BRANCH })
+        }))
         .then(res => res.json())
-        .then(data => {
-            if (data.content) {
-                showMessage('Файл успешно обновлён в GitHub');
-            } else {
-                showMessage('Ошибка: ' + (data.message || 'неизвестная'), true);
-            }
-        })
-        .catch(err => showMessage('Ошибка: ' + err.message, true));
+        .then(data => { if (data.content) { showToast('Сохранено в GitHub'); document.getElementById('statusArea').innerText = 'Сохранено в GitHub'; } else showToast('Ошибка: ' + (data.message || '?'), true); })
+        .catch(err => showToast('Ошибка: ' + err.message, true));
     }
-    
-    function clearFormatting() {
-        document.execCommand('removeFormat');
-        const selection = window.getSelection();
-        if (selection.rangeCount > 0 && descriptionEditor.contains(selection.anchorNode)) {
-            const range = selection.getRangeAt(0);
-            const container = range.commonAncestorContainer;
-            const links = (container.nodeType === Node.ELEMENT_NODE ? container : container.parentElement).querySelectorAll('.inline-link');
-            for (const link of links) {
-                if (range.intersectsNode(link)) {
-                    const textNode = document.createTextNode(link.textContent);
-                    link.parentNode.replaceChild(textNode, link);
-                }
-            }
-        } else {
-            const allLinks = descriptionEditor.querySelectorAll('.inline-link');
-            for (const link of allLinks) {
-                const textNode = document.createTextNode(link.textContent);
-                link.parentNode.replaceChild(textNode, link);
-            }
-        }
-        descriptionEditor.focus();
-    }
-    
-    descriptionEditor.addEventListener('paste', (e) => {
-        e.preventDefault();
-        document.execCommand('insertText', false, (e.clipboardData || window.clipboardData).getData('text/plain'));
-    });
-    
-    let savedRange = null;
-    let savedText = '';
-    function saveSelection() {
-        const sel = window.getSelection();
-        if (sel.rangeCount > 0 && descriptionEditor.contains(sel.anchorNode)) {
-            savedRange = sel.getRangeAt(0).cloneRange();
-            savedText = sel.toString().trim();
-        }
-    }
-    function restoreAndWrap(topicId) {
-        if (!savedRange) return false;
-        descriptionEditor.focus();
-        const sel = window.getSelection();
-        sel.removeAllRanges();
-        sel.addRange(savedRange);
-        if (sel.toString().trim() !== savedText) return false;
-        const span = document.createElement('span');
-        span.className = 'inline-link';
-        span.setAttribute('data-topic-id', topicId);
-        span.textContent = savedText;
-        const range = sel.getRangeAt(0);
-        range.deleteContents();
-        range.insertNode(span);
-        const newRange = document.createRange();
-        newRange.setStartAfter(span);
-        newRange.setEndAfter(span);
-        sel.removeAllRanges();
-        sel.addRange(newRange);
-        return true;
-    }
-    descriptionEditor.addEventListener('mouseup', saveSelection);
-    descriptionEditor.addEventListener('keyup', saveSelection);
-    
-    function showTopicSelector(callback) {
-        const otherTopics = topics.filter(t => t.id !== selectedId);
-        if (!otherTopics.length) { alert('Нет других тем'); return; }
-        const overlay = document.createElement('div');
-        overlay.className = 'overlay';
-        const dialog = document.createElement('div');
-        dialog.className = 'topic-selector-dialog';
-        dialog.innerHTML = `<h4>Выберите тему</h4><input type="text" id="topicSearchInput" placeholder="Поиск..."><select id="topicSelectDialog" size="8"></select><div><button id="dialogOkBtn">Вставить</button><button id="dialogCancelBtn">Отмена</button></div>`;
-        document.body.appendChild(overlay);
-        document.body.appendChild(dialog);
-        const searchInputD = dialog.querySelector('#topicSearchInput');
-        const select = dialog.querySelector('#topicSelectDialog');
-        const updateList = () => {
-            const q = searchInputD.value.toLowerCase();
-            let filtered = otherTopics;
-            if (q) filtered = otherTopics.filter(t => t.id.toLowerCase().includes(q) || t.name.toLowerCase().includes(q));
-            select.innerHTML = filtered.map(t => `<option value="${t.id}">${escapeHtml(t.name)} (${t.id})</option>`).join('');
+
+    function clearGitHubData() { localStorage.removeItem('github_token'); showToast('Локальные данные GitHub очищены'); }
+
+    // Редактор описания
+    function clearFormatting() { document.execCommand('removeFormat'); descriptionEditor.focus(); updateLinkColors(); }
+    descriptionEditor.addEventListener('paste', (e) => { e.preventDefault(); document.execCommand('insertText', false, (e.clipboardData || window.clipboardData).getData('text/plain')); });
+    let savedRange = null, savedText = '';
+    function saveSel() { const s = window.getSelection(); if (s.rangeCount && descriptionEditor.contains(s.anchorNode)) { savedRange = s.getRangeAt(0).cloneRange(); savedText = s.toString().trim(); } }
+    descriptionEditor.addEventListener('mouseup', saveSel); descriptionEditor.addEventListener('keyup', saveSel);
+    function showTopicSelector(cb) {
+        const others = topics.filter(t => t.id !== selectedId);
+        if (!others.length) { alert('Нет других тем'); return; }
+        const ov = document.createElement('div'); ov.className = 'overlay';
+        const dlg = document.createElement('div'); dlg.className = 'topic-selector-dialog';
+        dlg.innerHTML = `<h4>Выберите тему</h4><input id="tsSearch" placeholder="Поиск..."><select id="tsSelect" size="8"></select><div><button id="tsOk">Вставить</button><button id="tsCancel">Отмена</button></div>`;
+        document.body.appendChild(ov); document.body.appendChild(dlg);
+        const inp = dlg.querySelector('#tsSearch'), sel = dlg.querySelector('#tsSelect');
+        const update = () => {
+            const q = inp.value.toLowerCase();
+            let filtered = others;
+            if (q) filtered = others.filter(t => t.id.toLowerCase().includes(q) || t.name.toLowerCase().includes(q));
+            sel.innerHTML = filtered.map(t => `<option value="${t.id}">${escapeHtml(t.name)} (${t.id})</option>`).join('');
         };
-        searchInputD.addEventListener('input', updateList);
-        updateList();
-        const close = () => { overlay.remove(); dialog.remove(); };
-        dialog.querySelector('#dialogOkBtn').onclick = () => {
-            const topic = topics.find(t => t.id === select.value);
-            if (topic) callback(topic);
-            close();
-        };
-        dialog.querySelector('#dialogCancelBtn').onclick = close;
-        overlay.onclick = close;
+        inp.addEventListener('input', update); update();
+        const close = () => { ov.remove(); dlg.remove(); };
+        dlg.querySelector('#tsOk').onclick = () => { const t = topics.find(t => t.id === sel.value); if (t) cb(t); close(); };
+        dlg.querySelector('#tsCancel').onclick = close; ov.onclick = close;
     }
-    
     function insertTopicLink() {
         if (!savedRange || !savedText) { alert('Выделите текст'); return; }
         autoSaveEnabled = false;
         showTopicSelector((topic) => {
-            const success = restoreAndWrap(topic.id);
-            if (!success) { autoSaveEnabled = true; alert('Выделение изменилось'); return; }
-            autoSaveEnabled = true;
-            saveCurrentTopic(true);
+            descriptionEditor.focus();
+            const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(savedRange);
+            if (sel.toString().trim() !== savedText) { autoSaveEnabled = true; alert('Выделение изменилось'); return; }
+            const span = document.createElement('span'); span.className = 'inline-link'; span.setAttribute('data-topic-id', topic.id); span.textContent = savedText;
+            const range = sel.getRangeAt(0); range.deleteContents(); range.insertNode(span);
+            const nr = document.createRange(); nr.setStartAfter(span); nr.setEndAfter(span); sel.removeAllRanges(); sel.addRange(nr);
+            autoSaveEnabled = true; updateLinkColors(); saveCurrentTopic(true);
         });
     }
-    
-    function escapeHtml(str) { return String(str).replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'})[m]); }
-    
-    // Выпадающее меню
-    const fileMenuBtn = document.getElementById('fileMenuBtn');
-    const fileDropdown = document.getElementById('fileDropdown');
-    fileMenuBtn.onclick = (e) => { e.stopPropagation(); fileDropdown.classList.toggle('show'); };
-    window.onclick = (e) => { if (!e.target.closest('.file-menu')) fileDropdown.classList.remove('show'); };
-    
-    const linkBtn = document.getElementById('linkDescBtn');
-    linkBtn.addEventListener('mousedown', saveSelection);
-    linkBtn.addEventListener('click', (e) => { e.preventDefault(); insertTopicLink(); });
-    
-    topicNameInput.addEventListener('input', function() {
-        if (this.value.trim()) document.getElementById('topicId').value = generateIdFromName(this.value, selectedId);
-    });
-    searchInput.addEventListener('input', (e) => { searchQuery = e.target.value.toLowerCase(); renderTree(); });
-    
-    const fields = [topicNameInput, topicKeywordsInput, topicParentSelect, topicIconSelect, topicGradeSelect, exampleHtmlSource];
-    fields.forEach(f => f.addEventListener('blur', () => saveCurrentTopic(false)));
-    descriptionEditor.addEventListener('blur', () => saveCurrentTopic(false));
-    
-    document.getElementById('saveCurrentBtn').onclick = () => saveCurrentTopic(true);
+
+    function newTopic() {
+        const newId = generateIdFromName('Новая тема');
+        topics.push({ id: newId, name: 'Новая тема', keywords: [], parent: null, icon: 'fa-file-alt', gradeLevel: 3, example: '', description: '<p>Новая тема</p>', order: topics.length });
+        selectedId = newId; expandedState.add(newId);
+        renderTree(); fillFormBySelectedNoSave(); updateJsonEditor(); showToast('Тема создана');
+    }
+
     document.getElementById('newBtn').onclick = newTopic;
-    document.getElementById('addShortBtn').onclick = () => document.getElementById('shortFileInput').click();
-    document.getElementById('shortFileInput').onchange = (e) => { if(e.target.files[0]) importShortJSON(e.target.files[0]); e.target.value=''; };
+    document.getElementById('exportLocalBtn').onclick = exportLocal;
+    document.getElementById('importLocalBtn').onclick = () => document.getElementById('localFileInput').click();
+    document.getElementById('localFileInput').onchange = (e) => { if(e.target.files[0]) importLocal(e.target.files[0]); e.target.value=''; };
+    document.getElementById('addShortBtn').onclick = () => { const inp = document.createElement('input'); inp.type='file'; inp.accept='.json'; inp.onchange=(e)=>{ if(e.target.files[0]) importShortJSON(e.target.files[0]); }; inp.click(); };
     document.getElementById('saveToGitHubBtn').onclick = saveToGitHub;
-    document.getElementById('deleteCurrentBtn').onclick = () => {
-        if (selectedId && confirm('Удалить тему?')) {
-            topics = topics.filter(t => t.id !== selectedId);
-            selectedId = topics[0]?.id || null;
-            renderTree(); fillFormBySelectedNoSave(); updateJsonEditor(); showMessage('Тема удалена');
-        }
-    };
+    document.getElementById('clearGitHubDataBtn').onclick = clearGitHubData;
     document.getElementById('applyJsonBtn').onclick = applyJson;
     document.getElementById('formatJsonBtn').onclick = formatJson;
+    document.getElementById('validateJsonBtn').onclick = validateJson;
     document.getElementById('boldBtn').onclick = () => { document.execCommand('bold'); descriptionEditor.focus(); };
     document.getElementById('italicBtn').onclick = () => { document.execCommand('italic'); descriptionEditor.focus(); };
     document.getElementById('clearFormatBtn').onclick = clearFormatting;
-    
-    const symbols = ['sqrtSym','piSym','alphaSym','neqSym','leqSym','geqSym','timesSym','divSym'];
-    symbols.forEach(s => {
-        document.getElementById(s).onclick = () => {
-            document.execCommand('insertText', false, document.getElementById(s).innerText);
-            descriptionEditor.focus();
-        };
+    document.getElementById('linkDescBtn').onclick = insertTopicLink;
+    ['sqrtSym','piSym','alphaSym','neqSym','leqSym','geqSym','timesSym','divSym'].forEach(s => {
+        document.getElementById(s).onclick = () => { document.execCommand('insertText', false, document.getElementById(s).innerText); descriptionEditor.focus(); };
     });
-    
+    topicNameInput.addEventListener('input', function() { if (this.value.trim()) document.getElementById('topicId').value = generateIdFromName(this.value, selectedId); });
+    searchInput.addEventListener('input', (e) => { searchQuery = e.target.value.toLowerCase(); renderTree(); });
+    [topicNameInput, topicKeywordsInput, topicParentSelect, topicIconSelect, topicGradeSelect, exampleHtmlSource].forEach(f => f.addEventListener('blur', () => saveCurrentTopic(false)));
+    descriptionEditor.addEventListener('blur', () => saveCurrentTopic(false));
     document.querySelectorAll('.tab-btn').forEach(btn => {
         btn.onclick = () => {
             document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -1188,46 +901,19 @@
             if (btn.dataset.tab === 'json') updateJsonEditor();
         };
     });
-    
-    // Демо-данные на случай, если config.json не загрузится
-    const demoData = [
-        { id: "geometriya", name: "Геометрия", keywords: ["геометрия"], parent: null, icon: "fa-folder", gradeLevel: 3, example: "<div>Основы геометрии</div>", description: "<p>Раздел математики</p>", order: 1 },
-        { id: "tochka", name: "Точка", keywords: ["точка"], parent: "geometriya", icon: "fa-circle", gradeLevel: 2, example: "<svg width='50'><circle cx='25' cy='25' r='3' fill='black'/></svg>", description: "<p>Точка</p>", order: 1 }
-    ];
-    
-    // Пытаемся загрузить config.json, если не получилось - используем демо
-    fetch('config.json')
-        .then(res => {
-            if (res.ok) return res.json();
-            throw new Error();
-        })
-        .then(imported => {
-            if (Array.isArray(imported)) {
-                topics = imported;
-                topics.forEach((t, idx) => {
-                    if (!t.hasOwnProperty('order')) t.order = idx;
-                    if (!t.hasOwnProperty('keywords')) t.keywords = [];
-                    if (!t.hasOwnProperty('icon')) t.icon = 'fa-file-alt';
-                    if (!t.hasOwnProperty('example')) t.example = '';
-                    if (!t.hasOwnProperty('description')) t.description = '<p></p>';
-                });
-                selectedId = topics[0]?.id || null;
-                expandedState.clear();
-                topics.forEach(t => { if (topics.some(ch => ch.parent === t.id)) expandedState.add(t.id); });
-                renderTree();
-                fillFormBySelectedNoSave();
-                updateJsonEditor();
-                showMessage('config.json загружен');
-            }
-        })
-        .catch(() => {
-            topics = demoData;
-            selectedId = "geometriya";
-            expandedState.add("geometriya");
-            renderTree();
-            fillFormBySelectedNoSave();
-            updateJsonEditor();
-        });
+
+    const demo = [{ id: "geometriya", name: "Геометрия", keywords: ["геометрия"], parent: null, icon: "fa-folder", gradeLevel: 3, example: "<div>Основы геометрии</div>", description: "<p>Изучает фигуры</p>", order: 1 }];
+    fetch('config.json').then(r => r.ok ? r.json() : Promise.reject()).then(data => {
+        if (Array.isArray(data)) topics = data;
+        else throw new Error();
+        topics.forEach((t,i) => { if (!t.order) t.order = i; if (!t.keywords) t.keywords = []; if (!t.icon) t.icon = 'fa-file-alt'; if (!t.example) t.example = ''; if (!t.description) t.description = '<p></p>'; });
+        selectedId = topics[0]?.id || null; expandedState.clear();
+        topics.forEach(t => { if (topics.some(ch => ch.parent === t.id)) expandedState.add(t.id); });
+        renderTree(); fillFormBySelectedNoSave(); updateJsonEditor(); showToast('config.json загружен');
+    }).catch(() => {
+        topics = demo; selectedId = "geometriya"; expandedState.add("geometriya");
+        renderTree(); fillFormBySelectedNoSave(); updateJsonEditor();
+    });
 </script>
 </body>
 </html>
