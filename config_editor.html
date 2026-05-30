@@ -51,7 +51,7 @@
             display: flex;
             flex-direction: column;
             gap: 2px;
-            max-height: 48vh;
+            max-height: 45vh;
             overflow-y: auto;
         }
         .tree-item {
@@ -294,15 +294,53 @@
         .status-msg.show {
             opacity: 1;
         }
-        .file-buttons {
-            display: flex;
-            gap: 8px;
-            flex-wrap: wrap;
+        /* Выпадающее меню */
+        .dropdown {
+            position: relative;
+            display: inline-block;
+            width: 100%;
             margin-bottom: 16px;
         }
-        .file-buttons button {
-            flex: 1;
-            font-size: 0.75rem;
+        .dropbtn {
+            background: #2a3a4a;
+            color: white;
+            padding: 10px;
+            font-size: 0.9rem;
+            border: 1px solid #5a7a9a;
+            cursor: pointer;
+            width: 100%;
+            text-align: center;
+        }
+        .dropbtn:hover {
+            background: #3a4a5a;
+        }
+        .dropdown-content {
+            display: none;
+            position: absolute;
+            background: #252525;
+            min-width: 100%;
+            box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.5);
+            z-index: 100;
+            border: 1px solid #444;
+            top: 100%;
+            left: 0;
+        }
+        .dropdown-content button {
+            color: #ddd;
+            padding: 10px;
+            text-decoration: none;
+            display: block;
+            background: #252525;
+            border: none;
+            width: 100%;
+            text-align: left;
+            font-size: 0.8rem;
+        }
+        .dropdown-content button:hover {
+            background: #3a3a3a;
+        }
+        .show {
+            display: block;
         }
         .editor-header {
             display: flex;
@@ -323,18 +361,24 @@
             gap: 10px;
             margin-top: 10px;
         }
+        .github-dialog input {
+            margin: 8px 0;
+            width: 100%;
+        }
     </style>
 </head>
 <body>
 <div class="container">
     <div class="list-panel">
-        <div class="file-buttons">
-            <button id="importBtn">📂 Полный JSON</button>
-            <button id="importShortBtn" style="background:#2a4a3a;">➕ Добавить из сокращённого</button>
-            <button id="saveToFileBtn">💾 Сохранить</button>
-            <button id="copyJsonBtn">📋 Копировать JSON</button>
+        <!-- Выпадающее меню Файл -->
+        <div class="dropdown">
+            <button class="dropbtn" id="fileMenuBtn">📁 Файл ▼</button>
+            <div class="dropdown-content" id="fileDropdown">
+                <button id="loadFromServerBtn">📂 Загрузить config.json</button>
+                <button id="importShortBtn">➕ Добавить из сокращённого JSON</button>
+                <button id="saveToGitHubBtn">🐙 Сохранить в GitHub</button>
+            </div>
         </div>
-        <input type="file" id="fileInput" accept=".json" style="display: none;">
         <input type="file" id="shortFileInput" accept=".json" style="display: none;">
         
         <h3>Список тем</h3>
@@ -355,14 +399,13 @@
             <button class="tab-btn" data-tab="json">📋 JSON-редактор</button>
         </div>
         
-        <!-- Вкладка редактора темы -->
         <div id="tab-editor" class="tab-content active">
             <div class="editor-header">
                 <button id="saveCurrentBtn" style="background:#2a4a5a;">💾 Сохранить тему</button>
                 <button id="deleteCurrentBtn" style="background:#3a1e1e;">🗑 Удалить</button>
             </div>
             <div class="form-row">
-                <label>ID (авто из названия, пробелы → _)</label>
+                <label>ID (авто из названия)</label>
                 <input type="text" id="topicId" readonly style="background:#2a2a2a; color:#aaa;">
             </div>
             <div class="form-row">
@@ -412,7 +455,7 @@
                     <button type="button" class="tool-btn" id="boldBtn">B</button>
                     <button type="button" class="tool-btn" id="italicBtn">I</button>
                     <button type="button" class="tool-btn" id="clearFormatBtn">🧹 Очистить формат</button>
-                    <button type="button" class="tool-btn" id="linkDescBtn" style="user-select: none;">🔗 ссылка на тему</button>
+                    <button type="button" class="tool-btn" id="linkDescBtn">🔗 ссылка на тему</button>
                     <button class="tool-btn" id="sqrtSym">√</button><button class="tool-btn" id="piSym">π</button>
                     <button class="tool-btn" id="alphaSym">α</button><button class="tool-btn" id="neqSym">≠</button>
                     <button class="tool-btn" id="leqSym">≤</button><button class="tool-btn" id="geqSym">≥</button>
@@ -422,7 +465,6 @@
             </div>
         </div>
         
-        <!-- Вкладка JSON-редактора -->
         <div id="tab-json" class="tab-content">
             <textarea id="jsonEditor" class="json-editor" rows="25" style="font-family: monospace; font-size: 12px;"></textarea>
             <div class="json-buttons">
@@ -440,7 +482,6 @@
     let selectedId = null;
     let expandedState = new Set();
     let searchQuery = '';
-
     let autoSaveEnabled = true;
 
     const exampleHtmlSource = document.getElementById('exampleHtmlSource');
@@ -563,11 +604,7 @@
         if (!topic) return;
         document.getElementById('topicId').value = topic.id;
         topicNameInput.value = topic.name;
-        if (topic.keywords && Array.isArray(topic.keywords)) {
-            topicKeywordsInput.value = topic.keywords.join(', ');
-        } else {
-            topicKeywordsInput.value = '';
-        }
+        topicKeywordsInput.value = topic.keywords?.join(', ') || '';
         topicIconSelect.value = topic.icon || 'fa-file-alt';
         topicGradeSelect.value = topic.gradeLevel || 3;
         const parentSel = topicParentSelect;
@@ -582,11 +619,7 @@
         if (!topic) return;
         document.getElementById('topicId').value = topic.id;
         topicNameInput.value = topic.name;
-        if (topic.keywords && Array.isArray(topic.keywords)) {
-            topicKeywordsInput.value = topic.keywords.join(', ');
-        } else {
-            topicKeywordsInput.value = '';
-        }
+        topicKeywordsInput.value = topic.keywords?.join(', ') || '';
         topicIconSelect.value = topic.icon || 'fa-file-alt';
         topicGradeSelect.value = topic.gradeLevel || 3;
         descriptionEditor.innerHTML = topic.description || '';
@@ -873,54 +906,31 @@
         showMessage('Тема создана');
     }
     
-    function copyJsonToClipboard() {
-        const data = JSON.stringify(topics, null, 2);
-        navigator.clipboard.writeText(data).then(() => {
-            showMessage('JSON скопирован в буфер обмена');
-        }).catch(() => {
-            showMessage('Ошибка копирования', true);
-        });
-    }
-    
-    function saveToFile() {
-        const data = JSON.stringify(topics, null, 2);
-        const blob = new Blob([data], {type: 'application/json'});
-        const a = document.createElement('a');
-        const url = URL.createObjectURL(blob);
-        a.href = url;
-        a.download = 'topics_config.json';
-        a.click();
-        URL.revokeObjectURL(url);
-        showMessage('Файл сохранен');
-    }
-    
-    function importJSON(file) {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            try {
-                const imported = JSON.parse(e.target.result);
-                if (Array.isArray(imported)) {
-                    topics = imported;
-                    topics.forEach(topic => {
-                        if (!topic.hasOwnProperty('keywords')) topic.keywords = [];
-                        if (!topic.hasOwnProperty('order')) topic.order = 0;
-                        if (!topic.hasOwnProperty('example')) topic.example = '';
-                        if (!topic.hasOwnProperty('description')) topic.description = '<p></p>';
-                        if (!topic.hasOwnProperty('icon')) topic.icon = 'fa-file-alt';
-                    });
-                    selectedId = topics[0]?.id || null;
-                    expandedState.clear();
-                    topics.forEach(t => { if (topics.some(ch => ch.parent === t.id)) expandedState.add(t.id); });
-                    renderTree();
-                    fillFormBySelectedNoSave();
-                    updateJsonEditor();
-                    showMessage('Файл загружен (темы заменены)');
-                } else throw new Error();
-            } catch(err) { 
-                showMessage('Ошибка JSON', true); 
-            }
-        };
-        reader.readAsText(file);
+    async function loadFromServer() {
+        try {
+            const response = await fetch('config.json');
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const imported = await response.json();
+            if (Array.isArray(imported)) {
+                topics = imported;
+                topics.forEach((t, idx) => {
+                    if (!t.hasOwnProperty('order')) t.order = idx;
+                    if (!t.hasOwnProperty('keywords')) t.keywords = [];
+                    if (!t.hasOwnProperty('icon')) t.icon = 'fa-file-alt';
+                    if (!t.hasOwnProperty('example')) t.example = '';
+                    if (!t.hasOwnProperty('description')) t.description = '<p></p>';
+                });
+                selectedId = topics[0]?.id || null;
+                expandedState.clear();
+                topics.forEach(t => { if (topics.some(ch => ch.parent === t.id)) expandedState.add(t.id); });
+                renderTree();
+                fillFormBySelectedNoSave();
+                updateJsonEditor();
+                showMessage('config.json загружен');
+            } else throw new Error('Не массив');
+        } catch(e) {
+            showMessage('Ошибка загрузки config.json: ' + e.message, true);
+        }
     }
     
     function importShortJSON(file) {
@@ -929,71 +939,41 @@
             try {
                 const imported = JSON.parse(e.target.result);
                 if (!Array.isArray(imported)) throw new Error();
-                
                 const newTopics = [];
                 const skippedIds = [];
                 const existingIds = new Set(topics.map(t => t.id));
                 
                 for (const item of imported) {
                     if (!Array.isArray(item) || item.length < 5) continue;
-                    
                     const [id, name, gradeLevel, keywordsStr, parent] = item;
                     const idStr = String(id);
-                    
                     if (existingIds.has(idStr)) {
                         skippedIds.push(idStr);
                         continue;
                     }
-                    
                     let keywordsArray = [];
                     if (keywordsStr && typeof keywordsStr === 'string') {
                         keywordsArray = keywordsStr.split(',').map(k => k.trim()).filter(k => k);
                     }
-                    
                     newTopics.push({
-                        id: idStr,
-                        name: String(name),
-                        gradeLevel: parseInt(gradeLevel) || 3,
-                        keywords: keywordsArray,
-                        parent: parent === null || parent === '' ? null : String(parent),
-                        icon: 'fa-file-alt',
-                        example: 'В разработке',
-                        description: '<p>В разработке</p>',
+                        id: idStr, name: String(name), gradeLevel: parseInt(gradeLevel) || 3,
+                        keywords: keywordsArray, parent: parent === null || parent === '' ? null : String(parent),
+                        icon: 'fa-file-alt', example: 'В разработке', description: '<p>В разработке</p>',
                         order: topics.length + newTopics.length
                     });
                 }
                 
                 if (newTopics.length === 0) {
-                    if (skippedIds.length > 0) {
-                        showMessage(`Все темы пропущены (дубликаты ID: ${skippedIds.join(', ')})`, true);
-                    } else {
-                        showMessage('Нет корректных тем для импорта', true);
-                    }
+                    showMessage('Нет новых тем для добавления', true);
                     return;
                 }
                 
                 topics.push(...newTopics);
                 topics.forEach((t, idx) => { t.order = idx; });
-                
-                for (const topic of newTopics) {
-                    let parent = topic.parent;
-                    while (parent) {
-                        expandedState.add(parent);
-                        const parentTopic = topics.find(p => p.id === parent);
-                        parent = parentTopic ? parentTopic.parent : null;
-                    }
-                }
-                
                 renderTree();
                 fillFormBySelectedNoSave();
                 updateJsonEditor();
-                
-                let msg = `Добавлено ${newTopics.length} тем(ы)`;
-                if (skippedIds.length > 0) {
-                    msg += ` (пропущены дубликаты: ${skippedIds.join(', ')})`;
-                }
-                showMessage(msg);
-                
+                showMessage(`Добавлено ${newTopics.length} тем(ы)`);
             } catch(err) { 
                 showMessage('Ошибка при разборе сокращённого JSON', true); 
             }
@@ -1001,27 +981,54 @@
         reader.readAsText(file);
     }
     
-    function escapeHtml(str) { return String(str).replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'})[m]); }
+    function saveToGitHub() {
+        const owner = prompt('Владелец репозитория (например, username):');
+        if (!owner) return;
+        const repo = prompt('Название репозитория:');
+        if (!repo) return;
+        const path = prompt('Путь к файлу (например, config.json):', 'config.json');
+        if (!path) return;
+        const token = prompt('GitHub Personal Access Token (с правами repo):', '');
+        if (!token) return;
+        
+        const content = JSON.stringify(topics, null, 2);
+        const encodedContent = btoa(unescape(encodeURIComponent(content)));
+        
+        fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${path}`, {
+            headers: { 'Authorization': `token ${token}` }
+        })
+        .then(res => res.json())
+        .then(data => {
+            const sha = data.sha || null;
+            return fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${path}`, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `token ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    message: 'Обновление конфигурации через редактор тем',
+                    content: encodedContent,
+                    sha: sha,
+                    branch: 'main'
+                })
+            });
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.content) showMessage('✅ Файл обновлён в GitHub');
+            else showMessage('Ошибка: ' + (data.message || 'неизвестная'), true);
+        })
+        .catch(err => showMessage('Ошибка: ' + err.message, true));
+    }
     
     function clearFormatting() {
-        // Сначала снимаем стандартное форматирование (жирный, курсив и т.д.)
         document.execCommand('removeFormat');
-        
-        // Затем удаляем все гиперссылки (inline-link) в выделенном диапазоне
         const selection = window.getSelection();
         if (selection.rangeCount > 0 && descriptionEditor.contains(selection.anchorNode)) {
             const range = selection.getRangeAt(0);
             const container = range.commonAncestorContainer;
-            
-            // Находим все ссылки в пределах выделения
-            const links = [];
-            if (container.nodeType === Node.ELEMENT_NODE) {
-                links.push(...container.querySelectorAll('.inline-link'));
-            } else if (container.parentElement) {
-                links.push(...container.parentElement.querySelectorAll('.inline-link'));
-            }
-            
-            // Фильтруем только те, что пересекаются с выделением
+            const links = (container.nodeType === Node.ELEMENT_NODE ? container : container.parentElement).querySelectorAll('.inline-link');
             for (const link of links) {
                 if (range.intersectsNode(link)) {
                     const textNode = document.createTextNode(link.textContent);
@@ -1029,197 +1036,142 @@
                 }
             }
         } else {
-            // Если нет выделения, очищаем весь редактор от ссылок
             const allLinks = descriptionEditor.querySelectorAll('.inline-link');
             for (const link of allLinks) {
                 const textNode = document.createTextNode(link.textContent);
                 link.parentNode.replaceChild(textNode, link);
             }
         }
-        
         descriptionEditor.focus();
     }
     
     descriptionEditor.addEventListener('paste', (e) => {
         e.preventDefault();
-        const text = (e.clipboardData || window.clipboardData).getData('text/plain');
-        document.execCommand('insertText', false, text);
+        document.execCommand('insertText', false, (e.clipboardData || window.clipboardData).getData('text/plain'));
     });
     
     let savedRange = null;
     let savedText = '';
-    
     function saveSelection() {
         const sel = window.getSelection();
         if (sel.rangeCount > 0 && descriptionEditor.contains(sel.anchorNode)) {
             savedRange = sel.getRangeAt(0).cloneRange();
             savedText = sel.toString().trim();
-            return true;
         }
-        return false;
     }
-    
-    function restoreAndWrap(topicId, topicName) {
+    function restoreAndWrap(topicId) {
         if (!savedRange) return false;
-        
         descriptionEditor.focus();
         const sel = window.getSelection();
         sel.removeAllRanges();
         sel.addRange(savedRange);
-        
-        const currentText = sel.toString().trim();
-        if (currentText !== savedText) {
-            return false;
-        }
-        
-        const range = sel.getRangeAt(0);
+        if (sel.toString().trim() !== savedText) return false;
         const span = document.createElement('span');
         span.className = 'inline-link';
         span.setAttribute('data-topic-id', topicId);
-        span.textContent = currentText;
-        
+        span.textContent = savedText;
+        const range = sel.getRangeAt(0);
         range.deleteContents();
         range.insertNode(span);
-        
         const newRange = document.createRange();
         newRange.setStartAfter(span);
         newRange.setEndAfter(span);
         sel.removeAllRanges();
         sel.addRange(newRange);
-        
         return true;
     }
-    
     descriptionEditor.addEventListener('mouseup', saveSelection);
     descriptionEditor.addEventListener('keyup', saveSelection);
     
     function showTopicSelector(callback) {
         const otherTopics = topics.filter(t => t.id !== selectedId);
-        if (otherTopics.length === 0) {
-            alert('Нет других тем для ссылки');
-            return;
-        }
-        
+        if (!otherTopics.length) { alert('Нет других тем'); return; }
         const overlay = document.createElement('div');
         overlay.className = 'overlay';
         const dialog = document.createElement('div');
         dialog.className = 'topic-selector-dialog';
-        dialog.innerHTML = `
-            <h4>Выберите тему для ссылки</h4>
-            <input type="text" id="topicSearchInput" placeholder="🔍 Поиск по ID или названию..." autocomplete="off">
-            <select id="topicSelectDialog" size="8" style="width:100%;"></select>
-            <div style="display:flex; gap:8px; justify-content:flex-end;">
-                <button id="dialogCancelBtn">Отмена</button>
-                <button id="dialogOkBtn">Вставить</button>
-            </div>
-        `;
+        dialog.innerHTML = `<h4>Выберите тему</h4><input type="text" id="topicSearchInput" placeholder="Поиск..."><select id="topicSelectDialog" size="8"></select><div><button id="dialogOkBtn">Вставить</button><button id="dialogCancelBtn">Отмена</button></div>`;
         document.body.appendChild(overlay);
         document.body.appendChild(dialog);
-        
-        const searchInputDialog = dialog.querySelector('#topicSearchInput');
+        const searchInputD = dialog.querySelector('#topicSearchInput');
         const select = dialog.querySelector('#topicSelectDialog');
-        const okBtn = dialog.querySelector('#dialogOkBtn');
-        const cancelBtn = dialog.querySelector('#dialogCancelBtn');
-        
-        function updateList() {
-            const query = searchInputDialog.value.toLowerCase();
+        const updateList = () => {
+            const q = searchInputD.value.toLowerCase();
             let filtered = otherTopics;
-            if (query) {
-                filtered = otherTopics.filter(t => 
-                    t.id.toLowerCase().includes(query) || 
-                    t.name.toLowerCase().includes(query)
-                );
-            }
+            if (q) filtered = otherTopics.filter(t => t.id.toLowerCase().includes(q) || t.name.toLowerCase().includes(q));
             select.innerHTML = filtered.map(t => `<option value="${t.id}">${escapeHtml(t.name)} (${t.id})</option>`).join('');
-            if (filtered.length > 0) select.selectedIndex = 0;
-        }
-        
-        searchInputDialog.addEventListener('input', updateList);
-        updateList();
-        
-        const close = () => {
-            overlay.remove();
-            dialog.remove();
         };
-        
-        okBtn.onclick = () => {
-            const topicId = select.value;
-            const topic = topics.find(t => t.id === topicId);
+        searchInputD.addEventListener('input', updateList);
+        updateList();
+        const close = () => { overlay.remove(); dialog.remove(); };
+        dialog.querySelector('#dialogOkBtn').onclick = () => {
+            const topic = topics.find(t => t.id === select.value);
             if (topic) callback(topic);
             close();
         };
-        cancelBtn.onclick = close;
+        dialog.querySelector('#dialogCancelBtn').onclick = close;
         overlay.onclick = close;
     }
     
     function insertTopicLink() {
-        if (!savedRange || !savedText) {
-            alert('Сначала выделите текст, который нужно сделать ссылкой');
-            return;
-        }
-        
-        const textToWrap = savedText;
+        if (!savedRange || !savedText) { alert('Выделите текст'); return; }
         autoSaveEnabled = false;
-        
         showTopicSelector((topic) => {
-            const success = restoreAndWrap(topic.id, topic.name);
-            if (!success) {
-                autoSaveEnabled = true;
-                alert('Выделение изменилось. Пожалуйста, выделите текст заново.');
-                return;
-            }
+            const success = restoreAndWrap(topic.id);
+            if (!success) { autoSaveEnabled = true; alert('Выделение изменилось'); return; }
             autoSaveEnabled = true;
             saveCurrentTopic(true);
         });
     }
     
+    function escapeHtml(str) { return String(str).replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'})[m]); }
+    
+    // Выпадающее меню
+    const fileMenuBtn = document.getElementById('fileMenuBtn');
+    const fileDropdown = document.getElementById('fileDropdown');
+    fileMenuBtn.onclick = () => fileDropdown.classList.toggle('show');
+    window.onclick = (e) => { if (!e.target.matches('.dropbtn')) fileDropdown.classList.remove('show'); };
+    
     const linkBtn = document.getElementById('linkDescBtn');
-    linkBtn.addEventListener('mousedown', function(e) {
-        saveSelection();
-    });
-    linkBtn.addEventListener('click', function(e) {
-        e.preventDefault();
-        insertTopicLink();
-    });
+    linkBtn.addEventListener('mousedown', saveSelection);
+    linkBtn.addEventListener('click', (e) => { e.preventDefault(); insertTopicLink(); });
     
     topicNameInput.addEventListener('input', function() {
-        const newName = this.value.trim();
-        if (newName) {
-            const newId = generateIdFromName(newName, selectedId);
-            document.getElementById('topicId').value = newId;
-        } else {
-            document.getElementById('topicId').value = '';
-        }
+        if (this.value.trim()) document.getElementById('topicId').value = generateIdFromName(this.value, selectedId);
     });
-    
-    searchInput.addEventListener('input', (e) => {
-        searchQuery = e.target.value;
-        if (searchQuery) {
-            topics.forEach(topic => {
-                if (matchesSearch(topic)) {
-                    let parent = topic.parent;
-                    while (parent) {
-                        expandedState.add(parent);
-                        const parentTopic = topics.find(p => p.id === parent);
-                        parent = parentTopic ? parentTopic.parent : null;
-                    }
-                }
-            });
-        }
-        renderTree();
-    });
+    searchInput.addEventListener('input', (e) => { searchQuery = e.target.value.toLowerCase(); renderTree(); });
     
     const fields = [topicNameInput, topicKeywordsInput, topicParentSelect, topicIconSelect, topicGradeSelect, exampleHtmlSource];
-    fields.forEach(field => {
-        field.addEventListener('blur', () => saveCurrentTopic(false));
-    });
+    fields.forEach(f => f.addEventListener('blur', () => saveCurrentTopic(false)));
     descriptionEditor.addEventListener('blur', () => saveCurrentTopic(false));
     
     document.getElementById('saveCurrentBtn').onclick = () => saveCurrentTopic(true);
+    document.getElementById('newBtn').onclick = newTopic;
+    document.getElementById('loadFromServerBtn').onclick = loadFromServer;
+    document.getElementById('importShortBtn').onclick = () => document.getElementById('shortFileInput').click();
+    document.getElementById('shortFileInput').onchange = (e) => { if(e.target.files[0]) importShortJSON(e.target.files[0]); e.target.value=''; };
+    document.getElementById('saveToGitHubBtn').onclick = saveToGitHub;
+    document.getElementById('deleteCurrentBtn').onclick = () => {
+        if (selectedId && confirm('Удалить тему?')) {
+            topics = topics.filter(t => t.id !== selectedId);
+            selectedId = topics[0]?.id || null;
+            renderTree(); fillFormBySelectedNoSave(); updateJsonEditor(); showMessage('Тема удалена');
+        }
+    };
     document.getElementById('applyJsonBtn').onclick = applyJson;
     document.getElementById('formatJsonBtn').onclick = formatJson;
+    document.getElementById('boldBtn').onclick = () => { document.execCommand('bold'); descriptionEditor.focus(); };
+    document.getElementById('italicBtn').onclick = () => { document.execCommand('italic'); descriptionEditor.focus(); };
+    document.getElementById('clearFormatBtn').onclick = clearFormatting;
     
-    // Переключение вкладок
+    const symbols = ['sqrtSym','piSym','alphaSym','neqSym','leqSym','geqSym','timesSym','divSym'];
+    symbols.forEach(s => {
+        document.getElementById(s).onclick = () => {
+            document.execCommand('insertText', false, document.getElementById(s).innerText);
+            descriptionEditor.focus();
+        };
+    });
+    
     document.querySelectorAll('.tab-btn').forEach(btn => {
         btn.onclick = () => {
             document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -1230,51 +1182,16 @@
         };
     });
     
-    window.onload = () => {
-        const demoData = [
-            { id: "geometriya", name: "Геометрия", keywords: ["геометрия", "фигуры"], parent: null, icon: "fa-folder", gradeLevel: 3, example: "<div>Основы геометрии</div>", description: "<p>Раздел математики. Изучает точки, прямые и другие фигуры.</p>", order: 1 },
-            { id: "tochka", name: "Точка", keywords: ["точка", "фигура"], parent: "geometriya", icon: "fa-circle", gradeLevel: 2, example: "<svg width='80' height='80'><circle cx='40' cy='40' r='5' fill='black'/></svg>", description: "<p>Самая маленькая фигура</p>", order: 1 },
-            { id: "pryamaya", name: "Прямая", keywords: ["прямая", "линия"], parent: "geometriya", icon: "fa-file-alt", gradeLevel: 2, example: "<svg width='150'><line x1='10' y1='40' x2='140' y2='40' stroke='black'/></svg>", description: "<p>Бесконечная линия</p>", order: 2 }
-        ];
-        topics = demoData;
-        selectedId = "geometriya";
-        expandedState.add("geometriya");
-        renderTree();
-        fillFormBySelectedNoSave();
-        updateJsonEditor();
-        
-        document.getElementById('newBtn').onclick = newTopic;
-        document.getElementById('importBtn').onclick = () => document.getElementById('fileInput').click();
-        document.getElementById('importShortBtn').onclick = () => document.getElementById('shortFileInput').click();
-        document.getElementById('fileInput').onchange = (e) => { if(e.target.files[0]) importJSON(e.target.files[0]); e.target.value=''; };
-        document.getElementById('shortFileInput').onchange = (e) => { if(e.target.files[0]) importShortJSON(e.target.files[0]); e.target.value=''; };
-        document.getElementById('saveToFileBtn').onclick = saveToFile;
-        document.getElementById('copyJsonBtn').onclick = copyJsonToClipboard;
-        document.getElementById('deleteCurrentBtn').onclick = () => { 
-            if(selectedId && confirm('Удалить тему?')) { 
-                const newTopics = topics.filter(t => t.id !== selectedId); 
-                topics = newTopics; 
-                selectedId = topics[0]?.id || null; 
-                renderTree(); 
-                fillFormBySelectedNoSave(); 
-                updateJsonEditor();
-                showMessage('Тема удалена');
-            } 
-        };
-        
-        document.getElementById('boldBtn').onclick = () => { document.execCommand('bold'); descriptionEditor.focus(); };
-        document.getElementById('italicBtn').onclick = () => { document.execCommand('italic'); descriptionEditor.focus(); };
-        document.getElementById('clearFormatBtn').onclick = clearFormatting;
-        
-        const symbols = ['sqrtSym','piSym','alphaSym','neqSym','leqSym','geqSym','timesSym','divSym'];
-        symbols.forEach(s => {
-            document.getElementById(s).onclick = () => {
-                const ch = document.getElementById(s).innerText;
-                document.execCommand('insertText', false, ch);
-                descriptionEditor.focus();
-            };
-        });
-    };
+    const demoData = [
+        { id: "geometriya", name: "Геометрия", keywords: ["геометрия"], parent: null, icon: "fa-folder", gradeLevel: 3, example: "<div>Основы геометрии</div>", description: "<p>Раздел математики</p>", order: 1 },
+        { id: "tochka", name: "Точка", keywords: ["точка"], parent: "geometriya", icon: "fa-circle", gradeLevel: 2, example: "<svg width='50'><circle cx='25' cy='25' r='3' fill='black'/></svg>", description: "<p>Точка</p>", order: 1 }
+    ];
+    topics = demoData;
+    selectedId = "geometriya";
+    expandedState.add("geometriya");
+    renderTree();
+    fillFormBySelectedNoSave();
+    updateJsonEditor();
 </script>
 </body>
 </html>
