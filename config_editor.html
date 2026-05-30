@@ -1,0 +1,1280 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Редактор тем · Геометрия</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            background: #111;
+            color: #ddd;
+            font-family: system-ui, -apple-system, 'Segoe UI', monospace;
+            padding: 20px;
+        }
+        .container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+        .list-panel {
+            flex: 1.2;
+            min-width: 280px;
+            background: #1e1e1e;
+            border: 1px solid #333;
+            padding: 12px;
+        }
+        .list-panel h3 {
+            font-size: 1rem;
+            font-weight: normal;
+            margin-bottom: 12px;
+            color: #ccc;
+        }
+        .search-box {
+            margin-bottom: 12px;
+        }
+        .search-box input {
+            width: 100%;
+            padding: 6px 10px;
+            background: #111;
+            border: 1px solid #3a3a3a;
+            color: #eee;
+            font-size: 0.85rem;
+        }
+        .topic-list {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            max-height: 48vh;
+            overflow-y: auto;
+        }
+        .tree-item {
+            list-style: none;
+            margin-left: 0;
+            padding-left: 0;
+        }
+        .tree-node {
+            margin-left: 18px;
+            padding-left: 6px;
+            border-left: 1px dotted #3a3a3a;
+        }
+        .topic-row {
+            background: #252525;
+            padding: 6px 8px;
+            cursor: pointer;
+            border: 1px solid #3a3a3a;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: 2px 0;
+        }
+        .topic-row.selected {
+            background: #2a3a4a;
+            border-color: #5a7a9a;
+        }
+        .topic-row.dragging {
+            opacity: 0.4;
+        }
+        .topic-row.drag-over {
+            border: 2px solid #7a9a5a;
+            background: #2a3a2a;
+        }
+        .topic-info {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex: 1;
+        }
+        .drag-area {
+            cursor: grab;
+            padding: 0 8px;
+            color: #777;
+            user-select: none;
+            font-size: 16px;
+        }
+        .drag-area:active {
+            cursor: grabbing;
+        }
+        .topic-name {
+            font-size: 0.9rem;
+        }
+        .topic-parent {
+            font-size: 0.7rem;
+            color: #aaa;
+            margin-left: 8px;
+        }
+        .topic-icon-display {
+            font-size: 1rem;
+            width: 24px;
+            text-align: center;
+        }
+        .del-topic {
+            background: none;
+            border: none;
+            color: #c77;
+            cursor: pointer;
+            font-size: 1rem;
+            padding: 0 5px;
+        }
+        .del-topic:hover {
+            color: #f88;
+        }
+        .expand-btn {
+            background: none;
+            border: none;
+            color: #aaa;
+            cursor: pointer;
+            width: 20px;
+            font-size: 12px;
+            text-align: center;
+        }
+        .editor-panel {
+            flex: 2.5;
+            background: #1e1e1e;
+            border: 1px solid #333;
+            padding: 16px;
+        }
+        .tabs {
+            display: flex;
+            gap: 2px;
+            margin-bottom: 16px;
+            border-bottom: 1px solid #333;
+        }
+        .tab-btn {
+            background: #252525;
+            border: none;
+            padding: 8px 16px;
+            color: #aaa;
+            cursor: pointer;
+            font-size: 0.85rem;
+        }
+        .tab-btn.active {
+            background: #2a3a4a;
+            color: #fff;
+            border-bottom: 2px solid #5a7a9a;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .form-row {
+            margin-bottom: 14px;
+        }
+        label {
+            display: block;
+            font-size: 0.8rem;
+            margin-bottom: 4px;
+            color: #aaa;
+        }
+        input, select, textarea {
+            width: 100%;
+            background: #111;
+            border: 1px solid #3a3a3a;
+            padding: 8px 10px;
+            color: #eee;
+            font-size: 0.9rem;
+            font-family: inherit;
+        }
+        textarea {
+            font-family: 'Courier New', monospace;
+            resize: vertical;
+        }
+        .toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            margin-bottom: 8px;
+            background: #252525;
+            padding: 6px;
+        }
+        .tool-btn {
+            background: #333;
+            border: 1px solid #555;
+            padding: 4px 8px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            color: #ddd;
+        }
+        .tool-btn:hover {
+            background: #444;
+        }
+        .small-note {
+            font-size: 0.7rem;
+            color: #888;
+            margin-top: 4px;
+        }
+        .html-preview {
+            border: 1px solid #444;
+            background: #1a1a1a;
+            padding: 8px;
+            margin-top: 8px;
+        }
+        .preview-frame {
+            width: 100%;
+            min-height: 300px;
+            background: #fff;
+            border: none;
+        }
+        .rich-editor {
+            background: #111;
+            border: 1px solid #3a3a3a;
+            padding: 8px;
+            min-height: 120px;
+            color: #eee;
+            overflow-y: auto;
+        }
+        .rich-editor .inline-link {
+            color: #8ab3ff;
+            text-decoration: underline;
+            cursor: pointer;
+        }
+        .new-topic-bottom {
+            margin-top: 16px;
+            text-align: center;
+        }
+        .new-topic-bottom button {
+            width: 100%;
+            background: #2a3a4a;
+        }
+        .topic-selector-dialog {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: #1e1e1e;
+            border: 1px solid #555;
+            padding: 20px;
+            z-index: 1000;
+            width: 400px;
+            max-height: 500px;
+            overflow-y: auto;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+        }
+        .topic-selector-dialog input {
+            margin: 10px 0;
+            width: 100%;
+        }
+        .topic-selector-dialog select {
+            margin: 10px 0;
+            width: 100%;
+            height: 200px;
+        }
+        .topic-selector-dialog button {
+            margin-top: 10px;
+        }
+        .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.7);
+            z-index: 999;
+        }
+        .status-msg {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #2a5a2a;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            z-index: 1000;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .status-msg.show {
+            opacity: 1;
+        }
+        .file-buttons {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-bottom: 16px;
+        }
+        .file-buttons button {
+            flex: 1;
+            font-size: 0.75rem;
+        }
+        .editor-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 12px;
+            gap: 8px;
+        }
+        .editor-header button {
+            flex: 1;
+        }
+        .json-editor {
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            min-height: 500px;
+        }
+        .json-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="list-panel">
+        <div class="file-buttons">
+            <button id="importBtn">📂 Полный JSON</button>
+            <button id="importShortBtn" style="background:#2a4a3a;">➕ Добавить из сокращённого</button>
+            <button id="saveToFileBtn">💾 Сохранить</button>
+            <button id="copyJsonBtn">📋 Копировать JSON</button>
+        </div>
+        <input type="file" id="fileInput" accept=".json" style="display: none;">
+        <input type="file" id="shortFileInput" accept=".json" style="display: none;">
+        
+        <h3>Список тем</h3>
+        <div class="search-box">
+            <input type="text" id="searchTopicsInput" placeholder="🔍 Поиск по ID или названию...">
+        </div>
+        <div id="topicList" class="topic-list"></div>
+        <div class="new-topic-bottom">
+            <button id="newBtn">+ Создать тему</button>
+        </div>
+        <div class="small-note">Клик по теме — редактирование. Перетащите за [⋮⋮] — изменить порядок. Перетащите за название — сделать дочерней.</div>
+        <div class="small-note" style="margin-top: 8px;">💾 Изменения сохраняются автоматически</div>
+    </div>
+
+    <div class="editor-panel">
+        <div class="tabs">
+            <button class="tab-btn active" data-tab="editor">📝 Редактор темы</button>
+            <button class="tab-btn" data-tab="json">📋 JSON-редактор</button>
+        </div>
+        
+        <!-- Вкладка редактора темы -->
+        <div id="tab-editor" class="tab-content active">
+            <div class="editor-header">
+                <button id="saveCurrentBtn" style="background:#2a4a5a;">💾 Сохранить тему</button>
+                <button id="deleteCurrentBtn" style="background:#3a1e1e;">🗑 Удалить</button>
+            </div>
+            <div class="form-row">
+                <label>ID (авто из названия, пробелы → _)</label>
+                <input type="text" id="topicId" readonly style="background:#2a2a2a; color:#aaa;">
+            </div>
+            <div class="form-row">
+                <label>Название</label>
+                <input type="text" id="topicName" placeholder="Например: Квадратное уравнение">
+            </div>
+            <div class="form-row">
+                <label>Ключевые слова (через запятую)</label>
+                <input type="text" id="topicKeywords" placeholder="уравнение, линейное, корень, 7 класс">
+            </div>
+            <div class="form-row">
+                <label>Родитель (parent)</label>
+                <select id="topicParent"></select>
+            </div>
+            <div class="form-row">
+                <label>Иконка</label>
+                <select id="topicIcon">
+                    <option value="fa-folder">📁 fa-folder</option>
+                    <option value="fa-file-alt">📄 fa-file-alt</option>
+                    <option value="fa-star">⭐ fa-star</option>
+                    <option value="fa-circle">⚫ fa-circle</option>
+                    <option value="fa-square">⬛ fa-square</option>
+                    <option value="fa-chalkboard">📐 fa-chalkboard</option>
+                </select>
+            </div>
+            <div class="form-row">
+                <label>Класс (gradeLevel)</label>
+                <select id="topicGrade">
+                    <option>1</option><option>2</option><option>3</option><option>4</option><option>5</option>
+                    <option>6</option><option>7</option><option>8</option><option>9</option><option>10</option><option>11</option>
+                </select>
+            </div>
+            <div class="form-row">
+                <label>Пример (HTML-код)</label>
+                <textarea id="exampleHtmlSource" rows="4" placeholder="HTML-код примера"></textarea>
+                <div class="html-preview">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                        <div style="font-size:0.7rem; color:#aaa;">Предпросмотр:</div>
+                        <button id="refreshPreviewBtn" class="tool-btn" style="padding: 2px 8px;">Обновить</button>
+                    </div>
+                    <iframe id="examplePreview" class="preview-frame" sandbox="allow-same-origin allow-scripts allow-popups allow-forms"></iframe>
+                </div>
+            </div>
+            <div class="form-row">
+                <label>Описание (визуальный редактор)</label>
+                <div class="toolbar">
+                    <button type="button" class="tool-btn" id="boldBtn">B</button>
+                    <button type="button" class="tool-btn" id="italicBtn">I</button>
+                    <button type="button" class="tool-btn" id="clearFormatBtn">🧹 Очистить формат</button>
+                    <button type="button" class="tool-btn" id="linkDescBtn" style="user-select: none;">🔗 ссылка на тему</button>
+                    <button class="tool-btn" id="sqrtSym">√</button><button class="tool-btn" id="piSym">π</button>
+                    <button class="tool-btn" id="alphaSym">α</button><button class="tool-btn" id="neqSym">≠</button>
+                    <button class="tool-btn" id="leqSym">≤</button><button class="tool-btn" id="geqSym">≥</button>
+                    <button class="tool-btn" id="timesSym">×</button><button class="tool-btn" id="divSym">÷</button>
+                </div>
+                <div id="descriptionEditor" class="rich-editor" contenteditable="true"></div>
+            </div>
+        </div>
+        
+        <!-- Вкладка JSON-редактора -->
+        <div id="tab-json" class="tab-content">
+            <textarea id="jsonEditor" class="json-editor" rows="25" style="font-family: monospace; font-size: 12px;"></textarea>
+            <div class="json-buttons">
+                <button id="applyJsonBtn">✅ Применить JSON</button>
+                <button id="formatJsonBtn">📐 Форматировать</button>
+            </div>
+            <div class="small-note">Редактируйте весь конфиг в формате JSON. После применения все изменения вступят в силу.</div>
+        </div>
+    </div>
+</div>
+<div id="statusMsg" class="status-msg"></div>
+
+<script>
+    let topics = [];
+    let selectedId = null;
+    let expandedState = new Set();
+    let searchQuery = '';
+
+    let autoSaveEnabled = true;
+
+    const exampleHtmlSource = document.getElementById('exampleHtmlSource');
+    const examplePreview = document.getElementById('examplePreview');
+    const refreshPreviewBtn = document.getElementById('refreshPreviewBtn');
+    const statusMsg = document.getElementById('statusMsg');
+    const descriptionEditor = document.getElementById('descriptionEditor');
+    const topicNameInput = document.getElementById('topicName');
+    const topicKeywordsInput = document.getElementById('topicKeywords');
+    const topicParentSelect = document.getElementById('topicParent');
+    const topicIconSelect = document.getElementById('topicIcon');
+    const topicGradeSelect = document.getElementById('topicGrade');
+    const searchInput = document.getElementById('searchTopicsInput');
+    const jsonEditor = document.getElementById('jsonEditor');
+
+    function showMessage(text, isError = false) {
+        statusMsg.textContent = text;
+        statusMsg.style.backgroundColor = isError ? '#5a2a2a' : '#2a5a2a';
+        statusMsg.classList.add('show');
+        setTimeout(() => statusMsg.classList.remove('show'), 2000);
+    }
+
+    function updatePreview() {
+        const html = exampleHtmlSource.value;
+        const doc = examplePreview.contentDocument || examplePreview.contentWindow.document;
+        doc.open();
+        doc.write(html);
+        doc.close();
+    }
+    let previewTimeout = null;
+    function schedulePreview() {
+        if (previewTimeout) clearTimeout(previewTimeout);
+        previewTimeout = setTimeout(updatePreview, 300);
+    }
+    exampleHtmlSource.addEventListener('input', schedulePreview);
+    refreshPreviewBtn.addEventListener('click', updatePreview);
+
+    function transliterate(word) {
+        const map = {
+            'а':'a','б':'b','в':'v','г':'g','д':'d','е':'e','ё':'e','ж':'zh','з':'z','и':'i','й':'y',
+            'к':'k','л':'l','м':'m','н':'n','о':'o','п':'p','р':'r','с':'s','т':'t','у':'u','ф':'f',
+            'х':'h','ц':'ts','ч':'ch','ш':'sh','щ':'sch','ъ':'','ы':'y','ь':'','э':'e','ю':'yu','я':'ya'
+        };
+        return word.split('').map(ch => map[ch] || (/[a-zA-Z0-9]/i.test(ch) ? ch : '')).join('');
+    }
+
+    function generateIdFromName(name, excludeId = null) {
+        if (!name) return "topic";
+        let translit = transliterate(name.toLowerCase());
+        let base = translit.replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+        if (base === "") base = "topic";
+        let candidate = base;
+        let counter = 1;
+        while (topics.some(t => t.id === candidate && t.id !== excludeId)) {
+            candidate = `${base}_${counter++}`;
+        }
+        return candidate;
+    }
+
+    let saveTimeout = null;
+    function saveCurrentTopic(showToast = false) {
+        if (!autoSaveEnabled) return;
+        if (saveTimeout) clearTimeout(saveTimeout);
+        saveTimeout = setTimeout(() => {
+            if (!selectedId) return;
+            const idx = topics.findIndex(t => t.id === selectedId);
+            if (idx === -1) return;
+            
+            const newName = topicNameInput.value.trim();
+            if (!newName) return;
+            
+            let newParent = topicParentSelect.value || null;
+            let newIcon = topicIconSelect.value;
+            let newGrade = parseInt(topicGradeSelect.value);
+            let exampleVal = exampleHtmlSource.value;
+            let descriptionVal = descriptionEditor.innerHTML;
+            
+            let keywordsStr = topicKeywordsInput.value.trim();
+            let keywordsArray = keywordsStr ? keywordsStr.split(',').map(k => k.trim()).filter(k => k) : [];
+            
+            let newId = generateIdFromName(newName, selectedId);
+            
+            if (newParent && isCyclic(newId, newParent)) {
+                if (showToast) showMessage('Ошибка: циклическая зависимость', true);
+                return;
+            }
+            
+            let updated = { ...topics[idx], 
+                id: newId, 
+                name: newName, 
+                keywords: keywordsArray,
+                parent: newParent, 
+                icon: newIcon, 
+                gradeLevel: newGrade, 
+                example: exampleVal, 
+                description: descriptionVal 
+            };
+            
+            let newTopics = [...topics];
+            if (newId !== selectedId) {
+                newTopics = newTopics.filter(t => t.id !== selectedId);
+                for (let t of newTopics) if (t.parent === selectedId) t.parent = newId;
+                newTopics.push(updated);
+            } else {
+                newTopics[idx] = updated;
+            }
+            
+            topics = newTopics;
+            selectedId = updated.id;
+            renderTree();
+            fillFormFieldsOnly();
+            updateJsonEditor();
+            if (showToast) showMessage('Тема сохранена');
+        }, 50);
+    }
+    
+    function fillFormFieldsOnly() {
+        if (!selectedId) return;
+        const topic = topics.find(t => t.id === selectedId);
+        if (!topic) return;
+        document.getElementById('topicId').value = topic.id;
+        topicNameInput.value = topic.name;
+        if (topic.keywords && Array.isArray(topic.keywords)) {
+            topicKeywordsInput.value = topic.keywords.join(', ');
+        } else {
+            topicKeywordsInput.value = '';
+        }
+        topicIconSelect.value = topic.icon || 'fa-file-alt';
+        topicGradeSelect.value = topic.gradeLevel || 3;
+        const parentSel = topicParentSelect;
+        parentSel.innerHTML = '<option value="">(нет)</option>' + topics.filter(p => p.id !== selectedId).map(p => `<option value="${p.id}" ${topic.parent === p.id ? 'selected' : ''}>${escapeHtml(p.name)} (${p.id})</option>`).join('');
+        exampleHtmlSource.value = topic.example || '';
+        updatePreview();
+    }
+    
+    function fillFormBySelectedNoSave() {
+        if (!selectedId) return;
+        const topic = topics.find(t => t.id === selectedId);
+        if (!topic) return;
+        document.getElementById('topicId').value = topic.id;
+        topicNameInput.value = topic.name;
+        if (topic.keywords && Array.isArray(topic.keywords)) {
+            topicKeywordsInput.value = topic.keywords.join(', ');
+        } else {
+            topicKeywordsInput.value = '';
+        }
+        topicIconSelect.value = topic.icon || 'fa-file-alt';
+        topicGradeSelect.value = topic.gradeLevel || 3;
+        descriptionEditor.innerHTML = topic.description || '';
+        const parentSel = topicParentSelect;
+        parentSel.innerHTML = '<option value="">(нет)</option>' + topics.filter(p => p.id !== selectedId).map(p => `<option value="${p.id}" ${topic.parent === p.id ? 'selected' : ''}>${escapeHtml(p.name)} (${p.id})</option>`).join('');
+        exampleHtmlSource.value = topic.example || '';
+        updatePreview();
+    }
+    
+    function updateJsonEditor() {
+        jsonEditor.value = JSON.stringify(topics, null, 2);
+    }
+
+    function applyJson() {
+        try {
+            const parsed = JSON.parse(jsonEditor.value);
+            if (!Array.isArray(parsed)) throw new Error('Должен быть массив');
+            topics = parsed;
+            topics.forEach((t, idx) => {
+                if (!t.hasOwnProperty('order')) t.order = idx;
+                if (!t.hasOwnProperty('keywords')) t.keywords = [];
+                if (!t.hasOwnProperty('icon')) t.icon = 'fa-file-alt';
+                if (!t.hasOwnProperty('example')) t.example = '';
+                if (!t.hasOwnProperty('description')) t.description = '<p></p>';
+            });
+            selectedId = topics[0]?.id || null;
+            expandedState.clear();
+            topics.forEach(t => { if (topics.some(ch => ch.parent === t.id)) expandedState.add(t.id); });
+            renderTree();
+            fillFormBySelectedNoSave();
+            updateJsonEditor();
+            showMessage('JSON применён');
+        } catch(e) {
+            showMessage('Ошибка JSON: ' + e.message, true);
+        }
+    }
+
+    function formatJson() {
+        try {
+            const parsed = JSON.parse(jsonEditor.value);
+            jsonEditor.value = JSON.stringify(parsed, null, 2);
+            showMessage('JSON отформатирован');
+        } catch(e) {
+            showMessage('Ошибка форматирования: ' + e.message, true);
+        }
+    }
+    
+    function matchesSearch(topic) {
+        if (!searchQuery) return true;
+        const query = searchQuery.toLowerCase();
+        return topic.id.toLowerCase().includes(query) || topic.name.toLowerCase().includes(query);
+    }
+    
+    function renderTree() {
+        const container = document.getElementById('topicList');
+        if (!container) return;
+        
+        let visibleIds = new Set();
+        if (searchQuery) {
+            const matchingIds = new Set();
+            topics.forEach(t => {
+                if (matchesSearch(t)) {
+                    matchingIds.add(t.id);
+                    let parent = t.parent;
+                    while (parent) {
+                        matchingIds.add(parent);
+                        const parentTopic = topics.find(p => p.id === parent);
+                        parent = parentTopic ? parentTopic.parent : null;
+                    }
+                }
+            });
+            visibleIds = matchingIds;
+        }
+        
+        function renderNode(parentId, level = 0) {
+            const children = topics.filter(t => t.parent === parentId).sort((a,b) => (a.order || 0) - (b.order || 0));
+            const filteredChildren = searchQuery ? children.filter(c => visibleIds.has(c.id)) : children;
+            if (filteredChildren.length === 0 && parentId !== null) return null;
+            const ul = document.createElement('ul');
+            ul.className = 'tree-item';
+            ul.style.paddingLeft = level > 0 ? '18px' : '0';
+            for (let node of filteredChildren) {
+                const li = document.createElement('li');
+                li.style.listStyle = 'none';
+                const rowDiv = document.createElement('div');
+                rowDiv.className = `topic-row ${selectedId === node.id ? 'selected' : ''}`;
+                rowDiv.setAttribute('data-id', node.id);
+                
+                const leftInfo = document.createElement('div');
+                leftInfo.className = 'topic-info';
+                
+                const hasChildren = topics.some(t => t.parent === node.id);
+                const expandBtn = document.createElement('button');
+                expandBtn.className = 'expand-btn';
+                expandBtn.textContent = hasChildren ? (expandedState.has(node.id) ? '▼' : '▶') : '•';
+                expandBtn.style.visibility = hasChildren ? 'visible' : 'hidden';
+                expandBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    if (hasChildren) {
+                        if (expandedState.has(node.id)) expandedState.delete(node.id);
+                        else expandedState.add(node.id);
+                        renderTree();
+                    }
+                };
+                
+                const dragHandle = document.createElement('span');
+                dragHandle.className = 'drag-area';
+                dragHandle.textContent = '⋮⋮';
+                dragHandle.draggable = true;
+                
+                const iconSpan = document.createElement('span');
+                iconSpan.className = 'topic-icon-display';
+                const iconMap = { 'fa-folder':'📁', 'fa-file-alt':'📄', 'fa-star':'⭐', 'fa-circle':'⚫', 'fa-square':'⬛', 'fa-chalkboard':'📐' };
+                iconSpan.textContent = iconMap[node.icon] || '📄';
+                
+                const nameSpan = document.createElement('span');
+                nameSpan.className = 'topic-name';
+                nameSpan.textContent = node.name;
+                nameSpan.draggable = true;
+                
+                const parentSpan = document.createElement('span');
+                parentSpan.className = 'topic-parent';
+                const parentTopic = topics.find(p => p.id === node.parent);
+                parentSpan.textContent = parentTopic ? `(${parentTopic.name})` : '(корень)';
+                
+                leftInfo.appendChild(expandBtn);
+                leftInfo.appendChild(dragHandle);
+                leftInfo.appendChild(iconSpan);
+                leftInfo.appendChild(nameSpan);
+                leftInfo.appendChild(parentSpan);
+                
+                const delBtn = document.createElement('button');
+                delBtn.className = 'del-topic';
+                delBtn.textContent = '✖';
+                delBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    if (confirm('Удалить тему и все дочерние?')) {
+                        const removeWithChildren = (id, list) => {
+                            let newList = list.filter(t => t.id !== id);
+                            const childs = list.filter(t => t.parent === id);
+                            for (let c of childs) newList = removeWithChildren(c.id, newList);
+                            return newList;
+                        };
+                        topics = removeWithChildren(node.id, topics);
+                        if (selectedId === node.id) selectedId = topics[0]?.id || null;
+                        renderTree();
+                        fillFormBySelectedNoSave();
+                        updateJsonEditor();
+                        showMessage('Тема удалена');
+                    }
+                };
+                
+                rowDiv.appendChild(leftInfo);
+                rowDiv.appendChild(delBtn);
+                
+                dragHandle.addEventListener('dragstart', (e) => {
+                    e.stopPropagation();
+                    e.dataTransfer.setData('text/plain', JSON.stringify({ type: 'reorder', id: node.id }));
+                    e.dataTransfer.effectAllowed = 'move';
+                    rowDiv.classList.add('dragging');
+                });
+                dragHandle.addEventListener('dragend', (e) => {
+                    rowDiv.classList.remove('dragging');
+                    document.querySelectorAll('.topic-row').forEach(el => el.classList.remove('drag-over'));
+                });
+                
+                nameSpan.addEventListener('dragstart', (e) => {
+                    e.stopPropagation();
+                    e.dataTransfer.setData('text/plain', JSON.stringify({ type: 'reparent', id: node.id }));
+                    e.dataTransfer.effectAllowed = 'move';
+                    rowDiv.classList.add('dragging');
+                });
+                nameSpan.addEventListener('dragend', (e) => {
+                    rowDiv.classList.remove('dragging');
+                    document.querySelectorAll('.topic-row').forEach(el => el.classList.remove('drag-over'));
+                });
+                
+                rowDiv.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                    if (!rowDiv.classList.contains('drag-over')) rowDiv.classList.add('drag-over');
+                });
+                rowDiv.addEventListener('dragleave', () => {
+                    rowDiv.classList.remove('drag-over');
+                });
+                
+                rowDiv.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    rowDiv.classList.remove('drag-over');
+                    const rawData = e.dataTransfer.getData('text/plain');
+                    if (!rawData) return;
+                    const data = JSON.parse(rawData);
+                    const sourceId = data.id;
+                    const targetId = node.id;
+                    if (sourceId === targetId) return;
+                    
+                    if (data.type === 'reorder') {
+                        const sourceTopic = topics.find(t => t.id === sourceId);
+                        const targetTopic = topics.find(t => t.id === targetId);
+                        if (sourceTopic && targetTopic && sourceTopic.parent === targetTopic.parent) {
+                            const srcOrder = sourceTopic.order || 0;
+                            const tgtOrder = targetTopic.order || 0;
+                            sourceTopic.order = tgtOrder;
+                            targetTopic.order = srcOrder;
+                            renderTree();
+                            saveCurrentTopic(false);
+                            updateJsonEditor();
+                        }
+                    } 
+                    else if (data.type === 'reparent') {
+                        const sourceTopic = topics.find(t => t.id === sourceId);
+                        if (!sourceTopic) return;
+                        let cyclic = false;
+                        let check = targetId;
+                        while (check) {
+                            if (check === sourceId) { cyclic = true; break; }
+                            const parentTopic = topics.find(t => t.id === check);
+                            check = parentTopic ? parentTopic.parent : null;
+                        }
+                        if (cyclic) {
+                            alert('Нельзя сделать тему дочерней для самой себя или её потомка');
+                            return;
+                        }
+                        sourceTopic.parent = targetId;
+                        const siblings = topics.filter(t => t.parent === targetId);
+                        sourceTopic.order = siblings.length;
+                        renderTree();
+                        saveCurrentTopic(false);
+                        updateJsonEditor();
+                    }
+                });
+                
+                rowDiv.addEventListener('click', (e) => {
+                    if (e.target === expandBtn || e.target === delBtn || e.target === dragHandle || e.target === nameSpan) return;
+                    saveCurrentTopic(false);
+                    selectedId = node.id;
+                    renderTree();
+                    fillFormBySelectedNoSave();
+                    updateJsonEditor();
+                });
+                
+                li.appendChild(rowDiv);
+                if (hasChildren && expandedState.has(node.id)) {
+                    const childUl = renderNode(node.id, level + 1);
+                    if (childUl) li.appendChild(childUl);
+                }
+                ul.appendChild(li);
+            }
+            return ul;
+        }
+        
+        const rootUl = renderNode(null);
+        container.innerHTML = '';
+        if (rootUl) container.appendChild(rootUl);
+        else container.innerHTML = '<div style="padding:10px;">Нет тем</div>';
+    }
+    
+    function isCyclic(topicId, newParentId) {
+        if (!newParentId) return false;
+        let current = newParentId;
+        while (current) {
+            if (current === topicId) return true;
+            let parentObj = topics.find(t => t.id === current);
+            if (!parentObj) break;
+            current = parentObj.parent;
+        }
+        return false;
+    }
+    
+    function newTopic() {
+        saveCurrentTopic(false);
+        const baseName = 'Новая тема';
+        const newId = generateIdFromName(baseName);
+        topics.push({ 
+            id: newId, name: baseName, keywords: [], parent: null, icon: 'fa-file-alt', 
+            gradeLevel: 3, example: '', description: '<p>Новая тема</p>', 
+            order: topics.length 
+        });
+        selectedId = newId;
+        expandedState.add(newId);
+        renderTree();
+        fillFormBySelectedNoSave();
+        updateJsonEditor();
+        showMessage('Тема создана');
+    }
+    
+    function copyJsonToClipboard() {
+        const data = JSON.stringify(topics, null, 2);
+        navigator.clipboard.writeText(data).then(() => {
+            showMessage('JSON скопирован в буфер обмена');
+        }).catch(() => {
+            showMessage('Ошибка копирования', true);
+        });
+    }
+    
+    function saveToFile() {
+        const data = JSON.stringify(topics, null, 2);
+        const blob = new Blob([data], {type: 'application/json'});
+        const a = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        a.href = url;
+        a.download = 'topics_config.json';
+        a.click();
+        URL.revokeObjectURL(url);
+        showMessage('Файл сохранен');
+    }
+    
+    function importJSON(file) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const imported = JSON.parse(e.target.result);
+                if (Array.isArray(imported)) {
+                    topics = imported;
+                    topics.forEach(topic => {
+                        if (!topic.hasOwnProperty('keywords')) topic.keywords = [];
+                        if (!topic.hasOwnProperty('order')) topic.order = 0;
+                        if (!topic.hasOwnProperty('example')) topic.example = '';
+                        if (!topic.hasOwnProperty('description')) topic.description = '<p></p>';
+                        if (!topic.hasOwnProperty('icon')) topic.icon = 'fa-file-alt';
+                    });
+                    selectedId = topics[0]?.id || null;
+                    expandedState.clear();
+                    topics.forEach(t => { if (topics.some(ch => ch.parent === t.id)) expandedState.add(t.id); });
+                    renderTree();
+                    fillFormBySelectedNoSave();
+                    updateJsonEditor();
+                    showMessage('Файл загружен (темы заменены)');
+                } else throw new Error();
+            } catch(err) { 
+                showMessage('Ошибка JSON', true); 
+            }
+        };
+        reader.readAsText(file);
+    }
+    
+    function importShortJSON(file) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const imported = JSON.parse(e.target.result);
+                if (!Array.isArray(imported)) throw new Error();
+                
+                const newTopics = [];
+                const skippedIds = [];
+                const existingIds = new Set(topics.map(t => t.id));
+                
+                for (const item of imported) {
+                    if (!Array.isArray(item) || item.length < 5) continue;
+                    
+                    const [id, name, gradeLevel, keywordsStr, parent] = item;
+                    const idStr = String(id);
+                    
+                    if (existingIds.has(idStr)) {
+                        skippedIds.push(idStr);
+                        continue;
+                    }
+                    
+                    let keywordsArray = [];
+                    if (keywordsStr && typeof keywordsStr === 'string') {
+                        keywordsArray = keywordsStr.split(',').map(k => k.trim()).filter(k => k);
+                    }
+                    
+                    newTopics.push({
+                        id: idStr,
+                        name: String(name),
+                        gradeLevel: parseInt(gradeLevel) || 3,
+                        keywords: keywordsArray,
+                        parent: parent === null || parent === '' ? null : String(parent),
+                        icon: 'fa-file-alt',
+                        example: 'В разработке',
+                        description: '<p>В разработке</p>',
+                        order: topics.length + newTopics.length
+                    });
+                }
+                
+                if (newTopics.length === 0) {
+                    if (skippedIds.length > 0) {
+                        showMessage(`Все темы пропущены (дубликаты ID: ${skippedIds.join(', ')})`, true);
+                    } else {
+                        showMessage('Нет корректных тем для импорта', true);
+                    }
+                    return;
+                }
+                
+                topics.push(...newTopics);
+                topics.forEach((t, idx) => { t.order = idx; });
+                
+                for (const topic of newTopics) {
+                    let parent = topic.parent;
+                    while (parent) {
+                        expandedState.add(parent);
+                        const parentTopic = topics.find(p => p.id === parent);
+                        parent = parentTopic ? parentTopic.parent : null;
+                    }
+                }
+                
+                renderTree();
+                fillFormBySelectedNoSave();
+                updateJsonEditor();
+                
+                let msg = `Добавлено ${newTopics.length} тем(ы)`;
+                if (skippedIds.length > 0) {
+                    msg += ` (пропущены дубликаты: ${skippedIds.join(', ')})`;
+                }
+                showMessage(msg);
+                
+            } catch(err) { 
+                showMessage('Ошибка при разборе сокращённого JSON', true); 
+            }
+        };
+        reader.readAsText(file);
+    }
+    
+    function escapeHtml(str) { return String(str).replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'})[m]); }
+    
+    function clearFormatting() {
+        // Сначала снимаем стандартное форматирование (жирный, курсив и т.д.)
+        document.execCommand('removeFormat');
+        
+        // Затем удаляем все гиперссылки (inline-link) в выделенном диапазоне
+        const selection = window.getSelection();
+        if (selection.rangeCount > 0 && descriptionEditor.contains(selection.anchorNode)) {
+            const range = selection.getRangeAt(0);
+            const container = range.commonAncestorContainer;
+            
+            // Находим все ссылки в пределах выделения
+            const links = [];
+            if (container.nodeType === Node.ELEMENT_NODE) {
+                links.push(...container.querySelectorAll('.inline-link'));
+            } else if (container.parentElement) {
+                links.push(...container.parentElement.querySelectorAll('.inline-link'));
+            }
+            
+            // Фильтруем только те, что пересекаются с выделением
+            for (const link of links) {
+                if (range.intersectsNode(link)) {
+                    const textNode = document.createTextNode(link.textContent);
+                    link.parentNode.replaceChild(textNode, link);
+                }
+            }
+        } else {
+            // Если нет выделения, очищаем весь редактор от ссылок
+            const allLinks = descriptionEditor.querySelectorAll('.inline-link');
+            for (const link of allLinks) {
+                const textNode = document.createTextNode(link.textContent);
+                link.parentNode.replaceChild(textNode, link);
+            }
+        }
+        
+        descriptionEditor.focus();
+    }
+    
+    descriptionEditor.addEventListener('paste', (e) => {
+        e.preventDefault();
+        const text = (e.clipboardData || window.clipboardData).getData('text/plain');
+        document.execCommand('insertText', false, text);
+    });
+    
+    let savedRange = null;
+    let savedText = '';
+    
+    function saveSelection() {
+        const sel = window.getSelection();
+        if (sel.rangeCount > 0 && descriptionEditor.contains(sel.anchorNode)) {
+            savedRange = sel.getRangeAt(0).cloneRange();
+            savedText = sel.toString().trim();
+            return true;
+        }
+        return false;
+    }
+    
+    function restoreAndWrap(topicId, topicName) {
+        if (!savedRange) return false;
+        
+        descriptionEditor.focus();
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(savedRange);
+        
+        const currentText = sel.toString().trim();
+        if (currentText !== savedText) {
+            return false;
+        }
+        
+        const range = sel.getRangeAt(0);
+        const span = document.createElement('span');
+        span.className = 'inline-link';
+        span.setAttribute('data-topic-id', topicId);
+        span.textContent = currentText;
+        
+        range.deleteContents();
+        range.insertNode(span);
+        
+        const newRange = document.createRange();
+        newRange.setStartAfter(span);
+        newRange.setEndAfter(span);
+        sel.removeAllRanges();
+        sel.addRange(newRange);
+        
+        return true;
+    }
+    
+    descriptionEditor.addEventListener('mouseup', saveSelection);
+    descriptionEditor.addEventListener('keyup', saveSelection);
+    
+    function showTopicSelector(callback) {
+        const otherTopics = topics.filter(t => t.id !== selectedId);
+        if (otherTopics.length === 0) {
+            alert('Нет других тем для ссылки');
+            return;
+        }
+        
+        const overlay = document.createElement('div');
+        overlay.className = 'overlay';
+        const dialog = document.createElement('div');
+        dialog.className = 'topic-selector-dialog';
+        dialog.innerHTML = `
+            <h4>Выберите тему для ссылки</h4>
+            <input type="text" id="topicSearchInput" placeholder="🔍 Поиск по ID или названию..." autocomplete="off">
+            <select id="topicSelectDialog" size="8" style="width:100%;"></select>
+            <div style="display:flex; gap:8px; justify-content:flex-end;">
+                <button id="dialogCancelBtn">Отмена</button>
+                <button id="dialogOkBtn">Вставить</button>
+            </div>
+        `;
+        document.body.appendChild(overlay);
+        document.body.appendChild(dialog);
+        
+        const searchInputDialog = dialog.querySelector('#topicSearchInput');
+        const select = dialog.querySelector('#topicSelectDialog');
+        const okBtn = dialog.querySelector('#dialogOkBtn');
+        const cancelBtn = dialog.querySelector('#dialogCancelBtn');
+        
+        function updateList() {
+            const query = searchInputDialog.value.toLowerCase();
+            let filtered = otherTopics;
+            if (query) {
+                filtered = otherTopics.filter(t => 
+                    t.id.toLowerCase().includes(query) || 
+                    t.name.toLowerCase().includes(query)
+                );
+            }
+            select.innerHTML = filtered.map(t => `<option value="${t.id}">${escapeHtml(t.name)} (${t.id})</option>`).join('');
+            if (filtered.length > 0) select.selectedIndex = 0;
+        }
+        
+        searchInputDialog.addEventListener('input', updateList);
+        updateList();
+        
+        const close = () => {
+            overlay.remove();
+            dialog.remove();
+        };
+        
+        okBtn.onclick = () => {
+            const topicId = select.value;
+            const topic = topics.find(t => t.id === topicId);
+            if (topic) callback(topic);
+            close();
+        };
+        cancelBtn.onclick = close;
+        overlay.onclick = close;
+    }
+    
+    function insertTopicLink() {
+        if (!savedRange || !savedText) {
+            alert('Сначала выделите текст, который нужно сделать ссылкой');
+            return;
+        }
+        
+        const textToWrap = savedText;
+        autoSaveEnabled = false;
+        
+        showTopicSelector((topic) => {
+            const success = restoreAndWrap(topic.id, topic.name);
+            if (!success) {
+                autoSaveEnabled = true;
+                alert('Выделение изменилось. Пожалуйста, выделите текст заново.');
+                return;
+            }
+            autoSaveEnabled = true;
+            saveCurrentTopic(true);
+        });
+    }
+    
+    const linkBtn = document.getElementById('linkDescBtn');
+    linkBtn.addEventListener('mousedown', function(e) {
+        saveSelection();
+    });
+    linkBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        insertTopicLink();
+    });
+    
+    topicNameInput.addEventListener('input', function() {
+        const newName = this.value.trim();
+        if (newName) {
+            const newId = generateIdFromName(newName, selectedId);
+            document.getElementById('topicId').value = newId;
+        } else {
+            document.getElementById('topicId').value = '';
+        }
+    });
+    
+    searchInput.addEventListener('input', (e) => {
+        searchQuery = e.target.value;
+        if (searchQuery) {
+            topics.forEach(topic => {
+                if (matchesSearch(topic)) {
+                    let parent = topic.parent;
+                    while (parent) {
+                        expandedState.add(parent);
+                        const parentTopic = topics.find(p => p.id === parent);
+                        parent = parentTopic ? parentTopic.parent : null;
+                    }
+                }
+            });
+        }
+        renderTree();
+    });
+    
+    const fields = [topicNameInput, topicKeywordsInput, topicParentSelect, topicIconSelect, topicGradeSelect, exampleHtmlSource];
+    fields.forEach(field => {
+        field.addEventListener('blur', () => saveCurrentTopic(false));
+    });
+    descriptionEditor.addEventListener('blur', () => saveCurrentTopic(false));
+    
+    document.getElementById('saveCurrentBtn').onclick = () => saveCurrentTopic(true);
+    document.getElementById('applyJsonBtn').onclick = applyJson;
+    document.getElementById('formatJsonBtn').onclick = formatJson;
+    
+    // Переключение вкладок
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.onclick = () => {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            btn.classList.add('active');
+            document.getElementById(`tab-${btn.dataset.tab}`).classList.add('active');
+            if (btn.dataset.tab === 'json') updateJsonEditor();
+        };
+    });
+    
+    window.onload = () => {
+        const demoData = [
+            { id: "geometriya", name: "Геометрия", keywords: ["геометрия", "фигуры"], parent: null, icon: "fa-folder", gradeLevel: 3, example: "<div>Основы геометрии</div>", description: "<p>Раздел математики. Изучает точки, прямые и другие фигуры.</p>", order: 1 },
+            { id: "tochka", name: "Точка", keywords: ["точка", "фигура"], parent: "geometriya", icon: "fa-circle", gradeLevel: 2, example: "<svg width='80' height='80'><circle cx='40' cy='40' r='5' fill='black'/></svg>", description: "<p>Самая маленькая фигура</p>", order: 1 },
+            { id: "pryamaya", name: "Прямая", keywords: ["прямая", "линия"], parent: "geometriya", icon: "fa-file-alt", gradeLevel: 2, example: "<svg width='150'><line x1='10' y1='40' x2='140' y2='40' stroke='black'/></svg>", description: "<p>Бесконечная линия</p>", order: 2 }
+        ];
+        topics = demoData;
+        selectedId = "geometriya";
+        expandedState.add("geometriya");
+        renderTree();
+        fillFormBySelectedNoSave();
+        updateJsonEditor();
+        
+        document.getElementById('newBtn').onclick = newTopic;
+        document.getElementById('importBtn').onclick = () => document.getElementById('fileInput').click();
+        document.getElementById('importShortBtn').onclick = () => document.getElementById('shortFileInput').click();
+        document.getElementById('fileInput').onchange = (e) => { if(e.target.files[0]) importJSON(e.target.files[0]); e.target.value=''; };
+        document.getElementById('shortFileInput').onchange = (e) => { if(e.target.files[0]) importShortJSON(e.target.files[0]); e.target.value=''; };
+        document.getElementById('saveToFileBtn').onclick = saveToFile;
+        document.getElementById('copyJsonBtn').onclick = copyJsonToClipboard;
+        document.getElementById('deleteCurrentBtn').onclick = () => { 
+            if(selectedId && confirm('Удалить тему?')) { 
+                const newTopics = topics.filter(t => t.id !== selectedId); 
+                topics = newTopics; 
+                selectedId = topics[0]?.id || null; 
+                renderTree(); 
+                fillFormBySelectedNoSave(); 
+                updateJsonEditor();
+                showMessage('Тема удалена');
+            } 
+        };
+        
+        document.getElementById('boldBtn').onclick = () => { document.execCommand('bold'); descriptionEditor.focus(); };
+        document.getElementById('italicBtn').onclick = () => { document.execCommand('italic'); descriptionEditor.focus(); };
+        document.getElementById('clearFormatBtn').onclick = clearFormatting;
+        
+        const symbols = ['sqrtSym','piSym','alphaSym','neqSym','leqSym','geqSym','timesSym','divSym'];
+        symbols.forEach(s => {
+            document.getElementById(s).onclick = () => {
+                const ch = document.getElementById(s).innerText;
+                document.execCommand('insertText', false, ch);
+                descriptionEditor.focus();
+            };
+        });
+    };
+</script>
+</body>
+</html>
