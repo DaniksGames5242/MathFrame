@@ -231,6 +231,7 @@
             flex-wrap: wrap;
             gap: 5px;
             margin-bottom: 8px;
+            align-items: center;
         }
         .tool-btn {
             background: #333;
@@ -243,6 +244,20 @@
         }
         .tool-btn:hover {
             background: #444;
+        }
+        .mode-toggle {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: #252525;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 0.7rem;
+        }
+        .mode-toggle input {
+            width: auto;
+            margin: 0;
+            transform: scale(0.8);
         }
         .html-preview {
             border: 1px solid #444;
@@ -379,7 +394,7 @@
             <button id="newBtn">+ Создать тему</button>
         </div>
         <div class="small-note">Клик по теме — выделить. Перетащите за любой участок строки: в середину другой → сделать дочерней; между строк → изменить порядок.</div>
-        <div class="small-note">Автосохранение изменений темы при потере фокуса.</div>
+        <div class="small-note">Автосохранение изменений темы при потере фокуса. Дубликаты ID удаляются автоматически.</div>
     </div>
 
     <div class="editor-panel">
@@ -390,7 +405,10 @@
         
         <div id="tab-editor" class="tab-content active">
             <div class="form-row">
-                <label>ID (авто из названия)</label>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <label>ID (авто из названия)</label>
+                    <button id="manualSaveBtn" style="background: #2a4a5a; padding: 4px 12px; font-size: 0.7rem;">Сохранить тему</button>
+                </div>
                 <input type="text" id="topicId" readonly>
             </div>
             <div class="form-row">
@@ -445,8 +463,15 @@
                     <button class="tool-btn" id="alphaSym">α</button><button class="tool-btn" id="neqSym">≠</button>
                     <button class="tool-btn" id="leqSym">≤</button><button class="tool-btn" id="geqSym">≥</button>
                     <button class="tool-btn" id="timesSym">×</button><button class="tool-btn" id="divSym">÷</button>
+                    <div class="mode-toggle">
+                        <input type="checkbox" id="plainTextMode">
+                        <label for="plainTextMode" style="font-size:0.7rem;">Обычный текст внутри форматирования</label>
+                    </div>
                 </div>
+                <!-- Здесь будет два редактора: обычный (с поддержкой форматирования) и plaintext-only -->
                 <div id="descriptionEditor" class="rich-editor" contenteditable="true"></div>
+                <div id="descriptionEditorPlain" class="rich-editor" contenteditable="plaintext-only" style="display: none;"></div>
+                <div class="small-note">Включите режим, чтобы печатать внутри жирного текста или ссылки без наследования форматирования.</div>
             </div>
         </div>
         
@@ -469,8 +494,8 @@
     let expandedState = new Set();
     let searchQuery = '';
     let autoSaveEnabled = true;
+    let plainTextMode = false;
 
-    // GitHub параметры
     const GITHUB_TOKEN = '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';
     const GITHUB_OWNER = 'DaniksGames5242';
     const GITHUB_REPO = 'MathFrame.github.io';
@@ -481,6 +506,7 @@
     const examplePreview = document.getElementById('examplePreview');
     const refreshPreviewBtn = document.getElementById('refreshPreviewBtn');
     const descriptionEditor = document.getElementById('descriptionEditor');
+    const descriptionEditorPlain = document.getElementById('descriptionEditorPlain');
     const topicNameInput = document.getElementById('topicName');
     const topicKeywordsInput = document.getElementById('topicKeywords');
     const topicParentSelect = document.getElementById('topicParent');
@@ -489,6 +515,7 @@
     const searchInput = document.getElementById('searchTopicsInput');
     const jsonEditor = document.getElementById('jsonEditor');
     const toastMsg = document.getElementById('toastMsg');
+    const plainTextCheckbox = document.getElementById('plainTextMode');
 
     function showToast(text, isError = false) {
         toastMsg.textContent = text;
@@ -496,6 +523,21 @@
         if (isError) toastMsg.classList.add('error');
         toastMsg.classList.add('show');
         setTimeout(() => toastMsg.classList.remove('show'), 2500);
+    }
+
+    function removeDuplicateIds(data) {
+        const seen = new Map();
+        for (let i = data.length - 1; i >= 0; i--) {
+            const item = data[i];
+            if (item && item.id) {
+                if (!seen.has(item.id)) {
+                    seen.set(item.id, item);
+                }
+            }
+        }
+        const result = Array.from(seen.values());
+        result.reverse();
+        return result;
     }
 
     function updatePreview() {
@@ -544,7 +586,8 @@
             let newIcon = topicIconSelect.value;
             let newGrade = parseInt(topicGradeSelect.value);
             let exampleVal = exampleHtmlSource.value;
-            let descriptionVal = descriptionEditor.innerHTML;
+            // Берем содержимое из активного редактора
+            let descriptionVal = plainTextMode ? descriptionEditorPlain.innerHTML : descriptionEditor.innerHTML;
             let keywordsArray = topicKeywordsInput.value.trim().split(',').map(k => k.trim()).filter(k => k);
             let newId = generateIdFromName(newName, selectedId);
             if (newParent && isCyclic(newId, newParent)) { if (showMsg) showToast('Циклическая зависимость', true); return; }
@@ -556,7 +599,7 @@
                 for (let t of newTopics) if (t.parent === selectedId) t.parent = newId;
                 newTopics.push(updated);
             } else newTopics[idx] = updated;
-            topics = newTopics;
+            topics = removeDuplicateIds(newTopics);
             selectedId = updated.id;
             renderTree();
             fillFormFieldsOnly();
@@ -564,6 +607,14 @@
             if (showMsg) showToast('Тема сохранена');
             document.getElementById('statusArea').innerText = `Сохранено: ${newName}`;
         }, 50);
+    }
+
+    function manualSave() {
+        if (selectedId) {
+            saveCurrentTopic(true);
+        } else {
+            showToast('Нет выбранной темы', true);
+        }
     }
 
     function fillFormFieldsOnly() {
@@ -589,7 +640,9 @@
         topicKeywordsInput.value = t.keywords?.join(', ') || '';
         topicIconSelect.value = t.icon || 'fa-file-alt';
         topicGradeSelect.value = t.gradeLevel || 3;
+        // Заполняем оба редактора
         descriptionEditor.innerHTML = t.description || '';
+        descriptionEditorPlain.innerHTML = t.description || '';
         updateLinkColors();
         topicParentSelect.innerHTML = '<option value="">(нет)</option>' + topics.filter(p => p.id !== selectedId).map(p => `<option value="${p.id}" ${t.parent === p.id ? 'selected' : ''}>${escapeHtml(p.name)} (${p.id})</option>`).join('');
         exampleHtmlSource.value = t.example || '';
@@ -608,8 +661,9 @@
 
     function applyJson() {
         try {
-            const parsed = JSON.parse(jsonEditor.value);
+            let parsed = JSON.parse(jsonEditor.value);
             if (!Array.isArray(parsed)) throw new Error();
+            parsed = removeDuplicateIds(parsed);
             topics = parsed;
             topics.forEach((t, i) => { if (!t.order) t.order = i; if (!t.keywords) t.keywords = []; if (!t.icon) t.icon = 'fa-file-alt'; if (!t.example) t.example = ''; if (!t.description) t.description = '<p></p>'; });
             selectedId = topics[0]?.id || null;
@@ -638,7 +692,7 @@
 
     function escapeHtml(str) { return String(str).replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'})[m]); }
 
-    // Drag and drop (исправленный)
+    // Drag and drop
     let dragSourceId = null, dragTargetElement = null, dropMode = null;
     function handleDragStart(e) {
         const row = e.target.closest('.topic-row');
@@ -668,19 +722,16 @@
         const target = topics.find(t => t.id === targetId);
         if (!source || !target) { cleanDrag(); return; }
         
-        // Применяем изменения
         if (dropMode === 'child') {
             if (isCyclic(dragSourceId, targetId)) { showToast('Циклическая зависимость', true); cleanDrag(); return; }
             source.parent = targetId;
             showToast(`"${source.name}" теперь дочерняя для "${target.name}"`);
         } else {
-            // При перемещении между строками может смениться родитель
             let newParent = target.parent;
             if (source.parent !== newParent) {
                 if (isCyclic(dragSourceId, newParent)) { showToast('Циклическая зависимость', true); cleanDrag(); return; }
                 source.parent = newParent;
             }
-            // Переупорядочиваем
             let siblings = topics.filter(t => t.parent === source.parent).sort((a,b) => (a.order||0) - (b.order||0));
             const srcIdx = siblings.findIndex(s => s.id === dragSourceId);
             const tgtIdx = siblings.findIndex(s => s.id === targetId);
@@ -694,9 +745,8 @@
             showToast(`Порядок обновлён`);
         }
         
-        // Перерисовываем и сохраняем
+        topics = removeDuplicateIds(topics);
         renderTree();
-        // Обновляем форму для выбранной темы (если она была перетаскиваема)
         if (selectedId === source.id) fillFormBySelectedNoSave();
         saveCurrentTopic(true);
         updateJsonEditor();
@@ -765,8 +815,9 @@
         const reader = new FileReader();
         reader.onload = (e) => {
             try {
-                const imported = JSON.parse(e.target.result);
+                let imported = JSON.parse(e.target.result);
                 if (!Array.isArray(imported)) throw new Error();
+                imported = removeDuplicateIds(imported);
                 topics = imported;
                 topics.forEach((t,i) => { if (!t.order) t.order = i; if (!t.keywords) t.keywords = []; if (!t.icon) t.icon = 'fa-file-alt'; if (!t.example) t.example = ''; if (!t.description) t.description = '<p></p>'; });
                 selectedId = topics[0]?.id || null;
@@ -783,14 +834,14 @@
         const reader = new FileReader();
         reader.onload = (e) => {
             try {
-                const imported = JSON.parse(e.target.result);
+                let imported = JSON.parse(e.target.result);
                 if (!Array.isArray(imported)) throw new Error();
-                const existing = new Set(topics.map(t => t.id));
+                const existingIds = new Set(topics.map(t => t.id));
                 let added = 0;
                 for (const item of imported) {
                     if (!Array.isArray(item) || item.length < 5) continue;
                     const [id, name, grade, kw, parent] = item;
-                    if (existing.has(String(id))) continue;
+                    if (existingIds.has(String(id))) continue;
                     topics.push({
                         id: String(id), name: String(name), gradeLevel: parseInt(grade) || 3,
                         keywords: typeof kw === 'string' ? kw.split(',').map(k=>k.trim()).filter(k=>k) : [],
@@ -800,8 +851,12 @@
                     });
                     added++;
                 }
-                if (added) { topics.forEach((t,i)=>t.order=i); renderTree(); fillFormBySelectedNoSave(); updateJsonEditor(); showToast(`Добавлено ${added} тем`); }
-                else showToast('Нет новых тем', true);
+                if (added) {
+                    topics = removeDuplicateIds(topics);
+                    topics.forEach((t,i)=>t.order=i);
+                    renderTree(); fillFormBySelectedNoSave(); updateJsonEditor();
+                    showToast(`Добавлено ${added} тем`);
+                } else showToast('Нет новых тем', true);
             } catch(e) { showToast('Ошибка', true); }
         };
         reader.readAsText(file);
@@ -825,13 +880,109 @@
 
     function clearGitHubData() { localStorage.removeItem('github_token'); showToast('Локальные данные GitHub очищены'); }
 
-    // Редактор описания
-    function clearFormatting() { document.execCommand('removeFormat'); descriptionEditor.focus(); updateLinkColors(); }
-    descriptionEditor.addEventListener('paste', (e) => { e.preventDefault(); document.execCommand('insertText', false, (e.clipboardData || window.clipboardData).getData('text/plain')); });
-    let savedRange = null, savedText = '';
-    function saveSel() { const s = window.getSelection(); if (s.rangeCount && descriptionEditor.contains(s.anchorNode)) { savedRange = s.getRangeAt(0).cloneRange(); savedText = s.toString().trim(); } }
-    descriptionEditor.addEventListener('mouseup', saveSel); descriptionEditor.addEventListener('keyup', saveSel);
-    function showTopicSelector(cb) {
+    // === РЕЖИМ ОБЫЧНОГО ТЕКСТА — ИСПОЛЬЗУЕМ contenteditable="plaintext-only" ===
+    // Это нативная возможность HTML — при включённом режиме весь ввод и вставка автоматически теряют форматирование [citation:8]
+    plainTextCheckbox.addEventListener('change', (e) => {
+        plainTextMode = e.target.checked;
+        if (plainTextMode) {
+            // Переключаемся на plaintext-only редактор
+            descriptionEditor.style.display = 'none';
+            descriptionEditorPlain.style.display = 'block';
+            // Копируем содержимое
+            descriptionEditorPlain.innerHTML = descriptionEditor.innerHTML;
+            // Сохраняем изменения после переключения
+            setTimeout(() => saveCurrentTopic(true), 100);
+        } else {
+            descriptionEditorPlain.style.display = 'none';
+            descriptionEditor.style.display = 'block';
+            descriptionEditor.innerHTML = descriptionEditorPlain.innerHTML;
+            setTimeout(() => saveCurrentTopic(true), 100);
+        }
+    });
+
+    // Синхронизация содержимого при вводе в plaintext-редакторе
+    descriptionEditorPlain.addEventListener('input', () => {
+        if (plainTextMode) {
+            descriptionEditor.innerHTML = descriptionEditorPlain.innerHTML;
+            updateLinkColors();
+        }
+    });
+    descriptionEditor.addEventListener('input', () => {
+        if (!plainTextMode) {
+            descriptionEditorPlain.innerHTML = descriptionEditor.innerHTML;
+        }
+        updateLinkColors();
+    });
+
+    // === РЕДАКТОР ОПИСАНИЯ ===
+    function clearFormatting() {
+        // Очищаем формат в активном редакторе
+        if (plainTextMode) {
+            descriptionEditorPlain.focus();
+            document.execCommand('selectAll', false, null);
+            document.execCommand('removeFormat', false, null);
+            // Снимаем выделение
+            const sel = window.getSelection();
+            sel.removeAllRanges();
+        } else {
+            descriptionEditor.focus();
+            document.execCommand('removeFormat', false, null);
+            const sel = window.getSelection();
+            if (sel.rangeCount > 0 && descriptionEditor.contains(sel.anchorNode)) {
+                const range = sel.getRangeAt(0);
+                const links = descriptionEditor.querySelectorAll('.inline-link');
+                links.forEach(link => {
+                    if (range.intersectsNode(link)) {
+                        const textNode = document.createTextNode(link.textContent);
+                        link.parentNode.replaceChild(textNode, link);
+                    }
+                });
+            } else {
+                const links = descriptionEditor.querySelectorAll('.inline-link');
+                links.forEach(link => {
+                    const textNode = document.createTextNode(link.textContent);
+                    link.parentNode.replaceChild(textNode, link);
+                });
+            }
+        }
+        updateLinkColors();
+        saveCurrentTopic(true);
+    }
+
+    // Обработка вставки для обоих редакторов
+    descriptionEditor.addEventListener('paste', (e) => {
+        e.preventDefault();
+        const text = (e.clipboardData || window.clipboardData).getData('text/plain');
+        document.execCommand('insertText', false, text);
+        updateLinkColors();
+        saveCurrentTopic(false);
+    });
+    descriptionEditorPlain.addEventListener('paste', (e) => {
+        e.preventDefault();
+        const text = (e.clipboardData || window.clipboardData).getData('text/plain');
+        document.execCommand('insertText', false, text);
+        updateLinkColors();
+        saveCurrentTopic(false);
+    });
+
+    let savedRange = null;
+    let savedText = '';
+    function saveSelection() {
+        const activeEditor = plainTextMode ? descriptionEditorPlain : descriptionEditor;
+        const sel = window.getSelection();
+        if (sel.rangeCount > 0 && activeEditor.contains(sel.anchorNode)) {
+            savedRange = sel.getRangeAt(0).cloneRange();
+            savedText = sel.toString();
+        }
+    }
+    descriptionEditor.addEventListener('mouseup', saveSelection);
+    descriptionEditor.addEventListener('keyup', saveSelection);
+    descriptionEditor.addEventListener('click', saveSelection);
+    descriptionEditorPlain.addEventListener('mouseup', saveSelection);
+    descriptionEditorPlain.addEventListener('keyup', saveSelection);
+    descriptionEditorPlain.addEventListener('click', saveSelection);
+
+    function showTopicSelector(callback) {
         const others = topics.filter(t => t.id !== selectedId);
         if (!others.length) { alert('Нет других тем'); return; }
         const ov = document.createElement('div'); ov.className = 'overlay';
@@ -847,31 +998,60 @@
         };
         inp.addEventListener('input', update); update();
         const close = () => { ov.remove(); dlg.remove(); };
-        dlg.querySelector('#tsOk').onclick = () => { const t = topics.find(t => t.id === sel.value); if (t) cb(t); close(); };
+        dlg.querySelector('#tsOk').onclick = () => { const t = topics.find(t => t.id === sel.value); if (t) callback(t); close(); };
         dlg.querySelector('#tsCancel').onclick = close; ov.onclick = close;
     }
+
     function insertTopicLink() {
-        if (!savedRange || !savedText) { alert('Выделите текст'); return; }
-        autoSaveEnabled = false;
+        const activeEditor = plainTextMode ? descriptionEditorPlain : descriptionEditor;
+        const sel = window.getSelection();
+        if (!sel.rangeCount || !activeEditor.contains(sel.anchorNode)) {
+            alert('Сначала выделите текст в описании');
+            return;
+        }
+        const selectedText = sel.toString().trim();
+        if (!selectedText) {
+            alert('Выделите текст, который нужно сделать ссылкой');
+            return;
+        }
+        const range = sel.getRangeAt(0).cloneRange();
+        
         showTopicSelector((topic) => {
-            descriptionEditor.focus();
-            const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(savedRange);
-            if (sel.toString().trim() !== savedText) { autoSaveEnabled = true; alert('Выделение изменилось'); return; }
-            const span = document.createElement('span'); span.className = 'inline-link'; span.setAttribute('data-topic-id', topic.id); span.textContent = savedText;
-            const range = sel.getRangeAt(0); range.deleteContents(); range.insertNode(span);
-            const nr = document.createRange(); nr.setStartAfter(span); nr.setEndAfter(span); sel.removeAllRanges(); sel.addRange(nr);
-            autoSaveEnabled = true; updateLinkColors(); saveCurrentTopic(true);
+            activeEditor.focus();
+            const newSel = window.getSelection();
+            newSel.removeAllRanges();
+            newSel.addRange(range);
+            if (newSel.toString() !== selectedText) {
+                alert('Выделение изменилось, попробуйте ещё раз');
+                return;
+            }
+            const span = document.createElement('span');
+            span.className = 'inline-link';
+            span.setAttribute('data-topic-id', topic.id);
+            span.textContent = selectedText;
+            const currentRange = newSel.getRangeAt(0);
+            currentRange.deleteContents();
+            currentRange.insertNode(span);
+            const newRange = document.createRange();
+            newRange.setStartAfter(span);
+            newRange.setEndAfter(span);
+            newSel.removeAllRanges();
+            newSel.addRange(newRange);
+            updateLinkColors();
+            saveCurrentTopic(true);
         });
     }
 
     function newTopic() {
         const newId = generateIdFromName('Новая тема');
         topics.push({ id: newId, name: 'Новая тема', keywords: [], parent: null, icon: 'fa-file-alt', gradeLevel: 3, example: '', description: '<p>Новая тема</p>', order: topics.length });
+        topics = removeDuplicateIds(topics);
         selectedId = newId; expandedState.add(newId);
         renderTree(); fillFormBySelectedNoSave(); updateJsonEditor(); showToast('Тема создана');
     }
 
     document.getElementById('newBtn').onclick = newTopic;
+    document.getElementById('manualSaveBtn').onclick = manualSave;
     document.getElementById('exportLocalBtn').onclick = exportLocal;
     document.getElementById('importLocalBtn').onclick = () => document.getElementById('localFileInput').click();
     document.getElementById('localFileInput').onchange = (e) => { if(e.target.files[0]) importLocal(e.target.files[0]); e.target.value=''; };
@@ -881,17 +1061,33 @@
     document.getElementById('applyJsonBtn').onclick = applyJson;
     document.getElementById('formatJsonBtn').onclick = formatJson;
     document.getElementById('validateJsonBtn').onclick = validateJson;
-    document.getElementById('boldBtn').onclick = () => { document.execCommand('bold'); descriptionEditor.focus(); };
-    document.getElementById('italicBtn').onclick = () => { document.execCommand('italic'); descriptionEditor.focus(); };
+    document.getElementById('boldBtn').onclick = () => { 
+        if (plainTextMode) return;
+        document.execCommand('bold'); 
+        descriptionEditor.focus();
+        saveCurrentTopic(false);
+    };
+    document.getElementById('italicBtn').onclick = () => { 
+        if (plainTextMode) return;
+        document.execCommand('italic'); 
+        descriptionEditor.focus();
+        saveCurrentTopic(false);
+    };
     document.getElementById('clearFormatBtn').onclick = clearFormatting;
     document.getElementById('linkDescBtn').onclick = insertTopicLink;
     ['sqrtSym','piSym','alphaSym','neqSym','leqSym','geqSym','timesSym','divSym'].forEach(s => {
-        document.getElementById(s).onclick = () => { document.execCommand('insertText', false, document.getElementById(s).innerText); descriptionEditor.focus(); };
+        document.getElementById(s).onclick = () => { 
+            if (plainTextMode) return;
+            document.execCommand('insertText', false, document.getElementById(s).innerText); 
+            descriptionEditor.focus();
+            saveCurrentTopic(false);
+        };
     });
     topicNameInput.addEventListener('input', function() { if (this.value.trim()) document.getElementById('topicId').value = generateIdFromName(this.value, selectedId); });
     searchInput.addEventListener('input', (e) => { searchQuery = e.target.value.toLowerCase(); renderTree(); });
     [topicNameInput, topicKeywordsInput, topicParentSelect, topicIconSelect, topicGradeSelect, exampleHtmlSource].forEach(f => f.addEventListener('blur', () => saveCurrentTopic(false)));
     descriptionEditor.addEventListener('blur', () => saveCurrentTopic(false));
+    descriptionEditorPlain.addEventListener('blur', () => saveCurrentTopic(false));
     document.querySelectorAll('.tab-btn').forEach(btn => {
         btn.onclick = () => {
             document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -906,6 +1102,7 @@
     fetch('config.json').then(r => r.ok ? r.json() : Promise.reject()).then(data => {
         if (Array.isArray(data)) topics = data;
         else throw new Error();
+        topics = removeDuplicateIds(topics);
         topics.forEach((t,i) => { if (!t.order) t.order = i; if (!t.keywords) t.keywords = []; if (!t.icon) t.icon = 'fa-file-alt'; if (!t.example) t.example = ''; if (!t.description) t.description = '<p></p>'; });
         selectedId = topics[0]?.id || null; expandedState.clear();
         topics.forEach(t => { if (topics.some(ch => ch.parent === t.id)) expandedState.add(t.id); });
