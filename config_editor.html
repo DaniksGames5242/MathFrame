@@ -1,4 +1,4 @@
-<!DOCTYPE html
+<!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
@@ -22,6 +22,58 @@
             gap: 20px;
             max-width: 1600px;
             margin: 0 auto;
+            position: relative;
+        }
+        .corner-menu {
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 100;
+        }
+        .file-menu {
+            position: relative;
+            display: inline-block;
+        }
+        .file-menu-btn {
+            background: #2a2a2a;
+            color: #aaa;
+            border: 1px solid #444;
+            padding: 4px 12px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        .file-menu-btn:hover {
+            background: #3a3a3a;
+            color: #ddd;
+        }
+        .file-dropdown {
+            display: none;
+            position: absolute;
+            top: 100%;
+            left: 0;
+            background: #252525;
+            border: 1px solid #444;
+            min-width: 180px;
+            z-index: 101;
+        }
+        .file-dropdown.show {
+            display: block;
+        }
+        .file-dropdown button {
+            display: block;
+            width: 100%;
+            padding: 8px 12px;
+            background: none;
+            border: none;
+            color: #ddd;
+            text-align: left;
+            font-size: 0.75rem;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        .file-dropdown button:hover {
+            background: #3a3a3a;
         }
         .list-panel {
             flex: 1.2;
@@ -29,6 +81,7 @@
             background: #1e1e1e;
             border: 1px solid #333;
             padding: 12px;
+            margin-top: 0;
         }
         .list-panel h3 {
             font-size: 1rem;
@@ -294,54 +347,6 @@
         .status-msg.show {
             opacity: 1;
         }
-        /* Выпадающее меню */
-        .dropdown {
-            position: relative;
-            display: inline-block;
-            width: 100%;
-            margin-bottom: 16px;
-        }
-        .dropbtn {
-            background: #2a3a4a;
-            color: white;
-            padding: 10px;
-            font-size: 0.9rem;
-            border: 1px solid #5a7a9a;
-            cursor: pointer;
-            width: 100%;
-            text-align: center;
-        }
-        .dropbtn:hover {
-            background: #3a4a5a;
-        }
-        .dropdown-content {
-            display: none;
-            position: absolute;
-            background: #252525;
-            min-width: 100%;
-            box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.5);
-            z-index: 100;
-            border: 1px solid #444;
-            top: 100%;
-            left: 0;
-        }
-        .dropdown-content button {
-            color: #ddd;
-            padding: 10px;
-            text-decoration: none;
-            display: block;
-            background: #252525;
-            border: none;
-            width: 100%;
-            text-align: left;
-            font-size: 0.8rem;
-        }
-        .dropdown-content button:hover {
-            background: #3a3a3a;
-        }
-        .show {
-            display: block;
-        }
         .editor-header {
             display: flex;
             justify-content: space-between;
@@ -361,52 +366,53 @@
             gap: 10px;
             margin-top: 10px;
         }
-        .github-dialog input {
-            margin: 8px 0;
-            width: 100%;
+        input[readonly] {
+            background: #2a2a2a;
+            color: #aaa;
         }
     </style>
 </head>
 <body>
 <div class="container">
-    <div class="list-panel">
-        <!-- Выпадающее меню Файл -->
-        <div class="dropdown">
-            <button class="dropbtn" id="fileMenuBtn">📁 Файл ▼</button>
-            <div class="dropdown-content" id="fileDropdown">
-                <button id="loadFromServerBtn">📂 Загрузить config.json</button>
-                <button id="importShortBtn">➕ Добавить из сокращённого JSON</button>
-                <button id="saveToGitHubBtn">🐙 Сохранить в GitHub</button>
+    <!-- Компактное меню в левом верхнем углу -->
+    <div class="corner-menu">
+        <div class="file-menu">
+            <button class="file-menu-btn" id="fileMenuBtn">Файл ▼</button>
+            <div class="file-dropdown" id="fileDropdown">
+                <button id="addShortBtn">Добавить из сокращённого JSON</button>
+                <button id="saveToGitHubBtn">Сохранить в GitHub</button>
             </div>
         </div>
-        <input type="file" id="shortFileInput" accept=".json" style="display: none;">
-        
+    </div>
+    <input type="file" id="shortFileInput" accept=".json" style="display: none;">
+
+    <div class="list-panel">
         <h3>Список тем</h3>
         <div class="search-box">
-            <input type="text" id="searchTopicsInput" placeholder="🔍 Поиск по ID или названию...">
+            <input type="text" id="searchTopicsInput" placeholder="Поиск по ID или названию...">
         </div>
         <div id="topicList" class="topic-list"></div>
         <div class="new-topic-bottom">
             <button id="newBtn">+ Создать тему</button>
         </div>
         <div class="small-note">Клик по теме — редактирование. Перетащите за [⋮⋮] — изменить порядок. Перетащите за название — сделать дочерней.</div>
-        <div class="small-note" style="margin-top: 8px;">💾 Изменения сохраняются автоматически</div>
+        <div class="small-note" style="margin-top: 8px;">Изменения сохраняются автоматически</div>
     </div>
 
     <div class="editor-panel">
         <div class="tabs">
-            <button class="tab-btn active" data-tab="editor">📝 Редактор темы</button>
-            <button class="tab-btn" data-tab="json">📋 JSON-редактор</button>
+            <button class="tab-btn active" data-tab="editor">Редактор темы</button>
+            <button class="tab-btn" data-tab="json">JSON-редактор</button>
         </div>
         
         <div id="tab-editor" class="tab-content active">
             <div class="editor-header">
-                <button id="saveCurrentBtn" style="background:#2a4a5a;">💾 Сохранить тему</button>
-                <button id="deleteCurrentBtn" style="background:#3a1e1e;">🗑 Удалить</button>
+                <button id="saveCurrentBtn" style="background:#2a4a5a;">Сохранить тему</button>
+                <button id="deleteCurrentBtn" style="background:#3a1e1e;">Удалить</button>
             </div>
             <div class="form-row">
                 <label>ID (авто из названия)</label>
-                <input type="text" id="topicId" readonly style="background:#2a2a2a; color:#aaa;">
+                <input type="text" id="topicId" readonly>
             </div>
             <div class="form-row">
                 <label>Название</label>
@@ -423,12 +429,12 @@
             <div class="form-row">
                 <label>Иконка</label>
                 <select id="topicIcon">
-                    <option value="fa-folder">📁 fa-folder</option>
-                    <option value="fa-file-alt">📄 fa-file-alt</option>
-                    <option value="fa-star">⭐ fa-star</option>
-                    <option value="fa-circle">⚫ fa-circle</option>
-                    <option value="fa-square">⬛ fa-square</option>
-                    <option value="fa-chalkboard">📐 fa-chalkboard</option>
+                    <option value="fa-folder">fa-folder</option>
+                    <option value="fa-file-alt">fa-file-alt</option>
+                    <option value="fa-star">fa-star</option>
+                    <option value="fa-circle">fa-circle</option>
+                    <option value="fa-square">fa-square</option>
+                    <option value="fa-chalkboard">fa-chalkboard</option>
                 </select>
             </div>
             <div class="form-row">
@@ -454,8 +460,8 @@
                 <div class="toolbar">
                     <button type="button" class="tool-btn" id="boldBtn">B</button>
                     <button type="button" class="tool-btn" id="italicBtn">I</button>
-                    <button type="button" class="tool-btn" id="clearFormatBtn">🧹 Очистить формат</button>
-                    <button type="button" class="tool-btn" id="linkDescBtn">🔗 ссылка на тему</button>
+                    <button type="button" class="tool-btn" id="clearFormatBtn">Очистить формат</button>
+                    <button type="button" class="tool-btn" id="linkDescBtn">Ссылка на тему</button>
                     <button class="tool-btn" id="sqrtSym">√</button><button class="tool-btn" id="piSym">π</button>
                     <button class="tool-btn" id="alphaSym">α</button><button class="tool-btn" id="neqSym">≠</button>
                     <button class="tool-btn" id="leqSym">≤</button><button class="tool-btn" id="geqSym">≥</button>
@@ -466,10 +472,10 @@
         </div>
         
         <div id="tab-json" class="tab-content">
-            <textarea id="jsonEditor" class="json-editor" rows="25" style="font-family: monospace; font-size: 12px;"></textarea>
+            <textarea id="jsonEditor" class="json-editor" rows="25"></textarea>
             <div class="json-buttons">
-                <button id="applyJsonBtn">✅ Применить JSON</button>
-                <button id="formatJsonBtn">📐 Форматировать</button>
+                <button id="applyJsonBtn">Применить JSON</button>
+                <button id="formatJsonBtn">Форматировать</button>
             </div>
             <div class="small-note">Редактируйте весь конфиг в формате JSON. После применения все изменения вступят в силу.</div>
         </div>
@@ -496,6 +502,13 @@
     const topicGradeSelect = document.getElementById('topicGrade');
     const searchInput = document.getElementById('searchTopicsInput');
     const jsonEditor = document.getElementById('jsonEditor');
+
+    // Параметры GitHub (встроены)
+    const GITHUB_TOKEN = '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';
+    const GITHUB_OWNER = 'DaniksGames5242';
+    const GITHUB_REPO = 'MathFrame.github.io';
+    const GITHUB_PATH = 'config.json';
+    const GITHUB_BRANCH = 'main';
 
     function showMessage(text, isError = false) {
         statusMsg.textContent = text;
@@ -906,7 +919,7 @@
         showMessage('Тема создана');
     }
     
-    async function loadFromServer() {
+    async function loadConfigFromServer() {
         try {
             const response = await fetch('config.json');
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -929,7 +942,7 @@
                 showMessage('config.json загружен');
             } else throw new Error('Не массив');
         } catch(e) {
-            showMessage('Ошибка загрузки config.json: ' + e.message, true);
+            console.log('Автозагрузка config.json не удалась, используются демо-данные');
         }
     }
     
@@ -981,43 +994,38 @@
         reader.readAsText(file);
     }
     
+    // Сохранение в GitHub — все параметры встроены
     function saveToGitHub() {
-        const owner = prompt('Владелец репозитория (например, username):');
-        if (!owner) return;
-        const repo = prompt('Название репозитория:');
-        if (!repo) return;
-        const path = prompt('Путь к файлу (например, config.json):', 'config.json');
-        if (!path) return;
-        const token = prompt('GitHub Personal Access Token (с правами repo):', '');
-        if (!token) return;
-        
         const content = JSON.stringify(topics, null, 2);
         const encodedContent = btoa(unescape(encodeURIComponent(content)));
         
-        fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${path}`, {
-            headers: { 'Authorization': `token ${token}` }
+        fetch(`https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${GITHUB_PATH}`, {
+            headers: { 'Authorization': `token ${GITHUB_TOKEN}` }
         })
         .then(res => res.json())
         .then(data => {
             const sha = data.sha || null;
-            return fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${path}`, {
+            return fetch(`https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${GITHUB_PATH}`, {
                 method: 'PUT',
                 headers: {
-                    'Authorization': `token ${token}`,
+                    'Authorization': `token ${GITHUB_TOKEN}`,
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
                     message: 'Обновление конфигурации через редактор тем',
                     content: encodedContent,
                     sha: sha,
-                    branch: 'main'
+                    branch: GITHUB_BRANCH
                 })
             });
         })
         .then(res => res.json())
         .then(data => {
-            if (data.content) showMessage('✅ Файл обновлён в GitHub');
-            else showMessage('Ошибка: ' + (data.message || 'неизвестная'), true);
+            if (data.content) {
+                showMessage('Файл успешно обновлён в GitHub');
+            } else {
+                showMessage('Ошибка: ' + (data.message || 'неизвестная'), true);
+            }
         })
         .catch(err => showMessage('Ошибка: ' + err.message, true));
     }
@@ -1129,8 +1137,8 @@
     // Выпадающее меню
     const fileMenuBtn = document.getElementById('fileMenuBtn');
     const fileDropdown = document.getElementById('fileDropdown');
-    fileMenuBtn.onclick = () => fileDropdown.classList.toggle('show');
-    window.onclick = (e) => { if (!e.target.matches('.dropbtn')) fileDropdown.classList.remove('show'); };
+    fileMenuBtn.onclick = (e) => { e.stopPropagation(); fileDropdown.classList.toggle('show'); };
+    window.onclick = (e) => { if (!e.target.closest('.file-menu')) fileDropdown.classList.remove('show'); };
     
     const linkBtn = document.getElementById('linkDescBtn');
     linkBtn.addEventListener('mousedown', saveSelection);
@@ -1147,8 +1155,7 @@
     
     document.getElementById('saveCurrentBtn').onclick = () => saveCurrentTopic(true);
     document.getElementById('newBtn').onclick = newTopic;
-    document.getElementById('loadFromServerBtn').onclick = loadFromServer;
-    document.getElementById('importShortBtn').onclick = () => document.getElementById('shortFileInput').click();
+    document.getElementById('addShortBtn').onclick = () => document.getElementById('shortFileInput').click();
     document.getElementById('shortFileInput').onchange = (e) => { if(e.target.files[0]) importShortJSON(e.target.files[0]); e.target.value=''; };
     document.getElementById('saveToGitHubBtn').onclick = saveToGitHub;
     document.getElementById('deleteCurrentBtn').onclick = () => {
@@ -1182,16 +1189,45 @@
         };
     });
     
+    // Демо-данные на случай, если config.json не загрузится
     const demoData = [
         { id: "geometriya", name: "Геометрия", keywords: ["геометрия"], parent: null, icon: "fa-folder", gradeLevel: 3, example: "<div>Основы геометрии</div>", description: "<p>Раздел математики</p>", order: 1 },
         { id: "tochka", name: "Точка", keywords: ["точка"], parent: "geometriya", icon: "fa-circle", gradeLevel: 2, example: "<svg width='50'><circle cx='25' cy='25' r='3' fill='black'/></svg>", description: "<p>Точка</p>", order: 1 }
     ];
-    topics = demoData;
-    selectedId = "geometriya";
-    expandedState.add("geometriya");
-    renderTree();
-    fillFormBySelectedNoSave();
-    updateJsonEditor();
+    
+    // Пытаемся загрузить config.json, если не получилось - используем демо
+    fetch('config.json')
+        .then(res => {
+            if (res.ok) return res.json();
+            throw new Error();
+        })
+        .then(imported => {
+            if (Array.isArray(imported)) {
+                topics = imported;
+                topics.forEach((t, idx) => {
+                    if (!t.hasOwnProperty('order')) t.order = idx;
+                    if (!t.hasOwnProperty('keywords')) t.keywords = [];
+                    if (!t.hasOwnProperty('icon')) t.icon = 'fa-file-alt';
+                    if (!t.hasOwnProperty('example')) t.example = '';
+                    if (!t.hasOwnProperty('description')) t.description = '<p></p>';
+                });
+                selectedId = topics[0]?.id || null;
+                expandedState.clear();
+                topics.forEach(t => { if (topics.some(ch => ch.parent === t.id)) expandedState.add(t.id); });
+                renderTree();
+                fillFormBySelectedNoSave();
+                updateJsonEditor();
+                showMessage('config.json загружен');
+            }
+        })
+        .catch(() => {
+            topics = demoData;
+            selectedId = "geometriya";
+            expandedState.add("geometriya");
+            renderTree();
+            fillFormBySelectedNoSave();
+            updateJsonEditor();
+        });
 </script>
 </body>
 </html>
