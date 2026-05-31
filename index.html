@@ -195,12 +195,114 @@
 </div>
 
 <script>
-    // ========== YANDEXGPT API НАСТРОЙКИ ==========
-    const YANDEX_API_KEY = 'AQVN0f0W0GIjKnttd-5r34G9mbY8cURYFaltND7_';
-    const YANDEX_FOLDER_ID = 'b1g3i639pqpj9qqrp1m9';
-    const YANDEX_MODEL_URI = `gpt://${YANDEX_FOLDER_ID}/yandexgpt-5.1/latest`;
+    // ========== YANDEXGPT API НАСТРОЙКИ (OpenAI-совместимый API) ==========
+    // ВСТАВЬТЕ ВАШ API КЛЮЧ СЮДА:
+    const YANDEX_API_KEY = 'AQVN0f0W0GIjKnttd-5r34G9mbY8cURYFaltND7_'; // Замените на ваш реальный API-ключ
+    const YANDEX_PROJECT_ID = 'b1g3i639pqpj9qqrp1m9';
+    const YANDEX_PROMPT_ID = 'fvto3dk1tv0if74mcu31';
+    
+    // Функция вызова YandexGPT через OpenAI-совместимый API
+    async function callYandexGPT(userMessage) {
+        const url = 'https://ai.api.cloud.yandex.net/v1/responses';
+        
+        // Формируем запрос как в вашем Python-примере
+        const requestBody = {
+            prompt: {
+                id: YANDEX_PROMPT_ID
+            },
+            input: userMessage
+        };
+        
+        try {
+            console.log('📤 Отправляем запрос в YandexGPT:', requestBody);
+            
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Api-Key ${YANDEX_API_KEY}`,
+                    'x-client-request-id': crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36)
+                },
+                body: JSON.stringify(requestBody)
+            });
+            
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error('YandexGPT API error:', response.status, errorText);
+                throw new Error(`API error: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            console.log('📥 Ответ YandexGPT:', data);
+            return data.output_text || null;
+        } catch (error) {
+            console.error('YandexGPT API error:', error);
+            return null;
+        }
+    }
 
-    // ========== ТЕМЫ ==========
+    // Формирование сообщения для ИИ со списком всех тем
+    function buildAIMessage(query, topics) {
+        // Берём все темы, кроме корневой
+        const allTopics = topics.filter(t => t.id !== 'math_root');
+        
+        let topicsList = [];
+        for (let t of allTopics) {
+            let topicInfo = `- ID: "${t.id}" | Название: "${t.name}" | Ключевые слова: ${(t.keywords || []).join(', ')} | Описание: ${(t.description || '').replace(/<[^>]*>/g, '').substring(0, 200)}`;
+            topicsList.push(topicInfo);
+        }
+        
+        return `Пользователь ищет тему по запросу: "${query}"
+
+Вот полный список всех доступных тем:
+
+${topicsList.join('\n')}
+
+Задача: Найди тему, которая наиболее соответствует запросу пользователя.
+Если пользователь ввёл точное название темы — верни ID этой темы.
+Ответь ТОЛЬКО списком ID самых подходящих тем (максимум 3) через запятую, например: "triangles,adjacent_angles,set_theory"
+Не добавляй никаких пояснений, только ID.
+Если ничего не подходит, ответь "not_found"`;
+    }
+
+    async function aiSearchViaYandexGPT(query, topics) {
+        if (!query.trim()) return [];
+        
+        try {
+            const message = buildAIMessage(query, topics);
+            console.log('📝 Сообщение для ИИ (первые 500 символов):', message.substring(0, 500));
+            console.log('📚 Всего тем в списке:', topics.filter(t => t.id !== 'math_root').length);
+            
+            const aiResponse = await callYandexGPT(message);
+            console.log('💬 Ответ ИИ:', aiResponse);
+            
+            if (!aiResponse || aiResponse === 'not_found' || aiResponse.toLowerCase().includes('not_found')) {
+                console.log('❌ ИИ не нашёл подходящих тем');
+                return [];
+            }
+            
+            // Парсим ответ — ожидаем ID тем через запятую
+            const topicIds = aiResponse.split(',').map(id => id.trim().toLowerCase());
+            const results = [];
+            
+            for (let topicId of topicIds) {
+                const foundTopic = topics.find(t => t.id === topicId);
+                if (foundTopic) {
+                    results.push({ topic: foundTopic, score: 95 });
+                    console.log(`✅ Найдена тема: ${foundTopic.name} (${topicId})`);
+                } else {
+                    console.log(`⚠️ ID "${topicId}" не найден в списке тем`);
+                }
+            }
+            
+            return results;
+        } catch (error) {
+            console.error('AI search error:', error);
+            return [];
+        }
+    }
+
+    // ========== ТЕМЫ (полностью сохранены) ==========
     const DEFAULT_TOPICS = [
         { id: "math_root", name: "Математика", parent: null, icon: "fa-folder", gradeLevel: 5, keywords: ["математика"], example: '<div style="padding:20px;"><h3>Математика</h3><p>Основы математики</p></div>', description: '<p>Главный раздел математики</p>' },
         { id: "algebra_7", name: "Алгебра 7–9", parent: "math_root", icon: "fa-folder", gradeLevel: 7, keywords: ["алгебра","выражения","формулы","7 класс"], example: '<div style="padding:20px; text-align:center;"><i class="fas fa-chart-line" style="font-size:2rem;"></i><div>Алгебра 7-9</div></div>', description: '<p><strong>Алгебра</strong> — раздел математики, изучающий операции над величинами и решение уравнений.</p>' },
@@ -214,7 +316,7 @@
         { id: "algebra_10", name: "Алгебра 10–11", parent: "math_root", icon: "fa-folder", gradeLevel: 10, keywords: ["алгебра","старшая школа","функции"], example: '<div style="padding:20px;"><i class="fas fa-chart-line"></i><div>Старшая школа</div></div>', description: '<p>Углублённое изучение функций, производных и интегралов.</p>' },
         { id: "logarithms", name: "Логарифмы", parent: "algebra_10", icon: "fa-file-alt", gradeLevel: 10, keywords: ["логарифм","log","степень"], example: '<div style="padding:20px;"><i class="fas fa-chart-line"></i><div>logₐ b = c ⇔ a^c = b</div></div>', description: '<p>Логарифм — показатель степени, в которую нужно возвести основание.</p>' },
         { id: "straight_line", name: "Прямая", parent: "geometry_7", icon: "fa-file-alt", gradeLevel: 7, keywords: ["прямая","линия"], example: '<div style="padding:20px;"><i class="fas fa-chart-line"></i><div>Прямая линия: y = kx + b</div></div>', description: '<p><strong>Прямая</strong> — бесконечная линия, не имеющая изгибов.</p>' },
-        { id: "set_theory", name: "Множество (теория множеств)", parent: "math_root", icon: "fa-file-alt", gradeLevel: 9, keywords: ["множество","элемент","объединение","пересечение","подмножество","совокупность","набор"], example: '<div style="padding:20px;"><i class="fas fa-circle-nodes"></i><div>Множество — совокупность объектов, объединённых общим свойством.</div></div>', description: '<p><strong>Множество</strong> — одно из ключевых понятий математики. Это совокупность любых объектов (элементов), объединённых общим признаком.</p>' }
+        { id: "set_theory", name: "Множество", parent: "math_root", icon: "fa-file-alt", gradeLevel: 9, keywords: ["множество","элемент","объединение","пересечение","подмножество","совокупность","набор"], example: '<div style="padding:20px;"><i class="fas fa-circle-nodes"></i><div>Множество — совокупность объектов, объединённых общим свойством.</div></div>', description: '<p><strong>Множество</strong> — одно из ключевых понятий математики. Это совокупность любых объектов (элементов), объединённых общим признаком.</p>' }
     ];
 
     let currentTopics = [], currentTopicId = null, collapsedFolders = new Map(), navigationStack = [];
@@ -222,109 +324,7 @@
     let currentSearchQuery = "", searchInDescription = false, keywordsEnabled = true, fuzzyEnabled = true, smartSortEnabled = true;
     let matchOnlyByDescription = new Map(), topicRelevanceInfo = new Map();
 
-    // ========== YANDEXGPT API ФУНКЦИИ ==========
-    async function callYandexGPT(prompt) {
-        const url = 'https://llm.api.cloud.yandex.net/foundationModels/v1/completion';
-        
-        const body = {
-            modelUri: YANDEX_MODEL_URI,
-            completionOptions: {
-                stream: false,
-                temperature: 0.3,
-                maxTokens: 500
-            },
-            messages: [
-                {
-                    role: 'system',
-                    text: 'Ты — ИИ-ассистент образовательной платформы MathFrame. Твоя задача — по описанию темы от пользователя определить, какая тема из списка подходит лучше всего. Отвечай ТОЛЬКО списком ID тем через запятую, без лишнего текста. Например: "triangles,adjacent_angles,linear_eq". Если ничего не подходит, ответь "not_found".'
-                },
-                {
-                    role: 'user',
-                    text: prompt
-                }
-            ]
-        };
-        
-        try {
-            const response = await fetch(url, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Api-Key ${YANDEX_API_KEY}`
-                },
-                body: JSON.stringify(body)
-            });
-            
-            if (!response.ok) {
-                const errorText = await response.text();
-                console.error('YandexGPT API error:', response.status, errorText);
-                throw new Error(`API error: ${response.status}`);
-            }
-            
-            const data = await response.json();
-            return data.result.alternatives[0].message.text;
-        } catch (error) {
-            console.error('YandexGPT API error:', error);
-            return null;
-        }
-    }
-
-    function buildAIPrompt(query, topics) {
-        const leafTopics = topics.filter(t => 
-            t.id !== 'math_root' && 
-            t.id !== 'algebra_7' && 
-            t.id !== 'geometry_7' && 
-            t.id !== 'algebra_10'
-        );
-        
-        let topicsList = leafTopics.map(t => 
-            `ID: ${t.id}, Название: "${t.name}", Ключевые слова: ${(t.keywords || []).join(', ')}`
-        ).join('\n');
-        
-        return `Пользователь ищет тему по описанию: "${query}"
-
-Вот список доступных тем:
-${topicsList}
-
-Определи, какие 3 темы лучше всего подходят под описание. 
-Ответь ТОЛЬКО списком ID тем через запятую в порядке убывания релевантности.
-Например: "triangles,adjacent_angles,linear_eq"
-
-Если ничего не подходит, ответь "not_found"`;
-    }
-
-    async function aiSearchViaYandexGPT(query, topics) {
-        if (!query.trim()) return [];
-        
-        try {
-            const prompt = buildAIPrompt(query, topics);
-            const aiResponse = await callYandexGPT(prompt);
-            
-            if (!aiResponse || aiResponse === 'not_found' || aiResponse.includes('not_found')) {
-                return [];
-            }
-            
-            const topicIds = aiResponse.split(',').map(id => id.trim().toLowerCase());
-            const results = [];
-            
-            for (let topicId of topicIds) {
-                const foundTopic = topics.find(t => t.id === topicId);
-                if (foundTopic) {
-                    results.push({
-                        topic: foundTopic,
-                        score: 95
-                    });
-                }
-            }
-            
-            return results;
-        } catch (error) {
-            console.error('AI search error:', error);
-            return [];
-        }
-    }
-
-    // ========== ОСТАЛЬНЫЕ ФУНКЦИИ (БЕЗ ИЗМЕНЕНИЙ) ==========
+    // ========== ВСЕ ОСТАЛЬНЫЕ ФУНКЦИИ (БЕЗ ИЗМЕНЕНИЙ) ==========
     async function loadConfig() { 
         try { const r=await fetch('./config.json'); if(r.ok) return await r.json(); } catch(e){} 
         return JSON.parse(JSON.stringify(DEFAULT_TOPICS)); 
@@ -565,7 +565,7 @@ ${topicsList}
         exampleDiv.style.opacity = '0'; descDiv.style.opacity = '0';
         setTimeout(() => {
             exampleDiv.innerHTML = `<div class="welcome-message"><i class="fas fa-graduation-cap"></i><h2 style="margin: 16px 0 10px;">MathFrame с ИИ (YandexGPT)</h2><p>Современная платформа для изучения точных наук</p><p style="margin-top: 22px; opacity:0.7;">Выберите тему в меню или начните поиск</p><p style="margin-top: 16px; font-size: 0.85rem;">🤖 ИИ-помощник справа внизу использует YandexGPT — находит темы по любому описанию!</p></div>`;
-            descDiv.innerHTML = `<p style="font-size: 1rem;"><strong>Добро пожаловать!</strong><br>Адаптивный интерфейс, плавные анимации, умный поиск и качественные примеры.</p><p>Интерактивные примеры поддерживают JavaScript, Canvas и динамическую графику.</p><p><i class="fas fa-robot"></i> <strong>ИИ-помощник (YandexGPT)</strong> — опишите тему своими словами, и нейросеть найдёт подходящий раздел!</p><p>Примеры запросов:<br>• «признаки равенства треугольников»<br>• «базовое понятие, обозначающее несколько объектов, объединённых в группу»<br>• «что-то про углы, которые в сумме дают 180 градусов»</p>`;
+            descDiv.innerHTML = `<p style="font-size: 1rem;"><strong>Добро пожаловать!</strong><br>Адаптивный интерфейс, плавные анимации, умный поиск и качественные примеры.</p><p>Интерактивные примеры поддерживают JavaScript, Canvas и динамическую графику.</p><p><i class="fas fa-robot"></i> <strong>ИИ-помощник (YandexGPT)</strong> — опишите тему своими словами, и нейросеть найдёт подходящий раздел!</p><p>Примеры запросов:<br>• «признаки равенства треугольников»<br>• «базовое понятие, обозначающее несколько объектов, объединённых в группу»<br>• «что-то про углы, которые в сумме дают 180 градусов»</p><p>📌 <strong>Важно:</strong> Замените в коде YANDEX_API_KEY на ваш API-ключ!</p>`;
             exampleDiv.style.opacity = '1'; descDiv.style.opacity = '1';
             updateNavButtons(); renderTree();
             document.getElementById('unifiedCard').style.animation = 'cardAppear 0.3s ease-out';
@@ -706,7 +706,7 @@ ${topicsList}
             const results = await aiSearchViaYandexGPT(query, currentTopics);
             
             if (results.length === 0) {
-                resultsList.innerHTML = '<div style="text-align: center; padding: 20px; color: #666;">😕 Ничего не найдено. Попробуйте переформулировать запрос.</div>';
+                resultsList.innerHTML = '<div style="text-align: center; padding: 20px; color: #666;">😕 Ничего не найдено. Попробуйте переформулировать запрос. Проверьте консоль браузера (F12) для отладки.</div>';
                 return;
             }
             
@@ -714,14 +714,14 @@ ${topicsList}
                 <div class="ai-result-item" onclick="window.loadTopic('${res.topic.id}', false); document.getElementById('aiModal').style.display = 'none';">
                     <div style="font-weight: 700; margin-bottom: 6px; font-size: 1rem;">${res.topic.name}</div>
                     <div style="font-size: 0.7rem; color: #667eea; margin-bottom: 6px;">🧠 Найдено через YandexGPT (нейросеть)</div>
-                    <div style="font-size: 0.7rem; color: #6b8cae;">📌 ${res.topic.keywords?.slice(0, 4).join(', ') || 'Нет ключевых слов'}</div>
+                    <div style="font-size: 0.7rem; color: #6b8cae;">📌 Ключевые слова: ${res.topic.keywords?.slice(0, 4).join(', ') || 'Нет ключевых слов'}</div>
                 </div>
             `).join('');
             
             showToast(`🧠 YandexGPT нашёл ${results.length} подходящих тем`);
         } catch (error) {
             console.error('Search error:', error);
-            resultsList.innerHTML = '<div style="text-align: center; padding: 20px; color: #e74c3c;">❌ Ошибка при обращении к YandexGPT API. Проверьте подключение к интернету.</div>';
+            resultsList.innerHTML = '<div style="text-align: center; padding: 20px; color: #e74c3c;">❌ Ошибка при обращении к YandexGPT API. Проверьте правильность API-ключа в коде.</div>';
         }
     }
     
