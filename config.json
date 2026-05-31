@@ -28035,5 +28035,4774 @@
     "example": "В разработке",
     "description": "<p>В разработке</p>",
     "order": 1921
+  },
+  {
+    "id": "mathematical_analysis",
+    "name": "Математический анализ",
+    "gradeLevel": 3,
+    "keywords": [
+      "математический анализ",
+      "матанализ",
+      "анализ"
+    ],
+    "parent": null,
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 1922
+  },
+  {
+    "id": "fundamentals_analysis",
+    "name": "Фундаментальные понятия",
+    "gradeLevel": 1,
+    "keywords": [
+      "фундаментальные понятия",
+      "основы"
+    ],
+    "parent": "mathematical_analysis",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 1923
+  },
+  {
+    "id": "sets_and_mappings",
+    "name": "Множества и отображения",
+    "gradeLevel": 1,
+    "keywords": [
+      "множества",
+      "отображения",
+      "функции"
+    ],
+    "parent": "fundamentals_analysis",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 1924
+  },
+  {
+    "id": "set_concept",
+    "name": "Понятие множества и его элемента",
+    "gradeLevel": 1,
+    "keywords": [
+      "множество",
+      "элемент"
+    ],
+    "parent": "sets_and_mappings",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 1925
+  },
+  {
+    "id": "set_operations_analysis",
+    "name": "Операции над множествами",
+    "gradeLevel": 1,
+    "keywords": [
+      "объединение",
+      "пересечение",
+      "разность",
+      "дополнение"
+    ],
+    "parent": "sets_and_mappings",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 1926
+  },
+  {
+    "id": "cartesian_product_analysis",
+    "name": "Декартово произведение множеств",
+    "gradeLevel": 1,
+    "keywords": [
+      "декартово произведение",
+      "A×B"
+    ],
+    "parent": "sets_and_mappings",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 1927
+  },
+  {
+    "id": "mapping",
+    "name": "Отображение (функция)",
+    "gradeLevel": 1,
+    "keywords": [
+      "отображение",
+      "функция",
+      "образ",
+      "прообраз",
+      "суперпозиция"
+    ],
+    "parent": "sets_and_mappings",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 1928
+  },
+  {
+    "id": "injective_surjective_bijective",
+    "name": "Инъективные, сюръективные, биективные отображения",
+    "gradeLevel": 2,
+    "keywords": [
+      "инъекция",
+      "сюръекция",
+      "биекция",
+      "обратное отображение"
+    ],
+    "parent": "mapping",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 1929
+  },
+  {
+    "id": "finite_infinite_sets",
+    "name": "Конечные и бесконечные множества",
+    "gradeLevel": 2,
+    "keywords": [
+      "конечные",
+      "бесконечные",
+      "счётные",
+      "несчётные"
+    ],
+    "parent": "sets_and_mappings",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 1930
+  },
+  {
+    "id": "real_numbers_axioms",
+    "name": "Вещественные числа (аксиоматика поля ℝ)",
+    "gradeLevel": 1,
+    "keywords": [
+      "вещественные числа",
+      "аксиомы"
+    ],
+    "parent": "fundamentals_analysis",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 1931
+  },
+  {
+    "id": "field_axioms",
+    "name": "Аксиомы поля",
+    "gradeLevel": 1,
+    "keywords": [
+      "коммутативность",
+      "ассоциативность",
+      "дистрибутивность",
+      "нейтральные и обратные элементы"
+    ],
+    "parent": "real_numbers_axioms",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 1932
+  },
+  {
+    "id": "order_axioms",
+    "name": "Аксиомы порядка",
+    "gradeLevel": 1,
+    "keywords": [
+      "транзитивность",
+      "антисимметричность",
+      "линейность"
+    ],
+    "parent": "real_numbers_axioms",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 1933
+  },
+  {
+    "id": "completeness_axiom",
+    "name": "Аксиома полноты (непрерывности)",
+    "gradeLevel": 1,
+    "keywords": [
+      "полнота",
+      "непрерывность",
+      "точная верхняя грань",
+      "супремум"
+    ],
+    "parent": "real_numbers_axioms",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 1934
+  },
+  {
+    "id": "nested_intervals_principle",
+    "name": "Принцип вложенных отрезков",
+    "gradeLevel": 2,
+    "keywords": [
+      "вложенные отрезки",
+      "Кантор"
+    ],
+    "parent": "completeness_axiom",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 1935
+  },
+  {
+    "id": "real_comparison",
+    "name": "Правило сравнения действительных чисел",
+    "gradeLevel": 2,
+    "keywords": [
+      "сравнение",
+      "леммы об отделимости"
+    ],
+    "parent": "real_numbers_axioms",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 1936
+  },
+  {
+    "id": "complex_numbers_analysis",
+    "name": "Комплексные числа (ℂ)",
+    "gradeLevel": 1,
+    "keywords": [
+      "комплексные числа"
+    ],
+    "parent": "fundamentals_analysis",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 1937
+  },
+  {
+    "id": "algebraic_form_complex_analysis",
+    "name": "Алгебраическая форма z = x + iy",
+    "gradeLevel": 1,
+    "keywords": [
+      "алгебраическая форма",
+      "i²=-1"
+    ],
+    "parent": "complex_numbers_analysis",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 1938
+  },
+  {
+    "id": "trigonometric_form_complex",
+    "name": "Тригонометрическая форма z = r(cos φ + i sin φ)",
+    "gradeLevel": 1,
+    "keywords": [
+      "тригонометрическая форма",
+      "модуль",
+      "аргумент"
+    ],
+    "parent": "complex_numbers_analysis",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 1939
+  },
+  {
+    "id": "exponential_form_complex",
+    "name": "Показательная форма (Эйлера) z = r e^{iφ}",
+    "gradeLevel": 2,
+    "keywords": [
+      "показательная форма",
+      "e^{iφ}=cos φ + i sin φ"
+    ],
+    "parent": "complex_numbers_analysis",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 1940
+  },
+  {
+    "id": "complex_arithmetic",
+    "name": "Арифметические операции над комплексными числами",
+    "gradeLevel": 1,
+    "keywords": [
+      "сложение",
+      "вычитание",
+      "умножение",
+      "деление"
+    ],
+    "parent": "complex_numbers_analysis",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 1941
+  },
+  {
+    "id": "complex_conjugate",
+    "name": "Сопряжённое комплексное число",
+    "gradeLevel": 1,
+    "keywords": [
+      "сопряжённое",
+      "z̄",
+      "свойства"
+    ],
+    "parent": "complex_numbers_analysis",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 1942
+  },
+  {
+    "id": "de_moivre_formula_analysis",
+    "name": "Формула Муавра",
+    "gradeLevel": 2,
+    "keywords": [
+      "Муавр",
+      "(cos φ + i sin φ)ⁿ = cos nφ + i sin nφ"
+    ],
+    "parent": "complex_numbers_analysis",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 1943
+  },
+  {
+    "id": "complex_root_extraction",
+    "name": "Извлечение корня n-й степени из комплексного числа",
+    "gradeLevel": 2,
+    "keywords": [
+      "корень из комплексного числа"
+    ],
+    "parent": "complex_numbers_analysis",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 1944
+  },
+  {
+    "id": "logical_symbols",
+    "name": "Логические символы и язык математики",
+    "gradeLevel": 1,
+    "keywords": [
+      "кванторы",
+      "∀",
+      "∃",
+      "предикаты",
+      "связки"
+    ],
+    "parent": "fundamentals_analysis",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 1945
+  },
+  {
+    "id": "mathematical_induction_analysis",
+    "name": "Метод математической индукции",
+    "gradeLevel": 1,
+    "keywords": [
+      "индукция",
+      "доказательство"
+    ],
+    "parent": "logical_symbols",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 1946
+  },
+  {
+    "id": "real_line_topology",
+    "name": "Топология вещественной прямой",
+    "gradeLevel": 2,
+    "keywords": [
+      "топология",
+      "окрестность"
+    ],
+    "parent": "fundamentals_analysis",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 1947
+  },
+  {
+    "id": "neighborhood",
+    "name": "Окрестность точки, проколотая окрестность",
+    "gradeLevel": 2,
+    "keywords": [
+      "окрестность",
+      "проколотая окрестность"
+    ],
+    "parent": "real_line_topology",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 1948
+  },
+  {
+    "id": "limit_point",
+    "name": "Предельная точка, изолированная точка",
+    "gradeLevel": 2,
+    "keywords": [
+      "предельная точка",
+      "изолированная"
+    ],
+    "parent": "real_line_topology",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 1949
+  },
+  {
+    "id": "open_closed_sets",
+    "name": "Открытые и замкнутые множества на ℝ",
+    "gradeLevel": 2,
+    "keywords": [
+      "открытые множества",
+      "замкнутые множества"
+    ],
+    "parent": "real_line_topology",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 1950
+  },
+  {
+    "id": "compactness_real",
+    "name": "Компактность на ℝ (теорема Гейне-Бореля)",
+    "gradeLevel": 3,
+    "keywords": [
+      "компактность",
+      "Гейне-Борель"
+    ],
+    "parent": "real_line_topology",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 1951
+  },
+  {
+    "id": "limit_continuity_one_variable",
+    "name": "Предел и непрерывность функции одной переменной",
+    "gradeLevel": 1,
+    "keywords": [
+      "предел",
+      "непрерывность"
+    ],
+    "parent": "mathematical_analysis",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 1952
+  },
+  {
+    "id": "numerical_sequences",
+    "name": "Числовые последовательности",
+    "gradeLevel": 1,
+    "keywords": [
+      "последовательности",
+      "сходимость"
+    ],
+    "parent": "limit_continuity_one_variable",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 1953
+  },
+  {
+    "id": "sequence_definition",
+    "name": "Определение числовой последовательности",
+    "gradeLevel": 1,
+    "keywords": [
+      "последовательность",
+      "aₙ"
+    ],
+    "parent": "numerical_sequences",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 1954
+  },
+  {
+    "id": "cauchy_sequence_limit",
+    "name": "Определение предела последовательности по Коши",
+    "gradeLevel": 2,
+    "keywords": [
+      "Коши",
+      "ε-N"
+    ],
+    "parent": "numerical_sequences",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 1955
+  },
+  {
+    "id": "heine_sequence_limit",
+    "name": "Определение предела последовательности по Гейне",
+    "gradeLevel": 2,
+    "keywords": [
+      "Гейне"
+    ],
+    "parent": "numerical_sequences",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 1956
+  },
+  {
+    "id": "limit_uniqueness",
+    "name": "Свойства сходящихся последовательностей",
+    "gradeLevel": 2,
+    "keywords": [
+      "единственность предела",
+      "ограниченность"
+    ],
+    "parent": "numerical_sequences",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 1957
+  },
+  {
+    "id": "limit_arithmetic",
+    "name": "Арифметические операции над пределами последовательностей",
+    "gradeLevel": 2,
+    "keywords": [
+      "предел суммы",
+      "разности",
+      "произведения",
+      "частного"
+    ],
+    "parent": "numerical_sequences",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 1958
+  },
+  {
+    "id": "squeeze_theorem",
+    "name": "Теорема о двух милиционерах (переход к пределу в неравенствах)",
+    "gradeLevel": 2,
+    "keywords": [
+      "два милиционера",
+      "сжатая последовательность"
+    ],
+    "parent": "numerical_sequences",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 1959
+  },
+  {
+    "id": "infinitesimal_infinite_sequences",
+    "name": "Бесконечно малые и бесконечно большие последовательности",
+    "gradeLevel": 2,
+    "keywords": [
+      "бесконечно малые",
+      "бесконечно большие"
+    ],
+    "parent": "numerical_sequences",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 1960
+  },
+  {
+    "id": "monotone_sequence_theorem",
+    "name": "Теорема Вейерштрасса о пределе монотонной последовательности",
+    "gradeLevel": 2,
+    "keywords": [
+      "Вейерштрасс",
+      "монотонная последовательность"
+    ],
+    "parent": "numerical_sequences",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 1961
+  },
+  {
+    "id": "euler_number",
+    "name": "Число e как предел lim (1+1/n)ⁿ",
+    "gradeLevel": 2,
+    "keywords": [
+      "число e",
+      "экспонента"
+    ],
+    "parent": "numerical_sequences",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 1962
+  },
+  {
+    "id": "subsequence_partial_limits",
+    "name": "Подпоследовательности, частичные пределы",
+    "gradeLevel": 2,
+    "keywords": [
+      "подпоследовательность",
+      "частичный предел"
+    ],
+    "parent": "numerical_sequences",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 1963
+  },
+  {
+    "id": "bolzano_weierstrass_sequence",
+    "name": "Теорема Больцано-Вейерштрасса (о выделении сходящейся подпоследовательности)",
+    "gradeLevel": 2,
+    "keywords": [
+      "Больцано-Вейерштрасс"
+    ],
+    "parent": "numerical_sequences",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 1964
+  },
+  {
+    "id": "limit_superior_inferior",
+    "name": "Верхний и нижний пределы последовательности",
+    "gradeLevel": 3,
+    "keywords": [
+      "limsup",
+      "liminf"
+    ],
+    "parent": "numerical_sequences",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 1965
+  },
+  {
+    "id": "cauchy_criterion_sequence",
+    "name": "Критерий Коши сходимости последовательности",
+    "gradeLevel": 2,
+    "keywords": [
+      "критерий Коши"
+    ],
+    "parent": "numerical_sequences",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 1966
+  },
+  {
+    "id": "function_limit",
+    "name": "Предел функции",
+    "gradeLevel": 1,
+    "keywords": [
+      "предел функции",
+      "точка"
+    ],
+    "parent": "limit_continuity_one_variable",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 1967
+  },
+  {
+    "id": "cauchy_function_limit",
+    "name": "Определение предела функции в точке по Коши (ε-δ)",
+    "gradeLevel": 2,
+    "keywords": [
+      "ε-δ",
+      "определение Коши"
+    ],
+    "parent": "function_limit",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 1968
+  },
+  {
+    "id": "heine_function_limit",
+    "name": "Определение предела функции в точке по Гейне (через последовательности)",
+    "gradeLevel": 2,
+    "keywords": [
+      "определение Гейне"
+    ],
+    "parent": "function_limit",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 1969
+  },
+  {
+    "id": "one_sided_limits",
+    "name": "Односторонние пределы (слева и справа)",
+    "gradeLevel": 2,
+    "keywords": [
+      "односторонние пределы",
+      "левый",
+      "правый"
+    ],
+    "parent": "function_limit",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 1970
+  },
+  {
+    "id": "limit_at_infinity",
+    "name": "Предел функции на бесконечности (x → ±∞)",
+    "gradeLevel": 2,
+    "keywords": [
+      "предел на бесконечности"
+    ],
+    "parent": "function_limit",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 1971
+  },
+  {
+    "id": "function_limit_properties",
+    "name": "Свойства функций, имеющих предел",
+    "gradeLevel": 2,
+    "keywords": [
+      "единственность предела",
+      "локальная ограниченность"
+    ],
+    "parent": "function_limit",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 1972
+  },
+  {
+    "id": "function_limit_arithmetic",
+    "name": "Арифметические операции над пределами функций",
+    "gradeLevel": 2,
+    "keywords": [
+      "арифметика пределов"
+    ],
+    "parent": "function_limit",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 1973
+  },
+  {
+    "id": "first_remarkable_limit",
+    "name": "Первый замечательный предел: lim (sin x)/x = 1",
+    "gradeLevel": 2,
+    "keywords": [
+      "первый замечательный",
+      "sin x/x"
+    ],
+    "parent": "function_limit",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 1974
+  },
+  {
+    "id": "second_remarkable_limit",
+    "name": "Второй замечательный предел: lim (1+1/x)ˣ = e",
+    "gradeLevel": 2,
+    "keywords": [
+      "второй замечательный",
+      "e"
+    ],
+    "parent": "function_limit",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 1975
+  },
+  {
+    "id": "infinitesimal_functions",
+    "name": "Бесконечно малые функции",
+    "gradeLevel": 2,
+    "keywords": [
+      "бесконечно малые"
+    ],
+    "parent": "function_limit",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 1976
+  },
+  {
+    "id": "infinite_functions",
+    "name": "Бесконечно большие функции",
+    "gradeLevel": 2,
+    "keywords": [
+      "бесконечно большие"
+    ],
+    "parent": "function_limit",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 1977
+  },
+  {
+    "id": "comparison_infinitesimals",
+    "name": "Сравнение бесконечно малых (символы o, O, ∼)",
+    "gradeLevel": 2,
+    "keywords": [
+      "о-малое",
+      "О-большое",
+      "эквивалентность"
+    ],
+    "parent": "infinitesimal_functions",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 1978
+  },
+  {
+    "id": "equivalent_infinitesimals",
+    "name": "Эквивалентные бесконечно малые, принцип замены эквивалентных",
+    "gradeLevel": 2,
+    "keywords": [
+      "эквивалентные",
+      "замена"
+    ],
+    "parent": "infinitesimal_functions",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 1979
+  },
+  {
+    "id": "table_equivalent_infinitesimals",
+    "name": "Таблица эквивалентных бесконечно малых",
+    "gradeLevel": 2,
+    "keywords": [
+      "таблица",
+      "эквивалентности"
+    ],
+    "parent": "infinitesimal_functions",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 1980
+  },
+  {
+    "id": "indeterminate_forms",
+    "name": "Неопределённые выражения и приёмы их раскрытия",
+    "gradeLevel": 2,
+    "keywords": [
+      "неопределённости",
+      "0/0",
+      "∞/∞"
+    ],
+    "parent": "function_limit",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 1981
+  },
+  {
+    "id": "continuity",
+    "name": "Непрерывность функции",
+    "gradeLevel": 1,
+    "keywords": [
+      "непрерывность"
+    ],
+    "parent": "limit_continuity_one_variable",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 1982
+  },
+  {
+    "id": "continuity_at_point",
+    "name": "Определение непрерывности в точке на языке пределов (ε-δ)",
+    "gradeLevel": 2,
+    "keywords": [
+      "непрерывность в точке"
+    ],
+    "parent": "continuity",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 1983
+  },
+  {
+    "id": "continuity_increment",
+    "name": "Определение непрерывности в точке на языке приращений (Δy → 0 при Δx → 0)",
+    "gradeLevel": 2,
+    "keywords": [
+      "приращения"
+    ],
+    "parent": "continuity",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 1984
+  },
+  {
+    "id": "continuity_on_interval",
+    "name": "Непрерывность функции на интервале и на отрезке",
+    "gradeLevel": 2,
+    "keywords": [
+      "непрерывность на интервале",
+      "на отрезке"
+    ],
+    "parent": "continuity",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 1985
+  },
+  {
+    "id": "discontinuity_classification",
+    "name": "Классификация точек разрыва",
+    "gradeLevel": 2,
+    "keywords": [
+      "устранимый разрыв",
+      "скачок",
+      "разрыв I рода",
+      "II рода",
+      "существенный разрыв"
+    ],
+    "parent": "continuity",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 1986
+  },
+  {
+    "id": "operations_continuous_functions",
+    "name": "Действия с непрерывными функциями",
+    "gradeLevel": 2,
+    "keywords": [
+      "сумма",
+      "произведение",
+      "частное",
+      "композиция"
+    ],
+    "parent": "continuity",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 1987
+  },
+  {
+    "id": "continuity_elementary_functions",
+    "name": "Непрерывность основных элементарных функций",
+    "gradeLevel": 2,
+    "keywords": [
+      "элементарные функции"
+    ],
+    "parent": "continuity",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 1988
+  },
+  {
+    "id": "inverse_function_continuity",
+    "name": "Непрерывность обратной функции",
+    "gradeLevel": 2,
+    "keywords": [
+      "обратная функция"
+    ],
+    "parent": "continuity",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 1989
+  },
+  {
+    "id": "bolzano_cauchy_theorem",
+    "name": "Теорема Больцано-Коши (промежуточных значений)",
+    "gradeLevel": 2,
+    "keywords": [
+      "Больцано-Коши",
+      "промежуточные значения"
+    ],
+    "parent": "continuity",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 1990
+  },
+  {
+    "id": "weierstrass_extremum_theorem",
+    "name": "Теорема Вейерштрасса (о достижении экстремума)",
+    "gradeLevel": 2,
+    "keywords": [
+      "Вейерштрасс",
+      "наибольшее и наименьшее значения"
+    ],
+    "parent": "continuity",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 1991
+  },
+  {
+    "id": "cantor_uniform_continuity",
+    "name": "Теорема Кантора (о равномерной непрерывности)",
+    "gradeLevel": 3,
+    "keywords": [
+      "Кантор",
+      "равномерная непрерывность"
+    ],
+    "parent": "continuity",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 1992
+  },
+  {
+    "id": "uniform_continuity",
+    "name": "Равномерная непрерывность",
+    "gradeLevel": 3,
+    "keywords": [
+      "равномерная непрерывность",
+      "критерий Коши"
+    ],
+    "parent": "cantor_uniform_continuity",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 1993
+  },
+  {
+    "id": "monotone_functions_properties",
+    "name": "Свойства монотонных функций",
+    "gradeLevel": 3,
+    "keywords": [
+      "монотонные функции",
+      "непрерывность почти всюду"
+    ],
+    "parent": "continuity",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 1994
+  },
+  {
+    "id": "differential_calculus_one_variable",
+    "name": "Дифференциальное исчисление функции одной переменной",
+    "gradeLevel": 1,
+    "keywords": [
+      "производная",
+      "дифференциал"
+    ],
+    "parent": "mathematical_analysis",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 1995
+  },
+  {
+    "id": "derivative",
+    "name": "Производная и дифференциал",
+    "gradeLevel": 1,
+    "keywords": [
+      "производная",
+      "дифференциал"
+    ],
+    "parent": "differential_calculus_one_variable",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 1996
+  },
+  {
+    "id": "derivative_definition",
+    "name": "Определение производной в точке",
+    "gradeLevel": 1,
+    "keywords": [
+      "производная",
+      "f'(x)"
+    ],
+    "parent": "derivative",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 1997
+  },
+  {
+    "id": "geometric_meaning_derivative",
+    "name": "Геометрический смысл производной (угловой коэффициент касательной)",
+    "gradeLevel": 1,
+    "keywords": [
+      "касательная",
+      "угловой коэффициент"
+    ],
+    "parent": "derivative",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 1998
+  },
+  {
+    "id": "mechanical_meaning_derivative",
+    "name": "Механический (физический) смысл производной (мгновенная скорость)",
+    "gradeLevel": 1,
+    "keywords": [
+      "мгновенная скорость"
+    ],
+    "parent": "derivative",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 1999
+  },
+  {
+    "id": "left_right_derivatives",
+    "name": "Правая и левая производные",
+    "gradeLevel": 2,
+    "keywords": [
+      "левая производная",
+      "правая производная"
+    ],
+    "parent": "derivative",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2000
+  },
+  {
+    "id": "tangent_normal",
+    "name": "Уравнение касательной и нормали к графику функции",
+    "gradeLevel": 1,
+    "keywords": [
+      "касательная",
+      "нормаль"
+    ],
+    "parent": "derivative",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2001
+  },
+  {
+    "id": "differentiability_continuity",
+    "name": "Связь между дифференцируемостью и непрерывностью",
+    "gradeLevel": 1,
+    "keywords": [
+      "дифференцируемость ⇒ непрерывность"
+    ],
+    "parent": "derivative",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2002
+  },
+  {
+    "id": "differential_definition",
+    "name": "Определение дифференциала функции, его геометрический смысл",
+    "gradeLevel": 2,
+    "keywords": [
+      "дифференциал",
+      "df"
+    ],
+    "parent": "derivative",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2003
+  },
+  {
+    "id": "differential_calculation",
+    "name": "Вычисление дифференциала df = f'(x) dx",
+    "gradeLevel": 2,
+    "keywords": [
+      "вычисление дифференциала"
+    ],
+    "parent": "differential_definition",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2004
+  },
+  {
+    "id": "first_differential_invariance",
+    "name": "Инвариантность формы первого дифференциала",
+    "gradeLevel": 3,
+    "keywords": [
+      "инвариантность"
+    ],
+    "parent": "differential_definition",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2005
+  },
+  {
+    "id": "differential_approximations",
+    "name": "Применение дифференциала в приближённых вычислениях",
+    "gradeLevel": 2,
+    "keywords": [
+      "приближённые вычисления"
+    ],
+    "parent": "differential_definition",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2006
+  },
+  {
+    "id": "differentiation_rules",
+    "name": "Правила дифференцирования (сумма, произведение, частное)",
+    "gradeLevel": 1,
+    "keywords": [
+      "правила дифференцирования"
+    ],
+    "parent": "derivative",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2007
+  },
+  {
+    "id": "derivatives_table",
+    "name": "Таблица производных основных элементарных функций",
+    "gradeLevel": 1,
+    "keywords": [
+      "таблица производных"
+    ],
+    "parent": "derivative",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2008
+  },
+  {
+    "id": "chain_rule",
+    "name": "Производная сложной функции (цепное правило)",
+    "gradeLevel": 1,
+    "keywords": [
+      "сложная функция",
+      "цепное правило"
+    ],
+    "parent": "differentiation_rules",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2009
+  },
+  {
+    "id": "inverse_function_derivative",
+    "name": "Производная обратной функции",
+    "gradeLevel": 2,
+    "keywords": [
+      "обратная функция"
+    ],
+    "parent": "differentiation_rules",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2010
+  },
+  {
+    "id": "logarithmic_differentiation",
+    "name": "Логарифмическое дифференцирование",
+    "gradeLevel": 2,
+    "keywords": [
+      "логарифмическое дифференцирование"
+    ],
+    "parent": "differentiation_rules",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2011
+  },
+  {
+    "id": "parametric_derivative",
+    "name": "Производная функции, заданной параметрически",
+    "gradeLevel": 2,
+    "keywords": [
+      "параметрически заданная функция"
+    ],
+    "parent": "derivative",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2012
+  },
+  {
+    "id": "implicit_derivative",
+    "name": "Производная функции, заданной неявно",
+    "gradeLevel": 2,
+    "keywords": [
+      "неявная функция"
+    ],
+    "parent": "derivative",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2013
+  },
+  {
+    "id": "higher_order_derivatives",
+    "name": "Производные и дифференциалы высших порядков",
+    "gradeLevel": 2,
+    "keywords": [
+      "производные высших порядков",
+      "y(n)"
+    ],
+    "parent": "differential_calculus_one_variable",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2014
+  },
+  {
+    "id": "nth_derivative",
+    "name": "Определение производной n-го порядка",
+    "gradeLevel": 2,
+    "keywords": [
+      "n-я производная"
+    ],
+    "parent": "higher_order_derivatives",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2015
+  },
+  {
+    "id": "leibniz_formula",
+    "name": "Формула Лейбница для производной n-го порядка произведения",
+    "gradeLevel": 3,
+    "keywords": [
+      "Лейбниц"
+    ],
+    "parent": "higher_order_derivatives",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2016
+  },
+  {
+    "id": "higher_order_differentials",
+    "name": "Дифференциалы высших порядков",
+    "gradeLevel": 3,
+    "keywords": [
+      "d²f",
+      "dⁿf"
+    ],
+    "parent": "higher_order_derivatives",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2017
+  },
+  {
+    "id": "basic_differential_theorems",
+    "name": "Основные теоремы дифференциального исчисления",
+    "gradeLevel": 2,
+    "keywords": [
+      "Ферма",
+      "Ролль",
+      "Лагранж",
+      "Коши"
+    ],
+    "parent": "differential_calculus_one_variable",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2018
+  },
+  {
+    "id": "fermat_theorem_analysis",
+    "name": "Теорема Ферма (необходимое условие локального экстремума)",
+    "gradeLevel": 2,
+    "keywords": [
+      "Ферма"
+    ],
+    "parent": "basic_differential_theorems",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2019
+  },
+  {
+    "id": "rolle_theorem",
+    "name": "Теорема Ролля (о нуле производной)",
+    "gradeLevel": 2,
+    "keywords": [
+      "Ролль"
+    ],
+    "parent": "basic_differential_theorems",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2020
+  },
+  {
+    "id": "lagrange_theorem",
+    "name": "Теорема Лагранжа (о конечных приращениях)",
+    "gradeLevel": 2,
+    "keywords": [
+      "Лагранж",
+      "формула конечных приращений",
+      "f(b)-f(a)=f'(c)(b-a)"
+    ],
+    "parent": "basic_differential_theorems",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2021
+  },
+  {
+    "id": "cauchy_theorem",
+    "name": "Теорема Коши (обобщённая формула конечных приращений)",
+    "gradeLevel": 2,
+    "keywords": [
+      "Коши"
+    ],
+    "parent": "basic_differential_theorems",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2022
+  },
+  {
+    "id": "lopital_rule",
+    "name": "Правило Лопиталя",
+    "gradeLevel": 2,
+    "keywords": [
+      "Лопиталь",
+      "раскрытие неопределённостей"
+    ],
+    "parent": "differential_calculus_one_variable",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2023
+  },
+  {
+    "id": "lopital_0_0",
+    "name": "Раскрытие неопределённостей вида 0/0 и ∞/∞",
+    "gradeLevel": 2,
+    "keywords": [
+      "0/0",
+      "∞/∞"
+    ],
+    "parent": "lopital_rule",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2024
+  },
+  {
+    "id": "lopital_other_forms",
+    "name": "Применение правила Лопиталя к другим видам неопределённостей",
+    "gradeLevel": 3,
+    "keywords": [
+      "0·∞",
+      "∞-∞",
+      "1^∞",
+      "0^0",
+      "∞^0"
+    ],
+    "parent": "lopital_rule",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2025
+  },
+  {
+    "id": "taylor_formula",
+    "name": "Формула Тейлора",
+    "gradeLevel": 2,
+    "keywords": [
+      "Тейлор",
+      "разложение"
+    ],
+    "parent": "differential_calculus_one_variable",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2026
+  },
+  {
+    "id": "taylor_polynomial",
+    "name": "Многочлен Тейлора",
+    "gradeLevel": 2,
+    "keywords": [
+      "многочлен Тейлора"
+    ],
+    "parent": "taylor_formula",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2027
+  },
+  {
+    "id": "peano_remainder",
+    "name": "Остаточный член в форме Пеано",
+    "gradeLevel": 3,
+    "keywords": [
+      "Пеано",
+      "o((x-x₀)ⁿ)"
+    ],
+    "parent": "taylor_formula",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2028
+  },
+  {
+    "id": "lagrange_remainder",
+    "name": "Остаточный член в форме Лагранжа",
+    "gradeLevel": 3,
+    "keywords": [
+      "Лагранж"
+    ],
+    "parent": "taylor_formula",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2029
+  },
+  {
+    "id": "cauchy_remainder",
+    "name": "Остаточный член в форме Коши",
+    "gradeLevel": 3,
+    "keywords": [
+      "Коши"
+    ],
+    "parent": "taylor_formula",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2030
+  },
+  {
+    "id": "maclaurin_formula",
+    "name": "Формула Маклорена (a=0)",
+    "gradeLevel": 2,
+    "keywords": [
+      "Маклорен"
+    ],
+    "parent": "taylor_formula",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2031
+  },
+  {
+    "id": "maclaurin_expansions",
+    "name": "Разложения основных элементарных функций по формуле Маклорена",
+    "gradeLevel": 2,
+    "keywords": [
+      "разложения eˣ",
+      "sin x",
+      "cos x",
+      "ln(1+x)",
+      "(1+x)ᵅ"
+    ],
+    "parent": "maclaurin_formula",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2032
+  },
+  {
+    "id": "function_research",
+    "name": "Исследование функций и построение графиков",
+    "gradeLevel": 1,
+    "keywords": [
+      "исследование функций",
+      "построение графиков"
+    ],
+    "parent": "differential_calculus_one_variable",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2033
+  },
+  {
+    "id": "monotonicity_test",
+    "name": "Признаки монотонности через знак производной",
+    "gradeLevel": 2,
+    "keywords": [
+      "возрастание",
+      "убывание"
+    ],
+    "parent": "function_research",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2034
+  },
+  {
+    "id": "local_extremum",
+    "name": "Локальный экстремум (необходимое и достаточные условия)",
+    "gradeLevel": 2,
+    "keywords": [
+      "экстремум",
+      "максимум",
+      "минимум"
+    ],
+    "parent": "function_research",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2035
+  },
+  {
+    "id": "critical_points",
+    "name": "Критические точки (производная равна 0 или не существует)",
+    "gradeLevel": 2,
+    "keywords": [
+      "критические точки"
+    ],
+    "parent": "local_extremum",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2036
+  },
+  {
+    "id": "first_sufficient_condition_extremum",
+    "name": "Первое достаточное условие экстремума (по знаку производной)",
+    "gradeLevel": 2,
+    "keywords": [
+      "первое достаточное условие"
+    ],
+    "parent": "local_extremum",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2037
+  },
+  {
+    "id": "second_sufficient_condition_extremum",
+    "name": "Второе достаточное условие экстремума (по знаку второй производной)",
+    "gradeLevel": 2,
+    "keywords": [
+      "второе достаточное условие"
+    ],
+    "parent": "local_extremum",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2038
+  },
+  {
+    "id": "global_extremum",
+    "name": "Наибольшее и наименьшее значения функции на отрезке",
+    "gradeLevel": 2,
+    "keywords": [
+      "глобальный экстремум"
+    ],
+    "parent": "function_research",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2039
+  },
+  {
+    "id": "convexity_concavity",
+    "name": "Выпуклость и вогнутость функции",
+    "gradeLevel": 2,
+    "keywords": [
+      "выпуклость",
+      "вогнутость"
+    ],
+    "parent": "function_research",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2040
+  },
+  {
+    "id": "convexity_down",
+    "name": "Выпуклость вниз (вогнутость), выпуклость вверх",
+    "gradeLevel": 2,
+    "keywords": [
+      "выпуклость вниз",
+      "выпуклость вверх"
+    ],
+    "parent": "convexity_concavity",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2041
+  },
+  {
+    "id": "second_derivative_convexity",
+    "name": "Связь выпуклости со знаком второй производной",
+    "gradeLevel": 2,
+    "keywords": [
+      "f''(x) > 0 ⇒ выпуклость вниз"
+    ],
+    "parent": "convexity_concavity",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2042
+  },
+  {
+    "id": "inflection_point",
+    "name": "Точки перегиба (необходимое и достаточные условия)",
+    "gradeLevel": 2,
+    "keywords": [
+      "перегиб"
+    ],
+    "parent": "function_research",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2043
+  },
+  {
+    "id": "asymptotes",
+    "name": "Асимптоты графика функции",
+    "gradeLevel": 2,
+    "keywords": [
+      "вертикальные",
+      "горизонтальные",
+      "наклонные асимптоты"
+    ],
+    "parent": "function_research",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2044
+  },
+  {
+    "id": "plotting_scheme",
+    "name": "Общая схема исследования функции и построения графика",
+    "gradeLevel": 2,
+    "keywords": [
+      "схема исследования"
+    ],
+    "parent": "function_research",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2045
+  },
+  {
+    "id": "integral_calculus_one_variable",
+    "name": "Интегральное исчисление функции одной переменной",
+    "gradeLevel": 1,
+    "keywords": [
+      "интеграл",
+      "первообразная"
+    ],
+    "parent": "mathematical_analysis",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2046
+  },
+  {
+    "id": "indefinite_integral",
+    "name": "Неопределённый интеграл",
+    "gradeLevel": 1,
+    "keywords": [
+      "неопределённый интеграл"
+    ],
+    "parent": "integral_calculus_one_variable",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2047
+  },
+  {
+    "id": "antiderivative",
+    "name": "Первообразная функция",
+    "gradeLevel": 1,
+    "keywords": [
+      "первообразная",
+      "F'(x)=f(x)"
+    ],
+    "parent": "indefinite_integral",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2048
+  },
+  {
+    "id": "indefinite_integral_properties",
+    "name": "Свойства неопределённого интеграла (линейность, существование)",
+    "gradeLevel": 2,
+    "keywords": [
+      "свойства"
+    ],
+    "parent": "indefinite_integral",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2049
+  },
+  {
+    "id": "integrals_table",
+    "name": "Таблица неопределённых интегралов",
+    "gradeLevel": 1,
+    "keywords": [
+      "таблица интегралов"
+    ],
+    "parent": "indefinite_integral",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2050
+  },
+  {
+    "id": "substitution_integral",
+    "name": "Замена переменной в неопределённом интеграле (подстановка)",
+    "gradeLevel": 2,
+    "keywords": [
+      "замена переменной"
+    ],
+    "parent": "indefinite_integral",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2051
+  },
+  {
+    "id": "integration_by_parts",
+    "name": "Интегрирование по частям ∫ u dv = uv - ∫ v du",
+    "gradeLevel": 2,
+    "keywords": [
+      "по частям"
+    ],
+    "parent": "indefinite_integral",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2052
+  },
+  {
+    "id": "rational_integration",
+    "name": "Интегрирование рациональных функций (дробей)",
+    "gradeLevel": 2,
+    "keywords": [
+      "рациональные дроби"
+    ],
+    "parent": "indefinite_integral",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2053
+  },
+  {
+    "id": "partial_fractions",
+    "name": "Разложение правильной дроби на простейшие",
+    "gradeLevel": 2,
+    "keywords": [
+      "простейшие дроби"
+    ],
+    "parent": "rational_integration",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2054
+  },
+  {
+    "id": "trigonometric_integration",
+    "name": "Интегрирование тригонометрических функций",
+    "gradeLevel": 2,
+    "keywords": [
+      "тригонометрические интегралы"
+    ],
+    "parent": "indefinite_integral",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2055
+  },
+  {
+    "id": "universal_trig_substitution",
+    "name": "Универсальная тригонометрическая подстановка t = tg(x/2)",
+    "gradeLevel": 3,
+    "keywords": [
+      "универсальная подстановка"
+    ],
+    "parent": "trigonometric_integration",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2056
+  },
+  {
+    "id": "irrational_integration",
+    "name": "Интегрирование иррациональных функций",
+    "gradeLevel": 3,
+    "keywords": [
+      "иррациональные интегралы"
+    ],
+    "parent": "indefinite_integral",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2057
+  },
+  {
+    "id": "definite_integral",
+    "name": "Определённый интеграл Римана",
+    "gradeLevel": 1,
+    "keywords": [
+      "определённый интеграл",
+      "интеграл Римана"
+    ],
+    "parent": "integral_calculus_one_variable",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2058
+  },
+  {
+    "id": "riemann_sum",
+    "name": "Интегральная сумма (сумма Римана)",
+    "gradeLevel": 2,
+    "keywords": [
+      "интегральная сумма"
+    ],
+    "parent": "definite_integral",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2059
+  },
+  {
+    "id": "definite_integral_definition",
+    "name": "Определение определённого интеграла как предела интегральных сумм",
+    "gradeLevel": 2,
+    "keywords": [
+      "определение"
+    ],
+    "parent": "definite_integral",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2060
+  },
+  {
+    "id": "geometric_integral_meaning",
+    "name": "Геометрический смысл определённого интеграла (площадь под графиком)",
+    "gradeLevel": 2,
+    "keywords": [
+      "геометрический смысл",
+      "площадь"
+    ],
+    "parent": "definite_integral",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2061
+  },
+  {
+    "id": "definite_integral_properties",
+    "name": "Свойства определённого интеграла",
+    "gradeLevel": 2,
+    "keywords": [
+      "линейность",
+      "аддитивность",
+      "сохранение неравенств",
+      "теорема о среднем"
+    ],
+    "parent": "definite_integral",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2062
+  },
+  {
+    "id": "mean_value_theorem_integral",
+    "name": "Теорема о среднем значении (∫ f = f(c)(b-a))",
+    "gradeLevel": 2,
+    "keywords": [
+      "теорема о среднем"
+    ],
+    "parent": "definite_integral_properties",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2063
+  },
+  {
+    "id": "variable_limit_integral",
+    "name": "Интеграл с переменным верхним пределом F(x) = ∫_a^x f(t) dt",
+    "gradeLevel": 2,
+    "keywords": [
+      "переменный верхний предел"
+    ],
+    "parent": "definite_integral",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2064
+  },
+  {
+    "id": "newton_leibniz_formula",
+    "name": "Формула Ньютона-Лейбница (основная теорема анализа)",
+    "gradeLevel": 2,
+    "keywords": [
+      "Ньютон-Лейбниц"
+    ],
+    "parent": "definite_integral",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2065
+  },
+  {
+    "id": "definite_substitution",
+    "name": "Замена переменной в определённом интеграле",
+    "gradeLevel": 2,
+    "keywords": [
+      "замена переменной"
+    ],
+    "parent": "definite_integral",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2066
+  },
+  {
+    "id": "definite_integration_by_parts",
+    "name": "Интегрирование по частям в определённом интеграле",
+    "gradeLevel": 2,
+    "keywords": [
+      "по частям"
+    ],
+    "parent": "definite_integral",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2067
+  },
+  {
+    "id": "applications_integral",
+    "name": "Приложения определённого интеграла",
+    "gradeLevel": 2,
+    "keywords": [
+      "приложения",
+      "площадь",
+      "объём",
+      "длина дуги"
+    ],
+    "parent": "integral_calculus_one_variable",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2068
+  },
+  {
+    "id": "area_cartesian",
+    "name": "Вычисление площади плоской фигуры в декартовых координатах",
+    "gradeLevel": 2,
+    "keywords": [
+      "площадь",
+      "декартовы координаты"
+    ],
+    "parent": "applications_integral",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2069
+  },
+  {
+    "id": "area_polar",
+    "name": "Вычисление площади в полярных координатах",
+    "gradeLevel": 2,
+    "keywords": [
+      "полярные координаты"
+    ],
+    "parent": "applications_integral",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2070
+  },
+  {
+    "id": "arc_length",
+    "name": "Вычисление длины дуги кривой",
+    "gradeLevel": 2,
+    "keywords": [
+      "длина дуги"
+    ],
+    "parent": "applications_integral",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2071
+  },
+  {
+    "id": "volume_by_cross_sections",
+    "name": "Вычисление объёма тела по площадям поперечных сечений",
+    "gradeLevel": 2,
+    "keywords": [
+      "объём",
+      "поперечные сечения"
+    ],
+    "parent": "applications_integral",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2072
+  },
+  {
+    "id": "volume_of_revolution",
+    "name": "Вычисление объёма тела вращения",
+    "gradeLevel": 2,
+    "keywords": [
+      "тело вращения"
+    ],
+    "parent": "applications_integral",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2073
+  },
+  {
+    "id": "surface_area_revolution",
+    "name": "Вычисление площади поверхности вращения",
+    "gradeLevel": 3,
+    "keywords": [
+      "поверхность вращения"
+    ],
+    "parent": "applications_integral",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2074
+  },
+  {
+    "id": "mechanical_applications",
+    "name": "Механические приложения (масса, статические моменты, центры масс)",
+    "gradeLevel": 3,
+    "keywords": [
+      "масса",
+      "центр масс"
+    ],
+    "parent": "applications_integral",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2075
+  },
+  {
+    "id": "improper_integrals",
+    "name": "Несобственные интегралы",
+    "gradeLevel": 2,
+    "keywords": [
+      "несобственные интегралы"
+    ],
+    "parent": "integral_calculus_one_variable",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2076
+  },
+  {
+    "id": "improper_type1",
+    "name": "Несобственные интегралы I рода (по бесконечному промежутку)",
+    "gradeLevel": 2,
+    "keywords": [
+      "I рода",
+      "бесконечный промежуток"
+    ],
+    "parent": "improper_integrals",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2077
+  },
+  {
+    "id": "improper_type2",
+    "name": "Несобственные интегралы II рода (от функций с особенностью)",
+    "gradeLevel": 2,
+    "keywords": [
+      "II рода",
+      "особенность"
+    ],
+    "parent": "improper_integrals",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2078
+  },
+  {
+    "id": "improper_convergence",
+    "name": "Сходимость и расходимость несобственных интегралов",
+    "gradeLevel": 2,
+    "keywords": [
+      "сходимость",
+      "расходимость",
+      "абсолютная и условная сходимость"
+    ],
+    "parent": "improper_integrals",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2079
+  },
+  {
+    "id": "comparison_tests_improper",
+    "name": "Признаки сходимости несобственных интегралов (признаки сравнения)",
+    "gradeLevel": 3,
+    "keywords": [
+      "признаки сравнения"
+    ],
+    "parent": "improper_convergence",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2080
+  },
+  {
+    "id": "integrals_depending_on_parameter",
+    "name": "Интегралы, зависящие от параметра",
+    "gradeLevel": 3,
+    "keywords": [
+      "интегралы с параметром"
+    ],
+    "parent": "integral_calculus_one_variable",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2081
+  },
+  {
+    "id": "differentiation_parameter",
+    "name": "Дифференцирование интеграла по параметру (правило Лейбница)",
+    "gradeLevel": 3,
+    "keywords": [
+      "правило Лейбница"
+    ],
+    "parent": "integrals_depending_on_parameter",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2082
+  },
+  {
+    "id": "series",
+    "name": "Числовые и функциональные ряды",
+    "gradeLevel": 2,
+    "keywords": [
+      "ряды",
+      "сходимость"
+    ],
+    "parent": "mathematical_analysis",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2083
+  },
+  {
+    "id": "numerical_series",
+    "name": "Числовые ряды",
+    "gradeLevel": 2,
+    "keywords": [
+      "числовые ряды"
+    ],
+    "parent": "series",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2084
+  },
+  {
+    "id": "partial_sums",
+    "name": "Частичные суммы, сходимость и расходимость",
+    "gradeLevel": 2,
+    "keywords": [
+      "частичные суммы"
+    ],
+    "parent": "numerical_series",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2085
+  },
+  {
+    "id": "necessary_convergence_condition",
+    "name": "Необходимое условие сходимости (общий член → 0)",
+    "gradeLevel": 2,
+    "keywords": [
+      "необходимое условие"
+    ],
+    "parent": "numerical_series",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2086
+  },
+  {
+    "id": "cauchy_criterion_series",
+    "name": "Критерий Коши сходимости ряда",
+    "gradeLevel": 3,
+    "keywords": [
+      "критерий Коши"
+    ],
+    "parent": "numerical_series",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2087
+  },
+  {
+    "id": "harmonic_series",
+    "name": "Гармонический ряд (∑ 1/n, расходимость)",
+    "gradeLevel": 2,
+    "keywords": [
+      "гармонический ряд"
+    ],
+    "parent": "numerical_series",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2088
+  },
+  {
+    "id": "generalized_harmonic_series",
+    "name": "Обобщённый гармонический ряд (∑ 1/nᵖ, сходимость при p>1)",
+    "gradeLevel": 2,
+    "keywords": [
+      "обобщённый гармонический"
+    ],
+    "parent": "numerical_series",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2089
+  },
+  {
+    "id": "geometric_series",
+    "name": "Геометрическая прогрессия (∑ qⁿ, сходится при |q|<1)",
+    "gradeLevel": 2,
+    "keywords": [
+      "геометрический ряд"
+    ],
+    "parent": "numerical_series",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2090
+  },
+  {
+    "id": "positive_series_tests",
+    "name": "Признаки сходимости знакоположительных рядов",
+    "gradeLevel": 2,
+    "keywords": [
+      "знакоположительные ряды"
+    ],
+    "parent": "series",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2091
+  },
+  {
+    "id": "comparison_test",
+    "name": "Признак сравнения (непосредственное и предельное сравнение)",
+    "gradeLevel": 2,
+    "keywords": [
+      "признак сравнения"
+    ],
+    "parent": "positive_series_tests",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2092
+  },
+  {
+    "id": "dalambert_test",
+    "name": "Признак Даламбера (по отношению последующего члена к предыдущему)",
+    "gradeLevel": 2,
+    "keywords": [
+      "Даламбер"
+    ],
+    "parent": "positive_series_tests",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2093
+  },
+  {
+    "id": "cauchy_root_test",
+    "name": "Радикальный признак Коши (по корню n-й степени)",
+    "gradeLevel": 2,
+    "keywords": [
+      "радикальный признак Коши"
+    ],
+    "parent": "positive_series_tests",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2094
+  },
+  {
+    "id": "integral_test",
+    "name": "Интегральный признак Коши-Маклорена",
+    "gradeLevel": 2,
+    "keywords": [
+      "интегральный признак"
+    ],
+    "parent": "positive_series_tests",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2095
+  },
+  {
+    "id": "raabe_test",
+    "name": "Признак Раабе (для пограничных случаев)",
+    "gradeLevel": 3,
+    "keywords": [
+      "Раабе"
+    ],
+    "parent": "positive_series_tests",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2096
+  },
+  {
+    "id": "alternating_series",
+    "name": "Знакочередующиеся ряды",
+    "gradeLevel": 2,
+    "keywords": [
+      "знакочередующиеся"
+    ],
+    "parent": "series",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2097
+  },
+  {
+    "id": "leibniz_test",
+    "name": "Признак Лейбница (монотонное стремление к нулю)",
+    "gradeLevel": 2,
+    "keywords": [
+      "Лейбниц"
+    ],
+    "parent": "alternating_series",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2098
+  },
+  {
+    "id": "absolute_conditional_convergence",
+    "name": "Абсолютная и условная сходимость рядов",
+    "gradeLevel": 2,
+    "keywords": [
+      "абсолютная сходимость",
+      "условная сходимость"
+    ],
+    "parent": "series",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2099
+  },
+  {
+    "id": "riemann_rearrangement",
+    "name": "Теорема Римана о перестановке условно сходящегося ряда",
+    "gradeLevel": 3,
+    "keywords": [
+      "Риман",
+      "перестановка"
+    ],
+    "parent": "absolute_conditional_convergence",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2100
+  },
+  {
+    "id": "abel_dirichlet_tests",
+    "name": "Признаки сходимости знакопеременных рядов (Абеля, Дирихле)",
+    "gradeLevel": 3,
+    "keywords": [
+      "Абель",
+      "Дирихле"
+    ],
+    "parent": "series",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2101
+  },
+  {
+    "id": "functional_series",
+    "name": "Функциональные ряды",
+    "gradeLevel": 2,
+    "keywords": [
+      "функциональные ряды"
+    ],
+    "parent": "series",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2102
+  },
+  {
+    "id": "pointwise_uniform_convergence",
+    "name": "Поточечная и равномерная сходимость на множестве",
+    "gradeLevel": 3,
+    "keywords": [
+      "поточечная",
+      "равномерная сходимость"
+    ],
+    "parent": "functional_series",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2103
+  },
+  {
+    "id": "cauchy_uniform_criterion",
+    "name": "Критерий Коши равномерной сходимости",
+    "gradeLevel": 3,
+    "keywords": [
+      "критерий Коши"
+    ],
+    "parent": "functional_series",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2104
+  },
+  {
+    "id": "weierstrass_test",
+    "name": "Признак Вейерштрасса (мажорантный признак)",
+    "gradeLevel": 3,
+    "keywords": [
+      "Вейерштрасс",
+      "мажоранта"
+    ],
+    "parent": "functional_series",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2105
+  },
+  {
+    "id": "uniform_convergence_properties",
+    "name": "Свойства равномерно сходящихся рядов",
+    "gradeLevel": 3,
+    "keywords": [
+      "непрерывность суммы",
+      "почленное интегрирование и дифференцирование"
+    ],
+    "parent": "functional_series",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2106
+  },
+  {
+    "id": "power_series",
+    "name": "Степенные ряды",
+    "gradeLevel": 2,
+    "keywords": [
+      "степенные ряды"
+    ],
+    "parent": "series",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2107
+  },
+  {
+    "id": "power_series_definition",
+    "name": "Определение степенного ряда ∑ a_n (x-x₀)ⁿ",
+    "gradeLevel": 2,
+    "keywords": [
+      "определение"
+    ],
+    "parent": "power_series",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2108
+  },
+  {
+    "id": "abel_theorem_series",
+    "name": "Теорема Абеля (о структуре области сходимости)",
+    "gradeLevel": 3,
+    "keywords": [
+      "Абель"
+    ],
+    "parent": "power_series",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2109
+  },
+  {
+    "id": "radius_convergence",
+    "name": "Радиус сходимости, формула Коши-Адамара",
+    "gradeLevel": 3,
+    "keywords": [
+      "радиус сходимости",
+      "R"
+    ],
+    "parent": "power_series",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2110
+  },
+  {
+    "id": "taylor_series",
+    "name": "Ряд Тейлора функции",
+    "gradeLevel": 2,
+    "keywords": [
+      "ряд Тейлора"
+    ],
+    "parent": "power_series",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2111
+  },
+  {
+    "id": "taylor_series_expansions",
+    "name": "Разложения элементарных функций в степенные ряды",
+    "gradeLevel": 2,
+    "keywords": [
+      "разложения eˣ",
+      "sin x",
+      "cos x",
+      "ln(1+x)",
+      "(1+x)ᵅ",
+      "arctg x"
+    ],
+    "parent": "taylor_series",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2112
+  },
+  {
+    "id": "maclaurin_series",
+    "name": "Ряд Маклорена (частный случай ряда Тейлора при x₀=0)",
+    "gradeLevel": 2,
+    "keywords": [
+      "Маклорен"
+    ],
+    "parent": "taylor_series",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2113
+  },
+  {
+    "id": "fourier_series",
+    "name": "Ряды Фурье",
+    "gradeLevel": 3,
+    "keywords": [
+      "Фурье",
+      "тригонометрический ряд"
+    ],
+    "parent": "series",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2114
+  },
+  {
+    "id": "fourier_coefficients",
+    "name": "Тригонометрический ряд Фурье, коэффициенты Фурье",
+    "gradeLevel": 3,
+    "keywords": [
+      "коэффициенты Фурье"
+    ],
+    "parent": "fourier_series",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2115
+  },
+  {
+    "id": "dirichlet_theorem",
+    "name": "Теорема Дирихле (достаточные условия разложимости)",
+    "gradeLevel": 3,
+    "keywords": [
+      "Дирихле"
+    ],
+    "parent": "fourier_series",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2116
+  },
+  {
+    "id": "even_odd_fourier",
+    "name": "Разложение чётных и нечётных функций в ряды Фурье",
+    "gradeLevel": 3,
+    "keywords": [
+      "чётные",
+      "нечётные"
+    ],
+    "parent": "fourier_series",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2117
+  },
+  {
+    "id": "parseval_identity",
+    "name": "Равенство Парсеваля",
+    "gradeLevel": 3,
+    "keywords": [
+      "Парсеваль"
+    ],
+    "parent": "fourier_series",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2118
+  },
+  {
+    "id": "complex_fourier",
+    "name": "Комплексная форма ряда Фурье",
+    "gradeLevel": 4,
+    "keywords": [
+      "комплексная форма"
+    ],
+    "parent": "fourier_series",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2119
+  },
+  {
+    "id": "multivariable_calculus",
+    "name": "Дифференциальное исчисление функции многих переменных",
+    "gradeLevel": 2,
+    "keywords": [
+      "много переменных",
+      "частные производные"
+    ],
+    "parent": "mathematical_analysis",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2120
+  },
+  {
+    "id": "multivariable_basic",
+    "name": "Основные понятия",
+    "gradeLevel": 2,
+    "keywords": [
+      "ℝⁿ",
+      "норма"
+    ],
+    "parent": "multivariable_calculus",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2121
+  },
+  {
+    "id": "multivariable_function",
+    "name": "Понятие функции многих переменных",
+    "gradeLevel": 2,
+    "keywords": [
+      "функция нескольких переменных"
+    ],
+    "parent": "multivariable_basic",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2122
+  },
+  {
+    "id": "level_lines_surfaces",
+    "name": "Линии уровня, поверхности уровня",
+    "gradeLevel": 2,
+    "keywords": [
+      "линии уровня"
+    ],
+    "parent": "multivariable_function",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2123
+  },
+  {
+    "id": "multivariable_limit",
+    "name": "Предел функции многих переменных (по Коши и по Гейне)",
+    "gradeLevel": 3,
+    "keywords": [
+      "предел"
+    ],
+    "parent": "multivariable_basic",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2124
+  },
+  {
+    "id": "iterated_limits",
+    "name": "Повторные пределы, их связь с пределом в точке",
+    "gradeLevel": 3,
+    "keywords": [
+      "повторные пределы"
+    ],
+    "parent": "multivariable_limit",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2125
+  },
+  {
+    "id": "multivariable_continuity",
+    "name": "Непрерывность функции многих переменных",
+    "gradeLevel": 3,
+    "keywords": [
+      "непрерывность"
+    ],
+    "parent": "multivariable_basic",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2126
+  },
+  {
+    "id": "partial_derivatives",
+    "name": "Частные производные и дифференциал",
+    "gradeLevel": 2,
+    "keywords": [
+      "частные производные",
+      "∂f/∂xᵢ"
+    ],
+    "parent": "multivariable_calculus",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2127
+  },
+  {
+    "id": "partial_derivative_definition",
+    "name": "Определение частной производной первого порядка",
+    "gradeLevel": 2,
+    "keywords": [
+      "определение"
+    ],
+    "parent": "partial_derivatives",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2128
+  },
+  {
+    "id": "differentiability_multivariable",
+    "name": "Дифференцируемость функции в точке (линейное приращение)",
+    "gradeLevel": 3,
+    "keywords": [
+      "дифференцируемость"
+    ],
+    "parent": "partial_derivatives",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2129
+  },
+  {
+    "id": "total_differential",
+    "name": "Полный дифференциал df = Σ (∂f/∂xᵢ) dxᵢ",
+    "gradeLevel": 3,
+    "keywords": [
+      "полный дифференциал"
+    ],
+    "parent": "differentiability_multivariable",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2130
+  },
+  {
+    "id": "tangent_plane_normal",
+    "name": "Касательная плоскость и нормаль к поверхности",
+    "gradeLevel": 3,
+    "keywords": [
+      "касательная плоскость",
+      "нормаль"
+    ],
+    "parent": "differentiability_multivariable",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2131
+  },
+  {
+    "id": "directional_derivative",
+    "name": "Производная по направлению и градиент",
+    "gradeLevel": 3,
+    "keywords": [
+      "производная по направлению",
+      "градиент"
+    ],
+    "parent": "multivariable_calculus",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2132
+  },
+  {
+    "id": "directional_derivative_formula",
+    "name": "Формула производной по направлению через градиент",
+    "gradeLevel": 3,
+    "keywords": [
+      "∇f·l⁰"
+    ],
+    "parent": "directional_derivative",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2133
+  },
+  {
+    "id": "gradient",
+    "name": "Градиент ∇f = (∂f/∂x₁, ..., ∂f/∂xₙ)",
+    "gradeLevel": 3,
+    "keywords": [
+      "градиент",
+      "∇f"
+    ],
+    "parent": "directional_derivative",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2134
+  },
+  {
+    "id": "gradient_properties",
+    "name": "Свойства градиента (направление наибольшего роста, ортогональность поверхностям уровня)",
+    "gradeLevel": 3,
+    "keywords": [
+      "свойства градиента"
+    ],
+    "parent": "gradient",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2135
+  },
+  {
+    "id": "divergence_curl",
+    "name": "Дивергенция и ротор (для векторных полей в ℝ³)",
+    "gradeLevel": 3,
+    "keywords": [
+      "div",
+      "rot",
+      "curl"
+    ],
+    "parent": "multivariable_calculus",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2136
+  },
+  {
+    "id": "laplacian",
+    "name": "Оператор Лапласа (лапласиан) Δf = Σ ∂²f/∂xᵢ²",
+    "gradeLevel": 3,
+    "keywords": [
+      "лапласиан",
+      "Δ"
+    ],
+    "parent": "multivariable_calculus",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2137
+  },
+  {
+    "id": "higher_order_partials",
+    "name": "Частные производные высших порядков",
+    "gradeLevel": 2,
+    "keywords": [
+      "смешанные производные"
+    ],
+    "parent": "multivariable_calculus",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2138
+  },
+  {
+    "id": "schwarz_theorem",
+    "name": "Теорема Шварца (о равенстве смешанных производных)",
+    "gradeLevel": 2,
+    "keywords": [
+      "Шварц",
+      "равенство смешанных производных"
+    ],
+    "parent": "higher_order_partials",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2139
+  },
+  {
+    "id": "taylor_multivariable",
+    "name": "Формула Тейлора для функции многих переменных",
+    "gradeLevel": 4,
+    "keywords": [
+      "Тейлор"
+    ],
+    "parent": "multivariable_calculus",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2140
+  },
+  {
+    "id": "multivariable_extremum",
+    "name": "Экстремум функции нескольких переменных",
+    "gradeLevel": 2,
+    "keywords": [
+      "экстремум"
+    ],
+    "parent": "multivariable_calculus",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2141
+  },
+  {
+    "id": "necessary_extremum_condition",
+    "name": "Необходимое условие локального экстремума (∂f/∂xᵢ=0)",
+    "gradeLevel": 2,
+    "keywords": [
+      "необходимое условие"
+    ],
+    "parent": "multivariable_extremum",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2142
+  },
+  {
+    "id": "sufficient_extremum_condition_2var",
+    "name": "Достаточное условие экстремума для функции двух переменных (через определитель матрицы Гессе)",
+    "gradeLevel": 3,
+    "keywords": [
+      "достаточное условие",
+      "D = f_xx f_yy - (f_xy)²"
+    ],
+    "parent": "multivariable_extremum",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2143
+  },
+  {
+    "id": "hessian_matrix",
+    "name": "Матрица Гессе (гессиан), квадратичная форма второго дифференциала",
+    "gradeLevel": 3,
+    "keywords": [
+      "гессиан",
+      "H"
+    ],
+    "parent": "multivariable_extremum",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2144
+  },
+  {
+    "id": "constrained_extremum",
+    "name": "Условный экстремум (связи в виде уравнений)",
+    "gradeLevel": 3,
+    "keywords": [
+      "условный экстремум"
+    ],
+    "parent": "multivariable_extremum",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2145
+  },
+  {
+    "id": "lagrange_multipliers",
+    "name": "Метод множителей Лагранжа",
+    "gradeLevel": 3,
+    "keywords": [
+      "Лагранж",
+      "множители Лагранжа"
+    ],
+    "parent": "constrained_extremum",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2146
+  },
+  {
+    "id": "implicit_function",
+    "name": "Неявные функции и их дифференцирование",
+    "gradeLevel": 3,
+    "keywords": [
+      "неявная функция"
+    ],
+    "parent": "multivariable_calculus",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2147
+  },
+  {
+    "id": "implicit_function_theorem",
+    "name": "Теорема о неявной функции (существование и дифференцируемость)",
+    "gradeLevel": 4,
+    "keywords": [
+      "неявная функция"
+    ],
+    "parent": "implicit_function",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2148
+  },
+  {
+    "id": "jacobian",
+    "name": "Определитель Якоби (якобиан), его геометрический смысл",
+    "gradeLevel": 3,
+    "keywords": [
+      "якобиан",
+      "J"
+    ],
+    "parent": "multivariable_calculus",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2149
+  },
+  {
+    "id": "multivariable_integral_calculus",
+    "name": "Интегральное исчисление функции многих переменных",
+    "gradeLevel": 2,
+    "keywords": [
+      "двойные",
+      "тройные",
+      "криволинейные",
+      "поверхностные интегралы"
+    ],
+    "parent": "mathematical_analysis",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2150
+  },
+  {
+    "id": "multiple_integrals",
+    "name": "Кратные интегралы (двойные и тройные)",
+    "gradeLevel": 2,
+    "keywords": [
+      "двойной интеграл",
+      "тройной интеграл"
+    ],
+    "parent": "multivariable_integral_calculus",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2151
+  },
+  {
+    "id": "double_integral",
+    "name": "Определение двойного интеграла (предел интегральных сумм)",
+    "gradeLevel": 3,
+    "keywords": [
+      "двойной интеграл"
+    ],
+    "parent": "multiple_integrals",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2152
+  },
+  {
+    "id": "double_integral_geometric",
+    "name": "Геометрический смысл двойного интеграла (объём)",
+    "gradeLevel": 3,
+    "keywords": [
+      "геометрический смысл"
+    ],
+    "parent": "double_integral",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2153
+  },
+  {
+    "id": "double_integral_properties",
+    "name": "Свойства двойных интегралов (линейность, аддитивность, теорема о среднем)",
+    "gradeLevel": 3,
+    "keywords": [
+      "свойства"
+    ],
+    "parent": "double_integral",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2154
+  },
+  {
+    "id": "double_to_iterated",
+    "name": "Сведение двойного интеграла к повторному",
+    "gradeLevel": 3,
+    "keywords": [
+      "повторный интеграл"
+    ],
+    "parent": "double_integral",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2155
+  },
+  {
+    "id": "change_of_variables_double",
+    "name": "Замена переменных в двойном интеграле (|J|)",
+    "gradeLevel": 3,
+    "keywords": [
+      "замена переменных",
+      "якобиан"
+    ],
+    "parent": "double_integral",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2156
+  },
+  {
+    "id": "polar_coordinates",
+    "name": "Двойной интеграл в полярных координатах",
+    "gradeLevel": 3,
+    "keywords": [
+      "полярные координаты"
+    ],
+    "parent": "change_of_variables_double",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2157
+  },
+  {
+    "id": "double_integral_applications",
+    "name": "Геометрические и физические приложения двойного интеграла",
+    "gradeLevel": 3,
+    "keywords": [
+      "площадь",
+      "объём",
+      "масса",
+      "центр масс",
+      "моменты инерции"
+    ],
+    "parent": "multiple_integrals",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2158
+  },
+  {
+    "id": "triple_integral",
+    "name": "Определение тройного интеграла",
+    "gradeLevel": 3,
+    "keywords": [
+      "тройной интеграл"
+    ],
+    "parent": "multiple_integrals",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2159
+  },
+  {
+    "id": "triple_to_iterated",
+    "name": "Сведение тройного интеграла к повторному",
+    "gradeLevel": 3,
+    "keywords": [
+      "повторный"
+    ],
+    "parent": "triple_integral",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2160
+  },
+  {
+    "id": "cylindrical_coordinates",
+    "name": "Тройной интеграл в цилиндрических координатах",
+    "gradeLevel": 3,
+    "keywords": [
+      "цилиндрические координаты"
+    ],
+    "parent": "triple_integral",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2161
+  },
+  {
+    "id": "spherical_coordinates",
+    "name": "Тройной интеграл в сферических координатах",
+    "gradeLevel": 3,
+    "keywords": [
+      "сферические координаты"
+    ],
+    "parent": "triple_integral",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2162
+  },
+  {
+    "id": "line_integrals",
+    "name": "Криволинейные интегралы",
+    "gradeLevel": 3,
+    "keywords": [
+      "криволинейные интегралы"
+    ],
+    "parent": "multivariable_integral_calculus",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2163
+  },
+  {
+    "id": "line_integral_type1",
+    "name": "Криволинейный интеграл I рода (по длине дуги) ∫ f ds",
+    "gradeLevel": 3,
+    "keywords": [
+      "I рода",
+      "по длине дуги"
+    ],
+    "parent": "line_integrals",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2164
+  },
+  {
+    "id": "line_integral_type2",
+    "name": "Криволинейный интеграл II рода (по координатам) ∫ P dx + Q dy",
+    "gradeLevel": 3,
+    "keywords": [
+      "II рода",
+      "по координатам"
+    ],
+    "parent": "line_integrals",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2165
+  },
+  {
+    "id": "path_independence",
+    "name": "Условия независимости криволинейного интеграла II рода от пути",
+    "gradeLevel": 3,
+    "keywords": [
+      "независимость от пути",
+      "потенциальность"
+    ],
+    "parent": "line_integral_type2",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2166
+  },
+  {
+    "id": "surface_integrals",
+    "name": "Поверхностные интегралы",
+    "gradeLevel": 3,
+    "keywords": [
+      "поверхностные интегралы"
+    ],
+    "parent": "multivariable_integral_calculus",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2167
+  },
+  {
+    "id": "surface_integral_type1",
+    "name": "Поверхностный интеграл I рода (по площади поверхности) ∫ f dS",
+    "gradeLevel": 3,
+    "keywords": [
+      "I рода"
+    ],
+    "parent": "surface_integrals",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2168
+  },
+  {
+    "id": "surface_integral_type2",
+    "name": "Поверхностный интеграл II рода (по координатам)",
+    "gradeLevel": 3,
+    "keywords": [
+      "II рода"
+    ],
+    "parent": "surface_integrals",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2169
+  },
+  {
+    "id": "integral_theorems",
+    "name": "Интегральные теоремы (векторный анализ)",
+    "gradeLevel": 3,
+    "keywords": [
+      "Грин",
+      "Остроградский-Гаусс",
+      "Стокс"
+    ],
+    "parent": "multivariable_integral_calculus",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2170
+  },
+  {
+    "id": "green_formula",
+    "name": "Формула Грина",
+    "gradeLevel": 3,
+    "keywords": [
+      "Грин"
+    ],
+    "parent": "integral_theorems",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2171
+  },
+  {
+    "id": "ostrogradsky_gauss_formula",
+    "name": "Формула Остроградского-Гаусса",
+    "gradeLevel": 3,
+    "keywords": [
+      "Остроградский-Гаусс",
+      "дивергенция"
+    ],
+    "parent": "integral_theorems",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2172
+  },
+  {
+    "id": "stokes_formula",
+    "name": "Формула Стокса",
+    "gradeLevel": 3,
+    "keywords": [
+      "Стокс",
+      "ротор"
+    ],
+    "parent": "integral_theorems",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2173
+  },
+  {
+    "id": "ode",
+    "name": "Обыкновенные дифференциальные уравнения (ОДУ)",
+    "gradeLevel": 2,
+    "keywords": [
+      "дифференциальные уравнения",
+      "ОДУ"
+    ],
+    "parent": "mathematical_analysis",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2174
+  },
+  {
+    "id": "ode_basic",
+    "name": "Основные понятия ОДУ",
+    "gradeLevel": 2,
+    "keywords": [
+      "порядок",
+      "решение",
+      "задача Коши"
+    ],
+    "parent": "ode",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2175
+  },
+  {
+    "id": "ode_order",
+    "name": "Порядок уравнения, решение, интегральная кривая",
+    "gradeLevel": 2,
+    "keywords": [
+      "порядок"
+    ],
+    "parent": "ode_basic",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2176
+  },
+  {
+    "id": "cauchy_problem",
+    "name": "Задача Коши (начальное условие)",
+    "gradeLevel": 2,
+    "keywords": [
+      "задача Коши"
+    ],
+    "parent": "ode_basic",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2177
+  },
+  {
+    "id": "picard_theorem",
+    "name": "Теорема существования и единственности решения задачи Коши (Пикара)",
+    "gradeLevel": 4,
+    "keywords": [
+      "Пикар"
+    ],
+    "parent": "ode_basic",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2178
+  },
+  {
+    "id": "first_order_ode",
+    "name": "Дифференциальные уравнения первого порядка",
+    "gradeLevel": 2,
+    "keywords": [
+      "первого порядка"
+    ],
+    "parent": "ode",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2179
+  },
+  {
+    "id": "separable_equations",
+    "name": "Уравнения с разделяющимися переменными y' = f(x)g(y)",
+    "gradeLevel": 2,
+    "keywords": [
+      "разделяющиеся переменные"
+    ],
+    "parent": "first_order_ode",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2180
+  },
+  {
+    "id": "homogeneous_ode",
+    "name": "Однородные уравнения y' = F(y/x)",
+    "gradeLevel": 2,
+    "keywords": [
+      "однородные"
+    ],
+    "parent": "first_order_ode",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2181
+  },
+  {
+    "id": "linear_first_order",
+    "name": "Линейные уравнения первого порядка y' + p(x)y = q(x)",
+    "gradeLevel": 2,
+    "keywords": [
+      "линейные"
+    ],
+    "parent": "first_order_ode",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2182
+  },
+  {
+    "id": "bernoulli_equation",
+    "name": "Уравнение Бернулли y' + p(x)y = q(x)yⁿ",
+    "gradeLevel": 3,
+    "keywords": [
+      "Бернулли"
+    ],
+    "parent": "first_order_ode",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2183
+  },
+  {
+    "id": "exact_differential",
+    "name": "Уравнения в полных дифференциалах M dx + N dy = 0",
+    "gradeLevel": 3,
+    "keywords": [
+      "полные дифференциалы"
+    ],
+    "parent": "first_order_ode",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2184
+  },
+  {
+    "id": "higher_order_ode",
+    "name": "Дифференциальные уравнения высших порядков",
+    "gradeLevel": 2,
+    "keywords": [
+      "высших порядков"
+    ],
+    "parent": "ode",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2185
+  },
+  {
+    "id": "reduction_order",
+    "name": "Уравнения, допускающие понижение порядка",
+    "gradeLevel": 2,
+    "keywords": [
+      "понижение порядка"
+    ],
+    "parent": "higher_order_ode",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2186
+  },
+  {
+    "id": "linear_ode",
+    "name": "Линейные ОДУ высших порядков",
+    "gradeLevel": 2,
+    "keywords": [
+      "линейные"
+    ],
+    "parent": "ode",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2187
+  },
+  {
+    "id": "linear_homogeneous_ode",
+    "name": "Линейные однородные ОДУ",
+    "gradeLevel": 2,
+    "keywords": [
+      "однородные"
+    ],
+    "parent": "linear_ode",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2188
+  },
+  {
+    "id": "superposition_principle",
+    "name": "Принцип суперпозиции (линейная комбинация решений)",
+    "gradeLevel": 2,
+    "keywords": [
+      "суперпозиция"
+    ],
+    "parent": "linear_homogeneous_ode",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2189
+  },
+  {
+    "id": "wronskian",
+    "name": "Линейная зависимость решений, определитель Вронского (вронскиан)",
+    "gradeLevel": 3,
+    "keywords": [
+      "Вронский",
+      "W"
+    ],
+    "parent": "linear_homogeneous_ode",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2190
+  },
+  {
+    "id": "fundamental_system_solutions_ode",
+    "name": "Фундаментальная система решений (ФСР)",
+    "gradeLevel": 3,
+    "keywords": [
+      "ФСР"
+    ],
+    "parent": "linear_homogeneous_ode",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2191
+  },
+  {
+    "id": "linear_nonhomogeneous_ode",
+    "name": "Линейные неоднородные ОДУ L[y] = f(x)",
+    "gradeLevel": 2,
+    "keywords": [
+      "неоднородные"
+    ],
+    "parent": "linear_ode",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2192
+  },
+  {
+    "id": "variation_of_parameters",
+    "name": "Метод вариации произвольных постоянных (Лагранжа)",
+    "gradeLevel": 3,
+    "keywords": [
+      "вариация постоянных"
+    ],
+    "parent": "linear_nonhomogeneous_ode",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2193
+  },
+  {
+    "id": "undetermined_coefficients",
+    "name": "Метод неопределённых коэффициентов (подбора)",
+    "gradeLevel": 3,
+    "keywords": [
+      "подбор частного решения"
+    ],
+    "parent": "linear_nonhomogeneous_ode",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2194
+  },
+  {
+    "id": "constant_coefficients_ode",
+    "name": "Линейные ОДУ с постоянными коэффициентами",
+    "gradeLevel": 2,
+    "keywords": [
+      "постоянные коэффициенты"
+    ],
+    "parent": "ode",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2195
+  },
+  {
+    "id": "characteristic_equation_ode",
+    "name": "Характеристическое уравнение kⁿ + a_{n-1}kⁿ⁻¹ + ... + a₀ = 0",
+    "gradeLevel": 2,
+    "keywords": [
+      "характеристическое уравнение"
+    ],
+    "parent": "constant_coefficients_ode",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2196
+  },
+  {
+    "id": "fsr_construction",
+    "name": "Построение ФСР в зависимости от корней характеристического уравнения",
+    "gradeLevel": 2,
+    "keywords": [
+      "корни",
+      "вещественные",
+      "комплексные",
+      "кратные"
+    ],
+    "parent": "constant_coefficients_ode",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2197
+  },
+  {
+    "id": "ode_systems",
+    "name": "Системы дифференциальных уравнений",
+    "gradeLevel": 3,
+    "keywords": [
+      "системы"
+    ],
+    "parent": "ode",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2198
+  },
+  {
+    "id": "normal_systems",
+    "name": "Нормальные системы (в нормальной форме Коши)",
+    "gradeLevel": 3,
+    "keywords": [
+      "нормальная форма"
+    ],
+    "parent": "ode_systems",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2199
+  },
+  {
+    "id": "matrix_method_ode",
+    "name": "Матричный метод (экспонента матрицы)",
+    "gradeLevel": 4,
+    "keywords": [
+      "матричный метод"
+    ],
+    "parent": "ode_systems",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2200
+  },
+  {
+    "id": "complex_analysis",
+    "name": "Элементы комплексного анализа",
+    "gradeLevel": 3,
+    "keywords": [
+      "комплексный анализ",
+      "ТФКП"
+    ],
+    "parent": "mathematical_analysis",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2201
+  },
+  {
+    "id": "complex_functions",
+    "name": "Функции комплексного переменного (ФКП)",
+    "gradeLevel": 3,
+    "keywords": [
+      "функции комплексного переменного"
+    ],
+    "parent": "complex_analysis",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2202
+  },
+  {
+    "id": "analytic_function",
+    "name": "Производная ФКП, аналитическая функция",
+    "gradeLevel": 3,
+    "keywords": [
+      "аналитическая функция"
+    ],
+    "parent": "complex_functions",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2203
+  },
+  {
+    "id": "cauchy_riemann",
+    "name": "Условия Коши-Римана (Даламбера-Эйлера)",
+    "gradeLevel": 3,
+    "keywords": [
+      "Коши-Риман"
+    ],
+    "parent": "complex_functions",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2204
+  },
+  {
+    "id": "conformal_mapping",
+    "name": "Конформные отображения",
+    "gradeLevel": 3,
+    "keywords": [
+      "конформное отображение"
+    ],
+    "parent": "analytic_function",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2205
+  },
+  {
+    "id": "complex_integration",
+    "name": "Интегрирование ФКП",
+    "gradeLevel": 3,
+    "keywords": [
+      "интегралы"
+    ],
+    "parent": "complex_analysis",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2206
+  },
+  {
+    "id": "cauchy_integral_theorem",
+    "name": "Интегральная теорема Коши",
+    "gradeLevel": 3,
+    "keywords": [
+      "теорема Коши"
+    ],
+    "parent": "complex_integration",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2207
+  },
+  {
+    "id": "cauchy_integral_formula",
+    "name": "Интегральная формула Коши",
+    "gradeLevel": 3,
+    "keywords": [
+      "формула Коши"
+    ],
+    "parent": "complex_integration",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2208
+  },
+  {
+    "id": "complex_series",
+    "name": "Ряды в комплексной области",
+    "gradeLevel": 3,
+    "keywords": [
+      "степенные ряды",
+      "Лоран"
+    ],
+    "parent": "complex_analysis",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2209
+  },
+  {
+    "id": "taylor_series_complex",
+    "name": "Разложение аналитической функции в ряд Тейлора",
+    "gradeLevel": 3,
+    "keywords": [
+      "Тейлор"
+    ],
+    "parent": "complex_series",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2210
+  },
+  {
+    "id": "laurent_series",
+    "name": "Ряд Лорана (разложение в кольце)",
+    "gradeLevel": 3,
+    "keywords": [
+      "Лоран"
+    ],
+    "parent": "complex_series",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2211
+  },
+  {
+    "id": "isolated_singularities",
+    "name": "Изолированные особые точки (устранимая, полюс, существенно особая)",
+    "gradeLevel": 3,
+    "keywords": [
+      "особые точки",
+      "полюс"
+    ],
+    "parent": "complex_series",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2212
+  },
+  {
+    "id": "residue_theory",
+    "name": "Теория вычетов",
+    "gradeLevel": 3,
+    "keywords": [
+      "вычеты"
+    ],
+    "parent": "complex_analysis",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2213
+  },
+  {
+    "id": "residue_definition",
+    "name": "Определение вычета Res(f,a)",
+    "gradeLevel": 3,
+    "keywords": [
+      "вычет"
+    ],
+    "parent": "residue_theory",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2214
+  },
+  {
+    "id": "residue_theorem",
+    "name": "Основная теорема о вычетах ∮ f(z) dz = 2πi Σ Res",
+    "gradeLevel": 3,
+    "keywords": [
+      "теорема о вычетах"
+    ],
+    "parent": "residue_theory",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2215
+  },
+  {
+    "id": "residue_applications",
+    "name": "Применение теории вычетов к вычислению определённых интегралов",
+    "gradeLevel": 3,
+    "keywords": [
+      "применение",
+      "интегралы"
+    ],
+    "parent": "residue_theory",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2216
+  },
+  {
+    "id": "functional_analysis_elements",
+    "name": "Элементы функционального анализа",
+    "gradeLevel": 4,
+    "keywords": [
+      "функциональный анализ",
+      "банаховы",
+      "гильбертовы"
+    ],
+    "parent": "mathematical_analysis",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2217
+  },
+  {
+    "id": "normed_spaces",
+    "name": "Нормированные и банаховы пространства",
+    "gradeLevel": 4,
+    "keywords": [
+      "нормированные пространства",
+      "банаховы"
+    ],
+    "parent": "functional_analysis_elements",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2218
+  },
+  {
+    "id": "banach_spaces",
+    "name": "Банаховы пространства, полнота",
+    "gradeLevel": 4,
+    "keywords": [
+      "Банаховы"
+    ],
+    "parent": "normed_spaces",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2219
+  },
+  {
+    "id": "holder_minkowski",
+    "name": "Неравенства Гёльдера и Минковского",
+    "gradeLevel": 4,
+    "keywords": [
+      "Гёльдер",
+      "Минковский"
+    ],
+    "parent": "normed_spaces",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2220
+  },
+  {
+    "id": "linear_operators",
+    "name": "Линейные операторы и функционалы",
+    "gradeLevel": 4,
+    "keywords": [
+      "линейные операторы",
+      "функционалы"
+    ],
+    "parent": "functional_analysis_elements",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2221
+  },
+  {
+    "id": "operator_norm",
+    "name": "Ограниченность и норма оператора",
+    "gradeLevel": 4,
+    "keywords": [
+      "норма оператора"
+    ],
+    "parent": "linear_operators",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2222
+  },
+  {
+    "id": "hanh_banach_theorem",
+    "name": "Теорема Хана-Банаха (о продолжении линейного функционала)",
+    "gradeLevel": 5,
+    "keywords": [
+      "Хан-Банаха"
+    ],
+    "parent": "linear_operators",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2223
+  },
+  {
+    "id": "hilbert_spaces",
+    "name": "Гильбертовы пространства",
+    "gradeLevel": 4,
+    "keywords": [
+      "гильбертовы"
+    ],
+    "parent": "functional_analysis_elements",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2224
+  },
+  {
+    "id": "inner_product_hilbert",
+    "name": "Скалярное произведение, гильбертово пространство",
+    "gradeLevel": 4,
+    "keywords": [
+      "скалярное произведение"
+    ],
+    "parent": "hilbert_spaces",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2225
+  },
+  {
+    "id": "orthonormal_basis_hilbert",
+    "name": "Ортонормированные базисы, ортогональные разложения",
+    "gradeLevel": 4,
+    "keywords": [
+      "ОНБ"
+    ],
+    "parent": "hilbert_spaces",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2226
+  },
+  {
+    "id": "riesz_frechet",
+    "name": "Теорема Рисса-Фреше (об общем виде линейного функционала)",
+    "gradeLevel": 5,
+    "keywords": [
+      "Рисс-Фреше"
+    ],
+    "parent": "hilbert_spaces",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2227
+  },
+  {
+    "id": "measure_theory",
+    "name": "Теория меры и интеграл Лебега",
+    "gradeLevel": 4,
+    "keywords": [
+      "мера Лебега",
+      "интеграл Лебега"
+    ],
+    "parent": "mathematical_analysis",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2228
+  },
+  {
+    "id": "lebesgue_measure",
+    "name": "Мера Лебега на прямой",
+    "gradeLevel": 4,
+    "keywords": [
+      "мера Лебега"
+    ],
+    "parent": "measure_theory",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2229
+  },
+  {
+    "id": "lebesgue_integral",
+    "name": "Интеграл Лебега",
+    "gradeLevel": 4,
+    "keywords": [
+      "интеграл Лебега"
+    ],
+    "parent": "measure_theory",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2230
+  },
+  {
+    "id": "dominated_convergence",
+    "name": "Теорема Лебега о мажорируемой сходимости",
+    "gradeLevel": 4,
+    "keywords": [
+      "мажорируемая сходимость"
+    ],
+    "parent": "lebesgue_integral",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2231
+  },
+  {
+    "id": "lebesgue_riemann_comparison",
+    "name": "Сравнение интегралов Римана и Лебега",
+    "gradeLevel": 4,
+    "keywords": [
+      "Риман",
+      "Лебег"
+    ],
+    "parent": "lebesgue_integral",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2232
+  },
+  {
+    "id": "lp_spaces",
+    "name": "Пространства Лебега L_p",
+    "gradeLevel": 4,
+    "keywords": [
+      "L_p"
+    ],
+    "parent": "measure_theory",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2233
+  },
+  {
+    "id": "distributions",
+    "name": "Обобщённые функции (распределения)",
+    "gradeLevel": 5,
+    "keywords": [
+      "обобщённые функции",
+      "распределения"
+    ],
+    "parent": "mathematical_analysis",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2234
+  },
+  {
+    "id": "dirac_delta",
+    "name": "Дельта-функция Дирака δ(x)",
+    "gradeLevel": 4,
+    "keywords": [
+      "дельта-функция",
+      "δ"
+    ],
+    "parent": "distributions",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2235
+  },
+  {
+    "id": "heaviside_function",
+    "name": "Функция Хевисайда θ(x)",
+    "gradeLevel": 4,
+    "keywords": [
+      "Хевисайд"
+    ],
+    "parent": "distributions",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2236
+  },
+  {
+    "id": "special_functions",
+    "name": "Специальные функции и интегральные преобразования",
+    "gradeLevel": 4,
+    "keywords": [
+      "гамма",
+      "бета",
+      "Бессель",
+      "Лапласа",
+      "Фурье"
+    ],
+    "parent": "mathematical_analysis",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2237
+  },
+  {
+    "id": "gamma_function",
+    "name": "Гамма-функция Эйлера Γ(z)",
+    "gradeLevel": 4,
+    "keywords": [
+      "Гамма-функция"
+    ],
+    "parent": "special_functions",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2238
+  },
+  {
+    "id": "beta_function",
+    "name": "Бета-функция Эйлера B(p,q)",
+    "gradeLevel": 4,
+    "keywords": [
+      "Бета-функция"
+    ],
+    "parent": "special_functions",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2239
+  },
+  {
+    "id": "bessel_functions",
+    "name": "Функции Бесселя (цилиндрические функции)",
+    "gradeLevel": 5,
+    "keywords": [
+      "Бессель"
+    ],
+    "parent": "special_functions",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2240
+  },
+  {
+    "id": "laplace_transform",
+    "name": "Преобразование Лапласа",
+    "gradeLevel": 3,
+    "keywords": [
+      "Лапласа",
+      "преобразование"
+    ],
+    "parent": "special_functions",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2241
+  },
+  {
+    "id": "fourier_transform",
+    "name": "Преобразование Фурье",
+    "gradeLevel": 3,
+    "keywords": [
+      "Фурье",
+      "преобразование"
+    ],
+    "parent": "special_functions",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2242
+  },
+  {
+    "id": "pde",
+    "name": "Элементы теории дифференциальных уравнений в частных производных (УрЧП)",
+    "gradeLevel": 4,
+    "keywords": [
+      "УрЧП",
+      "уравнения математической физики"
+    ],
+    "parent": "mathematical_analysis",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2243
+  },
+  {
+    "id": "pde_classification",
+    "name": "Классификация линейных УрЧП второго порядка",
+    "gradeLevel": 4,
+    "keywords": [
+      "гиперболические",
+      "параболические",
+      "эллиптические"
+    ],
+    "parent": "pde",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2244
+  },
+  {
+    "id": "wave_equation",
+    "name": "Волновое уравнение u_tt = a² Δu (гиперболический)",
+    "gradeLevel": 4,
+    "keywords": [
+      "волновое уравнение"
+    ],
+    "parent": "pde",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2245
+  },
+  {
+    "id": "heat_equation",
+    "name": "Уравнение теплопроводности u_t = a² Δu (параболический)",
+    "gradeLevel": 4,
+    "keywords": [
+      "теплопроводности"
+    ],
+    "parent": "pde",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2246
+  },
+  {
+    "id": "laplace_equation",
+    "name": "Уравнение Лапласа Δu = 0 (эллиптический)",
+    "gradeLevel": 4,
+    "keywords": [
+      "Лапласа"
+    ],
+    "parent": "pde",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2247
+  },
+  {
+    "id": "poisson_equation",
+    "name": "Уравнение Пуассона Δu = f",
+    "gradeLevel": 4,
+    "keywords": [
+      "Пуассона"
+    ],
+    "parent": "pde",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2248
+  },
+  {
+    "id": "separation_of_variables",
+    "name": "Метод Фурье разделения переменных",
+    "gradeLevel": 4,
+    "keywords": [
+      "разделение переменных"
+    ],
+    "parent": "pde",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2249
+  },
+  {
+    "id": "dalambert_formula",
+    "name": "Формула Даламбера для одномерного волнового уравнения",
+    "gradeLevel": 4,
+    "keywords": [
+      "Даламбер"
+    ],
+    "parent": "wave_equation",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2250
+  },
+  {
+    "id": "asymptotic_methods",
+    "name": "Асимптотические методы",
+    "gradeLevel": 5,
+    "keywords": [
+      "асимптотические разложения"
+    ],
+    "parent": "mathematical_analysis",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2251
+  },
+  {
+    "id": "laplace_method",
+    "name": "Метод Лапласа (главный вклад в точке максимума)",
+    "gradeLevel": 5,
+    "keywords": [
+      "Лапласа"
+    ],
+    "parent": "asymptotic_methods",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2252
+  },
+  {
+    "id": "steepest_descent",
+    "name": "Метод перевала (наискорейшего спуска)",
+    "gradeLevel": 5,
+    "keywords": [
+      "перевал"
+    ],
+    "parent": "asymptotic_methods",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2253
+  },
+  {
+    "id": "wkb_method",
+    "name": "Метод ВКБ (Вентцеля-Крамерса-Бриллюэна)",
+    "gradeLevel": 5,
+    "keywords": [
+      "ВКБ"
+    ],
+    "parent": "asymptotic_methods",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2254
+  },
+  {
+    "id": "fractals_chaos",
+    "name": "Фракталы и хаос",
+    "gradeLevel": 5,
+    "keywords": [
+      "фракталы",
+      "хаос"
+    ],
+    "parent": "mathematical_analysis",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2255
+  },
+  {
+    "id": "fractal_dimension",
+    "name": "Фрактальная размерность (Хаусдорфа, Минковского)",
+    "gradeLevel": 5,
+    "keywords": [
+      "фрактальная размерность"
+    ],
+    "parent": "fractals_chaos",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2256
+  },
+  {
+    "id": "cantor_set",
+    "name": "Канторово множество",
+    "gradeLevel": 4,
+    "keywords": [
+      "Кантор"
+    ],
+    "parent": "fractals_chaos",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2257
+  },
+  {
+    "id": "logistic_map",
+    "name": "Логистическое отображение (хаотическая динамика)",
+    "gradeLevel": 5,
+    "keywords": [
+      "логистическое отображение"
+    ],
+    "parent": "fractals_chaos",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2258
+  },
+  {
+    "id": "lyapunov_exponent",
+    "name": "Экспонента Ляпунова (мера хаотичности)",
+    "gradeLevel": 5,
+    "keywords": [
+      "Ляпунов"
+    ],
+    "parent": "fractals_chaos",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2259
+  },
+  {
+    "id": "numerical_methods",
+    "name": "Прикладные аспекты и численные методы",
+    "gradeLevel": 3,
+    "keywords": [
+      "численные методы"
+    ],
+    "parent": "mathematical_analysis",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2260
+  },
+  {
+    "id": "numerical_equation_solving",
+    "name": "Численное решение уравнений и систем",
+    "gradeLevel": 3,
+    "keywords": [
+      "решение уравнений"
+    ],
+    "parent": "numerical_methods",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2261
+  },
+  {
+    "id": "bisection_method",
+    "name": "Метод половинного деления (бисекции)",
+    "gradeLevel": 3,
+    "keywords": [
+      "бисекция"
+    ],
+    "parent": "numerical_equation_solving",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2262
+  },
+  {
+    "id": "newton_method",
+    "name": "Метод хорд и касательных (Ньютона)",
+    "gradeLevel": 3,
+    "keywords": [
+      "Ньютон",
+      "касательных"
+    ],
+    "parent": "numerical_equation_solving",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2263
+  },
+  {
+    "id": "simple_iteration",
+    "name": "Метод простой итерации",
+    "gradeLevel": 3,
+    "keywords": [
+      "итерация"
+    ],
+    "parent": "numerical_equation_solving",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2264
+  },
+  {
+    "id": "numerical_integration",
+    "name": "Численное интегрирование",
+    "gradeLevel": 3,
+    "keywords": [
+      "квадратурные формулы"
+    ],
+    "parent": "numerical_methods",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2265
+  },
+  {
+    "id": "rectangle_rule",
+    "name": "Формулы прямоугольников",
+    "gradeLevel": 3,
+    "keywords": [
+      "прямоугольники"
+    ],
+    "parent": "numerical_integration",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2266
+  },
+  {
+    "id": "trapezoidal_rule",
+    "name": "Формула трапеций",
+    "gradeLevel": 3,
+    "keywords": [
+      "трапеции"
+    ],
+    "parent": "numerical_integration",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2267
+  },
+  {
+    "id": "simpson_rule",
+    "name": "Формула Симпсона (парабол)",
+    "gradeLevel": 3,
+    "keywords": [
+      "Симпсон"
+    ],
+    "parent": "numerical_integration",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2268
+  },
+  {
+    "id": "numerical_ode",
+    "name": "Численные методы для ОДУ",
+    "gradeLevel": 3,
+    "keywords": [
+      "методы Рунге-Кутты"
+    ],
+    "parent": "numerical_methods",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2269
+  },
+  {
+    "id": "euler_method",
+    "name": "Метод Эйлера",
+    "gradeLevel": 3,
+    "keywords": [
+      "Эйлер"
+    ],
+    "parent": "numerical_ode",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2270
+  },
+  {
+    "id": "runge_kutta",
+    "name": "Методы Рунге-Кутты (второго, четвёртого порядка)",
+    "gradeLevel": 4,
+    "keywords": [
+      "Рунге-Кутта"
+    ],
+    "parent": "numerical_ode",
+    "icon": "fa-file-alt",
+    "example": "В разработке",
+    "description": "<p>В разработке</p>",
+    "order": 2271
   }
 ]
