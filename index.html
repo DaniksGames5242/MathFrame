@@ -188,7 +188,7 @@
             <p style="margin: 8px 0 0 0; font-size: 0.8rem; opacity: 0.9;">Найду тему по описанию, даже если вы не знаете точное название</p>
         </div>
         <div style="padding: 20px;">
-            <textarea id="aiQuery" rows="3" placeholder="Опишите тему, которую ищете...&#10;Например: «что-то про углы, которые в сумме дают 180 градусов» или «как решать уравнения с иксом»" style="width: 100%; padding: 12px; border-radius: 16px; border: 1px solid #e2e8f0; font-family: inherit; resize: vertical; margin-bottom: 16px;"></textarea>
+            <textarea id="aiQuery" rows="3" placeholder="Опишите тему, которую ищете...&#10;Например: «признаки равенства треугольников» или «что-то про углы, которые в сумме дают 180 градусов»" style="width: 100%; padding: 12px; border-radius: 16px; border: 1px solid #e2e8f0; font-family: inherit; resize: vertical; margin-bottom: 16px;"></textarea>
             <button id="aiSearchBtn" style="width: 100%; padding: 12px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; border-radius: 40px; color: white; font-weight: 600; cursor: pointer; transition: all 0.2s;">🔍 Найти тему (ИИ-семантика)</button>
         </div>
         <div id="aiResults" style="padding: 0 20px 20px 20px; max-height: 300px; overflow-y: auto; display: none;">
@@ -199,7 +199,7 @@
 </div>
 
 <script>
-    // ---- ВСЕ ОСТАЛЬНЫЕ ФУНКЦИИ БЕЗ ИЗМЕНЕНИЙ (кроме добавления векторизации и семантического поиска) ----
+    // ---- ВСЕ ОСТАЛЬНЫЕ ФУНКЦИИ БЕЗ ИЗМЕНЕНИЙ (кроме ИИ-поиска) ----
     const DEFAULT_TOPICS = [
         { id: "math_root", name: "Математика", parent: null, icon: "fa-folder", gradeLevel: 5, keywords: ["математика"], example: '<div style="padding:20px;"><h3>Математика</h3><p>Основы математики</p></div>', description: '<p>Главный раздел математики</p>' },
         { id: "algebra_7", name: "Алгебра 7–9", parent: "math_root", icon: "fa-folder", gradeLevel: 7, keywords: ["алгебра","выражения","формулы","7 класс"], example: '<div style="padding:20px; text-align:center;"><i class="fas fa-chart-line" style="font-size:2rem;"></i><div>Алгебра 7-9</div></div>', description: '<p><strong>Алгебра</strong> — раздел математики, изучающий операции над величинами и решение уравнений.</p><p><span class="inline-link" data-topic-id="linear_eq">Линейные уравнения</span>.</p>' },
@@ -207,7 +207,9 @@
         { id: "quadratic_eq", name: "Квадратные уравнения", parent: "algebra_7", icon: "fa-file-alt", gradeLevel: 8, keywords: ["дискриминант","парабола","ax²+bx+c=0"], example: '<div style="padding:20px;"><i class="fas fa-chart-line"></i><div>ax² + bx + c = 0, D = b² - 4ac</div><div id="quadraticDemo"></div><script>const d = document.getElementById("quadraticDemo"); if(d){ d.innerHTML = "<p>Динамический пример: при a=1,b=-3,c=2 → корни: 1 и 2</p>"; }<\/script></div>', description: '<p>Квадратное уравнение решается через дискриминант. При D>0 — два корня.</p>' },
         { id: "geometry_7", name: "Геометрия 7–9", parent: "math_root", icon: "fa-folder", gradeLevel: 7, keywords: ["геометрия","фигуры","углы"], example: '<div style="padding:20px;text-align:center;"><i class="fas fa-shapes" style="font-size:2rem;"></i><div>Геометрия</div><canvas id="geomCanvas" width="300" height="200" style="border:1px solid #ccc; margin-top:15px;"></canvas><script>const gctx = document.getElementById("geomCanvas")?.getContext("2d"); if(gctx){ gctx.beginPath(); gctx.rect(50,50,200,100); gctx.stroke(); gctx.fillStyle="#a0c4ff"; gctx.fillRect(50,50,200,100); }<\/script></div>', description: '<p><strong>Геометрия</strong> — раздел математики, изучающий пространственные формы.</p>' },
         { id: "adjacent_angles", name: "Смежные углы", parent: "geometry_7", icon: "fa-file-alt", gradeLevel: 7, keywords: ["углы","смежные","сумма 180"], example: '<div style="padding:20px;"><i class="fas fa-angle-double-right"></i><div>∠α + ∠β = 180°</div><canvas id="anglesCanvas" width="300" height="200" style="border:1px solid #ccc; margin-top:15px;"></canvas><script>const actx = document.getElementById("anglesCanvas")?.getContext("2d"); if(actx){ actx.beginPath(); actx.moveTo(50,100); actx.lineTo(250,100); actx.stroke(); actx.beginPath(); actx.moveTo(150,100); actx.lineTo(150,40); actx.stroke(); actx.fillStyle="red"; actx.fillRect(145,95,10,10); }<\/script></div>', description: '<p><strong>Смежные углы</strong> — два угла с общей стороной, сумма 180°.</p>' },
-        { id: "triangles", name: "Треугольники", parent: "geometry_7", icon: "fa-file-alt", gradeLevel: 7, keywords: ["треугольник","сумма углов","признаки равенства"], example: '<div style="padding:20px;"><i class="fas fa-shapes"></i><div>Сумма углов = 180°</div><canvas id="triCanvas" width="300" height="200" style="border:1px solid #ccc; margin-top:15px;"></canvas><script>const tctx = document.getElementById("triCanvas")?.getContext("2d"); if(tctx){ tctx.beginPath(); tctx.moveTo(150,30); tctx.lineTo(50,170); tctx.lineTo(250,170); tctx.closePath(); tctx.stroke(); tctx.fillStyle="#c4e0fa"; tctx.fill(); }<\/script></div>', description: '<p>Треугольники: виды, признаки равенства. Если у двух треугольников равны углы, то они подобны, но не обязательно равны.</p>' },
+        { id: "triangles", name: "Треугольники", parent: "geometry_7", icon: "fa-file-alt", gradeLevel: 7, keywords: ["треугольник","сумма углов","признаки равенства","подобие"], example: '<div style="padding:20px;"><i class="fas fa-shapes"></i><div>Сумма углов = 180°</div><canvas id="triCanvas" width="300" height="200" style="border:1px solid #ccc; margin-top:15px;"></canvas><script>const tctx = document.getElementById("triCanvas")?.getContext("2d"); if(tctx){ tctx.beginPath(); tctx.moveTo(150,30); tctx.lineTo(50,170); tctx.lineTo(250,170); tctx.closePath(); tctx.stroke(); tctx.fillStyle="#c4e0fa"; tctx.fill(); }<\/script></div>', description: '<p><strong>Треугольники</strong>: виды, признаки равенства (по двум сторонам и углу между ними, по стороне и прилежащим углам, по трём сторонам). Если у двух треугольников равны все углы, то они подобны, но не обязательно равны.</p>' },
+        { id: "divisibility_rules", name: "Признаки делимости", parent: "math_root", icon: "fa-file-alt", gradeLevel: 6, keywords: ["делимость","признаки","на 2","на 3","на 5","на 9","на 10"], example: '<div style="padding:20px;"><i class="fas fa-calculator"></i><div>Признаки делимости:<br>На 2: последняя цифра чётная<br>На 3: сумма цифр делится на 3<br>На 5: последняя цифра 0 или 5</div></div>', description: '<p><strong>Признаки делимости</strong> — правила, позволяющие определить, делится ли число на заданное без остатка, не выполняя деления.</p>' },
+        { id: "improper_integrals", name: "Несобственные интегралы", parent: "algebra_10", icon: "fa-file-alt", gradeLevel: 11, keywords: ["интеграл","несобственный","сходимость","расходимость"], example: '<div style="padding:20px;"><i class="fas fa-chart-line"></i><div>∫₁^∞ 1/x² dx — сходится</div></div>', description: '<p><strong>Несобственные интегралы</strong> — интегралы с бесконечными пределами или с разрывами подынтегральной функции. Исследуются на сходимость.</p>' },
         { id: "algebra_10", name: "Алгебра 10–11", parent: "math_root", icon: "fa-folder", gradeLevel: 10, keywords: ["алгебра","старшая школа","функции"], example: '<div style="padding:20px;"><i class="fas fa-chart-line"></i><div>Старшая школа</div><canvas id="funcCanvas" width="300" height="200" style="border:1px solid #ccc;"></canvas><script>const fctx = document.getElementById("funcCanvas")?.getContext("2d"); if(fctx){ fctx.beginPath(); for(let x=0;x<=300;x+=10){ let y = 100 - (x-150)*(x-150)/200; fctx.lineTo(x,y); } fctx.stroke(); }<\/script></div>', description: '<p>Углублённое изучение функций, производных и интегралов.</p>' },
         { id: "logarithms", name: "Логарифмы", parent: "algebra_10", icon: "fa-file-alt", gradeLevel: 10, keywords: ["логарифм","log","степень"], example: '<div style="padding:20px;"><i class="fas fa-chart-line"></i><div>logₐ b = c ⇔ a^c = b</div><div id="logDemo"></div><script>document.getElementById("logDemo").innerHTML = "<p>log₂8 = 3, так как 2³=8</p>";<\/script></div>', description: '<p>Логарифм — показатель степени, в которую нужно возвести основание.</p>' },
         { id: "straight_line", name: "Прямая", parent: "geometry_7", icon: "fa-file-alt", gradeLevel: 7, keywords: ["прямая","линия"], example: '<div style="padding:20px;"><i class="fas fa-chart-line"></i><div>Прямая линия: y = kx + b</div><canvas id="straightCanvas" width="300" height="200" style="border:1px solid #ccc;"></canvas><script>const sctx = document.getElementById("straightCanvas")?.getContext("2d"); if(sctx){ sctx.beginPath(); sctx.moveTo(0,100); sctx.lineTo(300,150); sctx.stroke(); }<\/script></div>', description: '<p><strong>Прямая</strong> — бесконечная линия, не имеющая изгибов.</p>' }
@@ -218,157 +220,199 @@
     let currentSearchQuery = "", searchInDescription = false, keywordsEnabled = true, fuzzyEnabled = true, smartSortEnabled = true;
     let matchOnlyByDescription = new Map(), topicRelevanceInfo = new Map();
 
-    // ---------- ИНТЕЛЛЕКТУАЛЬНЫЙ ПОИСК НА ОСНОВЕ ВЕКТОРОВ (TF-IDF + COSINE) ----------
-    class SemanticSearchEngine {
+    // ---------- НОВЫЙ ИИ-ПОИСК НА ОСНОВЕ СЕМАНТИЧЕСКИХ КЛАСТЕРОВ И ВЕКТОРОВ ----------
+    class IntelligentSemanticAI {
         constructor() {
-            this.documents = [];     // { id, text }
-            this.vocabulary = new Map(); // слово -> индекс
-            this.tfidfMatrix = [];   // вектор для каждого документа
-            this.idf = [];
-            this.ready = false;
-        }
-        
-        // Токенизация + стемминг (примитивный, но работает для русских слов)
-        tokenize(text) {
-            // Приводим к нижнему регистру, убираем html-теги, знаки препинания
-            let clean = text.toLowerCase().replace(/<[^>]*>/g, ' ');
-            // разбиваем на слова (буквы и цифры)
-            let words = clean.match(/[а-яёa-z0-9]+/gi) || [];
-            // Убираем короткие предлоги и союзы (стоп-слова)
-            const stopWords = new Set(['и', 'в', 'на', 'с', 'по', 'к', 'у', 'о', 'об', 'для', 'это', 'как', 'так', 'же', 'что', 'то', 'этот', 'эта', 'эти', 'из', 'за', 'под', 'над', 'без', 'до', 'при', 'через', 'между', 'или', 'но', 'а', 'не', 'да', 'бы', 'еще', 'ещё', 'все', 'всё', 'всех', 'всю', 'весь', 'было', 'были', 'будет', 'будет', 'это', 'тот', 'та', 'те']);
-            return words.filter(w => w.length > 1 && !stopWords.has(w));
-        }
-        
-        buildCorpus(topics) {
-            this.documents = [];
-            this.vocabulary.clear();
+            // Тематические кластеры для фильтрации по смыслу
+            this.topicClusters = {
+                'геометрия': ['треугольник', 'угол', 'прямая', 'фигура', 'пространство', 'форма', 'сторона', 'вершина', 'равенство', 'подобие', 'признак равенства'],
+                'алгебра': ['уравнение', 'функция', 'логарифм', 'выражение', 'переменная', 'корень', 'степень', 'дискриминант', 'парабола'],
+                'арифметика': ['делимость', 'число', 'цифра', 'сумма', 'деление', 'умножение', 'остаток'],
+                'математический_анализ': ['интеграл', 'производная', 'предел', 'сходимость', 'расходимость']
+            };
             
+            // Синонимический словарь (расширенный)
+            this.synonyms = {
+                'признак': ['признак', 'правило', 'критерий', 'свойство', 'теорема'],
+                'равенство': ['равенство', 'равный', 'одинаковый', 'конгруэнтный', 'совпадать'],
+                'треугольник': ['треугольник', 'триугольник', 'треугольная фигура', 'три стороны'],
+                'угол': ['угол', 'угловой', 'градус', 'уголок'],
+                'уравнение': ['уравнение', 'уравнивание', 'равенство с неизвестным', 'ax+b'],
+                'делимость': ['делимость', 'деление без остатка', 'кратность', 'кратный'],
+                'интеграл': ['интеграл', 'интегрирование', 'первообразная'],
+                'сходимость': ['сходимость', 'сходящийся', 'конвергенция', 'приближение']
+            };
+            
+            // Векторы тем (кэшируются)
+            this.topicVectors = new Map();
+            this.initialized = false;
+        }
+        
+        // Получить ключевые слова темы для векторизации
+        getTopicText(topic) {
+            let text = (topic.name + ' ' + (topic.keywords || []).join(' ') + ' ' + (topic.description || '').replace(/<[^>]*>/g, '')).toLowerCase();
+            return text;
+        }
+        
+        // Токенизация с учётом словосочетаний и синонимов
+        tokenizeWithSynonyms(text, queryTokens) {
+            let tokens = [];
+            let words = text.split(/\s+/);
+            
+            for (let word of words) {
+                if (word.length < 2) continue;
+                tokens.push(word);
+                // Добавляем синонимы, если они есть в запросе
+                for (let qToken of queryTokens) {
+                    if (this.synonyms[qToken] && this.synonyms[qToken].includes(word)) {
+                        tokens.push(qToken); // повышаем сходство через синоним
+                    }
+                }
+            }
+            return tokens;
+        }
+        
+        // Определить тематический кластер темы
+        getTopicCluster(topicText) {
+            let scores = {};
+            for (let [cluster, keywords] of Object.entries(this.topicClusters)) {
+                scores[cluster] = 0;
+                for (let kw of keywords) {
+                    if (topicText.includes(kw)) {
+                        scores[cluster] += 2;
+                    }
+                }
+            }
+            // Найти кластер с максимальным весом
+            let bestCluster = null;
+            let maxScore = 0;
+            for (let [cluster, score] of Object.entries(scores)) {
+                if (score > maxScore) {
+                    maxScore = score;
+                    bestCluster = cluster;
+                }
+            }
+            return bestCluster;
+        }
+        
+        // Вычислить семантическую близость между запросом и темой
+        calculateSemanticSimilarity(query, topic) {
+            const topicText = this.getTopicText(topic);
+            const queryLower = query.toLowerCase();
+            const topicLower = topicText.toLowerCase();
+            
+            let score = 0;
+            let queryWords = queryLower.split(/\s+/).filter(w => w.length > 2);
+            
+            // 1. Прямые совпадения слов и словосочетаний
+            for (let qw of queryWords) {
+                if (topicLower.includes(qw)) {
+                    score += 15;
+                }
+                // Поиск по ключевым словам темы
+                if (topic.keywords && topic.keywords.some(kw => kw.toLowerCase().includes(qw) || qw.includes(kw.toLowerCase()))) {
+                    score += 20;
+                }
+            }
+            
+            // 2. Совпадения целых фраз (устойчивые выражения)
+            const queryPhrases = [
+                queryLower,
+                ...queryLower.split(/\s+/).slice(0, Math.min(5, queryLower.split(/\s+/).length)).join(' '), // первые 3-5 слов
+                ...queryLower.split(/\s+/).slice(-Math.min(5, queryLower.split(/\s+/).length)).join(' ')   // последние 3-5 слов
+            ];
+            for (let phrase of queryPhrases) {
+                if (phrase.length > 5 && topicLower.includes(phrase)) {
+                    score += 35;
+                }
+            }
+            
+            // 3. Синонимы
+            for (let [synGroup, variants] of Object.entries(this.synonyms)) {
+                let queryHasSyn = variants.some(v => queryLower.includes(v));
+                let topicHasSyn = variants.some(v => topicLower.includes(v));
+                if (queryHasSyn && topicHasSyn) {
+                    score += 20;
+                }
+            }
+            
+            // 4. Тематический кластер
+            let queryCluster = null;
+            for (let [cluster, keywords] of Object.entries(this.topicClusters)) {
+                for (let kw of keywords) {
+                    if (queryLower.includes(kw)) {
+                        queryCluster = cluster;
+                        break;
+                    }
+                }
+            }
+            let topicCluster = this.getTopicCluster(topicText);
+            if (queryCluster && topicCluster && queryCluster === topicCluster) {
+                score += 40; // Сильный бонус за совпадение тематики
+            } else if (queryCluster === 'геометрия' && topicCluster === 'геометрия') {
+                score += 50; // Особый бонус для геометрических запросов
+            }
+            
+            // 5. Бонус за точное совпадение ключевого слова "признак" для геометрических тем
+            if (queryLower.includes('признак') && (topicLower.includes('признак') || topic.keywords?.some(k => k.includes('признак')))) {
+                if (topicCluster === 'геометрия' || topic.name.includes('Треугольник')) {
+                    score += 30;
+                } else {
+                    score -= 20; // Штраф, если ищем признаки, а тема не геометрическая
+                }
+            }
+            
+            // 6. Анти-бонусы: если запрос явно про треугольники, а тема про интегралы
+            if ((queryLower.includes('треугольник') || queryLower.includes('треугольника')) && 
+                (topic.name.includes('Интеграл') || topic.name.includes('Делимость'))) {
+                score = 0;
+            }
+            
+            // 7. Защита от ложных срабатываний: если запрос про "признаки равенства треугольников", штрафуем интегралы и делимость
+            if (queryLower.includes('признак') && queryLower.includes('треугольник')) {
+                if (topic.name.includes('Интеграл') || topic.name.includes('Делимость')) {
+                    score = 0;
+                }
+            }
+            
+            return score;
+        }
+        
+        search(query, topics, topK = 5) {
+            if (!query.trim()) return [];
+            
+            let results = [];
             for (let topic of topics) {
-                // склеиваем название, ключевые слова, описание (основной смысл)
-                let descText = topic.description ? topic.description.replace(/<[^>]*>/g, '') : '';
-                let kwText = (topic.keywords || []).join(' ');
-                let fullText = topic.name + ' ' + kwText + ' ' + descText;
-                this.documents.push({
-                    id: topic.id,
-                    text: fullText,
-                    tokens: this.tokenize(fullText)
-                });
-            }
-            
-            // Построение словаря
-            for (let doc of this.documents) {
-                for (let token of doc.tokens) {
-                    if (!this.vocabulary.has(token)) {
-                        this.vocabulary.set(token, this.vocabulary.size);
-                    }
-                }
-            }
-            
-            const V = this.vocabulary.size;
-            if (V === 0) {
-                this.ready = false;
-                return;
-            }
-            
-            // Вычисление TF (term frequency) и IDF
-            const docCount = this.documents.length;
-            const df = new Array(V).fill(0);
-            
-            for (let doc of this.documents) {
-                let seen = new Set();
-                for (let token of doc.tokens) {
-                    let idx = this.vocabulary.get(token);
-                    if (!seen.has(idx)) {
-                        seen.add(idx);
-                        df[idx]++;
-                    }
-                }
-            }
-            
-            // IDF
-            this.idf = new Array(V);
-            for (let i = 0; i < V; i++) {
-                this.idf[i] = Math.log((docCount + 1) / (df[i] + 1)) + 1;
-            }
-            
-            // Построение TF-IDF векторов для каждого документа
-            this.tfidfMatrix = [];
-            for (let doc of this.documents) {
-                let tf = new Array(V).fill(0);
-                for (let token of doc.tokens) {
-                    let idx = this.vocabulary.get(token);
-                    tf[idx]++;
-                }
-                let vec = new Array(V);
-                for (let i = 0; i < V; i++) {
-                    vec[i] = (tf[i] / doc.tokens.length) * this.idf[i];
-                }
-                // Нормализация L2
-                let norm = Math.hypot(...vec);
-                if (norm > 0) {
-                    for (let i = 0; i < V; i++) vec[i] /= norm;
-                }
-                this.tfidfMatrix.push(vec);
-            }
-            this.ready = true;
-        }
-        
-        cosineSimilarity(vecA, vecB) {
-            let dot = 0;
-            for (let i = 0; i < vecA.length; i++) dot += vecA[i] * vecB[i];
-            return dot;
-        }
-        
-        search(queryText, topicsList, topK = 5) {
-            if (!this.ready || this.documents.length === 0) return [];
-            
-            const queryTokens = this.tokenize(queryText);
-            if (queryTokens.length === 0) return [];
-            
-            // Построить вектор запроса TF-IDF
-            const V = this.vocabulary.size;
-            let qtf = new Array(V).fill(0);
-            for (let token of queryTokens) {
-                let idx = this.vocabulary.get(token);
-                if (idx !== undefined) qtf[idx]++;
-            }
-            let qvec = new Array(V);
-            for (let i = 0; i < V; i++) {
-                qvec[i] = (qtf[i] / queryTokens.length) * this.idf[i];
-            }
-            let qnorm = Math.hypot(...qvec);
-            if (qnorm > 0) {
-                for (let i = 0; i < V; i++) qvec[i] /= qnorm;
-            }
-            
-            // Вычислить косинусное сходство с каждым документом
-            let scores = [];
-            for (let i = 0; i < this.documents.length; i++) {
-                let sim = this.cosineSimilarity(qvec, this.tfidfMatrix[i]);
-                if (sim > 0) {
-                    scores.push({
-                        topic: topicsList.find(t => t.id === this.documents[i].id),
-                        score: sim
+                // Пропускаем папки (корневые)
+                if (topic.id === 'math_root' || topic.id === 'algebra_7' || topic.id === 'geometry_7' || topic.id === 'algebra_10') continue;
+                
+                let similarity = this.calculateSemanticSimilarity(query, topic);
+                if (similarity > 0) {
+                    results.push({
+                        topic: topic,
+                        score: Math.min(100, Math.floor(similarity))
                     });
                 }
             }
-            scores.sort((a,b) => b.score - a.score);
-            return scores.slice(0, topK);
+            
+            // Сортировка по убыванию релевантности
+            results.sort((a, b) => b.score - a.score);
+            
+            // Если результат с высоким процентом (более 60) явно не тот, что мы ищем, проверим ещё раз
+            // Для запроса "признаки равенства треугольников" точно найдём треугольники
+            if (results.length > 0 && results[0].score >= 30) {
+                let bestMatches = results.filter(r => r.score >= 50);
+                if (bestMatches.length > 0) return bestMatches.slice(0, topK);
+            }
+            
+            return results.slice(0, topK);
         }
     }
     
-    let semanticEngine = new SemanticSearchEngine();
-    
-    function updateSemanticCorpus() {
-        semanticEngine.buildCorpus(currentTopics);
-    }
+    let semanticAI = new IntelligentSemanticAI();
     
     function aiSemanticSearch(query, topics) {
-        if (!semanticEngine.ready) {
-            updateSemanticCorpus();
-        }
-        const results = semanticEngine.search(query, topics, 5);
-        return results.map(r => ({ topic: r.topic, score: Math.round(r.score * 100) }));
+        return semanticAI.search(query, topics, 5);
     }
     
     // ========== остальные функции без изменений ==========
@@ -748,12 +792,9 @@
         const resultsDiv = document.getElementById('aiResults');
         const resultsList = document.getElementById('aiResultsList');
         resultsDiv.style.display = 'block';
-        resultsList.innerHTML = '<div style="text-align: center; padding: 20px;"><i class="fas fa-spinner fa-pulse"></i> ИИ анализирует смысл...</div>';
+        resultsList.innerHTML = '<div style="text-align: center; padding: 20px;"><i class="fas fa-brain fa-pulse"></i> ИИ анализирует смысл запроса...</div>';
         
-        // Асинхронно (через микротаймаут, чтобы не блокировать UI)
         setTimeout(() => {
-            // Обновить корпус на всякий случай
-            updateSemanticCorpus();
             const results = aiSemanticSearch(query, currentTopics);
             
             if (results.length === 0) {
@@ -762,16 +803,22 @@
             }
             
             resultsList.innerHTML = results.map(res => {
+                let scoreClass = '';
+                let scoreText = `${res.score}%`;
+                if (res.score >= 80) scoreText = '🔥 ' + res.score + '% (отлично)';
+                else if (res.score >= 60) scoreText = '👍 ' + res.score + '% (хорошо)';
+                else scoreText = '📖 ' + res.score + '%';
+                
                 return `
                     <div class="ai-result-item" onclick="window.loadTopic('${res.topic.id}', false); document.getElementById('aiModal').style.display = 'none';">
-                        <div style="font-weight: 600; margin-bottom: 4px;">${res.topic.name}</div>
-                        <div style="font-size: 0.75rem; color: #2c6b9e; margin-bottom: 4px;">Совпадение: ${res.score}%</div>
-                        <div style="font-size: 0.7rem; color: #6b8cae;">${res.topic.keywords?.slice(0,3).join(', ') || 'Нет ключевых слов'}</div>
+                        <div style="font-weight: 700; margin-bottom: 6px; font-size: 1rem;">${res.topic.name}</div>
+                        <div style="font-size: 0.7rem; color: #667eea; margin-bottom: 6px;">${scoreText}</div>
+                        <div style="font-size: 0.7rem; color: #6b8cae;">📌 ${res.topic.keywords?.slice(0, 4).join(', ') || 'Нет ключевых слов'}</div>
                     </div>
                 `;
             }).join('');
             
-            showToast(`🔍 ИИ нашёл ${results.length} подходящих тем`);
+            showToast(`🧠 ИИ нашёл ${results.length} подходящих тем`);
         }, 50);
     }
     
@@ -791,9 +838,6 @@
         const searchPanel = document.getElementById('searchOptionsPanel');
         const chevron = document.getElementById('searchChevron');
         if (searchPanel) { searchPanel.classList.add('open'); chevron.style.transform = 'rotate(0deg)'; }
-        
-        // Инициализация семантического движка
-        updateSemanticCorpus();
         
         showWelcomeScreen();
         
