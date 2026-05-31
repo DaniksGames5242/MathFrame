@@ -96,6 +96,9 @@
         .debug-log .success { color: #a6e3a1; }
         .debug-log .info { color: #89b4fa; }
         .debug-log .warning { color: #fab387; }
+        
+        .cors-warning { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 12px; margin: 10px 0; border-radius: 8px; font-size: 12px; color: #78350f; }
+        .cors-warning a { color: #d97706; }
     </style>
 </head>
 <body>
@@ -195,7 +198,7 @@
         <div id="aiResults" style="padding: 0 20px 20px 20px; max-height: 400px; overflow-y: auto; display: none;">
             <div style="font-weight: 600; margin-bottom: 12px;">📋 Результаты поиска:</div>
             <div id="aiResultsList"></div>
-            <div id="aiDebugLog" class="debug-log" style="margin-top: 12px; display: none;">
+            <div id="aiDebugLog" class="debug-log" style="margin-top: 12px;">
                 <div style="font-weight: 600; margin-bottom: 6px;">🐛 Отладка ИИ:</div>
                 <div id="debugContent"></div>
             </div>
@@ -206,8 +209,7 @@
 <script>
     // ========== YANDEXGPT API НАСТРОЙКИ ==========
     const YANDEX_API_KEY = 'AQVNw9zYMNV-A36YXNH4Y_NccPqNX4z8E1hmVm7h';
-    const YANDEX_PROJECT_ID = 'b1g3i639pqpj9qqrp1m9';
-    const YANDEX_PROMPT_ID = 'fvtfnucu91ddar7o857c';
+    const YANDEX_FOLDER_ID = 'b1g3i639pqpj9qqrp1m9';
     
     let debugMessages = [];
     
@@ -233,27 +235,82 @@
         return div.innerHTML;
     }
     
-    // Функция вызова YandexGPT через Responses API
+    // Функция вызова YandexGPT с обходом CORS через публичный прокси
     async function callYandexGPT(userMessage) {
-        const url = 'https://ai.api.cloud.yandex.net/v1/responses';
+        // Используем CORS-прокси (публичный, бесплатный)
+        // Внимание: для продакшена лучше использовать свой прокси!
+        const corsProxy = 'https://cors-anywhere.herokuapp.com/';
+        const targetUrl = 'https://llm.api.cloud.yandex.net/foundationModels/v1/completion';
         
         const requestBody = {
-            prompt: {
-                id: YANDEX_PROMPT_ID
+            modelUri: `gpt://${YANDEX_FOLDER_ID}/yandexgpt-5.1/latest`,
+            completionOptions: {
+                stream: false,
+                temperature: 0.1,
+                maxTokens: 1000
             },
-            input: userMessage
+            messages: [
+                {
+                    role: 'system',
+                    text: `Ты — интеллектуальный ИИ-помощник образовательной платформы MathFrame.
+
+Твоя задача — по описанию пользователя найти наиболее подходящую тему из списка, который тебе передадут.
+
+ПРАВИЛА ОТВЕТА:
+1. Если пользователь ввел точное название темы — верни ID этой темы.
+2. Если пользователь описал тему своими словами — найди наиболее подходящую тему по смыслу.
+3. Верни ТОЛЬКО список ID самых подходящих тем (максимум 3) через запятую.
+4. НЕ добавляй никаких пояснений, рассуждений, лишних пробелов или символов.
+5. Если ни одна тема не подходит, ответь: not_found
+
+ПРИМЕРЫ ПРАВИЛЬНЫХ ОТВЕТОВ:
+- "triangles"
+- "linear_eq,quadratic_eq"
+- "adjacent_angles,triangles,set_theory"
+- "not_found"
+
+ID тем пиши строго в том виде, в котором они указаны в списке.`
+                },
+                {
+                    role: 'user',
+                    text: userMessage
+                }
+            ]
         };
         
-        addDebug(`📤 Отправка запроса в YandexGPT...`);
-        addDebug(`📝 Длина сообщения: ${userMessage.length} символов`);
-        
         try {
-            const response = await fetch(url, {
+            addDebug(`📤 Отправка запроса к YandexGPT через CORS-прокси...`);
+            
+            // Сначала пробуем без прокси (если сервер поддерживает CORS)
+            try {
+                const directResponse = await fetch(targetUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Api-Key ${YANDEX_API_KEY}`,
+                        'x-folder-id': YANDEX_FOLDER_ID
+                    },
+                    body: JSON.stringify(requestBody)
+                });
+                
+                if (directResponse.ok) {
+                    const data = await directResponse.json();
+                    addDebug(`✅ Ответ получен напрямую (без прокси)`, 'success');
+                    return data.result.alternatives[0].message.text;
+                }
+            } catch (directError) {
+                addDebug(`⚠️ Прямой запрос не удался: ${directError.message}`, 'warning');
+                addDebug(`🔄 Пробуем через CORS-прокси...`, 'info');
+            }
+            
+            // Если прямой запрос не сработал, используем прокси
+            const response = await fetch(corsProxy + targetUrl, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Api-Key ${YANDEX_API_KEY}`,
-                    'x-client-request-id': crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36)
+                    'x-folder-id': YANDEX_FOLDER_ID,
+                    'X-Requested-With': 'XMLHttpRequest'
                 },
                 body: JSON.stringify(requestBody)
             });
@@ -261,17 +318,30 @@
             if (!response.ok) {
                 const errorText = await response.text();
                 addDebug(`❌ Ошибка API: ${response.status} - ${errorText}`, 'error');
-                throw new Error(`API error: ${response.status}`);
+                
+                if (response.status === 401) {
+                    addDebug(`⚠️ Ошибка авторизации (401). Проверьте API-ключ.`, 'warning');
+                } else if (response.status === 403) {
+                    addDebug(`⚠️ Ошибка доступа (403). У сервисного аккаунта должна быть роль "ai.languageModels.user".`, 'warning');
+                } else if (response.status === 429) {
+                    addDebug(`⚠️ Превышен лимит запросов. Попробуйте позже.`, 'warning');
+                }
+                return null;
             }
             
             const data = await response.json();
-            addDebug(`✅ Ответ получен от YandexGPT`, 'success');
-            addDebug(`📥 Ответ: "${data.output_text}"`, 'info');
-            
-            return data.output_text || null;
+            const answer = data.result.alternatives[0].message.text;
+            addDebug(`✅ Ответ получен через прокси: "${answer}"`, 'success');
+            return answer;
         } catch (error) {
-            addDebug(`❌ Ошибка при вызове API: ${error.message}`, 'error');
-            console.error('YandexGPT API error:', error);
+            addDebug(`❌ Ошибка: ${error.message}`, 'error');
+            
+            if (error.message.includes('Failed to fetch')) {
+                addDebug(`🔧 Проблема с CORS! Решения:`, 'warning');
+                addDebug(`   1. Установите расширение "CORS Unblock" для Chrome`, 'info');
+                addDebug(`   2. Или откройте Chrome с флагом --disable-web-security`, 'info');
+                addDebug(`   3. Или используйте локальный сервер (python -m http.server 8000)`, 'info');
+            }
             return null;
         }
     }
@@ -297,13 +367,9 @@
 
 ${topicsList.join('\n')}
 
-ИНСТРУКЦИЯ:
-1. Внимательно проанализируй запрос пользователя.
-2. Найди тему, которая наиболее соответствует запросу.
-3. Если пользователь ввёл точное название темы — верни ID этой темы.
-4. Ответь ТОЛЬКО списком ID самых подходящих тем (максимум 3) через запятую.
-5. НИКАКИХ пояснений, только ID. Пример: "triangles,adjacent_angles"
-6. Если ничего не подходит, ответь ровно: "not_found"`;
+Найди тему, которая наиболее соответствует запросу пользователя.
+Ответь ТОЛЬКО ID темы (или ID через запятую, если подходит несколько).
+Если ничего не подходит, ответь "not_found".`;
         
         addDebug(`📦 Отправляем ИИ полный список из ${allTopics.length} тем`);
         return fullMessage;
@@ -316,7 +382,6 @@ ${topicsList.join('\n')}
         }
         
         try {
-            // Отправляем ПОЛНОЕ сообщение со ВСЕМИ темами
             const fullMessage = buildFullAIMessage(query, topics);
             const aiResponse = await callYandexGPT(fullMessage);
             
@@ -326,7 +391,7 @@ ${topicsList.join('\n')}
             }
             
             if (aiResponse === 'not_found' || aiResponse.toLowerCase().includes('not_found')) {
-                addDebug(`❌ ИИ ответил: not_found — тема не найдена`, 'warning');
+                addDebug(`❌ ИИ ответил: "not_found" — тема не найдена`, 'warning');
                 return [];
             }
             
@@ -380,7 +445,7 @@ ${topicsList.join('\n')}
     let currentSearchQuery = "", searchInDescription = false, keywordsEnabled = true, fuzzyEnabled = true, smartSortEnabled = true;
     let matchOnlyByDescription = new Map(), topicRelevanceInfo = new Map();
 
-    // ========== ОСТАЛЬНЫЕ ФУНКЦИИ (СОХРАНЕНЫ) ==========
+    // ========== ОСТАЛЬНЫЕ ФУНКЦИИ ==========
     async function loadConfig() { 
         try { const r=await fetch('./config.json'); if(r.ok) return await r.json(); } catch(e){} 
         return JSON.parse(JSON.stringify(DEFAULT_TOPICS)); 
@@ -621,7 +686,7 @@ ${topicsList.join('\n')}
         exampleDiv.style.opacity = '0'; descDiv.style.opacity = '0';
         setTimeout(() => {
             exampleDiv.innerHTML = `<div class="welcome-message"><i class="fas fa-graduation-cap"></i><h2 style="margin: 16px 0 10px;">MathFrame с ИИ (YandexGPT)</h2><p>Современная платформа для изучения точных наук</p><p style="margin-top: 22px; opacity:0.7;">Выберите тему в меню или начните поиск</p><p style="margin-top: 16px; font-size: 0.85rem;">🤖 ИИ-помощник справа внизу использует YandexGPT — находит темы по любому описанию!</p></div>`;
-            descDiv.innerHTML = `<p style="font-size: 1rem;"><strong>Добро пожаловать!</strong><br>Адаптивный интерфейс, плавные анимации, умный поиск и качественные примеры.</p><p>Интерактивные примеры поддерживают JavaScript, Canvas и динамическую графику.</p><p><i class="fas fa-robot"></i> <strong>ИИ-помощник (YandexGPT)</strong> — опишите тему своими словами, и нейросеть найдёт подходящий раздел!</p><p>Примеры запросов:<br>• «признаки равенства треугольников»<br>• «базовое понятие, обозначающее несколько объектов, объединённых в группу»<br>• «что-то про углы, которые в сумме дают 180 градусов»</p>`;
+            descDiv.innerHTML = `<p style="font-size: 1rem;"><strong>Добро пожаловать!</strong><br>Адаптивный интерфейс, плавные анимации, умный поиск и качественные примеры.</p><p>Интерактивные примеры поддерживают JavaScript, Canvas и динамическую графику.</p><p><i class="fas fa-robot"></i> <strong>ИИ-помощник (YandexGPT)</strong> — опишите тему своими словами, и нейросеть найдёт подходящий раздел!</p><p>Примеры запросов:<br>• «признаки равенства треугольников»<br>• «базовое понятие, обозначающее несколько объектов, объединённых в группу»<br>• «что-то про углы, которые в сумме дают 180 градусов»</p><p>📌 <strong>Совет:</strong> Если видите ошибку CORS, установите расширение "CORS Unblock" или откройте Chrome с флагом --disable-web-security</p>`;
             exampleDiv.style.opacity = '1'; descDiv.style.opacity = '1';
             updateNavButtons(); renderTree();
             document.getElementById('unifiedCard').style.animation = 'cardAppear 0.3s ease-out';
