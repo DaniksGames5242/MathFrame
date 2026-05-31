@@ -101,7 +101,7 @@
             display: flex;
             flex-direction: column;
             gap: 2px;
-            max-height: 55vh;
+            max-height: 50vh;
             overflow-y: auto;
             scroll-behavior: smooth;
         }
@@ -288,7 +288,7 @@
             border: 1px solid #3a3a3a;
             border-radius: 12px;
             padding: 10px;
-            min-height: 140px;
+            min-height: 120px;
             overflow-y: auto;
         }
         .rich-editor .inline-link.valid { color: #8ab3ff; text-decoration: underline; cursor: pointer; }
@@ -298,6 +298,47 @@
         .new-topic-bottom { margin-top: 16px; text-align: center; }
         .new-topic-bottom button { width: 100%; background: #2a3a4a; border-radius: 30px; padding: 8px; }
         .small-note { font-size: 0.7rem; color: #888; margin-top: 4px; }
+        
+        /* Разворачиваемое JSON-окошко */
+        .topic-json-panel {
+            margin-top: 16px;
+            border-top: 1px solid #333;
+            padding-top: 8px;
+        }
+        .topic-json-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            padding: 6px 0;
+            color: #aaa;
+            font-size: 0.75rem;
+        }
+        .topic-json-header:hover {
+            color: #ddd;
+        }
+        .topic-json-content {
+            display: none;
+            margin-top: 8px;
+        }
+        .topic-json-content.show {
+            display: block;
+        }
+        .topic-json-content textarea {
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            height: 200px;
+        }
+        .topic-json-buttons {
+            display: flex;
+            gap: 8px;
+            margin-top: 6px;
+        }
+        .topic-json-buttons button {
+            padding: 4px 8px;
+            font-size: 0.7rem;
+        }
+        
         .toast-area { position: fixed; bottom: 20px; right: 20px; left: 20px; z-index: 1000; display: flex; justify-content: flex-end; }
         .toast { background: #2a5a2a; padding: 8px 20px; border-radius: 40px; font-size: 0.8rem; opacity: 0; transition: opacity 0.2s; pointer-events: none; }
         .toast.show { opacity: 1; }
@@ -350,6 +391,7 @@
             <button id="newBtn">+ Создать тему</button>
         </div>
         <div class="small-note">Клик — выделить. Перетащите за строку: в середину → сделать дочерней; между строк → изменить порядок.</div>
+        <div class="small-note">Новая тема создаётся как дочерняя для выделенной.</div>
     </div>
 
     <div class="editor-panel">
@@ -380,7 +422,7 @@
                 <option>6</option><option>7</option><option>8</option><option>9</option><option>10</option><option>11</option>
             </select></div>
             <div class="form-row"><label>Пример (HTML-код)</label>
-                <textarea id="exampleHtmlSource" rows="8"></textarea>
+                <textarea id="exampleHtmlSource" rows="6"></textarea>
                 <div class="html-preview">
                     <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
                         <span style="font-size:0.7rem;">Предпросмотр</span>
@@ -405,6 +447,21 @@
                     </div>
                 </div>
                 <div id="descriptionEditor" class="rich-editor" contenteditable="true"></div>
+            </div>
+            
+            <!-- Разворачиваемое JSON-окошко текущей темы -->
+            <div class="topic-json-panel">
+                <div class="topic-json-header" id="topicJsonHeader">
+                    <span>📋 JSON темы (развернуть)</span>
+                    <span>▼</span>
+                </div>
+                <div class="topic-json-content" id="topicJsonContent">
+                    <textarea id="topicJsonEditor" rows="8" placeholder="JSON текущей темы..."></textarea>
+                    <div class="topic-json-buttons">
+                        <button id="applyTopicJsonBtn">Применить к теме</button>
+                        <button id="refreshTopicJsonBtn">Обновить из темы</button>
+                    </div>
+                </div>
             </div>
         </div>
         
@@ -464,6 +521,7 @@
     const topicGradeSelect = document.getElementById('topicGrade');
     const jsonEditor = document.getElementById('jsonEditor');
     const plainTextCheckbox = document.getElementById('plainTextMode');
+    const topicJsonEditor = document.getElementById('topicJsonEditor');
     
     // ========== ТРАНСЛИТЕРАЦИЯ ДЛЯ ID ==========
     function transliterate(word) {
@@ -489,9 +547,8 @@
     // ========== ФУНКЦИЯ ВАЛИДАЦИИ И ИСПРАВЛЕНИЯ ID ==========
     function validateAndFixIds() {
         let changesCount = 0;
-        const idMap = new Map(); // старый ID -> новый ID
+        const idMap = new Map();
         
-        // Первый проход: вычисляем правильные ID для каждой темы
         for (let topic of topics) {
             const correctId = generateIdFromName(topic.name, null, topics);
             if (topic.id !== correctId) {
@@ -502,24 +559,16 @@
         
         if (changesCount === 0) return false;
         
-        // Второй проход: обновляем ID тем и ссылки в описаниях
         for (let topic of topics) {
-            // Обновляем ID темы
             if (idMap.has(topic.id)) {
-                const newId = idMap.get(topic.id);
-                topic.id = newId;
+                topic.id = idMap.get(topic.id);
             }
-            
-            // Обновляем родителя, если он изменился
             if (topic.parent && idMap.has(topic.parent)) {
                 topic.parent = idMap.get(topic.parent);
             }
-            
-            // Обновляем гиперссылки в описании
             if (topic.description) {
                 let updatedDescription = topic.description;
                 for (let [oldId, newId] of idMap) {
-                    // Ищем ссылки вида data-topic-id="oldId"
                     const regex = new RegExp(`data-topic-id=["']${oldId}["']`, 'g');
                     updatedDescription = updatedDescription.replace(regex, `data-topic-id="${newId}"`);
                 }
@@ -527,7 +576,6 @@
             }
         }
         
-        // Обновляем selectedId, если он изменился
         if (selectedId && idMap.has(selectedId)) {
             selectedId = idMap.get(selectedId);
         }
@@ -638,6 +686,7 @@
         topicParentSelect.innerHTML = '<option value="">(нет)</option>' + topics.filter(p => p.id !== selectedId).map(p => `<option value="${p.id}" ${t.parent === p.id ? 'selected' : ''}>${escapeHtml(p.name)} (${p.id})</option>`).join('');
         exampleHtmlSource.value = t.example || '';
         updatePreview();
+        updateTopicJsonEditor();
     }
     
     function fillFormFieldsOnly() {
@@ -652,6 +701,7 @@
         topicParentSelect.innerHTML = '<option value="">(нет)</option>' + topics.filter(p => p.id !== selectedId).map(p => `<option value="${p.id}" ${t.parent === p.id ? 'selected' : ''}>${escapeHtml(p.name)} (${p.id})</option>`).join('');
         exampleHtmlSource.value = t.example || '';
         updatePreview();
+        updateTopicJsonEditor();
     }
     
     function updateLinkColors() {
@@ -663,6 +713,44 @@
     }
     
     function updateJsonEditor() { jsonEditor.value = JSON.stringify(topics, null, 2); }
+    
+    function updateTopicJsonEditor() {
+        if (selectedId) {
+            const topic = topics.find(t => t.id === selectedId);
+            if (topic) {
+                topicJsonEditor.value = JSON.stringify(topic, null, 2);
+            }
+        }
+    }
+    
+    function applyTopicJson() {
+        if (!selectedId) { showToast('Нет выбранной темы', true); return; }
+        try {
+            const parsed = JSON.parse(topicJsonEditor.value);
+            if (!parsed.id || !parsed.name) throw new Error('Тема должна содержать id и name');
+            
+            const idx = topics.findIndex(t => t.id === selectedId);
+            if (idx === -1) return;
+            
+            // Проверка на дубликат ID
+            if (parsed.id !== selectedId && topics.some(t => t.id === parsed.id)) {
+                showToast('ID уже существует', true);
+                return;
+            }
+            
+            topics[idx] = parsed;
+            selectedId = parsed.id;
+            
+            renderTree();
+            fillFormBySelectedNoSave();
+            updateJsonEditor();
+            saveToLocalStorage();
+            pushToHistory();
+            showToast('JSON темы применён');
+        } catch(e) {
+            showToast('Ошибка JSON: ' + e.message, true);
+        }
+    }
     
     function updatePreview() {
         let html = exampleHtmlSource.value;
@@ -710,6 +798,33 @@
     }
     
     function manualSave() { if (selectedId) saveCurrentTopic(true); else showToast('Нет выбранной темы', true); }
+    
+    // ========== НОВАЯ ТЕМА (КАК ДОЧЕРНЯЯ ДЛЯ ВЫДЕЛЕННОЙ) ==========
+    function newTopic() {
+        const parentId = selectedId || null;
+        const baseName = 'Новая тема';
+        const newId = generateIdFromName(baseName, null, topics);
+        const newTopicObj = { 
+            id: newId, 
+            name: baseName, 
+            keywords: [], 
+            parent: parentId, 
+            icon: 'fa-file-alt', 
+            gradeLevel: 3, 
+            example: '', 
+            description: '<p>Новая тема</p>', 
+            order: topics.length 
+        };
+        topics.push(newTopicObj);
+        selectedId = newId;
+        expandedState.add(newId);
+        renderTree();
+        fillFormBySelectedNoSave();
+        updateJsonEditor();
+        saveToLocalStorage();
+        pushToHistory();
+        showToast(parentId ? `Тема создана как дочерняя для "${topics.find(t => t.id === parentId)?.name}"` : 'Тема создана как корневая');
+    }
     
     // ========== RENDER TREE ==========
     let dragSourceId = null, dragTargetElement = null, dropMode = null;
@@ -1112,16 +1227,6 @@
         });
     }
     
-    // ========== НОВАЯ ТЕМА ==========
-    function newTopic() {
-        const newId = generateIdFromName('Новая тема', null, topics);
-        topics.push({ id: newId, name: 'Новая тема', keywords: [], parent: null, icon: 'fa-file-alt', gradeLevel: 3, example: '', description: '<p>Новая тема</p>', order: topics.length });
-        topics = removeDuplicateIds(topics);
-        selectedId = newId; expandedState.add(newId);
-        renderTree(); fillFormBySelectedNoSave(); updateJsonEditor(); saveToLocalStorage(); pushToHistory();
-        showToast('Тема создана');
-    }
-    
     // ========== ПРИМЕНЕНИЕ JSON ==========
     function applyJson() {
         try {
@@ -1143,7 +1248,6 @@
     
     // ========== ЗАГРУЗКА КОНФИГА ПРИ ОТКРЫТИИ ==========
     async function loadInitialConfig() {
-        // Сначала пробуем загрузить config.json с сервера
         try {
             const response = await fetch('config.json');
             if (response.ok) {
@@ -1152,44 +1256,22 @@
                     topics = data;
                     topics = removeDuplicateIds(topics);
                     topics.forEach((t, i) => { if (!t.order) t.order = i; if (!t.keywords) t.keywords = []; if (!t.icon) t.icon = 'fa-file-alt'; if (!t.example) t.example = ''; if (!t.description) t.description = '<p></p>'; });
-                    
-                    // ВАЖНО: валидируем и исправляем ID после загрузки
-                    const idsFixed = validateAndFixIds();
-                    
+                    validateAndFixIds();
                     selectedId = topics[0]?.id || null;
                     expandedState.clear();
                     topics.forEach(t => { if (topics.some(ch => ch.parent === t.id)) expandedState.add(t.id); });
                     saveToLocalStorage();
-                    if (idsFixed) {
-                        showToast('config.json загружен, ID исправлены');
-                    } else {
-                        showToast('config.json загружен');
-                    }
+                    showToast('config.json загружен');
                     return true;
                 }
             }
-        } catch(e) {
-            console.log('Не удалось загрузить config.json');
-        }
+        } catch(e) {}
         
-        // Если config.json не загрузился, пробуем загрузить из localStorage
         if (loadFromLocalStorage()) {
-            // Валидируем ID после загрузки из localStorage
-            const idsFixed = validateAndFixIds();
-            if (idsFixed) {
-                saveToLocalStorage();
-                renderTree();
-                fillFormBySelectedNoSave();
-                updateJsonEditor();
-                pushToHistory();
-                showToast('Данные из кеша, ID исправлены');
-            } else {
-                showToast('Данные восстановлены из кеша');
-            }
+            showToast('Данные восстановлены из кеша');
             return true;
         }
         
-        // Если ничего нет, используем демо-данные
         const demo = [{ id: "geometriya", name: "Геометрия", keywords: ["геометрия"], parent: null, icon: "fa-folder", gradeLevel: 3, example: "<div>Основы геометрии</div>", description: "<p>Изучает фигуры</p>", order: 1 }];
         topics = demo;
         selectedId = "geometriya";
@@ -1219,6 +1301,18 @@
         document.getElementById('redoBtn').onclick = redo;
         document.getElementById('loadCommitsBtn').onclick = loadCommits;
         document.getElementById('refreshCommitsBtn').onclick = loadCommits;
+        
+        // Кнопки JSON темы
+        document.getElementById('applyTopicJsonBtn').onclick = applyTopicJson;
+        document.getElementById('refreshTopicJsonBtn').onclick = updateTopicJsonEditor;
+        
+        // Разворачивание JSON панели
+        const header = document.getElementById('topicJsonHeader');
+        const content = document.getElementById('topicJsonContent');
+        header.onclick = () => {
+            content.classList.toggle('show');
+            header.querySelector('span:last-child').textContent = content.classList.contains('show') ? '▲' : '▼';
+        };
         
         document.getElementById('boldBtn').onclick = () => { if (!plainTextMode) { document.execCommand('bold'); descriptionEditor.focus(); saveCurrentTopic(false); } };
         document.getElementById('italicBtn').onclick = () => { if (!plainTextMode) { document.execCommand('italic'); descriptionEditor.focus(); saveCurrentTopic(false); } };
@@ -1260,7 +1354,6 @@
             else if (e.ctrlKey && (e.key === 'y' || (e.shiftKey && e.key === 'Z'))) { e.preventDefault(); redo(); }
         });
         
-        // Загружаем конфиг
         await loadInitialConfig();
         renderTree();
         fillFormBySelectedNoSave();
