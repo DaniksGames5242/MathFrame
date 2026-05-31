@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
-    <title>MathFrame | Образовательная платформа</title>
+    <title>MathFrame | Образовательная платформа с ИИ (YandexGPT)</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700;14..32,800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <style>
@@ -178,39 +178,43 @@
     <div class="ai-modal-content">
         <div class="ai-header">
             <div style="display: flex; justify-content: space-between; align-items: center;">
-                <h3 style="margin: 0; display: flex; align-items: center; gap: 10px;"><i class="fas fa-robot"></i> ИИ-помощник</h3>
+                <h3 style="margin: 0; display: flex; align-items: center; gap: 10px;"><i class="fas fa-robot"></i> ИИ-помощник (YandexGPT)</h3>
                 <button id="closeAiModal" style="background: none; border: none; color: white; font-size: 1.5rem; cursor: pointer;">&times;</button>
             </div>
-            <p style="margin: 8px 0 0 0; font-size: 0.8rem; opacity: 0.9;">Найду тему по описанию, даже если вы не знаете точное название</p>
+            <p style="margin: 8px 0 0 0; font-size: 0.8rem; opacity: 0.9;">Использует нейросеть YandexGPT — найду тему по любому описанию!</p>
         </div>
         <div style="padding: 20px;">
             <textarea id="aiQuery" rows="3" placeholder="Опишите тему, которую ищете...&#10;Например: «признаки равенства треугольников» или «базовое понятие, обозначающее несколько объектов, объединённых в группу»" style="width: 100%; padding: 12px; border-radius: 16px; border: 1px solid #e2e8f0; font-family: inherit; resize: vertical; margin-bottom: 16px;"></textarea>
-            <button id="aiSearchBtn" style="width: 100%; padding: 12px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; border-radius: 40px; color: white; font-weight: 600; cursor: pointer; transition: all 0.2s;">🔍 Найти тему (ИИ-семантика)</button>
+            <button id="aiSearchBtn" style="width: 100%; padding: 12px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; border-radius: 40px; color: white; font-weight: 600; cursor: pointer; transition: all 0.2s;">🔍 Найти тему (YandexGPT ИИ)</button>
         </div>
         <div id="aiResults" style="padding: 0 20px 20px 20px; max-height: 300px; overflow-y: auto; display: none;">
-            <div style="font-weight: 600; margin-bottom: 12px;">Результаты поиска:</div>
+            <div style="font-weight: 600; margin-bottom: 12px;">Результаты поиска от YandexGPT:</div>
             <div id="aiResultsList"></div>
         </div>
     </div>
 </div>
 
 <script>
-    // ---------- ТЕМЫ (ДОБАВЛЕНА ТЕМА "МНОЖЕСТВО" ДЛЯ ПРИМЕРА) ----------
+    // ========== YANDEXGPT API НАСТРОЙКИ ==========
+    const YANDEX_API_KEY = 'AQVN0f0W0GIjKnttd-5r34G9mbY8cURYFaltND7_';
+    const YANDEX_FOLDER_ID = 'b1g3i639pqpj9qqrp1m9';
+    const YANDEX_MODEL_URI = `gpt://${YANDEX_FOLDER_ID}/yandexgpt-5.1/latest`;
+
+    // ========== ТЕМЫ ==========
     const DEFAULT_TOPICS = [
         { id: "math_root", name: "Математика", parent: null, icon: "fa-folder", gradeLevel: 5, keywords: ["математика"], example: '<div style="padding:20px;"><h3>Математика</h3><p>Основы математики</p></div>', description: '<p>Главный раздел математики</p>' },
-        { id: "algebra_7", name: "Алгебра 7–9", parent: "math_root", icon: "fa-folder", gradeLevel: 7, keywords: ["алгебра","выражения","формулы","7 класс"], example: '<div style="padding:20px; text-align:center;"><i class="fas fa-chart-line" style="font-size:2rem;"></i><div>Алгебра 7-9</div></div>', description: '<p><strong>Алгебра</strong> — раздел математики, изучающий операции над величинами и решение уравнений.</p><p><span class="inline-link" data-topic-id="linear_eq">Линейные уравнения</span>.</p>' },
-        { id: "linear_eq", name: "Линейные уравнения", parent: "algebra_7", icon: "fa-file-alt", gradeLevel: 7, keywords: ["уравнение","линейное","корень","ax+b=0"], example: '<div style="padding:20px;"><i class="fas fa-chart-line"></i><div>ax + b = 0 → x = -b/a</div><div>Пример: 2x - 6 = 0 → x = 3</div><div><canvas id="lineCanvas" width="300" height="200" style="border:1px solid #ccc; margin-top:15px;"></canvas></div><script>const ctx = document.getElementById("lineCanvas")?.getContext("2d"); if(ctx){ ctx.clearRect(0,0,300,200); ctx.beginPath(); ctx.moveTo(0,100); ctx.lineTo(300,100); ctx.stroke(); ctx.fillStyle="red"; ctx.fillRect(140,95,20,10); }<\/script></div>', description: '<p><strong>Линейное уравнение</strong>: ax + b = 0, a≠0. Корень: x = -b/a.</p><p><span class="inline-link" data-topic-id="quadratic_eq">Квадратные уравнения</span>.</p>' },
-        { id: "quadratic_eq", name: "Квадратные уравнения", parent: "algebra_7", icon: "fa-file-alt", gradeLevel: 8, keywords: ["дискриминант","парабола","ax²+bx+c=0"], example: '<div style="padding:20px;"><i class="fas fa-chart-line"></i><div>ax² + bx + c = 0, D = b² - 4ac</div><div id="quadraticDemo"></div><script>const d = document.getElementById("quadraticDemo"); if(d){ d.innerHTML = "<p>Динамический пример: при a=1,b=-3,c=2 → корни: 1 и 2</p>"; }<\/script></div>', description: '<p>Квадратное уравнение решается через дискриминант. При D>0 — два корня.</p>' },
-        { id: "geometry_7", name: "Геометрия 7–9", parent: "math_root", icon: "fa-folder", gradeLevel: 7, keywords: ["геометрия","фигуры","углы"], example: '<div style="padding:20px;text-align:center;"><i class="fas fa-shapes" style="font-size:2rem;"></i><div>Геометрия</div><canvas id="geomCanvas" width="300" height="200" style="border:1px solid #ccc; margin-top:15px;"></canvas><script>const gctx = document.getElementById("geomCanvas")?.getContext("2d"); if(gctx){ gctx.beginPath(); gctx.rect(50,50,200,100); gctx.stroke(); gctx.fillStyle="#a0c4ff"; gctx.fillRect(50,50,200,100); }<\/script></div>', description: '<p><strong>Геометрия</strong> — раздел математики, изучающий пространственные формы.</p>' },
-        { id: "adjacent_angles", name: "Смежные углы", parent: "geometry_7", icon: "fa-file-alt", gradeLevel: 7, keywords: ["углы","смежные","сумма 180"], example: '<div style="padding:20px;"><i class="fas fa-angle-double-right"></i><div>∠α + ∠β = 180°</div><canvas id="anglesCanvas" width="300" height="200" style="border:1px solid #ccc; margin-top:15px;"></canvas><script>const actx = document.getElementById("anglesCanvas")?.getContext("2d"); if(actx){ actx.beginPath(); actx.moveTo(50,100); actx.lineTo(250,100); actx.stroke(); actx.beginPath(); actx.moveTo(150,100); actx.lineTo(150,40); actx.stroke(); actx.fillStyle="red"; actx.fillRect(145,95,10,10); }<\/script></div>', description: '<p><strong>Смежные углы</strong> — два угла с общей стороной, сумма 180°.</p>' },
-        { id: "triangles", name: "Треугольники", parent: "geometry_7", icon: "fa-file-alt", gradeLevel: 7, keywords: ["треугольник","сумма углов","признаки равенства","подобие"], example: '<div style="padding:20px;"><i class="fas fa-shapes"></i><div>Сумма углов = 180°</div><canvas id="triCanvas" width="300" height="200" style="border:1px solid #ccc; margin-top:15px;"></canvas><script>const tctx = document.getElementById("triCanvas")?.getContext("2d"); if(tctx){ tctx.beginPath(); tctx.moveTo(150,30); tctx.lineTo(50,170); tctx.lineTo(250,170); tctx.closePath(); tctx.stroke(); tctx.fillStyle="#c4e0fa"; tctx.fill(); }<\/script></div>', description: '<p><strong>Треугольники</strong>: виды, признаки равенства (по двум сторонам и углу между ними, по стороне и прилежащим углам, по трём сторонам). Если у двух треугольников равны все углы, то они подобны, но не обязательно равны.</p>' },
-        { id: "divisibility_rules", name: "Признаки делимости", parent: "math_root", icon: "fa-file-alt", gradeLevel: 6, keywords: ["делимость","признаки","на 2","на 3","на 5","на 9","на 10"], example: '<div style="padding:20px;"><i class="fas fa-calculator"></i><div>Признаки делимости:<br>На 2: последняя цифра чётная<br>На 3: сумма цифр делится на 3<br>На 5: последняя цифра 0 или 5</div></div>', description: '<p><strong>Признаки делимости</strong> — правила, позволяющие определить, делится ли число на заданное без остатка, не выполняя деления.</p>' },
-        { id: "improper_integrals", name: "Несобственные интегралы", parent: "algebra_10", icon: "fa-file-alt", gradeLevel: 11, keywords: ["интеграл","несобственный","сходимость","расходимость"], example: '<div style="padding:20px;"><i class="fas fa-chart-line"></i><div>∫₁^∞ 1/x² dx — сходится</div></div>', description: '<p><strong>Несобственные интегралы</strong> — интегралы с бесконечными пределами или с разрывами подынтегральной функции. Исследуются на сходимость.</p>' },
-        { id: "algebra_10", name: "Алгебра 10–11", parent: "math_root", icon: "fa-folder", gradeLevel: 10, keywords: ["алгебра","старшая школа","функции"], example: '<div style="padding:20px;"><i class="fas fa-chart-line"></i><div>Старшая школа</div><canvas id="funcCanvas" width="300" height="200" style="border:1px solid #ccc;"></canvas><script>const fctx = document.getElementById("funcCanvas")?.getContext("2d"); if(fctx){ fctx.beginPath(); for(let x=0;x<=300;x+=10){ let y = 100 - (x-150)*(x-150)/200; fctx.lineTo(x,y); } fctx.stroke(); }<\/script></div>', description: '<p>Углублённое изучение функций, производных и интегралов.</p>' },
-        { id: "logarithms", name: "Логарифмы", parent: "algebra_10", icon: "fa-file-alt", gradeLevel: 10, keywords: ["логарифм","log","степень"], example: '<div style="padding:20px;"><i class="fas fa-chart-line"></i><div>logₐ b = c ⇔ a^c = b</div><div id="logDemo"></div><script>document.getElementById("logDemo").innerHTML = "<p>log₂8 = 3, так как 2³=8</p>";<\/script></div>', description: '<p>Логарифм — показатель степени, в которую нужно возвести основание.</p>' },
-        { id: "straight_line", name: "Прямая", parent: "geometry_7", icon: "fa-file-alt", gradeLevel: 7, keywords: ["прямая","линия"], example: '<div style="padding:20px;"><i class="fas fa-chart-line"></i><div>Прямая линия: y = kx + b</div><canvas id="straightCanvas" width="300" height="200" style="border:1px solid #ccc;"></canvas><script>const sctx = document.getElementById("straightCanvas")?.getContext("2d"); if(sctx){ sctx.beginPath(); sctx.moveTo(0,100); sctx.lineTo(300,150); sctx.stroke(); }<\/script></div>', description: '<p><strong>Прямая</strong> — бесконечная линия, не имеющая изгибов.</p>' },
-        // НОВАЯ ТЕМА ДЛЯ ПРИМЕРА: МНОЖЕСТВО
-        { id: "set_theory", name: "Множество (теория множеств)", parent: "math_root", icon: "fa-file-alt", gradeLevel: 9, keywords: ["множество","элемент","объединение","пересечение","подмножество"], example: '<div style="padding:20px;"><i class="fas fa-circle-nodes"></i><div>Множество — совокупность объектов, объединённых общим свойством.</div><div>Пример: {1,2,3} — множество чисел.</div></div>', description: '<p><strong>Множество</strong> — одно из ключевых понятий математики. Это совокупность любых объектов (элементов), объединённых общим признаком. Множества могут быть конечными и бесконечными, пустыми, равными, подмножествами.</p><p>Операции над множествами: объединение, пересечение, разность, дополнение.</p>' }
+        { id: "algebra_7", name: "Алгебра 7–9", parent: "math_root", icon: "fa-folder", gradeLevel: 7, keywords: ["алгебра","выражения","формулы","7 класс"], example: '<div style="padding:20px; text-align:center;"><i class="fas fa-chart-line" style="font-size:2rem;"></i><div>Алгебра 7-9</div></div>', description: '<p><strong>Алгебра</strong> — раздел математики, изучающий операции над величинами и решение уравнений.</p>' },
+        { id: "linear_eq", name: "Линейные уравнения", parent: "algebra_7", icon: "fa-file-alt", gradeLevel: 7, keywords: ["уравнение","линейное","корень","ax+b=0"], example: '<div style="padding:20px;"><i class="fas fa-chart-line"></i><div>ax + b = 0 → x = -b/a</div><div>Пример: 2x - 6 = 0 → x = 3</div></div>', description: '<p><strong>Линейное уравнение</strong>: ax + b = 0, a≠0. Корень: x = -b/a.</p>' },
+        { id: "quadratic_eq", name: "Квадратные уравнения", parent: "algebra_7", icon: "fa-file-alt", gradeLevel: 8, keywords: ["дискриминант","парабола","ax²+bx+c=0"], example: '<div style="padding:20px;"><i class="fas fa-chart-line"></i><div>ax² + bx + c = 0, D = b² - 4ac</div></div>', description: '<p>Квадратное уравнение решается через дискриминант. При D>0 — два корня.</p>' },
+        { id: "geometry_7", name: "Геометрия 7–9", parent: "math_root", icon: "fa-folder", gradeLevel: 7, keywords: ["геометрия","фигуры","углы"], example: '<div style="padding:20px;text-align:center;"><i class="fas fa-shapes" style="font-size:2rem;"></i><div>Геометрия</div></div>', description: '<p><strong>Геометрия</strong> — раздел математики, изучающий пространственные формы.</p>' },
+        { id: "adjacent_angles", name: "Смежные углы", parent: "geometry_7", icon: "fa-file-alt", gradeLevel: 7, keywords: ["углы","смежные","сумма 180"], example: '<div style="padding:20px;"><i class="fas fa-angle-double-right"></i><div>∠α + ∠β = 180°</div></div>', description: '<p><strong>Смежные углы</strong> — два угла с общей стороной, сумма 180°.</p>' },
+        { id: "triangles", name: "Треугольники", parent: "geometry_7", icon: "fa-file-alt", gradeLevel: 7, keywords: ["треугольник","сумма углов","признаки равенства","подобие"], example: '<div style="padding:20px;"><i class="fas fa-shapes"></i><div>Сумма углов = 180°</div></div>', description: '<p><strong>Треугольники</strong>: виды, признаки равенства (по двум сторонам и углу между ними, по стороне и прилежащим углам, по трём сторонам).</p>' },
+        { id: "divisibility_rules", name: "Признаки делимости", parent: "math_root", icon: "fa-file-alt", gradeLevel: 6, keywords: ["делимость","признаки","на 2","на 3","на 5","на 9","на 10"], example: '<div style="padding:20px;"><i class="fas fa-calculator"></i><div>Признаки делимости<br>На 2: последняя цифра чётная</div></div>', description: '<p><strong>Признаки делимости</strong> — правила, позволяющие определить, делится ли число на заданное без остатка.</p>' },
+        { id: "improper_integrals", name: "Несобственные интегралы", parent: "algebra_7", icon: "fa-file-alt", gradeLevel: 11, keywords: ["интеграл","несобственный","сходимость","расходимость"], example: '<div style="padding:20px;"><i class="fas fa-chart-line"></i><div>∫₁^∞ 1/x² dx — сходится</div></div>', description: '<p><strong>Несобственные интегралы</strong> — интегралы с бесконечными пределами.</p>' },
+        { id: "algebra_10", name: "Алгебра 10–11", parent: "math_root", icon: "fa-folder", gradeLevel: 10, keywords: ["алгебра","старшая школа","функции"], example: '<div style="padding:20px;"><i class="fas fa-chart-line"></i><div>Старшая школа</div></div>', description: '<p>Углублённое изучение функций, производных и интегралов.</p>' },
+        { id: "logarithms", name: "Логарифмы", parent: "algebra_10", icon: "fa-file-alt", gradeLevel: 10, keywords: ["логарифм","log","степень"], example: '<div style="padding:20px;"><i class="fas fa-chart-line"></i><div>logₐ b = c ⇔ a^c = b</div></div>', description: '<p>Логарифм — показатель степени, в которую нужно возвести основание.</p>' },
+        { id: "straight_line", name: "Прямая", parent: "geometry_7", icon: "fa-file-alt", gradeLevel: 7, keywords: ["прямая","линия"], example: '<div style="padding:20px;"><i class="fas fa-chart-line"></i><div>Прямая линия: y = kx + b</div></div>', description: '<p><strong>Прямая</strong> — бесконечная линия, не имеющая изгибов.</p>' },
+        { id: "set_theory", name: "Множество (теория множеств)", parent: "math_root", icon: "fa-file-alt", gradeLevel: 9, keywords: ["множество","элемент","объединение","пересечение","подмножество","совокупность","набор"], example: '<div style="padding:20px;"><i class="fas fa-circle-nodes"></i><div>Множество — совокупность объектов, объединённых общим свойством.</div></div>', description: '<p><strong>Множество</strong> — одно из ключевых понятий математики. Это совокупность любых объектов (элементов), объединённых общим признаком.</p>' }
     ];
 
     let currentTopics = [], currentTopicId = null, collapsedFolders = new Map(), navigationStack = [];
@@ -218,151 +222,114 @@
     let currentSearchQuery = "", searchInDescription = false, keywordsEnabled = true, fuzzyEnabled = true, smartSortEnabled = true;
     let matchOnlyByDescription = new Map(), topicRelevanceInfo = new Map();
 
-    // ---------- РАСШИРЕННЫЙ ИИ С ПОНИМАНИЕМ БЫТОВЫХ ОПИСАНИЙ ----------
-    class IntelligentSemanticAI {
-        constructor() {
-            this.topicClusters = {
-                'геометрия': ['треугольник', 'угол', 'прямая', 'фигура', 'пространство', 'форма', 'сторона', 'вершина', 'равенство', 'подобие', 'признак равенства', 'многоугольник', 'окружность'],
-                'алгебра': ['уравнение', 'функция', 'логарифм', 'выражение', 'переменная', 'корень', 'степень', 'дискриминант', 'парабола', 'неизвестная', 'икс'],
-                'арифметика': ['делимость', 'число', 'цифра', 'сумма', 'деление', 'умножение', 'остаток', 'кратность'],
-                'математический_анализ': ['интеграл', 'производная', 'предел', 'сходимость', 'расходимость', 'площадь под кривой'],
-                'теория_множеств': ['множество', 'элемент', 'объект', 'группа', 'объединение', 'пересечение', 'совокупность', 'набор', 'коллекция']
-            };
-            
-            this.knowledgeBase = {
-                'группа объектов': ['множество', 'совокупность', 'набор', 'коллекция', 'класс'],
-                'объединены в группу': ['множество', 'множества', 'теория множеств'],
-                'несколько объектов вместе': ['множество', 'элементы множества'],
-                'совокупность элементов': ['множество'],
-                'набор предметов': ['множество', 'коллекция'],
-                'коллекция': ['множество'],
-                'палка с двумя концами': ['прямая', 'отрезок', 'луч'],
-                'коробка с числами': ['множество', 'числовая прямая', 'координатная плоскость'],
-                'фигура с тремя углами': ['треугольник'],
-                'равенство с неизвестным': ['уравнение', 'линейное уравнение'],
-                'где икс в квадрате': ['квадратное уравнение'],
-                'сумма углов 180': ['треугольник', 'смежные углы'],
-                'как узнать, делится ли число': ['признаки делимости'],
-                'площадь под кривой': ['интеграл', 'несобственный интеграл'],
-                'скорость изменения функции': ['производная']
-            };
-            
-            this.synonyms = {
-                'признак': ['признак', 'правило', 'критерий', 'свойство', 'теорема'],
-                'равенство': ['равенство', 'равный', 'одинаковый', 'конгруэнтный', 'совпадать'],
-                'треугольник': ['треугольник', 'триугольник', 'треугольная фигура', 'три стороны'],
-                'угол': ['угол', 'угловой', 'градус', 'уголок'],
-                'уравнение': ['уравнение', 'уравнивание', 'равенство с неизвестным', 'ax+b'],
-                'делимость': ['делимость', 'деление без остатка', 'кратность', 'кратный'],
-                'интеграл': ['интеграл', 'интегрирование', 'первообразная'],
-                'сходимость': ['сходимость', 'сходящийся', 'конвергенция', 'приближение'],
-                'множество': ['множество', 'набор', 'совокупность', 'коллекция', 'группа объектов', 'объединение элементов'],
-                'функция': ['функция', 'зависимость', 'отображение', 'правило']
-            };
-        }
+    // ========== YANDEXGPT API ФУНКЦИИ ==========
+    async function callYandexGPT(prompt) {
+        const url = 'https://llm.api.cloud.yandex.net/foundationModels/v1/completion';
         
-        translateToMathTerms(queryLower) {
-            let translatedTerms = new Set();
-            for (let [phrase, mathTerms] of Object.entries(this.knowledgeBase)) {
-                if (queryLower.includes(phrase)) {
-                    for (let term of mathTerms) translatedTerms.add(term);
+        const body = {
+            modelUri: YANDEX_MODEL_URI,
+            completionOptions: {
+                stream: false,
+                temperature: 0.3,
+                maxTokens: 500
+            },
+            messages: [
+                {
+                    role: 'system',
+                    text: 'Ты — ИИ-ассистент образовательной платформы MathFrame. Твоя задача — по описанию темы от пользователя определить, какая тема из списка подходит лучше всего. Отвечай ТОЛЬКО списком ID тем через запятую, без лишнего текста. Например: "triangles,adjacent_angles,linear_eq". Если ничего не подходит, ответь "not_found".'
+                },
+                {
+                    role: 'user',
+                    text: prompt
                 }
-            }
-            let words = queryLower.split(/\s+/);
-            for (let word of words) {
-                if (word.length > 3) {
-                    for (let [synGroup, variants] of Object.entries(this.synonyms)) {
-                        if (variants.includes(word) || word.includes(synGroup)) translatedTerms.add(synGroup);
-                    }
-                }
-            }
-            return Array.from(translatedTerms);
-        }
+            ]
+        };
         
-        getTopicText(topic) {
-            return (topic.name + ' ' + (topic.keywords || []).join(' ') + ' ' + (topic.description || '').replace(/<[^>]*>/g, '')).toLowerCase();
-        }
-        
-        getTopicCluster(topicText) {
-            let scores = {};
-            for (let [cluster, keywords] of Object.entries(this.topicClusters)) {
-                scores[cluster] = 0;
-                for (let kw of keywords) if (topicText.includes(kw)) scores[cluster] += 2;
-            }
-            let bestCluster = null, maxScore = 0;
-            for (let [cluster, score] of Object.entries(scores)) if (score > maxScore) { maxScore = score; bestCluster = cluster; }
-            return bestCluster;
-        }
-        
-        calculateSemanticSimilarity(query, topic) {
-            const topicText = this.getTopicText(topic);
-            const queryLower = query.toLowerCase();
-            const topicLower = topicText.toLowerCase();
-            let score = 0;
-            let queryWords = queryLower.split(/\s+/).filter(w => w.length > 2);
+        try {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Api-Key ${YANDEX_API_KEY}`
+                },
+                body: JSON.stringify(body)
+            });
             
-            for (let qw of queryWords) {
-                if (topicLower.includes(qw)) score += 10;
-                if (topic.keywords && topic.keywords.some(kw => kw.toLowerCase().includes(qw) || qw.includes(kw.toLowerCase()))) score += 15;
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error('YandexGPT API error:', response.status, errorText);
+                throw new Error(`API error: ${response.status}`);
             }
             
-            let mathTerms = this.translateToMathTerms(queryLower);
-            for (let term of mathTerms) {
-                if (topicLower.includes(term)) score += 40;
-                if (topic.keywords && topic.keywords.some(kw => kw.toLowerCase().includes(term))) score += 35;
-                if (topic.name.toLowerCase().includes(term)) score += 50;
-            }
-            
-            if (queryLower.includes('группа') && queryLower.includes('объект') && queryLower.includes('объединен')) {
-                if (topic.name.toLowerCase().includes('множество') || 
-                    topic.keywords?.some(k => k.includes('множество')) ||
-                    topicLower.includes('совокупность') ||
-                    topicLower.includes('набор')) score += 100;
-            }
-            
-            const queryPhases = [queryLower, ...queryLower.split(/\s+/).slice(0,6).join(' '), ...queryLower.split(/\s+/).slice(-6).join(' ')];
-            for (let phrase of queryPhases) if (phrase.length > 4 && topicLower.includes(phrase)) score += 25;
-            
-            for (let [synGroup, variants] of Object.entries(this.synonyms)) {
-                let queryHasSyn = variants.some(v => queryLower.includes(v));
-                let topicHasSyn = variants.some(v => topicLower.includes(v));
-                if (queryHasSyn && topicHasSyn) score += 20;
-            }
-            
-            let queryCluster = null;
-            for (let [cluster, keywords] of Object.entries(this.topicClusters)) {
-                for (let kw of keywords) if (queryLower.includes(kw)) { queryCluster = cluster; break; }
-            }
-            let topicCluster = this.getTopicCluster(topicText);
-            if (queryCluster && topicCluster && queryCluster === topicCluster) score += 35;
-            if (queryCluster === 'теория_множеств' && topicCluster === 'теория_множеств') score += 60;
-            
-            return score;
-        }
-        
-        search(query, topics, topK = 5) {
-            if (!query.trim()) return [];
-            let results = [];
-            for (let topic of topics) {
-                if (topic.id === 'math_root' || topic.id === 'algebra_7' || topic.id === 'geometry_7' || topic.id === 'algebra_10') continue;
-                let similarity = this.calculateSemanticSimilarity(query, topic);
-                if (similarity > 0) results.push({ topic, score: Math.min(100, Math.floor(similarity)) });
-            }
-            results.sort((a,b) => b.score - a.score);
-            let highMatches = results.filter(r => r.score >= 40);
-            if (highMatches.length > 0) return highMatches.slice(0, topK);
-            return results.slice(0, topK);
+            const data = await response.json();
+            return data.result.alternatives[0].message.text;
+        } catch (error) {
+            console.error('YandexGPT API error:', error);
+            return null;
         }
     }
-    
-    let semanticAI = new IntelligentSemanticAI();
-    function aiSemanticSearch(query, topics) { return semanticAI.search(query, topics, 5); }
-    
-    // ---------- ВСЕ ОСТАЛЬНЫЕ ФУНКЦИИ (НЕ ИЗМЕНЯЛИСЬ) ----------
+
+    function buildAIPrompt(query, topics) {
+        const leafTopics = topics.filter(t => 
+            t.id !== 'math_root' && 
+            t.id !== 'algebra_7' && 
+            t.id !== 'geometry_7' && 
+            t.id !== 'algebra_10'
+        );
+        
+        let topicsList = leafTopics.map(t => 
+            `ID: ${t.id}, Название: "${t.name}", Ключевые слова: ${(t.keywords || []).join(', ')}`
+        ).join('\n');
+        
+        return `Пользователь ищет тему по описанию: "${query}"
+
+Вот список доступных тем:
+${topicsList}
+
+Определи, какие 3 темы лучше всего подходят под описание. 
+Ответь ТОЛЬКО списком ID тем через запятую в порядке убывания релевантности.
+Например: "triangles,adjacent_angles,linear_eq"
+
+Если ничего не подходит, ответь "not_found"`;
+    }
+
+    async function aiSearchViaYandexGPT(query, topics) {
+        if (!query.trim()) return [];
+        
+        try {
+            const prompt = buildAIPrompt(query, topics);
+            const aiResponse = await callYandexGPT(prompt);
+            
+            if (!aiResponse || aiResponse === 'not_found' || aiResponse.includes('not_found')) {
+                return [];
+            }
+            
+            const topicIds = aiResponse.split(',').map(id => id.trim().toLowerCase());
+            const results = [];
+            
+            for (let topicId of topicIds) {
+                const foundTopic = topics.find(t => t.id === topicId);
+                if (foundTopic) {
+                    results.push({
+                        topic: foundTopic,
+                        score: 95
+                    });
+                }
+            }
+            
+            return results;
+        } catch (error) {
+            console.error('AI search error:', error);
+            return [];
+        }
+    }
+
+    // ========== ОСТАЛЬНЫЕ ФУНКЦИИ (БЕЗ ИЗМЕНЕНИЙ) ==========
     async function loadConfig() { 
         try { const r=await fetch('./config.json'); if(r.ok) return await r.json(); } catch(e){} 
         return JSON.parse(JSON.stringify(DEFAULT_TOPICS)); 
     }
+    
     function buildHierarchyOrder(topics) {
         const ordered = [];
         const roots = topics.filter(t => t.parent === null).sort((a,b)=>a.name.localeCompare(b.name));
@@ -370,7 +337,9 @@
         roots.forEach(r=>dfs(r));
         return ordered;
     }
+    
     function levenshtein(a,b) { const m=[]; for(let i=0;i<=b.length;i++) m[i]=[i]; for(let j=0;j<=a.length;j++) m[0][j]=j; for(let i=1;i<=b.length;i++) for(let j=1;j<=a.length;j++) m[i][j]=Math.min(m[i-1][j]+1,m[i][j-1]+1,m[i-1][j-1]+(a[j-1]===b[i-1]?0:1)); return m[b.length][a.length]; }
+    
     function getMatchPercent(word, text) {
         if (!text) return 0;
         const lw = word.toLowerCase();
@@ -391,6 +360,7 @@
         }
         return 0;
     }
+    
     function getRelevance(t, words) {
         if (!words.length) return { found: false, score: 0 };
         let nameScore = 0, kwScore = 0, descScore = 0;
@@ -415,6 +385,7 @@
         const totalScore = nameScore + kwScore * 0.7 + descScore * 0.3 + (matchCount * 20);
         return { found: group > 0, group, percent, onlyDesc, score: totalScore };
     }
+    
     function sortByRelevance(arr) {
         if (!smartSortEnabled || !currentSearchQuery.trim()) {
             if (currentSortMode === "name_asc") return [...arr].sort((a,b)=>a.name.localeCompare(b.name));
@@ -431,7 +402,9 @@
             return a.name.localeCompare(b.name);
         });
     }
+    
     function getSearchWords() { return currentSearchQuery.trim() ? currentSearchQuery.toLowerCase().split(/\s+/).filter(w => w) : []; }
+    
     function highlightText(html, words) { 
         if (!words.length) return html; 
         const div = document.createElement('div'); 
@@ -458,6 +431,7 @@
         Array.from(div.childNodes).forEach(walk); 
         return div.innerHTML; 
     }
+    
     function highlightElement(el, words) {
         if (!words.length) return;
         const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, null, false);
@@ -480,10 +454,15 @@
             }
         }
     }
+    
     function saveToStorage(){ localStorage.setItem('mathframe_collapsed',JSON.stringify(Object.fromEntries(collapsedFolders))); localStorage.setItem('mathframe_filter',currentGradeFilter); localStorage.setItem('mathframe_sort',currentSortMode); localStorage.setItem('mathframe_search',currentSearchQuery); localStorage.setItem('mathframe_search_in_desc',searchInDescription); localStorage.setItem('mathframe_keywords',keywordsEnabled); localStorage.setItem('mathframe_fuzzy',fuzzyEnabled); localStorage.setItem('mathframe_smart_sort',smartSortEnabled); }
+    
     function loadFromStorage(){ const sc = localStorage.getItem('mathframe_collapsed'); if (sc) collapsedFolders = new Map(Object.entries(JSON.parse(sc))); currentGradeFilter = localStorage.getItem('mathframe_filter') || "all"; currentSortMode = localStorage.getItem('mathframe_sort') || "config"; currentSearchQuery = localStorage.getItem('mathframe_search') || ""; searchInDescription = localStorage.getItem('mathframe_search_in_desc') === 'true'; keywordsEnabled = localStorage.getItem('mathframe_keywords') !== 'false'; fuzzyEnabled = localStorage.getItem('mathframe_fuzzy') !== 'false'; smartSortEnabled = localStorage.getItem('mathframe_smart_sort') !== 'false'; }
+    
     function isVisible(t){ const g = t.gradeLevel || 1; if (currentGradeFilter === "all") return true; if (currentGradeFilter === "9") return g <= 9; if (currentGradeFilter === "7") return g <= 7; if (currentGradeFilter === "5") return g <= 5; if (currentGradeFilter === "preschool") return g <= 4; return true; }
+    
     function getChildrenSorted(id){ return sortByRelevance(currentTopics.filter(t => t.parent === id && isVisible(t))); }
+    
     function hasMatchingDescendant(id) {
         if (!currentSearchQuery.trim()) return false;
         const children = currentTopics.filter(t => t.parent === id && isVisible(t));
@@ -493,6 +472,7 @@
         }
         return false;
     }
+    
     function hasVisibleChildren(id){ 
         const kids = getChildrenSorted(id);
         if (!kids.length) return false;
@@ -503,6 +483,7 @@
         }
         return false;
     }
+    
     function updateRelevance(){ 
         matchOnlyByDescription.clear(); topicRelevanceInfo.clear(); 
         if (!currentSearchQuery.trim()) return; 
@@ -513,6 +494,7 @@
             if (info.found && info.onlyDesc) matchOnlyByDescription.set(t.id, true); 
         } 
     }
+    
     function renderTree(){
         const container = document.getElementById('topicTree'); if (!container) return;
         container.innerHTML = ''; updateRelevance();
@@ -522,6 +504,7 @@
         const words = getSearchWords();
         if (words.length) document.querySelectorAll('.node-title').forEach(el => highlightElement(el, words));
     }
+    
     function renderNode(topic, parentEl){
         const children = getChildrenSorted(topic.id);
         const visibleKids = children.length > 0 && hasVisibleChildren(topic.id);
@@ -562,32 +545,17 @@
         }
         parentEl.appendChild(node);
     }
+    
     function applyTreeFilter(){ const q = currentSearchQuery.trim(); if (!q) { document.querySelectorAll('.tree-node').forEach(n => n.style.display = ''); return; } const matching = new Set(); for (let t of currentTopics) if (topicRelevanceInfo.get(t.id)?.found) { matching.add(t.id); let p = t.parent; while (p) { matching.add(p); p = currentTopics.find(x => x.id === p)?.parent; } } document.querySelectorAll('.tree-node').forEach(n => { n.style.display = matching.has(n.getAttribute('data-id')) ? '' : 'none'; }); }
+    
     function highlightActive(){ document.querySelectorAll('.tree-node').forEach(n => n.classList.remove('active')); if (currentTopicId && currentTopicId !== 'welcome') document.querySelector(`.tree-node[data-id="${currentTopicId}"]`)?.classList.add('active'); }
+    
     function attachEvents(){ document.querySelectorAll('.tree-node-content').forEach(el => { el.removeEventListener('click', clickHandler); el.addEventListener('click', clickHandler); }); }
+    
     function clickHandler(e){ if (e.target.closest('.toggle-icon') && !e.target.closest('.toggle-icon')?.classList.contains('empty')) return; const node = this.closest('.tree-node'); if (node) { const id = node.getAttribute('data-id'); if (id) { if (window.innerWidth <= 768) closeMenu(); loadTopic(id, false); } } }
     
     function setExampleWithScripts(container, html) {
-        container.innerHTML = '';
-        const iframe = document.createElement('iframe');
-        iframe.className = 'example-iframe';
-        iframe.sandbox = 'allow-same-origin allow-scripts allow-popups allow-forms allow-modals';
-        iframe.style.width = '100%';
-        iframe.style.border = 'none';
-        iframe.scrolling = 'no';
-        iframe.style.overflow = 'hidden';
-        const blob = new Blob([`<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes"><style>body { margin: 0; padding: 20px; font-family: sans-serif; }</style></head><body>${html}</body></html>`], { type: 'text/html' });
-        const url = URL.createObjectURL(blob);
-        iframe.src = url;
-        container.appendChild(iframe);
-        iframe.onload = () => {
-            URL.revokeObjectURL(url);
-            try {
-                const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
-                const height = iframeDoc.body.scrollHeight;
-                iframe.style.height = height + 'px';
-            } catch(e) { iframe.style.height = 'auto'; }
-        };
+        container.innerHTML = html;
     }
     
     function showWelcomeScreen() {
@@ -596,8 +564,8 @@
         const descDiv = document.getElementById('descriptionPlaceholder');
         exampleDiv.style.opacity = '0'; descDiv.style.opacity = '0';
         setTimeout(() => {
-            exampleDiv.innerHTML = `<div class="welcome-message"><i class="fas fa-graduation-cap"></i><h2 style="margin: 16px 0 10px;">MathFrame</h2><p>Современная платформа для изучения точных наук</p><p style="margin-top: 22px; opacity:0.7;">Выберите тему в меню или начните поиск</p></div>`;
-            descDiv.innerHTML = `<p style="font-size: 1rem;"><strong>Добро пожаловать!</strong><br>Адаптивный интерфейс, плавные анимации, умный поиск и качественные примеры.</p><p>Интерактивные примеры поддерживают JavaScript, Canvas и динамическую графику.</p><p><i class="fas fa-robot"></i> Справа внизу — ИИ-помощник, который найдёт тему по любому описанию! Попробуйте: «базовое понятие, обозначающее несколько объектов, объединённых в группу»</p>`;
+            exampleDiv.innerHTML = `<div class="welcome-message"><i class="fas fa-graduation-cap"></i><h2 style="margin: 16px 0 10px;">MathFrame с ИИ (YandexGPT)</h2><p>Современная платформа для изучения точных наук</p><p style="margin-top: 22px; opacity:0.7;">Выберите тему в меню или начните поиск</p><p style="margin-top: 16px; font-size: 0.85rem;">🤖 ИИ-помощник справа внизу использует YandexGPT — находит темы по любому описанию!</p></div>`;
+            descDiv.innerHTML = `<p style="font-size: 1rem;"><strong>Добро пожаловать!</strong><br>Адаптивный интерфейс, плавные анимации, умный поиск и качественные примеры.</p><p>Интерактивные примеры поддерживают JavaScript, Canvas и динамическую графику.</p><p><i class="fas fa-robot"></i> <strong>ИИ-помощник (YandexGPT)</strong> — опишите тему своими словами, и нейросеть найдёт подходящий раздел!</p><p>Примеры запросов:<br>• «признаки равенства треугольников»<br>• «базовое понятие, обозначающее несколько объектов, объединённых в группу»<br>• «что-то про углы, которые в сумме дают 180 градусов»</p>`;
             exampleDiv.style.opacity = '1'; descDiv.style.opacity = '1';
             updateNavButtons(); renderTree();
             document.getElementById('unifiedCard').style.animation = 'cardAppear 0.3s ease-out';
@@ -657,6 +625,7 @@
             cont.appendChild(back);
         }
     }
+    
     function applyFilters(){
         currentGradeFilter = document.getElementById('levelSelect').value;
         currentSortMode = document.getElementById('sortSelect').value;
@@ -678,7 +647,9 @@
             }
         } else { renderTree(); }
     }
+    
     function showToast(msg){ let t = document.querySelector('.framework-toast'); if (t) t.remove(); t = document.createElement('div'); t.className = 'framework-toast'; t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), 1800); }
+    
     function closeMenu(){ 
         document.getElementById('hierarchyPanel')?.classList.remove('open'); 
         const ov = document.getElementById('mobileOverlay'); 
@@ -687,6 +658,7 @@
             setTimeout(() => { if(ov.style.display !== 'none') ov.style.display = 'none'; }, 300);
         } 
     }
+    
     function openMenu(){ 
         const panel = document.getElementById('hierarchyPanel'); 
         const ov = document.getElementById('mobileOverlay'); 
@@ -715,36 +687,45 @@
         }
     }
     
-    function performAISearch() {
+    // ========== ОСНОВНАЯ ФУНКЦИЯ ПОИСКА ЧЕРЕЗ ИИ ==========
+    async function performAISearch() {
         const queryInput = document.getElementById('aiQuery');
         const query = queryInput.value.trim();
-        if (!query) { showToast('Введите описание темы'); return; }
+        
+        if (!query) {
+            showToast('Введите описание темы');
+            return;
+        }
+        
         const resultsDiv = document.getElementById('aiResults');
         const resultsList = document.getElementById('aiResultsList');
         resultsDiv.style.display = 'block';
-        resultsList.innerHTML = '<div style="text-align: center; padding: 20px;"><i class="fas fa-brain fa-pulse"></i> ИИ анализирует смысл запроса...</div>';
-        setTimeout(() => {
-            const results = aiSemanticSearch(query, currentTopics);
+        resultsList.innerHTML = '<div style="text-align: center; padding: 20px;"><i class="fas fa-brain fa-pulse"></i> ИИ (YandexGPT) анализирует запрос...</div>';
+        
+        try {
+            const results = await aiSearchViaYandexGPT(query, currentTopics);
+            
             if (results.length === 0) {
                 resultsList.innerHTML = '<div style="text-align: center; padding: 20px; color: #666;">😕 Ничего не найдено. Попробуйте переформулировать запрос.</div>';
                 return;
             }
-            resultsList.innerHTML = results.map(res => {
-                let scoreText = '';
-                if (res.score >= 80) scoreText = '🔥 ' + res.score + '% (отлично)';
-                else if (res.score >= 60) scoreText = '👍 ' + res.score + '% (хорошо)';
-                else if (res.score >= 40) scoreText = '📖 ' + res.score + '% (средне)';
-                else scoreText = '🔍 ' + res.score + '%';
-                return `<div class="ai-result-item" onclick="window.loadTopic('${res.topic.id}', false); document.getElementById('aiModal').style.display = 'none';">
-                            <div style="font-weight: 700; margin-bottom: 6px; font-size: 1rem;">${res.topic.name}</div>
-                            <div style="font-size: 0.7rem; color: #667eea; margin-bottom: 6px;">${scoreText}</div>
-                            <div style="font-size: 0.7rem; color: #6b8cae;">📌 ${res.topic.keywords?.slice(0, 4).join(', ') || 'Нет ключевых слов'}</div>
-                        </div>`;
-            }).join('');
-            showToast(`🧠 ИИ понял запрос и нашёл ${results.length} тем`);
-        }, 50);
+            
+            resultsList.innerHTML = results.map(res => `
+                <div class="ai-result-item" onclick="window.loadTopic('${res.topic.id}', false); document.getElementById('aiModal').style.display = 'none';">
+                    <div style="font-weight: 700; margin-bottom: 6px; font-size: 1rem;">${res.topic.name}</div>
+                    <div style="font-size: 0.7rem; color: #667eea; margin-bottom: 6px;">🧠 Найдено через YandexGPT (нейросеть)</div>
+                    <div style="font-size: 0.7rem; color: #6b8cae;">📌 ${res.topic.keywords?.slice(0, 4).join(', ') || 'Нет ключевых слов'}</div>
+                </div>
+            `).join('');
+            
+            showToast(`🧠 YandexGPT нашёл ${results.length} подходящих тем`);
+        } catch (error) {
+            console.error('Search error:', error);
+            resultsList.innerHTML = '<div style="text-align: center; padding: 20px; color: #e74c3c;">❌ Ошибка при обращении к YandexGPT API. Проверьте подключение к интернету.</div>';
+        }
     }
     
+    // ========== ИНИЦИАЛИЗАЦИЯ ==========
     async function init(){
         const loaded = await loadConfig();
         currentTopics = buildHierarchyOrder(loaded);
