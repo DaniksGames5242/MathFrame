@@ -465,6 +465,77 @@
     const jsonEditor = document.getElementById('jsonEditor');
     const plainTextCheckbox = document.getElementById('plainTextMode');
     
+    // ========== ТРАНСЛИТЕРАЦИЯ ДЛЯ ID ==========
+    function transliterate(word) {
+        const map = {'а':'a','б':'b','в':'v','г':'g','д':'d','е':'e','ё':'e','ж':'zh','з':'z','и':'i','й':'y',
+            'к':'k','л':'l','м':'m','н':'n','о':'o','п':'p','р':'r','с':'s','т':'t','у':'u','ф':'f',
+            'х':'h','ц':'ts','ч':'ch','ш':'sh','щ':'sch','ъ':'','ы':'y','ь':'','э':'e','ю':'yu','я':'ya',
+            'А':'a','Б':'b','В':'v','Г':'g','Д':'d','Е':'e','Ё':'e','Ж':'zh','З':'z','И':'i','Й':'y',
+            'К':'k','Л':'l','М':'m','Н':'n','О':'o','П':'p','Р':'r','С':'s','Т':'t','У':'u','Ф':'f',
+            'Х':'h','Ц':'ts','Ч':'ch','Ш':'sh','Щ':'sch','Ъ':'','Ы':'y','Ь':'','Э':'e','Ю':'yu','Я':'ya'};
+        return word.split('').map(ch => map[ch] || (/[a-zA-Z0-9]/i.test(ch) ? ch : '')).join('');
+    }
+    
+    function generateIdFromName(name, excludeId = null, existingTopics = null) {
+        const topicsList = existingTopics || topics;
+        if (!name) return "topic";
+        let base = transliterate(name.toLowerCase()).replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+        if (base === "") base = "topic";
+        let candidate = base, counter = 1;
+        while (topicsList.some(t => t.id === candidate && t.id !== excludeId)) candidate = `${base}_${counter++}`;
+        return candidate;
+    }
+    
+    // ========== ФУНКЦИЯ ВАЛИДАЦИИ И ИСПРАВЛЕНИЯ ID ==========
+    function validateAndFixIds() {
+        let changesCount = 0;
+        const idMap = new Map(); // старый ID -> новый ID
+        
+        // Первый проход: вычисляем правильные ID для каждой темы
+        for (let topic of topics) {
+            const correctId = generateIdFromName(topic.name, null, topics);
+            if (topic.id !== correctId) {
+                idMap.set(topic.id, correctId);
+                changesCount++;
+            }
+        }
+        
+        if (changesCount === 0) return false;
+        
+        // Второй проход: обновляем ID тем и ссылки в описаниях
+        for (let topic of topics) {
+            // Обновляем ID темы
+            if (idMap.has(topic.id)) {
+                const newId = idMap.get(topic.id);
+                topic.id = newId;
+            }
+            
+            // Обновляем родителя, если он изменился
+            if (topic.parent && idMap.has(topic.parent)) {
+                topic.parent = idMap.get(topic.parent);
+            }
+            
+            // Обновляем гиперссылки в описании
+            if (topic.description) {
+                let updatedDescription = topic.description;
+                for (let [oldId, newId] of idMap) {
+                    // Ищем ссылки вида data-topic-id="oldId"
+                    const regex = new RegExp(`data-topic-id=["']${oldId}["']`, 'g');
+                    updatedDescription = updatedDescription.replace(regex, `data-topic-id="${newId}"`);
+                }
+                topic.description = updatedDescription;
+            }
+        }
+        
+        // Обновляем selectedId, если он изменился
+        if (selectedId && idMap.has(selectedId)) {
+            selectedId = idMap.get(selectedId);
+        }
+        
+        showToast(`Исправлено ${changesCount} ID тем и обновлены ссылки`, false);
+        return true;
+    }
+    
     // ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
     function showToast(text, isError = false) {
         const toast = document.getElementById('toastMsg');
@@ -552,22 +623,6 @@
         return false;
     }
     
-    function transliterate(word) {
-        const map = {'а':'a','б':'b','в':'v','г':'g','д':'d','е':'e','ё':'e','ж':'zh','з':'z','и':'i','й':'y',
-            'к':'k','л':'l','м':'m','н':'n','о':'o','п':'p','р':'r','с':'s','т':'t','у':'u','ф':'f',
-            'х':'h','ц':'ts','ч':'ch','ш':'sh','щ':'sch','ъ':'','ы':'y','ь':'','э':'e','ю':'yu','я':'ya'};
-        return word.split('').map(ch => map[ch] || (/[a-zA-Z0-9]/i.test(ch) ? ch : '')).join('');
-    }
-    
-    function generateIdFromName(name, excludeId = null) {
-        if (!name) return "topic";
-        let base = transliterate(name.toLowerCase()).replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
-        if (base === "") base = "topic";
-        let candidate = base, counter = 1;
-        while (topics.some(t => t.id === candidate && t.id !== excludeId)) candidate = `${base}_${counter++}`;
-        return candidate;
-    }
-    
     // ========== ОБНОВЛЕНИЕ ФОРМЫ ==========
     function fillFormBySelectedNoSave() {
         if (!selectedId) return;
@@ -632,7 +687,7 @@
             let exampleVal = exampleHtmlSource.value;
             let descriptionVal = descriptionEditor.innerHTML;
             let keywordsArray = topicKeywordsInput.value.trim().split(',').map(k => k.trim()).filter(k => k);
-            let newId = generateIdFromName(newName, selectedId);
+            let newId = generateIdFromName(newName, selectedId, topics);
             if (newParent && isCyclic(newId, newParent)) { if (showMsg) showToast('Циклическая зависимость', true); return; }
             let updated = { ...topics[idx], id: newId, name: newName, keywords: keywordsArray,
                 parent: newParent, icon: newIcon, gradeLevel: newGrade, example: exampleVal, description: descriptionVal };
@@ -1059,7 +1114,7 @@
     
     // ========== НОВАЯ ТЕМА ==========
     function newTopic() {
-        const newId = generateIdFromName('Новая тема');
+        const newId = generateIdFromName('Новая тема', null, topics);
         topics.push({ id: newId, name: 'Новая тема', keywords: [], parent: null, icon: 'fa-file-alt', gradeLevel: 3, example: '', description: '<p>Новая тема</p>', order: topics.length });
         topics = removeDuplicateIds(topics);
         selectedId = newId; expandedState.add(newId);
@@ -1097,11 +1152,19 @@
                     topics = data;
                     topics = removeDuplicateIds(topics);
                     topics.forEach((t, i) => { if (!t.order) t.order = i; if (!t.keywords) t.keywords = []; if (!t.icon) t.icon = 'fa-file-alt'; if (!t.example) t.example = ''; if (!t.description) t.description = '<p></p>'; });
+                    
+                    // ВАЖНО: валидируем и исправляем ID после загрузки
+                    const idsFixed = validateAndFixIds();
+                    
                     selectedId = topics[0]?.id || null;
                     expandedState.clear();
                     topics.forEach(t => { if (topics.some(ch => ch.parent === t.id)) expandedState.add(t.id); });
                     saveToLocalStorage();
-                    showToast('config.json загружен');
+                    if (idsFixed) {
+                        showToast('config.json загружен, ID исправлены');
+                    } else {
+                        showToast('config.json загружен');
+                    }
                     return true;
                 }
             }
@@ -1111,7 +1174,18 @@
         
         // Если config.json не загрузился, пробуем загрузить из localStorage
         if (loadFromLocalStorage()) {
-            showToast('Данные восстановлены из кеша');
+            // Валидируем ID после загрузки из localStorage
+            const idsFixed = validateAndFixIds();
+            if (idsFixed) {
+                saveToLocalStorage();
+                renderTree();
+                fillFormBySelectedNoSave();
+                updateJsonEditor();
+                pushToHistory();
+                showToast('Данные из кеша, ID исправлены');
+            } else {
+                showToast('Данные восстановлены из кеша');
+            }
             return true;
         }
         
@@ -1156,7 +1230,7 @@
             document.getElementById(id).onclick = () => { if (!plainTextMode) { document.execCommand('insertText', false, document.getElementById(id).innerText); descriptionEditor.focus(); saveCurrentTopic(false); } };
         });
         
-        topicNameInput.addEventListener('input', function() { if (this.value.trim()) document.getElementById('topicId').value = generateIdFromName(this.value, selectedId); });
+        topicNameInput.addEventListener('input', function() { if (this.value.trim()) document.getElementById('topicId').value = generateIdFromName(this.value, selectedId, topics); });
         document.getElementById('searchTopicsInput').addEventListener('input', (e) => { searchQuery = e.target.value.toLowerCase(); renderTree(); });
         [topicNameInput, topicKeywordsInput, topicParentSelect, topicIconSelect, topicGradeSelect, exampleHtmlSource].forEach(f => f.addEventListener('blur', () => saveCurrentTopic(false)));
         descriptionEditor.addEventListener('blur', () => saveCurrentTopic(false));
