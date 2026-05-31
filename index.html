@@ -3,11 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
-    <title>MathFrame | Образовательная платформа</title>
+    <title>MathFrame | Образовательная платформа с ИИ</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700;14..32,800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <style>
-        /* ВСЕ СТИЛИ ОСТАЮТСЯ БЕЗ ИЗМЕНЕНИЙ */
         * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         body { font-family: 'Inter', sans-serif; background: linear-gradient(145deg, #f0f4fa 0%, #e6ecf4 100%); color: #1a2c3e; height: 100vh; overflow: hidden; max-width: 100vw; overflow-x: hidden; }
         .loading-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: radial-gradient(circle at 30% 20%, #1e3a5f, #0a1a2f); display: flex; align-items: center; justify-content: center; z-index: 10000; transition: opacity 0.8s cubic-bezier(0.2, 0.9, 0.4, 1.1), visibility 0.8s; }
@@ -88,11 +87,18 @@
         #aiAssistantBtn:hover { transform: scale(1.05); box-shadow: 0 8px 25px rgba(0,0,0,0.3); }
         #aiAssistantBtn:active { transform: scale(0.95); }
         .ai-modal { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); z-index: 1001; display: none; align-items: center; justify-content: center; }
-        .ai-modal-content { background: white; border-radius: 32px; max-width: 500px; width: 90%; max-height: 80vh; overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.2); animation: slideUp 0.3s cubic-bezier(0.2, 0.9, 0.4, 1.2); }
+        .ai-modal-content { background: white; border-radius: 32px; max-width: 500px; width: 90%; max-height: 80vh; overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.2); animation: slideUp 0.3s cubic-bezier(0.2, 0.9, 0.4, 1.2); display: flex; flex-direction: column; }
         @keyframes slideUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
         .ai-header { padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
+        .ai-body { padding: 20px; overflow-y: auto; flex: 1; }
+        .ai-progress { background: #f0f0f0; border-radius: 12px; height: 8px; margin-top: 10px; overflow: hidden; }
+        .ai-progress-bar { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); height: 100%; width: 0%; transition: width 0.3s; border-radius: 12px; }
         .ai-result-item { padding: 12px; margin-bottom: 8px; background: #f8fafc; border-radius: 12px; cursor: pointer; transition: all 0.2s; }
         .ai-result-item:hover { background: #eef3fc; transform: translateX(5px); }
+        .ai-thinking { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #667eea; margin: 0 2px; animation: blink 1.4s infinite both; }
+        .ai-thinking:nth-child(1) { animation-delay: -0.32s; }
+        .ai-thinking:nth-child(2) { animation-delay: -0.16s; }
+        @keyframes blink { 0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); } 40% { opacity: 1; transform: scale(1); } }
     </style>
 </head>
 <body>
@@ -182,14 +188,23 @@
     <div class="ai-modal-content">
         <div class="ai-header">
             <div style="display: flex; justify-content: space-between; align-items: center;">
-                <h3 style="margin: 0; display: flex; align-items: center; gap: 10px;"><i class="fas fa-robot"></i> ИИ-помощник</h3>
+                <h3 style="margin: 0; display: flex; align-items: center; gap: 10px;"><i class="fas fa-robot"></i> ИИ-помощник (WebLLM)</h3>
                 <button id="closeAiModal" style="background: none; border: none; color: white; font-size: 1.5rem; cursor: pointer;">&times;</button>
             </div>
-            <p style="margin: 8px 0 0 0; font-size: 0.8rem; opacity: 0.9;">Найду тему по описанию, даже если вы не знаете точное название</p>
+            <p style="margin: 8px 0 0 0; font-size: 0.8rem; opacity: 0.9;">ИИ понимает русский язык и находит темы по смыслу</p>
         </div>
-        <div style="padding: 20px;">
+        <div class="ai-body">
+            <div id="aiStatus" style="margin-bottom: 16px; padding: 10px; background: #f0f4fa; border-radius: 16px; font-size: 0.85rem;">
+                <i class="fas fa-info-circle"></i> 
+                <span id="aiStatusText">ИИ готов к работе</span>
+            </div>
+            <div id="aiProgress" style="display: none;">
+                <div style="font-size: 0.75rem; margin-bottom: 6px;">Загрузка модели ИИ...</div>
+                <div class="ai-progress"><div class="ai-progress-bar" id="aiProgressBar"></div></div>
+                <div id="aiProgressText" style="font-size: 0.7rem; margin-top: 6px; color: #666;"></div>
+            </div>
             <textarea id="aiQuery" rows="3" placeholder="Опишите тему, которую ищете...&#10;Например: «что-то про углы, которые в сумме дают 180 градусов» или «как решать уравнения с иксом»" style="width: 100%; padding: 12px; border-radius: 16px; border: 1px solid #e2e8f0; font-family: inherit; resize: vertical; margin-bottom: 16px;"></textarea>
-            <button id="aiSearchBtn" style="width: 100%; padding: 12px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; border-radius: 40px; color: white; font-weight: 600; cursor: pointer; transition: all 0.2s;">🔍 Найти тему</button>
+            <button id="aiSearchBtn" style="width: 100%; padding: 12px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; border-radius: 40px; color: white; font-weight: 600; cursor: pointer; transition: all 0.2s;">🔍 Найти тему (ИИ)</button>
         </div>
         <div id="aiResults" style="padding: 0 20px 20px 20px; max-height: 300px; overflow-y: auto; display: none;">
             <div style="font-weight: 600; margin-bottom: 12px;">Результаты поиска:</div>
@@ -198,7 +213,17 @@
     </div>
 </div>
 
-<script>
+<script type="importmap">
+    {
+        "imports": {
+            "@mlc-ai/web-llm": "https://esm.run/@mlc-ai/web-llm"
+        }
+    }
+</script>
+<script type="module">
+    import * as webllm from '@mlc-ai/web-llm';
+    
+    // Базовые темы
     const DEFAULT_TOPICS = [
         { id: "math_root", name: "Математика", parent: null, icon: "fa-folder", gradeLevel: 5, keywords: ["математика"], example: '<div style="padding:20px;"><h3>Математика</h3><p>Основы математики</p></div>', description: '<p>Главный раздел математики</p>' },
         { id: "algebra_7", name: "Алгебра 7–9", parent: "math_root", icon: "fa-folder", gradeLevel: 7, keywords: ["алгебра","выражения","формулы","7 класс"], example: '<div style="padding:20px; text-align:center;"><i class="fas fa-chart-line" style="font-size:2rem;"></i><div>Алгебра 7-9</div></div>', description: '<p><strong>Алгебра</strong> — раздел математики, изучающий операции над величинами и решение уравнений.</p><p><span class="inline-link" data-topic-id="linear_eq">Линейные уравнения</span>.</p>' },
@@ -216,7 +241,173 @@
     let currentGradeFilter = "all", currentSortMode = "config";
     let currentSearchQuery = "", searchInDescription = false, keywordsEnabled = true, fuzzyEnabled = true, smartSortEnabled = true;
     let matchOnlyByDescription = new Map(), topicRelevanceInfo = new Map();
+    
+    // WebLLM переменные
+    let llmEngine = null;
+    let isModelLoading = false;
+    let modelLoaded = false;
+    
+    // Инициализация WebLLM
+    async function initWebLLM() {
+        if (modelLoaded || isModelLoading) return;
+        isModelLoading = true;
+        
+        const progressDiv = document.getElementById('aiProgress');
+        const progressBar = document.getElementById('aiProgressBar');
+        const progressText = document.getElementById('aiProgressText');
+        const statusSpan = document.getElementById('aiStatusText');
+        
+        progressDiv.style.display = 'block';
+        statusSpan.innerHTML = 'Загрузка модели ИИ (около 1.4 ГБ)...';
+        
+        try {
+            const initProgressCallback = (report) => {
+                const progress = report.progress * 100;
+                if (progressBar) progressBar.style.width = `${progress}%`;
+                if (progressText) progressText.innerHTML = `${report.text} (${Math.round(progress)}%)`;
+                console.log(report.text, report.progress);
+            };
+            
+            llmEngine = await webllm.CreateMLCEngine(
+                "Llama-3.2-3B-Instruct-q4f32_1-MLC",
+                { 
+                    initProgressCallback: initProgressCallback,
+                    temperature: 0.3,
+                    top_p: 0.9
+                }
+            );
+            
+            modelLoaded = true;
+            statusSpan.innerHTML = '✅ ИИ готов! Модель загружена.';
+            progressDiv.style.display = 'none';
+            showToast('ИИ-модель успешно загружена!');
+        } catch (err) {
+            console.error('Ошибка загрузки WebLLM:', err);
+            statusSpan.innerHTML = '❌ Ошибка загрузки ИИ. Проверьте подключение к интернету и повторите попытку.';
+            progressDiv.style.display = 'none';
+        } finally {
+            isModelLoading = false;
+        }
+    }
+    
+    // Поиск с помощью WebLLM
+    async function searchWithWebLLM(query) {
+        if (!modelLoaded || !llmEngine) {
+            showToast('ИИ ещё не загружен, подождите...');
+            return null;
+        }
+        
+        const topicsList = currentTopics.map(t => 
+            `- ${t.name} (ключевые слова: ${t.keywords?.join(', ') || 'нет'})`
+        ).join('\n');
+        
+        const systemPrompt = `Ты — ИИ-помощник в образовательной платформе MathFrame.
+Твоя задача — найти математическую тему, наиболее подходящую под описание пользователя.
+Доступные темы:
+${topicsList}
 
+Правила:
+1. Внимательно проанализируй описание пользователя
+2. Найди тему, которая лучше всего соответствует описанию
+3. Если подходит несколько тем, перечисли их через запятую
+4. Отвечай ТОЛЬКО названиями тем (одним или несколькими через запятую)
+5. Не добавляй никаких пояснений, только названия тем
+6. Если ничего не подходит, ответь "не найдено"`;
+        
+        const messages = [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: query }
+        ];
+        
+        try {
+            const reply = await llmEngine.chat.completions.create({ messages });
+            const answer = reply.choices[0].message.content;
+            return answer;
+        } catch (err) {
+            console.error('Ошибка запроса к WebLLM:', err);
+            return null;
+        }
+    }
+    
+    // Поиск с WebLLM и отображение результатов
+    async function performAISearch() {
+        const queryInput = document.getElementById('aiQuery');
+        const query = queryInput.value.trim();
+        
+        if (!query) {
+            showToast('Введите описание темы');
+            return;
+        }
+        
+        const resultsDiv = document.getElementById('aiResults');
+        const resultsList = document.getElementById('aiResultsList');
+        const searchBtn = document.getElementById('aiSearchBtn');
+        
+        resultsDiv.style.display = 'block';
+        resultsList.innerHTML = '<div style="text-align: center; padding: 20px;"><span class="ai-thinking"></span><span class="ai-thinking"></span><span class="ai-thinking"></span> ИИ анализирует запрос...</div>';
+        searchBtn.disabled = true;
+        searchBtn.style.opacity = '0.6';
+        
+        // Если модель не загружена, загружаем
+        if (!modelLoaded && !isModelLoading) {
+            await initWebLLM();
+        }
+        
+        // Ждём загрузки модели
+        if (isModelLoading) {
+            resultsList.innerHTML = '<div style="text-align: center; padding: 20px;">⏳ Модель загружается, пожалуйста, подождите...</div>';
+            const waitForModel = setInterval(() => {
+                if (modelLoaded) {
+                    clearInterval(waitForModel);
+                    performAISearch(); // повторяем поиск
+                }
+            }, 500);
+            searchBtn.disabled = false;
+            searchBtn.style.opacity = '1';
+            return;
+        }
+        
+        // Ищем через ИИ
+        const aiAnswer = await searchWithWebLLM(query);
+        
+        if (!aiAnswer || aiAnswer === 'не найдено') {
+            resultsList.innerHTML = '<div style="text-align: center; padding: 20px; color: #666;">😕 Ничего не найдено. Попробуйте переформулировать запрос.</div>';
+            searchBtn.disabled = false;
+            searchBtn.style.opacity = '1';
+            return;
+        }
+        
+        // Парсим ответ ИИ (он выдаёт названия тем)
+        const foundTopicNames = aiAnswer.split(/[,，、]/).map(n => n.trim().toLowerCase());
+        
+        // Ищем соответствующие темы в каталоге
+        const matchedTopics = [];
+        for (let name of foundTopicNames) {
+            const topic = currentTopics.find(t => t.name.toLowerCase() === name || 
+                t.name.toLowerCase().includes(name) || 
+                name.includes(t.name.toLowerCase()));
+            if (topic && !matchedTopics.includes(topic)) {
+                matchedTopics.push(topic);
+            }
+        }
+        
+        if (matchedTopics.length === 0) {
+            resultsList.innerHTML = '<div style="text-align: center; padding: 20px; color: #666;">😕 Не удалось распознать ответ ИИ. Попробуйте иначе сформулировать запрос.</div>';
+        } else {
+            resultsList.innerHTML = matchedTopics.map(topic => `
+                <div class="ai-result-item" onclick="window.loadTopic('${topic.id}', false); document.getElementById('aiModal').style.display = 'none';">
+                    <div style="font-weight: 600; margin-bottom: 4px;">${topic.name}</div>
+                    <div style="font-size: 0.7rem; color: #6b8cae;">${topic.keywords?.slice(0,3).join(', ') || 'Нет ключевых слов'}</div>
+                </div>
+            `).join('');
+            showToast(`ИИ нашёл ${matchedTopics.length} подходящих тем`);
+        }
+        
+        searchBtn.disabled = false;
+        searchBtn.style.opacity = '1';
+    }
+    
+    // Остальные функции (без изменений, но нужны для работы)
     async function loadConfig() { 
         try { const r=await fetch('./config.json'); if(r.ok) return await r.json(); } catch(e){} 
         return JSON.parse(JSON.stringify(DEFAULT_TOPICS)); 
@@ -249,100 +440,30 @@
         }
         return 0;
     }
-    
-    // ИИ-помощник на логических правилах (работает мгновенно, без загрузок)
-    function aiSemanticSearch(query, topics) {
-        const queryWords = query.toLowerCase().split(/\s+/);
-        
-        // База знаний синонимов и логических связей
-        const knowledgeBase = {
-            'уравнение': ['линейные уравнения', 'квадратные уравнения', 'алгебра'],
-            'угол': ['смежные углы', 'треугольники'],
-            '180': ['смежные углы'],
-            'градус': ['смежные углы', 'треугольники'],
-            'треугольник': ['треугольники', 'геометрия'],
-            'фигура': ['треугольники', 'геометрия'],
-            'график': ['алгебра', 'функции', 'логарифмы'],
-            'функция': ['алгебра', 'логарифмы'],
-            'логарифм': ['логарифмы'],
-            'степень': ['логарифмы', 'алгебра'],
-            'прямая': ['прямая', 'геометрия'],
-            'линия': ['прямая', 'геометрия'],
-            'квадрат': ['квадратные уравнения', 'алгебра'],
-            'дискриминант': ['квадратные уравнения']
-        };
-        
-        const results = [];
-        
-        for (let topic of topics) {
-            let score = 0;
-            const fullText = `${topic.name} ${topic.keywords?.join(' ') || ''} ${topic.description?.replace(/<[^>]*>/g, '') || ''}`.toLowerCase();
-            
-            // Прямое совпадение слов
-            for (let w of queryWords) {
-                if (fullText.includes(w)) {
-                    score += 15;
-                }
-                // Проверка базы знаний
-                if (knowledgeBase[w]) {
-                    for (let related of knowledgeBase[w]) {
-                        if (topic.name.toLowerCase().includes(related) || fullText.includes(related)) {
-                            score += 25;
-                        }
-                    }
-                }
-            }
-            
-            // Логические цепочки
-            if ((query.includes('180') || query.includes('градус')) && query.includes('угол')) {
-                if (topic.name === 'Смежные углы') score += 50;
-            }
-            if ((query.includes('решать') || query.includes('найти x') || query.includes('корень')) && query.includes('уравнение')) {
-                if (topic.name.includes('уравнение')) score += 40;
-            }
-            if (query.includes('логарифм') && topic.name === 'Логарифмы') score += 50;
-            if ((query.includes('функция') || query.includes('график')) && topic.name.includes('Алгебра')) score += 30;
-            if (query.includes('треугольник') && topic.name === 'Треугольники') score += 50;
-            
-            if (score > 0) results.push({ topic, score });
-        }
-        
-        return results.sort((a,b) => b.score - a.score).slice(0,5);
-    }
-    
     function getRelevance(t, words) {
         if (!words.length) return { found: false, score: 0 };
-        
         let nameScore = 0, kwScore = 0, descScore = 0;
         let bestName = 0, bestKw = 0, bestDesc = 0;
         let matchCount = 0;
-        
         for (let w of words) {
             const np = getMatchPercent(w, t.name);
             const kwp = (keywordsEnabled && t.keywords) ? getMatchPercent(w, Array.isArray(t.keywords) ? t.keywords.join(" ") : String(t.keywords)) : 0;
             const dp = (searchInDescription && t.description) ? getMatchPercent(w, t.description.replace(/<[^>]*>/g, '')) : 0;
-            
             bestName = Math.max(bestName, np);
             bestKw = Math.max(bestKw, kwp);
             bestDesc = Math.max(bestDesc, dp);
-            
             nameScore += np;
             kwScore += kwp;
             descScore += dp;
-            
             if (np > 0 || kwp > 0 || dp > 0) matchCount++;
         }
-        
         let group = 0, percent = 0, onlyDesc = false;
         if (bestName > 0) { group = 1; percent = bestName; }
         else if (bestKw > 0) { group = 2; percent = bestKw; }
         else if (bestDesc > 0) { group = 3; percent = bestDesc; onlyDesc = true; }
-        
         const totalScore = nameScore + kwScore * 0.7 + descScore * 0.3 + (matchCount * 20);
-        
         return { found: group > 0, group, percent, onlyDesc, score: totalScore };
     }
-    
     function sortByRelevance(arr) {
         if (!smartSortEnabled || !currentSearchQuery.trim()) {
             if (currentSortMode === "name_asc") return [...arr].sort((a,b)=>a.name.localeCompare(b.name));
@@ -359,7 +480,6 @@
             return a.name.localeCompare(b.name);
         });
     }
-    
     function getSearchWords() { return currentSearchQuery.trim() ? currentSearchQuery.toLowerCase().split(/\s+/).filter(w => w) : []; }
     function highlightText(html, words) { 
         if (!words.length) return html; 
@@ -413,7 +533,6 @@
     function loadFromStorage(){ const sc = localStorage.getItem('mathframe_collapsed'); if (sc) collapsedFolders = new Map(Object.entries(JSON.parse(sc))); currentGradeFilter = localStorage.getItem('mathframe_filter') || "all"; currentSortMode = localStorage.getItem('mathframe_sort') || "config"; currentSearchQuery = localStorage.getItem('mathframe_search') || ""; searchInDescription = localStorage.getItem('mathframe_search_in_desc') === 'true'; keywordsEnabled = localStorage.getItem('mathframe_keywords') !== 'false'; fuzzyEnabled = localStorage.getItem('mathframe_fuzzy') !== 'false'; smartSortEnabled = localStorage.getItem('mathframe_smart_sort') !== 'false'; }
     function isVisible(t){ const g = t.gradeLevel || 1; if (currentGradeFilter === "all") return true; if (currentGradeFilter === "9") return g <= 9; if (currentGradeFilter === "7") return g <= 7; if (currentGradeFilter === "5") return g <= 5; if (currentGradeFilter === "preschool") return g <= 4; return true; }
     function getChildrenSorted(id){ return sortByRelevance(currentTopics.filter(t => t.parent === id && isVisible(t))); }
-    
     function hasMatchingDescendant(id) {
         if (!currentSearchQuery.trim()) return false;
         const children = currentTopics.filter(t => t.parent === id && isVisible(t));
@@ -423,7 +542,6 @@
         }
         return false;
     }
-    
     function hasVisibleChildren(id){ 
         const kids = getChildrenSorted(id);
         if (!kids.length) return false;
@@ -434,7 +552,6 @@
         }
         return false;
     }
-    
     function updateRelevance(){ 
         matchOnlyByDescription.clear(); topicRelevanceInfo.clear(); 
         if (!currentSearchQuery.trim()) return; 
@@ -445,7 +562,6 @@
             if (info.found && info.onlyDesc) matchOnlyByDescription.set(t.id, true); 
         } 
     }
-    function expandParentsForMatch(){}
     function renderTree(){
         const container = document.getElementById('topicTree'); if (!container) return;
         container.innerHTML = ''; updateRelevance();
@@ -499,7 +615,6 @@
     function highlightActive(){ document.querySelectorAll('.tree-node').forEach(n => n.classList.remove('active')); if (currentTopicId && currentTopicId !== 'welcome') document.querySelector(`.tree-node[data-id="${currentTopicId}"]`)?.classList.add('active'); }
     function attachEvents(){ document.querySelectorAll('.tree-node-content').forEach(el => { el.removeEventListener('click', clickHandler); el.addEventListener('click', clickHandler); }); }
     function clickHandler(e){ if (e.target.closest('.toggle-icon') && !e.target.closest('.toggle-icon')?.classList.contains('empty')) return; const node = this.closest('.tree-node'); if (node) { const id = node.getAttribute('data-id'); if (id) { if (window.innerWidth <= 768) closeMenu(); loadTopic(id, false); } } }
-    
     function setExampleWithScripts(container, html) {
         container.innerHTML = '';
         const iframe = document.createElement('iframe');
@@ -522,7 +637,6 @@
             } catch(e) { iframe.style.height = 'auto'; }
         };
     }
-    
     function showWelcomeScreen() {
         currentTopicId = 'welcome';
         const exampleDiv = document.getElementById('examplePlaceholder');
@@ -530,14 +644,13 @@
         exampleDiv.style.opacity = '0'; descDiv.style.opacity = '0';
         setTimeout(() => {
             exampleDiv.innerHTML = `<div class="welcome-message"><i class="fas fa-graduation-cap"></i><h2 style="margin: 16px 0 10px;">MathFrame</h2><p>Современная платформа для изучения точных наук</p><p style="margin-top: 22px; opacity:0.7;">Выберите тему в меню или начните поиск</p></div>`;
-            descDiv.innerHTML = `<p style="font-size: 1rem;"><strong>Добро пожаловать!</strong><br>Адаптивный интерфейс, плавные анимации, умный поиск и качественные примеры.</p><p>Интерактивные примеры поддерживают JavaScript, Canvas и динамическую графику.</p><p><i class="fas fa-robot"></i> Справа внизу — ИИ-помощник, который найдёт тему по любому описанию!</p>`;
+            descDiv.innerHTML = `<p style="font-size: 1rem;"><strong>Добро пожаловать!</strong><br>Адаптивный интерфейс, плавные анимации, умный поиск и качественные примеры.</p><p>Интерактивные примеры поддерживают JavaScript, Canvas и динамическую графику.</p><p><i class="fas fa-robot"></i> Справа внизу — ИИ-помощник (WebLLM). Напишите описание темы, и ИИ найдёт её по смыслу!</p><p>⚠️ <strong>Первое использование ИИ требует загрузки модели (~1.4 ГБ). Это одноразовое действие.</strong></p>`;
             exampleDiv.style.opacity = '1'; descDiv.style.opacity = '1';
             updateNavButtons(); renderTree();
             document.getElementById('unifiedCard').style.animation = 'cardAppear 0.3s ease-out';
             setTimeout(() => document.getElementById('unifiedCard').style.animation = '', 350);
         }, 150);
     }
-    
     window.loadTopic = function(id, fromLink) {
         if (id === 'welcome') { showWelcomeScreen(); return; }
         const topic = currentTopics.find(t => t.id === id);
@@ -563,7 +676,6 @@
         }, 150);
         showToast(topic.name);
     };
-    
     function updateNavButtons(){
         const cont = document.getElementById('navButtonsContainer'); if (!cont) return;
         if (currentTopicId === 'welcome') {
@@ -630,7 +742,6 @@
         ov.style.display = 'block'; 
         requestAnimationFrame(() => ov.classList.add('visible')); 
     }
-    
     function refreshUI() {
         saveToStorage();
         renderTree();
@@ -646,45 +757,6 @@
                 });
             }
         }
-    }
-    
-    function performAISearch() {
-        const queryInput = document.getElementById('aiQuery');
-        const query = queryInput.value.trim();
-        
-        if (!query) {
-            showToast('Введите описание темы');
-            return;
-        }
-        
-        const resultsDiv = document.getElementById('aiResults');
-        const resultsList = document.getElementById('aiResultsList');
-        resultsDiv.style.display = 'block';
-        resultsList.innerHTML = '<div style="text-align: center; padding: 20px;"><i class="fas fa-spinner fa-pulse"></i> Ищу...</div>';
-        
-        // Используем семантический поиск на логике
-        setTimeout(() => {
-            const results = aiSemanticSearch(query, currentTopics);
-            
-            if (results.length === 0) {
-                resultsList.innerHTML = '<div style="text-align: center; padding: 20px; color: #666;">😕 Ничего не найдено. Попробуйте переформулировать запрос.</div>';
-                return;
-            }
-            
-            resultsList.innerHTML = results.map(res => {
-                const maxScore = 100;
-                const percent = Math.min(Math.round(res.score / 2), 100);
-                return `
-                    <div class="ai-result-item" onclick="window.loadTopic('${res.topic.id}', false); document.getElementById('aiModal').style.display = 'none';">
-                        <div style="font-weight: 600; margin-bottom: 4px;">${res.topic.name}</div>
-                        <div style="font-size: 0.75rem; color: #2c6b9e; margin-bottom: 4px;">Совпадение: ${percent}%</div>
-                        <div style="font-size: 0.7rem; color: #6b8cae;">${res.topic.keywords?.slice(0,3).join(', ') || 'Нет ключевых слов'}</div>
-                    </div>
-                `;
-            }).join('');
-            
-            showToast(`Найдено ${results.length} подходящих тем`);
-        }, 100);
     }
     
     async function init(){
@@ -739,6 +811,13 @@
                 }
             });
         }
+        
+        // Фоновая загрузка модели через 3 секунды после загрузки страницы
+        setTimeout(() => {
+            if (!modelLoaded && !isModelLoading) {
+                initWebLLM();
+            }
+        }, 3000);
         
         setTimeout(() => { const loader = document.getElementById('loadingOverlay'); if (loader) { loader.style.opacity = '0'; setTimeout(() => { loader.style.display = 'none'; document.getElementById('appRoot').classList.add('content-visible'); }, 700); } else document.getElementById('appRoot').classList.add('content-visible'); }, 800);
     }
