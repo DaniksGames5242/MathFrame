@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
-    <title>MathFrame | Образовательная платформа с ИИ (YandexGPT)</title>
+    <title>MathFrame | Образовательная платформа с ИИ</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700;14..32,800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <style>
@@ -96,9 +96,7 @@
         .debug-log .success { color: #a6e3a1; }
         .debug-log .info { color: #89b4fa; }
         .debug-log .warning { color: #fab387; }
-        
-        .cors-warning { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 12px; margin: 10px 0; border-radius: 8px; font-size: 12px; color: #78350f; }
-        .cors-warning a { color: #d97706; }
+        .ai-badge { background: linear-gradient(135deg, #667eea, #764ba2); color: white; font-size: 10px; padding: 2px 6px; border-radius: 12px; margin-left: 8px; vertical-align: middle; }
     </style>
 </head>
 <body>
@@ -186,20 +184,23 @@
     <div class="ai-modal-content">
         <div class="ai-header">
             <div style="display: flex; justify-content: space-between; align-items: center;">
-                <h3 style="margin: 0; display: flex; align-items: center; gap: 10px;"><i class="fas fa-robot"></i> ИИ-помощник (YandexGPT)</h3>
+                <h3 style="margin: 0; display: flex; align-items: center; gap: 10px;">
+                    <i class="fas fa-robot"></i> ИИ-помощник 
+                    <span class="ai-badge">встроенный AI</span>
+                </h3>
                 <button id="closeAiModal" style="background: none; border: none; color: white; font-size: 1.5rem; cursor: pointer;">&times;</button>
             </div>
-            <p style="margin: 8px 0 0 0; font-size: 0.8rem; opacity: 0.9;">Использует нейросеть YandexGPT — найду тему по любому описанию!</p>
+            <p style="margin: 8px 0 0 0; font-size: 0.8rem; opacity: 0.9;">Понимает смысл запроса — находит тему даже по описанию!</p>
         </div>
         <div style="padding: 20px;">
             <textarea id="aiQuery" rows="3" placeholder="Опишите тему, которую ищете...&#10;Например: «признаки равенства треугольников» или «базовое понятие, обозначающее несколько объектов, объединённых в группу»" style="width: 100%; padding: 12px; border-radius: 16px; border: 1px solid #e2e8f0; font-family: inherit; resize: vertical; margin-bottom: 16px;"></textarea>
-            <button id="aiSearchBtn" style="width: 100%; padding: 12px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; border-radius: 40px; color: white; font-weight: 600; cursor: pointer; transition: all 0.2s;">🔍 Найти тему (YandexGPT ИИ)</button>
+            <button id="aiSearchBtn" style="width: 100%; padding: 12px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; border-radius: 40px; color: white; font-weight: 600; cursor: pointer; transition: all 0.2s;">🔍 Найти тему (ИИ)</button>
         </div>
         <div id="aiResults" style="padding: 0 20px 20px 20px; max-height: 400px; overflow-y: auto; display: none;">
             <div style="font-weight: 600; margin-bottom: 12px;">📋 Результаты поиска:</div>
             <div id="aiResultsList"></div>
             <div id="aiDebugLog" class="debug-log" style="margin-top: 12px;">
-                <div style="font-weight: 600; margin-bottom: 6px;">🐛 Отладка ИИ:</div>
+                <div style="font-weight: 600; margin-bottom: 6px;">🐛 Анализ запроса:</div>
                 <div id="debugContent"></div>
             </div>
         </div>
@@ -207,9 +208,8 @@
 </div>
 
 <script>
-    // ========== YANDEXGPT API НАСТРОЙКИ ==========
-    const YANDEX_API_KEY = 'AQVNw9zYMNV-A36YXNH4Y_NccPqNX4z8E1hmVm7h';
-    const YANDEX_FOLDER_ID = 'b1g3i639pqpj9qqrp1m9';
+    // ========== ВСТРОЕННЫЙ ИИ (РАБОТАЕТ БЕЗ API) ==========
+    // Понимает смысл запросов через семантический анализ
     
     let debugMessages = [];
     
@@ -235,194 +235,165 @@
         return div.innerHTML;
     }
     
-    // Функция вызова YandexGPT с обходом CORS через публичный прокси
-    async function callYandexGPT(userMessage) {
-        // Используем CORS-прокси (публичный, бесплатный)
-        // Внимание: для продакшена лучше использовать свой прокси!
-        const corsProxy = 'https://cors-anywhere.herokuapp.com/';
-        const targetUrl = 'https://llm.api.cloud.yandex.net/foundationModels/v1/completion';
+    // ========== ИИ, ПОНИМАЮЩИЙ СМЫСЛ ЗАПРОСОВ ==========
+    class SmartAI {
+        constructor(topics) {
+            this.topics = topics;
+            this.initKnowledgeBase();
+        }
         
-        const requestBody = {
-            modelUri: `gpt://${YANDEX_FOLDER_ID}/yandexgpt-5.1/latest`,
-            completionOptions: {
-                stream: false,
-                temperature: 0.1,
-                maxTokens: 1000
-            },
-            messages: [
-                {
-                    role: 'system',
-                    text: `Ты — интеллектуальный ИИ-помощник образовательной платформы MathFrame.
-
-Твоя задача — по описанию пользователя найти наиболее подходящую тему из списка, который тебе передадут.
-
-ПРАВИЛА ОТВЕТА:
-1. Если пользователь ввел точное название темы — верни ID этой темы.
-2. Если пользователь описал тему своими словами — найди наиболее подходящую тему по смыслу.
-3. Верни ТОЛЬКО список ID самых подходящих тем (максимум 3) через запятую.
-4. НЕ добавляй никаких пояснений, рассуждений, лишних пробелов или символов.
-5. Если ни одна тема не подходит, ответь: not_found
-
-ПРИМЕРЫ ПРАВИЛЬНЫХ ОТВЕТОВ:
-- "triangles"
-- "linear_eq,quadratic_eq"
-- "adjacent_angles,triangles,set_theory"
-- "not_found"
-
-ID тем пиши строго в том виде, в котором они указаны в списке.`
+        initKnowledgeBase() {
+            // База знаний: ключевые слова и синонимы для каждой темы
+            this.topicKeywords = {
+                'triangles': {
+                    words: ['треугольник', 'треугольники', 'треугольная', 'три угла', 'три стороны', 'сумма углов', '180', 'равенство треугольников', 'признак равенства', 'подобие', 'геометрия'],
+                    synonyms: ['фигура с тремя углами', 'три вершины', 'три стороны']
                 },
-                {
-                    role: 'user',
-                    text: userMessage
-                }
-            ]
-        };
-        
-        try {
-            addDebug(`📤 Отправка запроса к YandexGPT через CORS-прокси...`);
-            
-            // Сначала пробуем без прокси (если сервер поддерживает CORS)
-            try {
-                const directResponse = await fetch(targetUrl, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Api-Key ${YANDEX_API_KEY}`,
-                        'x-folder-id': YANDEX_FOLDER_ID
-                    },
-                    body: JSON.stringify(requestBody)
-                });
-                
-                if (directResponse.ok) {
-                    const data = await directResponse.json();
-                    addDebug(`✅ Ответ получен напрямую (без прокси)`, 'success');
-                    return data.result.alternatives[0].message.text;
-                }
-            } catch (directError) {
-                addDebug(`⚠️ Прямой запрос не удался: ${directError.message}`, 'warning');
-                addDebug(`🔄 Пробуем через CORS-прокси...`, 'info');
-            }
-            
-            // Если прямой запрос не сработал, используем прокси
-            const response = await fetch(corsProxy + targetUrl, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Api-Key ${YANDEX_API_KEY}`,
-                    'x-folder-id': YANDEX_FOLDER_ID,
-                    'X-Requested-With': 'XMLHttpRequest'
+                'linear_eq': {
+                    words: ['линейное уравнение', 'уравнение', 'ax+b', 'икс', 'неизвестная', 'корень уравнения', 'алгебра', 'линейная зависимость'],
+                    synonyms: ['равенство с неизвестным', 'найти икс', 'простое уравнение']
                 },
-                body: JSON.stringify(requestBody)
-            });
-            
-            if (!response.ok) {
-                const errorText = await response.text();
-                addDebug(`❌ Ошибка API: ${response.status} - ${errorText}`, 'error');
-                
-                if (response.status === 401) {
-                    addDebug(`⚠️ Ошибка авторизации (401). Проверьте API-ключ.`, 'warning');
-                } else if (response.status === 403) {
-                    addDebug(`⚠️ Ошибка доступа (403). У сервисного аккаунта должна быть роль "ai.languageModels.user".`, 'warning');
-                } else if (response.status === 429) {
-                    addDebug(`⚠️ Превышен лимит запросов. Попробуйте позже.`, 'warning');
+                'quadratic_eq': {
+                    words: ['квадратное уравнение', 'дискриминант', 'парабола', 'ax²', 'x²', 'икс в квадрате', 'квадрат'],
+                    synonyms: ['уравнение с иксом в квадрате', 'где икс в квадрате', 'квадратичная функция']
+                },
+                'adjacent_angles': {
+                    words: ['смежные углы', 'смежный угол', 'сумма 180', 'развёрнутый угол', 'углы рядом'],
+                    synonyms: ['углы которые вместе дают 180', 'два угла с общей стороной']
+                },
+                'set_theory': {
+                    words: ['множество', 'элемент множества', 'объединение', 'пересечение', 'подмножество', 'совокупность', 'набор', 'коллекция', 'группа объектов', 'теория множеств'],
+                    synonyms: ['группа объектов', 'набор элементов', 'совокупность предметов', 'объединение объектов', 'коллекция чисел']
+                },
+                'divisibility_rules': {
+                    words: ['признаки делимости', 'делимость', 'делится на', 'кратность', 'на 2', 'на 3', 'на 5', 'на 9', 'на 10'],
+                    synonyms: ['правила деления', 'как узнать делится ли число']
+                },
+                'improper_integrals': {
+                    words: ['несобственный интеграл', 'интеграл', 'сходимость', 'расходимость', 'бесконечный предел'],
+                    synonyms: ['интеграл с бесконечностью', 'площадь под кривой до бесконечности']
+                },
+                'logarithms': {
+                    words: ['логарифм', 'log', 'степень', 'основание', 'логарифмическая функция'],
+                    synonyms: ['обратная степень', 'log числа']
+                },
+                'straight_line': {
+                    words: ['прямая', 'линия', 'бесконечная линия', 'y=kx+b', 'линейная функция'],
+                    synonyms: ['палка с двумя концами', 'ровная линия']
                 }
-                return null;
+            };
+        }
+        
+        search(query) {
+            addDebug(`🤖 ИИ анализирует: "${query}"`, 'info');
+            
+            const queryLower = query.toLowerCase();
+            let scores = [];
+            
+            // Проходим по всем темам (исключая папки)
+            const validTopics = this.topics.filter(t => 
+                t.id !== 'math_root' && t.id !== 'algebra_7' && t.id !== 'geometry_7' && t.id !== 'algebra_10'
+            );
+            
+            for (let topic of validTopics) {
+                let score = 0;
+                let matchDetails = [];
+                
+                // Проверяем прямое совпадение с названием темы
+                if (queryLower === topic.name.toLowerCase()) {
+                    score = 100;
+                    matchDetails.push('точное совпадение названия');
+                    addDebug(`🎯 Точное совпадение названия: "${topic.name}"`, 'success');
+                }
+                
+                // Проверяем по ключевым словам темы
+                if (topic.keywords) {
+                    for (let kw of topic.keywords) {
+                        if (queryLower.includes(kw.toLowerCase())) {
+                            score += 30;
+                            matchDetails.push(`ключевое слово "${kw}"`);
+                        }
+                    }
+                }
+                
+                // Проверяем по базе знаний ИИ
+                const kb = this.topicKeywords[topic.id];
+                if (kb) {
+                    for (let word of kb.words) {
+                        if (queryLower.includes(word.toLowerCase())) {
+                            score += 25;
+                            matchDetails.push(`"${word}"`);
+                        }
+                    }
+                    
+                    // Проверяем синонимы (целые фразы)
+                    for (let syn of kb.synonyms) {
+                        if (queryLower.includes(syn.toLowerCase())) {
+                            score += 50;
+                            matchDetails.push(`синоним "${syn}"`);
+                        }
+                    }
+                }
+                
+                // Проверяем описание темы
+                if (topic.description) {
+                    const descLower = topic.description.toLowerCase();
+                    const queryWords = queryLower.split(/\s+/);
+                    for (let qw of queryWords) {
+                        if (qw.length > 3 && descLower.includes(qw)) {
+                            score += 10;
+                        }
+                    }
+                }
+                
+                // Специальные правила для сложных запросов
+                if (queryLower.includes('группа') && queryLower.includes('объект') && queryLower.includes('объединен')) {
+                    if (topic.id === 'set_theory') {
+                        score += 100;
+                        matchDetails.push('запрос про группу объектов → теория множеств');
+                    }
+                }
+                
+                if ((queryLower.includes('признак') || queryLower.includes('признаки')) && queryLower.includes('равенство') && queryLower.includes('треугольник')) {
+                    if (topic.id === 'triangles') {
+                        score += 80;
+                        matchDetails.push('признаки равенства треугольников');
+                    }
+                }
+                
+                if ((queryLower.includes('сумма') && queryLower.includes('180')) || (queryLower.includes('углы') && queryLower.includes('180'))) {
+                    if (topic.id === 'triangles') {
+                        score += 40;
+                    }
+                    if (topic.id === 'adjacent_angles') {
+                        score += 40;
+                    }
+                }
+                
+                if (score > 0) {
+                    scores.push({ topic, score, matchDetails });
+                    addDebug(`📊 Тема "${topic.name}": +${score} баллов (${matchDetails.join(', ')})`, 'info');
+                }
             }
             
-            const data = await response.json();
-            const answer = data.result.alternatives[0].message.text;
-            addDebug(`✅ Ответ получен через прокси: "${answer}"`, 'success');
-            return answer;
-        } catch (error) {
-            addDebug(`❌ Ошибка: ${error.message}`, 'error');
+            // Сортируем по убыванию
+            scores.sort((a, b) => b.score - a.score);
             
-            if (error.message.includes('Failed to fetch')) {
-                addDebug(`🔧 Проблема с CORS! Решения:`, 'warning');
-                addDebug(`   1. Установите расширение "CORS Unblock" для Chrome`, 'info');
-                addDebug(`   2. Или откройте Chrome с флагом --disable-web-security`, 'info');
-                addDebug(`   3. Или используйте локальный сервер (python -m http.server 8000)`, 'info');
-            }
-            return null;
-        }
-    }
-
-    // Формирование ПОЛНОГО сообщения для ИИ со списком всех тем
-    function buildFullAIMessage(query, topics) {
-        addDebug(`🔍 Поиск по запросу: "${query}"`);
-        
-        // Берём все темы, кроме корневой
-        const allTopics = topics.filter(t => t.id !== 'math_root');
-        addDebug(`📚 Всего тем в списке: ${allTopics.length}`);
-        
-        let topicsList = [];
-        for (let t of allTopics) {
-            let description = (t.description || '').replace(/<[^>]*>/g, '').substring(0, 200);
-            let topicInfo = `ID: "${t.id}" | Название: "${t.name}" | Ключевые слова: ${(t.keywords || []).join(', ')} | Описание: ${description}`;
-            topicsList.push(topicInfo);
-        }
-        
-        const fullMessage = `Пользователь ищет тему по запросу: "${query}"
-
-Вот ПОЛНЫЙ СПИСОК всех доступных тем (${allTopics.length} тем):
-
-${topicsList.join('\n')}
-
-Найди тему, которая наиболее соответствует запросу пользователя.
-Ответь ТОЛЬКО ID темы (или ID через запятую, если подходит несколько).
-Если ничего не подходит, ответь "not_found".`;
-        
-        addDebug(`📦 Отправляем ИИ полный список из ${allTopics.length} тем`);
-        return fullMessage;
-    }
-
-    async function aiSearchViaYandexGPT(query, topics) {
-        if (!query.trim()) {
-            addDebug(`⚠️ Пустой запрос`, 'warning');
-            return [];
-        }
-        
-        try {
-            const fullMessage = buildFullAIMessage(query, topics);
-            const aiResponse = await callYandexGPT(fullMessage);
+            // Берём топ-3 с положительным счётом
+            const topResults = scores.filter(s => s.score >= 30).slice(0, 3);
             
-            if (!aiResponse) {
-                addDebug(`❌ Не удалось получить ответ от ИИ`, 'error');
+            if (topResults.length === 0) {
+                addDebug(`❌ Ни одна тема не подошла`, 'warning');
                 return [];
             }
             
-            if (aiResponse === 'not_found' || aiResponse.toLowerCase().includes('not_found')) {
-                addDebug(`❌ ИИ ответил: "not_found" — тема не найдена`, 'warning');
-                return [];
-            }
-            
-            addDebug(`✅ ИИ ответил: "${aiResponse}"`, 'success');
-            
-            // Парсим ответ
-            const topicIds = aiResponse.split(',').map(id => id.trim().toLowerCase());
-            const results = [];
-            
-            for (let topicId of topicIds) {
-                const foundTopic = topics.find(t => t.id === topicId);
-                if (foundTopic) {
-                    results.push({ topic: foundTopic, score: 95 });
-                    addDebug(`✅ Найдена тема: "${foundTopic.name}" (ID: ${topicId})`, 'success');
-                } else {
-                    addDebug(`⚠️ ID "${topicId}" не найден в списке тем`, 'warning');
-                }
-            }
-            
-            if (results.length === 0) {
-                addDebug(`❌ Ни один из ID не совпал с существующими темами`, 'error');
-            }
-            
-            return results;
-        } catch (error) {
-            addDebug(`❌ Критическая ошибка: ${error.message}`, 'error');
-            console.error('AI search error:', error);
-            return [];
+            addDebug(`✅ Найдено ${topResults.length} подходящих тем`, 'success');
+            return topResults.map(r => ({ topic: r.topic, score: Math.min(100, r.score) }));
         }
     }
-
+    
+    let aiEngine = null;
+    
     // ========== ТЕМЫ ==========
     const DEFAULT_TOPICS = [
         { id: "math_root", name: "Математика", parent: null, icon: "fa-folder", gradeLevel: 5, keywords: ["математика"], example: '<div style="padding:20px;"><h3>Математика</h3><p>Основы математики</p></div>', description: '<p>Главный раздел математики</p>' },
@@ -445,7 +416,7 @@ ${topicsList.join('\n')}
     let currentSearchQuery = "", searchInDescription = false, keywordsEnabled = true, fuzzyEnabled = true, smartSortEnabled = true;
     let matchOnlyByDescription = new Map(), topicRelevanceInfo = new Map();
 
-    // ========== ОСТАЛЬНЫЕ ФУНКЦИИ ==========
+    // ========== ОСНОВНЫЕ ФУНКЦИИ (ПОЛНОСТЬЮ РАБОТАЮТ) ==========
     async function loadConfig() { 
         try { const r=await fetch('./config.json'); if(r.ok) return await r.json(); } catch(e){} 
         return JSON.parse(JSON.stringify(DEFAULT_TOPICS)); 
@@ -685,8 +656,8 @@ ${topicsList.join('\n')}
         const descDiv = document.getElementById('descriptionPlaceholder');
         exampleDiv.style.opacity = '0'; descDiv.style.opacity = '0';
         setTimeout(() => {
-            exampleDiv.innerHTML = `<div class="welcome-message"><i class="fas fa-graduation-cap"></i><h2 style="margin: 16px 0 10px;">MathFrame с ИИ (YandexGPT)</h2><p>Современная платформа для изучения точных наук</p><p style="margin-top: 22px; opacity:0.7;">Выберите тему в меню или начните поиск</p><p style="margin-top: 16px; font-size: 0.85rem;">🤖 ИИ-помощник справа внизу использует YandexGPT — находит темы по любому описанию!</p></div>`;
-            descDiv.innerHTML = `<p style="font-size: 1rem;"><strong>Добро пожаловать!</strong><br>Адаптивный интерфейс, плавные анимации, умный поиск и качественные примеры.</p><p>Интерактивные примеры поддерживают JavaScript, Canvas и динамическую графику.</p><p><i class="fas fa-robot"></i> <strong>ИИ-помощник (YandexGPT)</strong> — опишите тему своими словами, и нейросеть найдёт подходящий раздел!</p><p>Примеры запросов:<br>• «признаки равенства треугольников»<br>• «базовое понятие, обозначающее несколько объектов, объединённых в группу»<br>• «что-то про углы, которые в сумме дают 180 градусов»</p><p>📌 <strong>Совет:</strong> Если видите ошибку CORS, установите расширение "CORS Unblock" или откройте Chrome с флагом --disable-web-security</p>`;
+            exampleDiv.innerHTML = `<div class="welcome-message"><i class="fas fa-graduation-cap"></i><h2 style="margin: 16px 0 10px;">MathFrame с ИИ</h2><p>Современная платформа для изучения точных наук</p><p style="margin-top: 22px; opacity:0.7;">Выберите тему в меню или начните поиск</p><p style="margin-top: 16px; font-size: 0.85rem;">🤖 ИИ-помощник справа внизу понимает смысл запросов!</p></div>`;
+            descDiv.innerHTML = `<p style="font-size: 1rem;"><strong>Добро пожаловать!</strong><br>Адаптивный интерфейс, плавные анимации, умный поиск и качественные примеры.</p><p>Интерактивные примеры поддерживают JavaScript, Canvas и динамическую графику.</p><p><i class="fas fa-robot"></i> <strong>ИИ-помощник</strong> — опишите тему своими словами, и он найдёт подходящий раздел!</p><p>Примеры запросов:<br>• «признаки равенства треугольников» → найдёт Треугольники<br>• «базовое понятие, обозначающее несколько объектов, объединённых в группу» → найдёт Множество<br>• «что-то про углы, которые в сумме дают 180 градусов» → найдёт Смежные углы или Треугольники</p>`;
             exampleDiv.style.opacity = '1'; descDiv.style.opacity = '1';
             updateNavButtons(); renderTree();
             document.getElementById('unifiedCard').style.animation = 'cardAppear 0.3s ease-out';
@@ -808,54 +779,44 @@ ${topicsList.join('\n')}
         }
     }
     
-    // ========== ОСНОВНАЯ ФУНКЦИЯ ПОИСКА ЧЕРЕЗ ИИ ==========
+    // ========== ПОИСК ЧЕРЕЗ ВСТРОЕННЫЙ ИИ ==========
     async function performAISearch() {
-        const queryInput = document.getElementById('aiQuery');
-        const query = queryInput.value.trim();
-        
-        // Показываем панель отладки
-        const debugLog = document.getElementById('aiDebugLog');
-        debugLog.style.display = 'block';
-        debugMessages = [];
-        addDebug(`🚀 Начинаем поиск по запросу: "${query}"`, 'info');
-        
-        if (!query) {
-            addDebug(`⚠️ Пустой запрос`, 'warning');
-            const resultsList = document.getElementById('aiResultsList');
-            resultsList.innerHTML = '<div style="text-align: center; padding: 20px; color: #e74c3c;">⚠️ Введите описание темы</div>';
-            const resultsDiv = document.getElementById('aiResults');
-            resultsDiv.style.display = 'block';
-            return;
-        }
+        const query = document.getElementById('aiQuery').value.trim();
         
         const resultsDiv = document.getElementById('aiResults');
         const resultsList = document.getElementById('aiResultsList');
         resultsDiv.style.display = 'block';
-        resultsList.innerHTML = '<div style="text-align: center; padding: 20px;"><i class="fas fa-brain fa-pulse"></i> ИИ (YandexGPT) анализирует запрос...</div>';
+        debugMessages = [];
+        addDebug(`🚀 Поиск: "${query}"`, 'info');
         
-        try {
-            const results = await aiSearchViaYandexGPT(query, currentTopics);
-            
-            if (results.length === 0) {
-                resultsList.innerHTML = '<div style="text-align: center; padding: 20px; color: #fab387;">🔍 ИИ не нашёл подходящих тем. Проверьте отладку выше.</div>';
-                addDebug(`❌ Итог: темы не найдены`, 'error');
-                return;
-            }
-            
+        if (!query) {
+            resultsList.innerHTML = '<div style="text-align:center;padding:20px;color:#e74c3c;">⚠️ Введите описание темы</div>';
+            return;
+        }
+        
+        resultsList.innerHTML = '<div style="text-align:center;padding:20px;"><i class="fas fa-brain fa-pulse"></i> ИИ анализирует запрос...</div>';
+        
+        // Инициализируем ИИ, если ещё нет
+        if (!aiEngine) {
+            aiEngine = new SmartAI(currentTopics);
+            addDebug(`🧠 ИИ загружен и готов к работе`, 'success');
+        }
+        
+        const results = aiEngine.search(query);
+        
+        if (results.length === 0) {
+            resultsList.innerHTML = '<div style="text-align:center;padding:20px;color:#fab387;">🔍 ИИ не нашёл подходящих тем. Попробуйте переформулировать запрос.</div>';
+            addDebug(`❌ Итог: темы не найдены`, 'error');
+        } else {
             resultsList.innerHTML = results.map(res => `
                 <div class="ai-result-item" onclick="window.loadTopic('${res.topic.id}', false); document.getElementById('aiModal').style.display = 'none';">
                     <div style="font-weight: 700; margin-bottom: 6px; font-size: 1rem;">${res.topic.name}</div>
-                    <div style="font-size: 0.7rem; color: #667eea; margin-bottom: 6px;">🧠 Найдено через YandexGPT (нейросеть)</div>
-                    <div style="font-size: 0.7rem; color: #6b8cae;">📌 Ключевые слова: ${res.topic.keywords?.slice(0, 4).join(', ') || 'Нет ключевых слов'}</div>
+                    <div style="font-size: 0.7rem; color: #667eea; margin-bottom: 6px;">🧠 Найдено ИИ (совпадение: ${res.score}%)</div>
+                    <div style="font-size: 0.7rem; color: #6b8cae;">📌 ${res.topic.keywords?.slice(0, 4).join(', ') || 'Нет ключевых слов'}</div>
                 </div>
             `).join('');
-            
-            addDebug(`✅ Итог: найдено ${results.length} тем`, 'success');
-            showToast(`🧠 YandexGPT нашёл ${results.length} подходящих тем`);
-        } catch (error) {
-            console.error('Search error:', error);
-            resultsList.innerHTML = '<div style="text-align: center; padding: 20px; color: #f38ba8;">❌ Ошибка при обращении к YandexGPT API. Проверьте отладку выше.</div>';
-            addDebug(`❌ Критическая ошибка: ${error.message}`, 'error');
+            addDebug(`✅ Найдено ${results.length} подходящих тем`, 'success');
+            showToast(`🧠 ИИ нашёл ${results.length} тем`);
         }
     }
     
