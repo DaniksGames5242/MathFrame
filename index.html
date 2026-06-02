@@ -317,6 +317,30 @@
     // История чата
     let chatHistory = [];
 
+    // ========== Глобальный перехват ошибок для динамического контента ==========
+    window.addEventListener('error', function(e) {
+        if (e.target && e.target.tagName === 'SCRIPT') {
+            console.warn('Заблокирован скрипт в динамическом контенте:', e.target.src);
+            showToast('⚠️ Некоторые элементы не загрузились, но основной контент работает');
+        }
+    });
+
+    // Функция для санитайзии HTML (удаляет опасные теги, но оставляет полезные)
+    function sanitizeHtml(html) {
+        if (!html) return '';
+        // Создаём временный элемент для безопасной обработки
+        const temp = document.createElement('div');
+        temp.innerHTML = html;
+        
+        // Удаляем все теги script
+        temp.querySelectorAll('script').forEach(el => el.remove());
+        
+        // Удаляем iframe, object, embed (можно закомментировать если нужны)
+        temp.querySelectorAll('iframe, object, embed').forEach(el => el.remove());
+        
+        return temp.innerHTML;
+    }
+
     // ========== ИИ ДЛЯ ПОИСКА ТЕМ ==========
     class TopicAI {
         constructor(topics) {
@@ -582,21 +606,48 @@
         if (id === 'welcome') { showWelcomeScreen(); return; }
         const topic = currentTopics.find(t => t.id === id);
         if (!topic) return;
+        
         if (fromLink && currentTopicId && currentTopicId !== 'welcome') navigationStack.push(currentTopicId);
         currentTopicId = id;
+        
         const exampleDiv = document.getElementById('examplePlaceholder');
         const descDiv = document.getElementById('descriptionPlaceholder');
-        exampleDiv.style.opacity = '0'; descDiv.style.opacity = '0';
-        setTimeout(() => {
-            exampleDiv.innerHTML = topic.example || '<div style="padding:20px;">Пример не задан</div>';
-            let descHtml = topic.description || '<p>Нет описания</p>';
-            descDiv.innerHTML = descHtml;
-            descDiv.querySelectorAll('.inline-link').forEach(link => {
-                link.addEventListener('click', (e) => { e.preventDefault(); const tid = link.getAttribute('data-topic-id'); if (tid && currentTopics.find(t => t.id === tid)) loadTopic(tid, true); });
-            });
-            exampleDiv.style.opacity = '1'; descDiv.style.opacity = '1';
-            updateNavButtons();
-        }, 100);
+        
+        // Безопасная вставка контента с fallback
+        try {
+            // Вставляем пример с защитой от пустых значений
+            const exampleContent = topic.example || '<div style="padding:20px; color:#999;">📝 Пример отсутствует</div>';
+            exampleDiv.innerHTML = sanitizeHtml(exampleContent);
+            
+            // Вставляем теорию
+            const descContent = topic.description || '<p>📖 Описание отсутствует</p>';
+            descDiv.innerHTML = sanitizeHtml(descContent);
+            
+            // Безопасная обработка inline-ссылок
+            setTimeout(() => {
+                const links = descDiv.querySelectorAll('.inline-link');
+                links.forEach(link => {
+                    // Удаляем старые обработчики, чтобы не было дублирования
+                    const newLink = link.cloneNode(true);
+                    link.parentNode.replaceChild(newLink, link);
+                    
+                    newLink.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        const tid = newLink.getAttribute('data-topic-id');
+                        if (tid && currentTopics.find(t => t.id === tid)) {
+                            loadTopic(tid, true);
+                        }
+                    });
+                });
+            }, 10);
+            
+        } catch (error) {
+            console.error('Ошибка отображения темы:', error);
+            exampleDiv.innerHTML = '<div style="padding:20px; color:#c0392b;">⚠️ Ошибка загрузки примера</div>';
+            descDiv.innerHTML = '<p>⚠️ Ошибка загрузки описания</p>';
+        }
+        
+        updateNavButtons();
         showToast(topic.name);
     }
     
@@ -643,7 +694,7 @@
             const cur = currentTopics.find(t => t.id === currentTopicId);
             if (cur && isVisible(cur)) {
                 const descDiv = document.getElementById('descriptionPlaceholder');
-                descDiv.innerHTML = cur.description || '<p>Нет описания</p>';
+                descDiv.innerHTML = sanitizeHtml(cur.description || '<p>Нет описания</p>');
             } else {
                 const first = currentTopics.find(t => t.parent === null && isVisible(t));
                 if (first) loadTopic(first.id, false);
@@ -735,8 +786,8 @@
             
             resultsDiv.innerHTML = results.map(r => `
                 <div class="ai-result-item" onclick="window.loadTopicFromModal('${r.topic.id}')">
-                    <h4>📘 ${r.topic.name}</h4>
-                    <p>${(r.topic.description || '').substring(0, 100)}...</p>
+                    <h4>📘 ${escapeHtml(r.topic.name)}</h4>
+                    <p>${escapeHtml((r.topic.description || '').substring(0, 100))}...</p>
                     <div style="font-size:0.7rem; color:#667eea;">🎯 совпадение: ${Math.min(100, r.score)}%</div>
                 </div>
             `).join('');
@@ -744,6 +795,16 @@
             renderModalTree();
             showToast(`🤖 ИИ нашёл ${results.length} тем`);
         }, 100);
+    }
+    
+    function escapeHtml(str) {
+        if (!str) return '';
+        return str.replace(/[&<>]/g, function(m) {
+            if (m === '&') return '&amp;';
+            if (m === '<') return '&lt;';
+            if (m === '>') return '&gt;';
+            return m;
+        });
     }
     
     window.loadTopicFromModal = function(id) {
@@ -854,7 +915,7 @@
         const container = document.getElementById('chatMessages');
         const div = document.createElement('div');
         div.className = `message ${sender}`;
-        div.innerHTML = `<div class="message-bubble">${text.replace(/\n/g, '<br>')}</div>`;
+        div.innerHTML = `<div class="message-bubble">${escapeHtml(text).replace(/\n/g, '<br>')}</div>`;
         container.appendChild(div);
         container.scrollTop = container.scrollHeight;
     }
