@@ -465,7 +465,7 @@
             <button id="newBtn">+ Создать тему</button>
         </div>
         <div class="small-note">Клик — выделить. Перетащите за строку: в середину → сделать дочерней; между строк → изменить порядок.</div>
-        <div class="small-note">Двойной клик или ПКМ → меню. Ctrl/Shift для нескольких тем.</div>
+        <div class="small-note">ПКМ или долгое нажатие → меню. Ctrl+C/X/V/D/Z/Y/S/↑/↓/Del/Ctrl+Q/F.</div>
     </div>
 
     <div class="editor-panel">
@@ -597,6 +597,15 @@
     const jsonEditor = document.getElementById('jsonEditor');
     const plainTextCheckbox = document.getElementById('plainTextMode');
     const topicJsonEditor = document.getElementById('topicJsonEditor');
+    
+    // Функция для проверки, находится ли фокус в поле ввода
+    function isInputFocused() {
+        const activeElement = document.activeElement;
+        const tagName = activeElement.tagName.toLowerCase();
+        const isInput = tagName === 'input' || tagName === 'textarea' || tagName === 'select';
+        const isContentEditable = activeElement.isContentEditable;
+        return isInput || isContentEditable;
+    }
     
     function removeOrderField(topicsArray) {
         return topicsArray.map(topic => {
@@ -1062,6 +1071,7 @@
     }
     
     function copyTopics() {
+        if (selectedIds.size === 0) return;
         copiedTopics = [];
         for (let id of selectedIds) {
             const topic = topics.find(t => t.id === id);
@@ -1075,13 +1085,24 @@
     }
     
     function cutTopics() {
+        if (selectedIds.size === 0) return;
         copyTopics();
         cutTopicIds.clear();
         for (let id of selectedIds) cutTopicIds.add(id);
+        // Удаляем вырезанные темы
+        topics = topics.filter(t => !cutTopicIds.has(t.id));
+        selectedIds.clear();
+        lastSelectedId = null;
+        renderTree();
+        updateFormForSelection();
+        updateJsonEditor();
+        saveToLocalStorage();
+        pushToHistory();
         showToast(`Вырезано ${cutTopicIds.size} тем`);
     }
     
     function duplicateTopics() {
+        if (selectedIds.size === 0) return;
         const newTopics = [];
         for (let id of selectedIds) {
             const topic = topics.find(t => t.id === id);
@@ -1089,7 +1110,10 @@
                 const { order, ...topicWithoutOrder } = topic;
                 const copy = JSON.parse(JSON.stringify(topicWithoutOrder));
                 const newName = `${topic.name} (копия)`;
-                const newId = generateIdFromName(newName, null, topics);
+                let newId = generateIdFromName(newName, null, topics);
+                while (topics.some(t => t.id === newId)) {
+                    newId = generateIdFromName(newName + '_' + Math.random().toString(36).substr(2, 5), null, topics);
+                }
                 copy.id = newId;
                 copy.name = newName;
                 copy.parent = topic.parent;
@@ -1125,11 +1149,6 @@
         
         topics.push(...newTopics);
         
-        if (cutTopicIds.size > 0) {
-            topics = topics.filter(t => !cutTopicIds.has(t.id));
-            cutTopicIds.clear();
-        }
-        
         selectedIds.clear();
         newTopics.forEach(t => selectedIds.add(t.id));
         renderTree();
@@ -1139,6 +1158,113 @@
         pushToHistory();
         showToast(`Вставлено ${newTopics.length} тем`);
         copiedTopics = [];
+    }
+    
+    function getVisibleTopics() {
+        const visible = [];
+        function collect(parentId) {
+            const children = topics.filter(t => t.parent === parentId);
+            for (let child of children) {
+                if (!searchQuery || child.id.toLowerCase().includes(searchQuery) || child.name.toLowerCase().includes(searchQuery)) {
+                    visible.push(child);
+                    if (expandedState.has(child.id)) {
+                        collect(child.id);
+                    }
+                } else if (expandedState.has(child.id)) {
+                    collect(child.id);
+                }
+            }
+        }
+        collect(null);
+        return visible;
+    }
+    
+    function navigateToNext(shiftKey = false) {
+        if (selectedIds.size === 0) return;
+        const visible = getVisibleTopics();
+        const currentId = Array.from(selectedIds)[0];
+        const currentIndex = visible.findIndex(t => t.id === currentId);
+        if (currentIndex === -1) return;
+        const nextIndex = currentIndex + 1;
+        if (nextIndex >= visible.length) return;
+        const nextId = visible[nextIndex].id;
+        
+        if (shiftKey) {
+            selectRange(currentId, nextId);
+        } else {
+            selectedIds.clear();
+            selectedIds.add(nextId);
+            lastSelectedId = nextId;
+        }
+        renderTree();
+        updateFormForSelection();
+        setTimeout(() => {
+            const selectedRow = document.querySelector(`.topic-row[data-id="${nextId}"]`);
+            if (selectedRow) selectedRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 50);
+    }
+    
+    function navigateToPrev(shiftKey = false) {
+        if (selectedIds.size === 0) return;
+        const visible = getVisibleTopics();
+        const currentId = Array.from(selectedIds)[0];
+        const currentIndex = visible.findIndex(t => t.id === currentId);
+        if (currentIndex === -1) return;
+        const prevIndex = currentIndex - 1;
+        if (prevIndex < 0) return;
+        const prevId = visible[prevIndex].id;
+        
+        if (shiftKey) {
+            selectRange(currentId, prevId);
+        } else {
+            selectedIds.clear();
+            selectedIds.add(prevId);
+            lastSelectedId = prevId;
+        }
+        renderTree();
+        updateFormForSelection();
+        setTimeout(() => {
+            const selectedRow = document.querySelector(`.topic-row[data-id="${prevId}"]`);
+            if (selectedRow) selectedRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 50);
+    }
+    
+    function collapseAll() {
+        expandedState.clear();
+        renderTree();
+        saveToLocalStorage();
+        pushToHistory();
+        showToast('Все ветки свернуты');
+    }
+    
+    function validateAllTopics() {
+        let issues = [];
+        const ids = new Set();
+        
+        for (let topic of topics) {
+            if (ids.has(topic.id)) {
+                issues.push(`Дублирующийся ID: ${topic.id}`);
+            }
+            ids.add(topic.id);
+            
+            if (!topic.name || topic.name.trim() === '') {
+                issues.push(`Тема с ID ${topic.id} не имеет названия`);
+            }
+            
+            if (topic.parent && !topics.some(t => t.id === topic.parent)) {
+                issues.push(`Тема "${topic.name}" (${topic.id}) ссылается на несуществующего родителя ${topic.parent}`);
+            }
+            
+            if (topic.parent && isCyclic(topic.id, topic.parent)) {
+                issues.push(`Циклическая зависимость у темы "${topic.name}" (${topic.id})`);
+            }
+        }
+        
+        if (issues.length === 0) {
+            showToast('✅ Все проверки пройдены успешно!');
+        } else {
+            showToast(`⚠️ Найдено проблем: ${issues.length}\n${issues.slice(0, 3).join('\n')}${issues.length > 3 ? '\n...' : ''}`, true);
+        }
     }
     
     let currentContextMenu = null;
@@ -1244,7 +1370,8 @@
     }
     
     function selectRange(fromId, toId) {
-        const ids = topics.map(t => t.id);
+        const visible = getVisibleTopics();
+        const ids = visible.map(t => t.id);
         const fromIndex = ids.indexOf(fromId);
         const toIndex = ids.indexOf(toId);
         if (fromIndex === -1 || toIndex === -1) return;
@@ -1253,6 +1380,13 @@
         for (let i = start; i <= end; i++) {
             selectedIds.add(ids[i]);
         }
+    }
+    
+    function clearSelection() {
+        selectedIds.clear();
+        lastSelectedId = null;
+        renderTree();
+        updateFormForSelection();
     }
     
     function handleTopicClick(topicId, event, isDelBtn, isExpandBtn) {
@@ -1430,6 +1564,7 @@
     function renderTree() {
         const container = document.getElementById('topicList');
         if (!container) return;
+        
         function renderNode(parentId, level = 0) {
             const children = topics.filter(t => t.parent === parentId);
             if (!children.length && parentId !== null) return null;
@@ -1447,6 +1582,12 @@
                 row.addEventListener('dragover', handleDragOver);
                 row.addEventListener('drop', handleDrop);
                 row.addEventListener('dragend', handleDragEnd);
+                
+                row.addEventListener('contextmenu', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    showContextMenu(e.clientX, e.clientY, node.id);
+                });
                 
                 const left = document.createElement('div'); left.className = 'topic-info';
                 const hasChildren = topics.some(t => t.parent === node.id);
@@ -1484,16 +1625,11 @@
                     handleTopicClick(node.id, e, isDel, isExpand);
                 });
                 
-                row.addEventListener('dblclick', (e) => {
-                    e.stopPropagation();
-                    showContextMenu(e.clientX, e.clientY, node.id);
-                });
-                
                 let touchStartTime = 0;
                 let touchStartX = 0;
                 let touchStartY = 0;
                 let touchMoved = false;
-                let touchTimer = null;
+                let longPressTimer = null;
                 let wasDragged = false;
                 
                 row.addEventListener('touchstart', (e) => {
@@ -1504,7 +1640,7 @@
                         touchMoved = false;
                         wasDragged = false;
                         
-                        touchTimer = setTimeout(() => {
+                        longPressTimer = setTimeout(() => {
                             if (!touchMoved && !selectionMode && !wasDragged) {
                                 selectionMode = true;
                                 if (!selectedIds.has(node.id)) {
@@ -1517,58 +1653,69 @@
                                 updateFormForSelection();
                                 showToast('Режим выделения активирован');
                             }
-                            touchTimer = null;
-                        }, 400);
+                            longPressTimer = null;
+                        }, 500);
                     }
                 });
                 
                 row.addEventListener('touchmove', (e) => {
-                    if (e.touches.length === 1 && touchTimer) {
+                    if (e.touches.length === 1 && longPressTimer) {
                         const deltaX = Math.abs(e.touches[0].clientX - touchStartX);
                         const deltaY = Math.abs(e.touches[0].clientY - touchStartY);
                         if (deltaX > 10 || deltaY > 10) {
                             touchMoved = true;
                             wasDragged = true;
-                            if (touchTimer) {
-                                clearTimeout(touchTimer);
-                                touchTimer = null;
+                            if (longPressTimer) {
+                                clearTimeout(longPressTimer);
+                                longPressTimer = null;
                             }
                         }
                     }
                 });
                 
                 row.addEventListener('touchend', (e) => {
-                    if (touchTimer) {
-                        clearTimeout(touchTimer);
-                        touchTimer = null;
+                    if (longPressTimer) {
+                        clearTimeout(longPressTimer);
+                        longPressTimer = null;
                     }
                     if (!touchMoved && !wasDragged && !selectionMode) {
                         if (Date.now() - touchStartTime < 200) {
                             handleTopicClick(node.id, e, false, false);
-                        } else if (Date.now() - touchStartTime >= 200 && Date.now() - touchStartTime < 400) {
-                            showContextMenu(touchStartX, touchStartY, node.id);
                         }
                     }
                     wasDragged = false;
                 });
                 
                 row.addEventListener('touchcancel', (e) => {
-                    if (touchTimer) {
-                        clearTimeout(touchTimer);
-                        touchTimer = null;
+                    if (longPressTimer) {
+                        clearTimeout(longPressTimer);
+                        longPressTimer = null;
                     }
                 });
                 
                 li.appendChild(row);
-                if (hasChildren && expandedState.has(node.id)) { const childUl = renderNode(node.id, level + 1); if (childUl) li.appendChild(childUl); }
+                if (hasChildren && expandedState.has(node.id)) { 
+                    const childUl = renderNode(node.id, level + 1); 
+                    if (childUl) li.appendChild(childUl); 
+                }
                 ul.appendChild(li);
             }
             return ul;
         }
+        
         const root = renderNode(null);
         container.innerHTML = '';
-        if (root) container.appendChild(root);
-        else container.innerHTML = '<div style="padding:10px;">Нет тем</div>';
+        if (root) {
+            container.appendChild(root);
+            container.addEventListener('click', (e) => {
+                if (e.target === container || e.target.classList.contains('topic-list')) {
+                    clearSelection();
+                }
+            });
+        } else {
+            container.innerHTML = '<div style="padding:10px;">Нет тем</div>';
+            container.addEventListener('click', () => clearSelection());
+        }
     }
     
     function exportLocal() {
@@ -1985,7 +2132,10 @@
                 document.getElementById('topicId').value = generateIdFromName(this.value, Array.from(selectedIds)[0], topics);
             }
         });
-        document.getElementById('searchTopicsInput').addEventListener('input', (e) => { searchQuery = e.target.value.toLowerCase(); renderTree(); });
+        document.getElementById('searchTopicsInput').addEventListener('input', (e) => { 
+            searchQuery = e.target.value.toLowerCase(); 
+            renderTree(); 
+        });
         
         [topicNameInput, topicKeywordsInput, topicParentSelect, topicIconSelect, topicGradeSelect, exampleHtmlSource].forEach(f => f.addEventListener('blur', () => saveCurrentTopic(false)));
         descriptionEditor.addEventListener('blur', () => saveCurrentTopic(false));
@@ -2010,38 +2160,100 @@
             };
         });
         
-        window.addEventListener('keydown', (e) => {
-            if (e.ctrlKey && e.key === 'z' && !e.shiftKey) { 
-                e.preventDefault(); 
-                undo(); 
+        // Глобальные сочетания клавиш с проверкой фокуса
+        window.addEventListener('keydown', function(e) {
+            // Если фокус в поле ввода - не перехватываем глобальные сочетания (кроме Ctrl+Enter и подобных)
+            if (isInputFocused()) {
+                // Разрешаем только специальные сочетания даже в полях ввода
+                const isSpecialGlobal = (e.ctrlKey && (e.key === 'z' || e.key === 'y' || e.key === 's' || e.key === 'c' || e.key === 'x' || e.key === 'v' || e.key === 'd' || e.key === 'f' || e.key === 'q'));
+                if (!isSpecialGlobal) {
+                    return;
+                }
             }
-            else if (e.ctrlKey && (e.key === 'y' || (e.shiftKey && e.key === 'Z'))) { 
-                e.preventDefault(); 
-                redo(); 
+            
+            // Отмена (Ctrl+Z)
+            if (e.ctrlKey && e.key === 'z' && !e.shiftKey) {
+                e.preventDefault();
+                undo();
+                return;
             }
-            else if (e.ctrlKey && !e.altKey && e.key === 's') { 
-                e.preventDefault(); 
-                manualSave(); 
+            // Возврат (Ctrl+Y)
+            if (e.ctrlKey && e.key === 'y') {
+                e.preventDefault();
+                redo();
+                return;
             }
-            else if (e.ctrlKey && e.altKey && e.key === 's') { 
-                e.preventDefault(); 
-                saveToGitHubNoWarning(); 
+            // Возврат (Ctrl+Shift+Z)
+            if (e.ctrlKey && e.shiftKey && e.key === 'Z') {
+                e.preventDefault();
+                redo();
+                return;
             }
-            else if (e.ctrlKey && !e.altKey && e.key === 'c' && selectedIds.size > 0) { 
-                e.preventDefault(); 
-                copyTopics(); 
+            // Сохранение (Ctrl+S)
+            if (e.ctrlKey && e.key === 's' && !e.altKey) {
+                e.preventDefault();
+                manualSave();
+                return;
             }
-            else if (e.ctrlKey && !e.altKey && e.key === 'x' && selectedIds.size > 0) { 
-                e.preventDefault(); 
-                cutTopics(); 
+            // Сохранение в GitHub без предупреждения (Ctrl+Alt+S)
+            if (e.ctrlKey && e.altKey && e.key === 's') {
+                e.preventDefault();
+                saveToGitHubNoWarning();
+                return;
             }
-            else if (e.ctrlKey && !e.altKey && e.key === 'v' && selectedIds.size === 1 && copiedTopics.length > 0) { 
-                e.preventDefault(); 
-                pasteTopicsAsChildren(Array.from(selectedIds)[0]); 
+            // Копировать (Ctrl+C)
+            if (e.ctrlKey && e.key === 'c' && selectedIds.size > 0) {
+                e.preventDefault();
+                copyTopics();
+                return;
             }
-            else if (e.ctrlKey && !e.altKey && e.key === 'd' && selectedIds.size > 0) { 
-                e.preventDefault(); 
-                duplicateTopics(); 
+            // Вырезать (Ctrl+X)
+            if (e.ctrlKey && e.key === 'x' && selectedIds.size > 0) {
+                e.preventDefault();
+                cutTopics();
+                return;
+            }
+            // Вставить (Ctrl+V)
+            if (e.ctrlKey && e.key === 'v' && selectedIds.size === 1 && copiedTopics.length > 0) {
+                e.preventDefault();
+                pasteTopicsAsChildren(Array.from(selectedIds)[0]);
+                return;
+            }
+            // Дублировать (Ctrl+D)
+            if (e.ctrlKey && e.key === 'd' && selectedIds.size > 0) {
+                e.preventDefault();
+                duplicateTopics();
+                return;
+            }
+            // Удалить (Delete)
+            if (e.key === 'Delete' && selectedIds.size > 0 && !isInputFocused()) {
+                e.preventDefault();
+                deleteTopics();
+                return;
+            }
+            // Стрелка вниз - следующая тема
+            if (e.key === 'ArrowDown' && selectedIds.size > 0 && !isInputFocused()) {
+                e.preventDefault();
+                navigateToNext(e.shiftKey);
+                return;
+            }
+            // Стрелка вверх - предыдущая тема
+            if (e.key === 'ArrowUp' && selectedIds.size > 0 && !isInputFocused()) {
+                e.preventDefault();
+                navigateToPrev(e.shiftKey);
+                return;
+            }
+            // Ctrl+Q - свернуть всё
+            if (e.ctrlKey && e.key === 'q') {
+                e.preventDefault();
+                collapseAll();
+                return;
+            }
+            // Ctrl+F - проверка всех тем
+            if (e.ctrlKey && e.key === 'f') {
+                e.preventDefault();
+                validateAllTopics();
+                return;
             }
         });
         
