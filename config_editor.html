@@ -64,6 +64,24 @@
             font-size: 0.75rem;
             color: #8ab3ff;
         }
+        
+        .selection-mode-bar {
+            background: #2a3a4a;
+            border-radius: 20px;
+            padding: 6px 12px;
+            margin-bottom: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .selection-mode-bar button {
+            background: #4a6a8a;
+            border: none;
+            padding: 4px 12px;
+            border-radius: 20px;
+            color: white;
+            cursor: pointer;
+        }
 
         .container {
             display: flex;
@@ -126,6 +144,9 @@
             margin: 2px 0;
             cursor: grab;
             transition: 0.05s linear;
+            user-select: none;
+            -webkit-touch-callout: none;
+            touch-action: none;
         }
         .topic-row:active {
             cursor: grabbing;
@@ -133,6 +154,10 @@
         .topic-row.selected {
             background: #2a3a4a;
             border-color: #5a7a9a;
+        }
+        .topic-row.selected-multi {
+            background: #3a4a5a;
+            border-color: #7a9aba;
         }
         .topic-row.drag-over-top {
             border-top: 3px solid #7a9a5a;
@@ -174,6 +199,7 @@
             font-size: 1rem;
             padding: 0 5px;
             pointer-events: auto;
+            touch-action: manipulation;
         }
         .expand-btn {
             background: none;
@@ -183,6 +209,7 @@
             width: 20px;
             font-size: 12px;
             pointer-events: auto;
+            touch-action: manipulation;
         }
 
         .editor-panel {
@@ -234,6 +261,10 @@
             padding: 8px 12px;
             color: #eee;
             font-size: 0.9rem;
+        }
+        .field-mixed {
+            border-color: #ffaa44;
+            box-shadow: 0 0 0 1px #ffaa44;
         }
         textarea {
             font-family: 'Courier New', monospace;
@@ -299,7 +330,6 @@
         .new-topic-bottom button { width: 100%; background: #2a3a4a; border-radius: 30px; padding: 8px; }
         .small-note { font-size: 0.7rem; color: #888; margin-top: 4px; }
         
-        /* Разворачиваемое JSON-окошко */
         .topic-json-panel {
             margin-top: 16px;
             border-top: 1px solid #333;
@@ -339,8 +369,48 @@
             font-size: 0.7rem;
         }
         
+        .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 1050;
+        }
+        
+        .context-menu {
+            position: fixed;
+            background: #2a2a2a;
+            border: 1px solid #555;
+            border-radius: 12px;
+            padding: 8px 0;
+            z-index: 2000;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            min-width: 200px;
+        }
+        .context-menu-item {
+            padding: 10px 20px;
+            cursor: pointer;
+            color: #eee;
+            font-size: 0.9rem;
+            transition: background 0.1s;
+            touch-action: manipulation;
+        }
+        .context-menu-item:hover {
+            background: #3a3a44;
+        }
+        .context-menu-item:active {
+            background: #4a4a54;
+        }
+        .context-menu-divider {
+            height: 1px;
+            background: #444;
+            margin: 5px 0;
+        }
+        
         .toast-area { position: fixed; bottom: 20px; right: 20px; left: 20px; z-index: 1000; display: flex; justify-content: flex-end; }
-        .toast { background: #2a5a2a; padding: 8px 20px; border-radius: 40px; font-size: 0.8rem; opacity: 0; transition: opacity 0.2s; pointer-events: none; }
+        .toast { background: #2a5a2a; padding: 8px 20px; border-radius: 40px; font-size: 0.8rem; opacity: 0; transition: opacity 0.2s; pointer-events: none; position: fixed; bottom: 20px; right: 20px; z-index: 1000; }
         .toast.show { opacity: 1; }
         .toast.error { background: #5a2a2a; }
         .topic-selector-dialog {
@@ -383,6 +453,10 @@
 <div class="container">
     <div class="list-panel">
         <h3>Список тем</h3>
+        <div id="selectionModeBar" style="display: none;" class="selection-mode-bar">
+            <span>📌 Режим выделения</span>
+            <button id="exitSelectionModeBtn">✖ Выйти</button>
+        </div>
         <div class="search-box">
             <input type="text" id="searchTopicsInput" placeholder="Поиск по ID или названию...">
         </div>
@@ -391,7 +465,7 @@
             <button id="newBtn">+ Создать тему</button>
         </div>
         <div class="small-note">Клик — выделить. Перетащите за строку: в середину → сделать дочерней; между строк → изменить порядок.</div>
-        <div class="small-note">Новая тема создаётся как дочерняя для выделенной.</div>
+        <div class="small-note">Двойной клик или ПКМ → меню. Ctrl/Shift для нескольких тем.</div>
     </div>
 
     <div class="editor-panel">
@@ -449,7 +523,6 @@
                 <div id="descriptionEditor" class="rich-editor" contenteditable="true"></div>
             </div>
             
-            <!-- Разворачиваемое JSON-окошко текущей темы -->
             <div class="topic-json-panel">
                 <div class="topic-json-header" id="topicJsonHeader">
                     <span>📋 JSON темы (развернуть)</span>
@@ -486,30 +559,32 @@
     </div>
 </div>
 
-<div id="toastMsg" class="toast" style="position:fixed; bottom:20px; right:20px; z-index:1000;"></div>
+<div id="toastMsg" class="toast"></div>
 
 <script>
-    // ========== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ==========
     let topics = [];
-    let selectedId = null;
+    let selectedIds = new Set();
+    let lastSelectedId = null;
+    let selectionMode = false;
     let expandedState = new Set();
     let searchQuery = '';
     let autoSaveEnabled = true;
     let plainTextMode = false;
+    let previewTimeout = null;
     
-    // История
+    let copiedTopics = [];
+    let cutTopicIds = new Set();
+    
     let historyStack = [];
     let historyIndex = -1;
     const MAX_HISTORY = 100;
     
-    // GitHub параметры
     const GITHUB_TOKEN = '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';
     const GITHUB_OWNER = 'DaniksGames5242';
     const GITHUB_REPO = 'MathFrame.github.io';
     const GITHUB_PATH = 'config.json';
     const GITHUB_BRANCH = 'main';
     
-    // ========== DOM ЭЛЕМЕНТЫ ==========
     const exampleHtmlSource = document.getElementById('exampleHtmlSource');
     const examplePreview = document.getElementById('examplePreview');
     const refreshPreviewBtn = document.getElementById('refreshPreviewBtn');
@@ -523,7 +598,26 @@
     const plainTextCheckbox = document.getElementById('plainTextMode');
     const topicJsonEditor = document.getElementById('topicJsonEditor');
     
-    // ========== ТРАНСЛИТЕРАЦИЯ ДЛЯ ID ==========
+    function removeOrderField(topicsArray) {
+        return topicsArray.map(topic => {
+            const { order, ...cleanTopic } = topic;
+            return cleanTopic;
+        });
+    }
+    
+    function sortAndCleanTopics(topicsArray) {
+        const hasOrder = topicsArray.some(t => t.order !== undefined);
+        if (hasOrder) {
+            const sorted = [...topicsArray].sort((a, b) => {
+                const orderA = a.order !== undefined ? a.order : Infinity;
+                const orderB = b.order !== undefined ? b.order : Infinity;
+                return orderA - orderB;
+            });
+            return removeOrderField(sorted);
+        }
+        return removeOrderField(topicsArray);
+    }
+    
     function transliterate(word) {
         const map = {'а':'a','б':'b','в':'v','г':'g','д':'d','е':'e','ё':'e','ж':'zh','з':'z','и':'i','й':'y',
             'к':'k','л':'l','м':'m','н':'n','о':'o','п':'p','р':'r','с':'s','т':'t','у':'u','ф':'f',
@@ -544,7 +638,6 @@
         return candidate;
     }
     
-    // ========== ФУНКЦИЯ ВАЛИДАЦИИ И ИСПРАВЛЕНИЯ ID ==========
     function validateAndFixIds() {
         let changesCount = 0;
         const idMap = new Map();
@@ -562,6 +655,10 @@
         for (let topic of topics) {
             if (idMap.has(topic.id)) {
                 topic.id = idMap.get(topic.id);
+                if (selectedIds.has(topic.id)) {
+                    selectedIds.delete(topic.id);
+                    selectedIds.add(idMap.get(topic.id));
+                }
             }
             if (topic.parent && idMap.has(topic.parent)) {
                 topic.parent = idMap.get(topic.parent);
@@ -576,15 +673,10 @@
             }
         }
         
-        if (selectedId && idMap.has(selectedId)) {
-            selectedId = idMap.get(selectedId);
-        }
-        
         showToast(`Исправлено ${changesCount} ID тем и обновлены ссылки`, false);
         return true;
     }
     
-    // ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
     function showToast(text, isError = false) {
         const toast = document.getElementById('toastMsg');
         toast.textContent = text;
@@ -599,19 +691,32 @@
     }
     
     function saveToLocalStorage() {
-        localStorage.setItem('geometry_editor_topics', JSON.stringify(topics));
+        const topicsToSave = removeOrderField(topics);
+        localStorage.setItem('geometry_editor_topics', JSON.stringify(topicsToSave));
         localStorage.setItem('geometry_editor_expanded', JSON.stringify(Array.from(expandedState)));
+        localStorage.setItem('geometry_editor_selected', JSON.stringify(Array.from(selectedIds)));
     }
     
     function loadFromLocalStorage() {
         const saved = localStorage.getItem('geometry_editor_topics');
         if (saved) {
             try {
-                const parsed = JSON.parse(saved);
+                let parsed = JSON.parse(saved);
                 if (Array.isArray(parsed) && parsed.length > 0) {
+                    parsed = sortAndCleanTopics(parsed);
                     topics = parsed;
-                    topics.forEach((t, i) => { if (!t.order) t.order = i; if (!t.keywords) t.keywords = []; if (!t.icon) t.icon = 'fa-file-alt'; if (!t.example) t.example = ''; if (!t.description) t.description = '<p></p>'; });
-                    selectedId = topics[0]?.id || null;
+                    topics.forEach((t, i) => { 
+                        if (!t.keywords) t.keywords = []; 
+                        if (!t.icon) t.icon = 'fa-file-alt'; 
+                        if (!t.example) t.example = ''; 
+                        if (!t.description) t.description = '<p></p>'; 
+                    });
+                    const savedSelected = localStorage.getItem('geometry_editor_selected');
+                    if (savedSelected) {
+                        selectedIds = new Set(JSON.parse(savedSelected));
+                    } else {
+                        selectedIds = new Set();
+                    }
                     const savedExpanded = localStorage.getItem('geometry_editor_expanded');
                     if (savedExpanded) expandedState = new Set(JSON.parse(savedExpanded));
                     else { expandedState.clear(); topics.forEach(t => { if (topics.some(ch => ch.parent === t.id)) expandedState.add(t.id); }); }
@@ -624,7 +729,7 @@
     
     function pushToHistory() {
         if (!autoSaveEnabled) return;
-        const snapshot = JSON.stringify({ topics, selectedId, expandedState: Array.from(expandedState) });
+        const snapshot = JSON.stringify({ topics, selectedIds: Array.from(selectedIds), expandedState: Array.from(expandedState) });
         if (historyIndex < historyStack.length - 1) {
             historyStack = historyStack.slice(0, historyIndex + 1);
         }
@@ -637,10 +742,10 @@
     function restoreFromSnapshot(snapshot) {
         const data = JSON.parse(snapshot);
         topics = data.topics;
-        selectedId = data.selectedId;
+        selectedIds = new Set(data.selectedIds);
         expandedState = new Set(data.expandedState);
         renderTree();
-        fillFormBySelectedNoSave();
+        updateFormForSelection();
         updateJsonEditor();
         saveToLocalStorage();
         updateUndoRedoButtons();
@@ -671,37 +776,83 @@
         return false;
     }
     
-    // ========== ОБНОВЛЕНИЕ ФОРМЫ ==========
-    function fillFormBySelectedNoSave() {
-        if (!selectedId) return;
-        const t = topics.find(t => t.id === selectedId);
-        if (!t) return;
-        document.getElementById('topicId').value = t.id;
-        topicNameInput.value = t.name;
-        topicKeywordsInput.value = t.keywords?.join(', ') || '';
-        topicIconSelect.value = t.icon || 'fa-file-alt';
-        topicGradeSelect.value = t.gradeLevel || 3;
-        descriptionEditor.innerHTML = t.description || '';
-        updateLinkColors();
-        topicParentSelect.innerHTML = '<option value="">(нет)</option>' + topics.filter(p => p.id !== selectedId).map(p => `<option value="${p.id}" ${t.parent === p.id ? 'selected' : ''}>${escapeHtml(p.name)} (${p.id})</option>`).join('');
-        exampleHtmlSource.value = t.example || '';
-        updatePreview();
-        updateTopicJsonEditor();
+    function areAllSelectedValuesEqual(getter) {
+        if (selectedIds.size === 0) return true;
+        const firstValue = getter(topics.find(t => t.id === Array.from(selectedIds)[0]));
+        for (let id of selectedIds) {
+            const topic = topics.find(t => t.id === id);
+            if (getter(topic) !== firstValue) return false;
+        }
+        return true;
     }
     
-    function fillFormFieldsOnly() {
-        if (!selectedId) return;
-        const t = topics.find(t => t.id === selectedId);
-        if (!t) return;
-        document.getElementById('topicId').value = t.id;
-        topicNameInput.value = t.name;
-        topicKeywordsInput.value = t.keywords?.join(', ') || '';
-        topicIconSelect.value = t.icon || 'fa-file-alt';
-        topicGradeSelect.value = t.gradeLevel || 3;
-        topicParentSelect.innerHTML = '<option value="">(нет)</option>' + topics.filter(p => p.id !== selectedId).map(p => `<option value="${p.id}" ${t.parent === p.id ? 'selected' : ''}>${escapeHtml(p.name)} (${p.id})</option>`).join('');
-        exampleHtmlSource.value = t.example || '';
-        updatePreview();
-        updateTopicJsonEditor();
+    function updateFormForSelection() {
+        if (selectedIds.size === 0) {
+            document.getElementById('topicId').value = '';
+            topicNameInput.value = '';
+            topicKeywordsInput.value = '';
+            topicIconSelect.value = 'fa-file-alt';
+            topicGradeSelect.value = '3';
+            descriptionEditor.innerHTML = '';
+            exampleHtmlSource.value = '';
+            topicParentSelect.innerHTML = '<option value="">(нет)</option>';
+            return;
+        }
+        
+        if (selectedIds.size === 1) {
+            const topic = topics.find(t => t.id === Array.from(selectedIds)[0]);
+            if (topic) {
+                document.getElementById('topicId').value = topic.id;
+                topicNameInput.value = topic.name;
+                topicKeywordsInput.value = topic.keywords?.join(', ') || '';
+                topicIconSelect.value = topic.icon || 'fa-file-alt';
+                topicGradeSelect.value = topic.gradeLevel || 3;
+                descriptionEditor.innerHTML = topic.description || '';
+                exampleHtmlSource.value = topic.example || '';
+                topicParentSelect.innerHTML = '<option value="">(нет)</option>' + topics.filter(p => !selectedIds.has(p.id)).map(p => `<option value="${p.id}" ${topic.parent === p.id ? 'selected' : ''}>${escapeHtml(p.name)} (${p.id})</option>`).join('');
+                updatePreview();
+                updateTopicJsonEditor();
+            }
+        } else {
+            const firstTopic = topics.find(t => t.id === Array.from(selectedIds)[0]);
+            
+            const nameEqual = areAllSelectedValuesEqual(t => t.name);
+            topicNameInput.value = nameEqual ? firstTopic.name : '';
+            topicNameInput.classList.toggle('field-mixed', !nameEqual);
+            
+            const keywordsEqual = areAllSelectedValuesEqual(t => t.keywords?.join(',') || '');
+            topicKeywordsInput.value = keywordsEqual ? (firstTopic.keywords?.join(', ') || '') : '';
+            topicKeywordsInput.classList.toggle('field-mixed', !keywordsEqual);
+            
+            const iconEqual = areAllSelectedValuesEqual(t => t.icon);
+            topicIconSelect.value = iconEqual ? (firstTopic.icon || 'fa-file-alt') : '';
+            topicIconSelect.classList.toggle('field-mixed', !iconEqual);
+            
+            const gradeEqual = areAllSelectedValuesEqual(t => t.gradeLevel);
+            topicGradeSelect.value = gradeEqual ? (firstTopic.gradeLevel || 3) : '';
+            topicGradeSelect.classList.toggle('field-mixed', !gradeEqual);
+            
+            const parentEqual = areAllSelectedValuesEqual(t => t.parent);
+            if (parentEqual) {
+                topicParentSelect.innerHTML = '<option value="">(нет)</option>' + topics.filter(p => !selectedIds.has(p.id)).map(p => `<option value="${p.id}" ${firstTopic.parent === p.id ? 'selected' : ''}>${escapeHtml(p.name)} (${p.id})</option>`).join('');
+            } else {
+                topicParentSelect.innerHTML = '<option value="">(разное)</option>';
+            }
+            topicParentSelect.classList.toggle('field-mixed', !parentEqual);
+            
+            const exampleEqual = areAllSelectedValuesEqual(t => t.example);
+            exampleHtmlSource.value = exampleEqual ? (firstTopic.example || '') : '';
+            exampleHtmlSource.classList.toggle('field-mixed', !exampleEqual);
+            updatePreview();
+            
+            document.getElementById('topicId').value = '';
+            document.getElementById('topicId').classList.add('field-mixed');
+            descriptionEditor.innerHTML = '';
+            descriptionEditor.classList.add('field-mixed');
+            updateTopicJsonEditor();
+        }
+        
+        updateLinkColors();
     }
     
     function updateLinkColors() {
@@ -712,37 +863,44 @@
         });
     }
     
-    function updateJsonEditor() { jsonEditor.value = JSON.stringify(topics, null, 2); }
+    function updateJsonEditor() { 
+        const topicsToShow = removeOrderField(topics);
+        jsonEditor.value = JSON.stringify(topicsToShow, null, 2); 
+    }
     
     function updateTopicJsonEditor() {
-        if (selectedId) {
-            const topic = topics.find(t => t.id === selectedId);
+        if (selectedIds.size === 1) {
+            const topic = topics.find(t => t.id === Array.from(selectedIds)[0]);
             if (topic) {
-                topicJsonEditor.value = JSON.stringify(topic, null, 2);
+                const { order, ...cleanTopic } = topic;
+                topicJsonEditor.value = JSON.stringify(cleanTopic, null, 2);
             }
+        } else {
+            topicJsonEditor.value = '';
         }
     }
     
     function applyTopicJson() {
-        if (!selectedId) { showToast('Нет выбранной темы', true); return; }
+        if (selectedIds.size !== 1) { showToast('JSON темы можно применить только к одной теме', true); return; }
         try {
-            const parsed = JSON.parse(topicJsonEditor.value);
+            let parsed = JSON.parse(topicJsonEditor.value);
             if (!parsed.id || !parsed.name) throw new Error('Тема должна содержать id и name');
             
-            const idx = topics.findIndex(t => t.id === selectedId);
+            const idx = topics.findIndex(t => t.id === Array.from(selectedIds)[0]);
             if (idx === -1) return;
             
-            // Проверка на дубликат ID
-            if (parsed.id !== selectedId && topics.some(t => t.id === parsed.id)) {
+            if (parsed.id !== selectedIds.values().next().value && topics.some(t => t.id === parsed.id)) {
                 showToast('ID уже существует', true);
                 return;
             }
             
-            topics[idx] = parsed;
-            selectedId = parsed.id;
+            const { order, ...cleanParsed } = parsed;
+            topics[idx] = cleanParsed;
+            selectedIds.clear();
+            selectedIds.add(cleanParsed.id);
             
             renderTree();
-            fillFormBySelectedNoSave();
+            updateFormForSelection();
             updateJsonEditor();
             saveToLocalStorage();
             pushToHistory();
@@ -759,49 +917,109 @@
         doc.open(); doc.write(html); doc.close();
     }
     
-    // ========== СОХРАНЕНИЕ ТЕКУЩЕЙ ТЕМЫ ==========
     let saveTimeout = null;
     function saveCurrentTopic(showMsg = false) {
-        if (!autoSaveEnabled || !selectedId) return;
+        if (!autoSaveEnabled) return;
         if (saveTimeout) clearTimeout(saveTimeout);
         saveTimeout = setTimeout(() => {
-            const idx = topics.findIndex(t => t.id === selectedId);
-            if (idx === -1) return;
+            if (selectedIds.size === 0) return;
+            
             const newName = topicNameInput.value.trim();
-            if (!newName) return;
-            let newParent = topicParentSelect.value || null;
-            let newIcon = topicIconSelect.value;
-            let newGrade = parseInt(topicGradeSelect.value);
-            let exampleVal = exampleHtmlSource.value;
-            let descriptionVal = descriptionEditor.innerHTML;
-            let keywordsArray = topicKeywordsInput.value.trim().split(',').map(k => k.trim()).filter(k => k);
-            let newId = generateIdFromName(newName, selectedId, topics);
-            if (newParent && isCyclic(newId, newParent)) { if (showMsg) showToast('Циклическая зависимость', true); return; }
-            let updated = { ...topics[idx], id: newId, name: newName, keywords: keywordsArray,
-                parent: newParent, icon: newIcon, gradeLevel: newGrade, example: exampleVal, description: descriptionVal };
-            let newTopics = [...topics];
-            if (newId !== selectedId) {
-                newTopics = newTopics.filter(t => t.id !== selectedId);
-                for (let t of newTopics) if (t.parent === selectedId) t.parent = newId;
-                newTopics.push(updated);
-            } else newTopics[idx] = updated;
-            topics = removeDuplicateIds(newTopics);
-            selectedId = updated.id;
+            const newKeywords = topicKeywordsInput.value.trim().split(',').map(k => k.trim()).filter(k => k);
+            const newIcon = topicIconSelect.value;
+            const newGrade = parseInt(topicGradeSelect.value);
+            const newExample = exampleHtmlSource.value;
+            const newDescription = descriptionEditor.innerHTML;
+            let newParent = topicParentSelect.value;
+            if (newParent === 'разное' || newParent === '') newParent = null;
+            
+            const updates = [];
+            
+            if (!topicNameInput.classList.contains('field-mixed') && newName) {
+                updates.push({ field: 'name', value: newName });
+            }
+            if (!topicKeywordsInput.classList.contains('field-mixed')) {
+                updates.push({ field: 'keywords', value: newKeywords });
+            }
+            if (!topicIconSelect.classList.contains('field-mixed') && newIcon) {
+                updates.push({ field: 'icon', value: newIcon });
+            }
+            if (!topicGradeSelect.classList.contains('field-mixed') && !isNaN(newGrade)) {
+                updates.push({ field: 'gradeLevel', value: newGrade });
+            }
+            if (!exampleHtmlSource.classList.contains('field-mixed')) {
+                updates.push({ field: 'example', value: newExample });
+            }
+            if (!descriptionEditor.classList.contains('field-mixed')) {
+                updates.push({ field: 'description', value: newDescription });
+            }
+            if (!topicParentSelect.classList.contains('field-mixed') && newParent !== null && newParent !== 'разное') {
+                let valid = true;
+                for (let id of selectedIds) {
+                    if (isCyclic(id, newParent)) {
+                        if (showMsg) showToast('Циклическая зависимость для одной из тем', true);
+                        valid = false;
+                        break;
+                    }
+                }
+                if (valid) updates.push({ field: 'parent', value: newParent });
+            }
+            
+            if (updates.length === 0 && !topicNameInput.classList.contains('field-mixed')) {
+                if (newName) {
+                    const firstId = Array.from(selectedIds)[0];
+                    const newId = generateIdFromName(newName, firstId, topics);
+                    let canRename = true;
+                    for (let id of selectedIds) {
+                        if (id !== newId && topics.some(t => t.id === newId)) {
+                            canRename = false;
+                            break;
+                        }
+                    }
+                    if (canRename) updates.push({ field: 'id', value: newId, nameValue: newName });
+                }
+            }
+            
+            for (let update of updates) {
+                for (let id of selectedIds) {
+                    const idx = topics.findIndex(t => t.id === id);
+                    if (idx !== -1) {
+                        if (update.field === 'id') {
+                            topics[idx].id = update.value;
+                            topics[idx].name = update.nameValue;
+                        } else {
+                            topics[idx][update.field] = update.value;
+                        }
+                    }
+                }
+            }
+            
+            if (updates.some(u => u.field === 'id')) {
+                const oldIds = Array.from(selectedIds);
+                const newIds = [];
+                for (let oldId of oldIds) {
+                    const topic = topics.find(t => t.id !== oldId && t.name === topics.find(tt => tt.id === oldId)?.name);
+                    if (topic) newIds.push(topic.id);
+                    else newIds.push(oldId);
+                }
+                selectedIds.clear();
+                newIds.forEach(id => selectedIds.add(id));
+            }
+            
             renderTree();
-            fillFormFieldsOnly();
+            updateFormForSelection();
             updateJsonEditor();
             saveToLocalStorage();
             pushToHistory();
-            if (showMsg) showToast('Тема сохранена');
-            document.getElementById('statusArea').innerText = `Сохранено: ${newName}`;
+            if (showMsg) showToast('Изменения сохранены');
+            document.getElementById('statusArea').innerText = `Сохранено (${selectedIds.size} тем)`;
         }, 50);
     }
     
-    function manualSave() { if (selectedId) saveCurrentTopic(true); else showToast('Нет выбранной темы', true); }
+    function manualSave() { if (selectedIds.size > 0) saveCurrentTopic(true); else showToast('Нет выделенных тем', true); }
     
-    // ========== НОВАЯ ТЕМА (КАК ДОЧЕРНЯЯ ДЛЯ ВЫДЕЛЕННОЙ) ==========
     function newTopic() {
-        const parentId = selectedId || null;
+        const parentId = selectedIds.size === 1 ? Array.from(selectedIds)[0] : null;
         const baseName = 'Новая тема';
         const newId = generateIdFromName(baseName, null, topics);
         const newTopicObj = { 
@@ -812,22 +1030,293 @@
             icon: 'fa-file-alt', 
             gradeLevel: 3, 
             example: '', 
-            description: '<p>Новая тема</p>', 
-            order: topics.length 
+            description: '<p>Новая тема</p>'
         };
         topics.push(newTopicObj);
-        selectedId = newId;
+        selectedIds.clear();
+        selectedIds.add(newId);
+        lastSelectedId = newId;
         expandedState.add(newId);
         renderTree();
-        fillFormBySelectedNoSave();
+        updateFormForSelection();
         updateJsonEditor();
         saveToLocalStorage();
         pushToHistory();
-        showToast(parentId ? `Тема создана как дочерняя для "${topics.find(t => t.id === parentId)?.name}"` : 'Тема создана как корневая');
+        showToast(parentId ? `Тема создана как дочерняя` : 'Тема создана как корневая');
     }
     
-    // ========== RENDER TREE ==========
-    let dragSourceId = null, dragTargetElement = null, dropMode = null;
+    function deleteTopics() {
+        if (selectedIds.size === 0) return;
+        if (confirm(`Удалить ${selectedIds.size} тем(у)?`)) {
+            const toDelete = Array.from(selectedIds);
+            topics = topics.filter(t => !toDelete.includes(t.id));
+            selectedIds.clear();
+            lastSelectedId = null;
+            renderTree();
+            updateFormForSelection();
+            updateJsonEditor();
+            saveToLocalStorage();
+            pushToHistory();
+            showToast(`Удалено ${toDelete.length} тем`);
+        }
+    }
+    
+    function copyTopics() {
+        copiedTopics = [];
+        for (let id of selectedIds) {
+            const topic = topics.find(t => t.id === id);
+            if (topic) {
+                const { order, ...topicWithoutOrder } = topic;
+                copiedTopics.push(JSON.parse(JSON.stringify(topicWithoutOrder)));
+            }
+        }
+        cutTopicIds.clear();
+        showToast(`Скопировано ${copiedTopics.length} тем`);
+    }
+    
+    function cutTopics() {
+        copyTopics();
+        cutTopicIds.clear();
+        for (let id of selectedIds) cutTopicIds.add(id);
+        showToast(`Вырезано ${cutTopicIds.size} тем`);
+    }
+    
+    function duplicateTopics() {
+        const newTopics = [];
+        for (let id of selectedIds) {
+            const topic = topics.find(t => t.id === id);
+            if (topic) {
+                const { order, ...topicWithoutOrder } = topic;
+                const copy = JSON.parse(JSON.stringify(topicWithoutOrder));
+                const newName = `${topic.name} (копия)`;
+                const newId = generateIdFromName(newName, null, topics);
+                copy.id = newId;
+                copy.name = newName;
+                copy.parent = topic.parent;
+                newTopics.push(copy);
+            }
+        }
+        topics.push(...newTopics);
+        selectedIds.clear();
+        newTopics.forEach(t => selectedIds.add(t.id));
+        renderTree();
+        updateFormForSelection();
+        updateJsonEditor();
+        saveToLocalStorage();
+        pushToHistory();
+        showToast(`Дублировано ${newTopics.length} тем`);
+    }
+    
+    function pasteTopicsAsChildren(parentTopicId) {
+        if (copiedTopics.length === 0) {
+            showToast('Нечего вставлять', true);
+            return;
+        }
+        
+        const newTopics = [];
+        for (let copied of copiedTopics) {
+            const newTopicObj = JSON.parse(JSON.stringify(copied));
+            if (topics.some(t => t.id === newTopicObj.id)) {
+                newTopicObj.id = generateIdFromName(newTopicObj.name, null, topics);
+            }
+            newTopicObj.parent = parentTopicId;
+            newTopics.push(newTopicObj);
+        }
+        
+        topics.push(...newTopics);
+        
+        if (cutTopicIds.size > 0) {
+            topics = topics.filter(t => !cutTopicIds.has(t.id));
+            cutTopicIds.clear();
+        }
+        
+        selectedIds.clear();
+        newTopics.forEach(t => selectedIds.add(t.id));
+        renderTree();
+        updateFormForSelection();
+        updateJsonEditor();
+        saveToLocalStorage();
+        pushToHistory();
+        showToast(`Вставлено ${newTopics.length} тем`);
+        copiedTopics = [];
+    }
+    
+    let currentContextMenu = null;
+    let contextMenuTopicId = null;
+    
+    function closeContextMenu() {
+        if (currentContextMenu) {
+            currentContextMenu.remove();
+            currentContextMenu = null;
+        }
+        contextMenuTopicId = null;
+    }
+    
+    function showContextMenu(x, y, topicId) {
+        closeContextMenu();
+        contextMenuTopicId = topicId;
+        
+        if (!selectedIds.has(topicId)) {
+            selectedIds.clear();
+            selectedIds.add(topicId);
+            lastSelectedId = topicId;
+            renderTree();
+            updateFormForSelection();
+        }
+        
+        const menu = document.createElement('div');
+        menu.className = 'context-menu';
+        menu.style.left = x + 'px';
+        menu.style.top = y + 'px';
+        
+        menu.innerHTML = `
+            <div class="context-menu-item" data-action="copy">📋 Копировать (${selectedIds.size})</div>
+            <div class="context-menu-item" data-action="cut">✂️ Вырезать (${selectedIds.size})</div>
+            <div class="context-menu-item" data-action="duplicate">📑 Дублировать (${selectedIds.size})</div>
+            <div class="context-menu-item" data-action="delete">🗑️ Удалить (${selectedIds.size})</div>
+            <div class="context-menu-divider"></div>
+            <div class="context-menu-item" data-action="paste">📎 Вставить как дочернюю</div>
+        `;
+        
+        menu.querySelectorAll('.context-menu-item').forEach(item => {
+            item.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const action = item.dataset.action;
+                switch(action) {
+                    case 'copy':
+                        copyTopics();
+                        break;
+                    case 'cut':
+                        cutTopics();
+                        break;
+                    case 'duplicate':
+                        duplicateTopics();
+                        break;
+                    case 'delete':
+                        deleteTopics();
+                        break;
+                    case 'paste':
+                        pasteTopicsAsChildren(contextMenuTopicId);
+                        break;
+                }
+                closeContextMenu();
+            });
+            item.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const action = item.dataset.action;
+                switch(action) {
+                    case 'copy':
+                        copyTopics();
+                        break;
+                    case 'cut':
+                        cutTopics();
+                        break;
+                    case 'duplicate':
+                        duplicateTopics();
+                        break;
+                    case 'delete':
+                        deleteTopics();
+                        break;
+                    case 'paste':
+                        pasteTopicsAsChildren(contextMenuTopicId);
+                        break;
+                }
+                closeContextMenu();
+            });
+        });
+        
+        document.body.appendChild(menu);
+        currentContextMenu = menu;
+        
+        const closeHandler = (e) => {
+            if (!menu.contains(e.target)) {
+                closeContextMenu();
+                document.removeEventListener('click', closeHandler);
+                document.removeEventListener('touchstart', closeHandler);
+            }
+        };
+        
+        setTimeout(() => {
+            document.addEventListener('click', closeHandler);
+            document.addEventListener('touchstart', closeHandler);
+        }, 10);
+    }
+    
+    function selectRange(fromId, toId) {
+        const ids = topics.map(t => t.id);
+        const fromIndex = ids.indexOf(fromId);
+        const toIndex = ids.indexOf(toId);
+        if (fromIndex === -1 || toIndex === -1) return;
+        const start = Math.min(fromIndex, toIndex);
+        const end = Math.max(fromIndex, toIndex);
+        for (let i = start; i <= end; i++) {
+            selectedIds.add(ids[i]);
+        }
+    }
+    
+    function handleTopicClick(topicId, event, isDelBtn, isExpandBtn) {
+        if (isDelBtn || isExpandBtn) return;
+        
+        if (selectionMode) {
+            if (selectedIds.has(topicId)) {
+                selectedIds.delete(topicId);
+            } else {
+                selectedIds.add(topicId);
+            }
+            if (selectedIds.size === 0) {
+                exitSelectionMode();
+            }
+            renderTree();
+            updateFormForSelection();
+            return;
+        }
+        
+        if (event.ctrlKey || event.metaKey) {
+            if (selectedIds.has(topicId)) {
+                selectedIds.delete(topicId);
+                if (selectedIds.size === 0) lastSelectedId = null;
+            } else {
+                selectedIds.add(topicId);
+                lastSelectedId = topicId;
+            }
+            renderTree();
+            updateFormForSelection();
+        } else if (event.shiftKey && lastSelectedId) {
+            selectRange(lastSelectedId, topicId);
+            renderTree();
+            updateFormForSelection();
+        } else {
+            if (selectedIds.size === 1 && selectedIds.has(topicId)) {
+                selectedIds.clear();
+                lastSelectedId = null;
+                renderTree();
+                updateFormForSelection();
+                showToast('Выделение снято');
+            } else {
+                saveCurrentTopic(false);
+                selectedIds.clear();
+                selectedIds.add(topicId);
+                lastSelectedId = topicId;
+                renderTree();
+                updateFormForSelection();
+            }
+        }
+    }
+    
+    function exitSelectionMode() {
+        selectionMode = false;
+        selectedIds.clear();
+        lastSelectedId = null;
+        document.getElementById('selectionModeBar').style.display = 'none';
+        renderTree();
+        updateFormForSelection();
+        showToast('Режим выделения завершён');
+    }
+    
+    let dragSourceIds = new Set();
+    let dragTargetElement = null;
+    let dropMode = null;
     let scrollInterval = null;
     const SCROLL_SPEED = 15, SCROLL_ZONE = 80;
     
@@ -841,10 +1330,17 @@
     function handleDragStart(e) {
         const row = e.target.closest('.topic-row');
         if (!row) { e.preventDefault(); return; }
-        dragSourceId = row.getAttribute('data-id');
-        e.dataTransfer.setData('text/plain', dragSourceId);
+        const draggedId = row.getAttribute('data-id');
+        if (selectedIds.has(draggedId)) {
+            dragSourceIds = new Set(selectedIds);
+        } else {
+            dragSourceIds.clear();
+            dragSourceIds.add(draggedId);
+        }
+        e.dataTransfer.setData('text/plain', JSON.stringify(Array.from(dragSourceIds)));
         e.dataTransfer.effectAllowed = 'move';
     }
+    
     function handleDragOver(e) {
         e.preventDefault();
         const container = document.getElementById('topicList');
@@ -853,7 +1349,7 @@
         else if (e.clientY > rect.bottom - SCROLL_ZONE) startAutoScroll('down');
         else stopAutoScroll();
         const row = e.target.closest('.topic-row');
-        if (!row || row.getAttribute('data-id') === dragSourceId) return;
+        if (!row || dragSourceIds.has(row.getAttribute('data-id'))) return;
         const rowRect = row.getBoundingClientRect();
         const y = e.clientY;
         const isUpper = y < rowRect.top + rowRect.height * 0.4;
@@ -863,63 +1359,87 @@
         else if (isLower) { row.classList.add('drag-over-bottom'); dropMode = 'after'; dragTargetElement = row; }
         else { row.classList.add('drag-over-child'); dropMode = 'child'; dragTargetElement = row; }
     }
+    
     function handleDrop(e) {
         e.preventDefault();
         stopAutoScroll();
-        if (!dragTargetElement || !dragSourceId) { cleanDrag(); return; }
-        const source = topics.find(t => t.id === dragSourceId);
+        if (!dragTargetElement || dragSourceIds.size === 0) { cleanDrag(); return; }
         const targetId = dragTargetElement.getAttribute('data-id');
-        const target = topics.find(t => t.id === targetId);
-        if (!source || !target) { cleanDrag(); return; }
+        
         if (dropMode === 'child') {
-            if (isCyclic(dragSourceId, targetId)) { showToast('Циклическая зависимость', true); cleanDrag(); return; }
-            source.parent = targetId;
-            showToast(`"${source.name}" теперь дочерняя для "${target.name}"`);
+            let cyclic = false;
+            for (let id of dragSourceIds) {
+                if (isCyclic(id, targetId)) {
+                    cyclic = true;
+                    break;
+                }
+            }
+            if (cyclic) { showToast('Циклическая зависимость', true); cleanDrag(); return; }
+            for (let id of dragSourceIds) {
+                const source = topics.find(t => t.id === id);
+                if (source) source.parent = targetId;
+            }
+            showToast(`Темы перемещены в дочерние`);
         } else {
-            let newParent = target.parent;
-            if (source.parent !== newParent) {
-                if (isCyclic(dragSourceId, newParent)) { showToast('Циклическая зависимость', true); cleanDrag(); return; }
-                source.parent = newParent;
+            for (let id of dragSourceIds) {
+                const source = topics.find(t => t.id === id);
+                const target = topics.find(t => t.id === targetId);
+                if (source && target) {
+                    let newParent = dropMode === 'before' ? target.parent : (dropMode === 'after' ? target.parent : null);
+                    if (source.parent !== newParent) {
+                        if (!isCyclic(id, newParent)) source.parent = newParent;
+                    }
+                }
             }
-            let siblings = topics.filter(t => t.parent === source.parent).sort((a,b) => (a.order||0) - (b.order||0));
-            const srcIdx = siblings.findIndex(s => s.id === dragSourceId);
-            const tgtIdx = siblings.findIndex(s => s.id === targetId);
-            if (srcIdx !== -1 && tgtIdx !== -1) {
-                siblings.splice(srcIdx, 1);
-                let insertPos = tgtIdx;
-                if (dropMode === 'after') insertPos = tgtIdx + 1;
-                siblings.splice(insertPos, 0, source);
-                siblings.forEach((s, i) => s.order = i);
+            const allDragged = Array.from(dragSourceIds);
+            const minIndex = Math.min(...allDragged.map(id => topics.findIndex(t => t.id === id)));
+            const maxIndex = Math.max(...allDragged.map(id => topics.findIndex(t => t.id === id)));
+            const targetIndex = topics.findIndex(t => t.id === targetId);
+            let newIndex = targetIndex;
+            if (dropMode === 'after') newIndex = targetIndex + 1;
+            if (maxIndex < newIndex) newIndex--;
+            const movedTopics = [];
+            for (let id of dragSourceIds) {
+                const idx = topics.findIndex(t => t.id === id);
+                if (idx !== -1) movedTopics.push(topics[idx]);
             }
+            topics = topics.filter(t => !dragSourceIds.has(t.id));
+            let insertIndex = newIndex;
+            if (insertIndex > topics.length) insertIndex = topics.length;
+            topics.splice(insertIndex, 0, ...movedTopics);
             showToast(`Порядок обновлён`);
         }
+        
         topics = removeDuplicateIds(topics);
         renderTree();
-        if (selectedId === source.id) fillFormBySelectedNoSave();
-        saveCurrentTopic(true);
+        updateFormForSelection();
         updateJsonEditor();
         saveToLocalStorage();
         pushToHistory();
         cleanDrag();
     }
+    
     function handleDragEnd(e) { stopAutoScroll(); cleanDrag(); }
     function cleanDrag() {
         document.querySelectorAll('.topic-row').forEach(r => r.classList.remove('drag-over-top', 'drag-over-bottom', 'drag-over-child'));
-        dragSourceId = null; dragTargetElement = null; dropMode = null;
+        dragSourceIds.clear();
+        dragTargetElement = null;
+        dropMode = null;
     }
     
     function renderTree() {
         const container = document.getElementById('topicList');
         if (!container) return;
         function renderNode(parentId, level = 0) {
-            const children = topics.filter(t => t.parent === parentId).sort((a,b) => (a.order||0) - (b.order||0));
+            const children = topics.filter(t => t.parent === parentId);
             if (!children.length && parentId !== null) return null;
             const ul = document.createElement('ul'); ul.className = 'tree-item'; ul.style.paddingLeft = level > 0 ? '18px' : '0';
             for (let node of children) {
                 if (searchQuery && !node.id.toLowerCase().includes(searchQuery) && !node.name.toLowerCase().includes(searchQuery)) continue;
                 const li = document.createElement('li'); li.style.listStyle = 'none';
                 const row = document.createElement('div');
-                row.className = `topic-row ${selectedId === node.id ? 'selected' : ''}`;
+                const isSelected = selectedIds.has(node.id);
+                row.className = `topic-row ${isSelected ? (selectedIds.size === 1 ? 'selected' : 'selected-multi') : ''}`;
                 row.setAttribute('data-id', node.id);
                 row.setAttribute('data-parent', node.parent || '');
                 row.setAttribute('draggable', 'true');
@@ -927,6 +1447,7 @@
                 row.addEventListener('dragover', handleDragOver);
                 row.addEventListener('drop', handleDrop);
                 row.addEventListener('dragend', handleDragEnd);
+                
                 const left = document.createElement('div'); left.className = 'topic-info';
                 const hasChildren = topics.some(t => t.parent === node.id);
                 const expand = document.createElement('button'); expand.className = 'expand-btn'; expand.textContent = hasChildren ? (expandedState.has(node.id) ? '▼' : '▶') : '•';
@@ -940,9 +1461,104 @@
                 const pt = topics.find(p => p.id === node.parent); parentSpan.textContent = pt ? `(${pt.name})` : '(корень)';
                 left.appendChild(expand); left.appendChild(iconSpan); left.appendChild(nameSpan); left.appendChild(parentSpan);
                 const del = document.createElement('button'); del.className = 'del-topic'; del.textContent = '✖';
-                del.onclick = (e) => { e.stopPropagation(); if (confirm('Удалить тему?')) { topics = topics.filter(t => t.id !== node.id); if (selectedId === node.id) selectedId = topics[0]?.id || null; renderTree(); fillFormBySelectedNoSave(); updateJsonEditor(); saveToLocalStorage(); pushToHistory(); showToast('Тема удалена'); } };
+                del.onclick = (e) => { 
+                    e.stopPropagation(); 
+                    if (confirm(`Удалить ${selectedIds.size} тем(у)?`)) { 
+                        const toDelete = selectedIds.has(node.id) ? Array.from(selectedIds) : [node.id];
+                        topics = topics.filter(t => !toDelete.includes(t.id));
+                        selectedIds.clear();
+                        if (selectedIds.size === 0) lastSelectedId = null;
+                        renderTree(); 
+                        updateFormForSelection(); 
+                        updateJsonEditor(); 
+                        saveToLocalStorage(); 
+                        pushToHistory(); 
+                        showToast(`Удалено ${toDelete.length} тем`); 
+                    } 
+                };
                 row.appendChild(left); row.appendChild(del);
-                row.addEventListener('click', (e) => { if (e.target === del || e.target === expand) return; saveCurrentTopic(false); selectedId = node.id; renderTree(); fillFormBySelectedNoSave(); });
+                
+                row.addEventListener('click', (e) => {
+                    const isDel = e.target === del || del.contains(e.target);
+                    const isExpand = e.target === expand || expand.contains(e.target);
+                    handleTopicClick(node.id, e, isDel, isExpand);
+                });
+                
+                row.addEventListener('dblclick', (e) => {
+                    e.stopPropagation();
+                    showContextMenu(e.clientX, e.clientY, node.id);
+                });
+                
+                let touchStartTime = 0;
+                let touchStartX = 0;
+                let touchStartY = 0;
+                let touchMoved = false;
+                let touchTimer = null;
+                let wasDragged = false;
+                
+                row.addEventListener('touchstart', (e) => {
+                    if (e.touches.length === 1) {
+                        touchStartTime = Date.now();
+                        touchStartX = e.touches[0].clientX;
+                        touchStartY = e.touches[0].clientY;
+                        touchMoved = false;
+                        wasDragged = false;
+                        
+                        touchTimer = setTimeout(() => {
+                            if (!touchMoved && !selectionMode && !wasDragged) {
+                                selectionMode = true;
+                                if (!selectedIds.has(node.id)) {
+                                    selectedIds.clear();
+                                    selectedIds.add(node.id);
+                                }
+                                lastSelectedId = node.id;
+                                document.getElementById('selectionModeBar').style.display = 'flex';
+                                renderTree();
+                                updateFormForSelection();
+                                showToast('Режим выделения активирован');
+                            }
+                            touchTimer = null;
+                        }, 400);
+                    }
+                });
+                
+                row.addEventListener('touchmove', (e) => {
+                    if (e.touches.length === 1 && touchTimer) {
+                        const deltaX = Math.abs(e.touches[0].clientX - touchStartX);
+                        const deltaY = Math.abs(e.touches[0].clientY - touchStartY);
+                        if (deltaX > 10 || deltaY > 10) {
+                            touchMoved = true;
+                            wasDragged = true;
+                            if (touchTimer) {
+                                clearTimeout(touchTimer);
+                                touchTimer = null;
+                            }
+                        }
+                    }
+                });
+                
+                row.addEventListener('touchend', (e) => {
+                    if (touchTimer) {
+                        clearTimeout(touchTimer);
+                        touchTimer = null;
+                    }
+                    if (!touchMoved && !wasDragged && !selectionMode) {
+                        if (Date.now() - touchStartTime < 200) {
+                            handleTopicClick(node.id, e, false, false);
+                        } else if (Date.now() - touchStartTime >= 200 && Date.now() - touchStartTime < 400) {
+                            showContextMenu(touchStartX, touchStartY, node.id);
+                        }
+                    }
+                    wasDragged = false;
+                });
+                
+                row.addEventListener('touchcancel', (e) => {
+                    if (touchTimer) {
+                        clearTimeout(touchTimer);
+                        touchTimer = null;
+                    }
+                });
+                
                 li.appendChild(row);
                 if (hasChildren && expandedState.has(node.id)) { const childUl = renderNode(node.id, level + 1); if (childUl) li.appendChild(childUl); }
                 ul.appendChild(li);
@@ -955,13 +1571,14 @@
         else container.innerHTML = '<div style="padding:10px;">Нет тем</div>';
     }
     
-    // ========== ИМПОРТ/ЭКСПОРТ ==========
     function exportLocal() {
-        const data = JSON.stringify(topics, null, 2);
+        const dataToExport = removeOrderField(topics);
+        const data = JSON.stringify(dataToExport, null, 2);
         const blob = new Blob([data], {type:'application/json'});
         const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'topics_backup.json'; a.click(); URL.revokeObjectURL(blob);
         showToast('Экспорт выполнен');
     }
+    
     function importLocal(file) {
         const reader = new FileReader();
         reader.onload = (e) => {
@@ -969,17 +1586,29 @@
                 let imported = JSON.parse(e.target.result);
                 if (!Array.isArray(imported)) throw new Error();
                 imported = removeDuplicateIds(imported);
+                imported = sortAndCleanTopics(imported);
                 topics = imported;
-                topics.forEach((t,i) => { if (!t.order) t.order = i; if (!t.keywords) t.keywords = []; if (!t.icon) t.icon = 'fa-file-alt'; if (!t.example) t.example = ''; if (!t.description) t.description = '<p></p>'; });
-                selectedId = topics[0]?.id || null;
+                topics.forEach((t, i) => { 
+                    if (!t.keywords) t.keywords = []; 
+                    if (!t.icon) t.icon = 'fa-file-alt'; 
+                    if (!t.example) t.example = ''; 
+                    if (!t.description) t.description = '<p></p>'; 
+                });
+                selectedIds.clear();
+                lastSelectedId = null;
                 expandedState.clear();
                 topics.forEach(t => { if (topics.some(ch => ch.parent === t.id)) expandedState.add(t.id); });
-                renderTree(); fillFormBySelectedNoSave(); updateJsonEditor(); saveToLocalStorage(); pushToHistory();
+                renderTree(); 
+                updateFormForSelection(); 
+                updateJsonEditor(); 
+                saveToLocalStorage(); 
+                pushToHistory();
                 showToast('Импорт выполнен');
             } catch(e) { showToast('Ошибка импорта', true); }
         };
         reader.readAsText(file);
     }
+    
     function importShortJSON(file) {
         const reader = new FileReader();
         reader.onload = (e) => {
@@ -995,19 +1624,23 @@
                     topics.push({ id: String(id), name: String(name), gradeLevel: parseInt(grade) || 3,
                         keywords: typeof kw === 'string' ? kw.split(',').map(k=>k.trim()).filter(k=>k) : [],
                         parent: parent === null || parent === '' ? null : String(parent),
-                        icon: 'fa-file-alt', example: 'В разработке', description: '<p>В разработке</p>', order: topics.length });
+                        icon: 'fa-file-alt', example: 'В разработке', description: '<p>В разработке</p>' });
                     added++;
                 }
                 if (added) {
                     topics = removeDuplicateIds(topics);
-                    topics.forEach((t,i)=>t.order=i);
-                    renderTree(); fillFormBySelectedNoSave(); updateJsonEditor(); saveToLocalStorage(); pushToHistory();
+                    renderTree(); 
+                    if (selectedIds.size > 0) updateFormForSelection(); 
+                    updateJsonEditor(); 
+                    saveToLocalStorage(); 
+                    pushToHistory();
                     showToast(`Добавлено ${added} тем`);
                 } else showToast('Нет новых тем', true);
             } catch(e) { showToast('Ошибка', true); }
         };
         reader.readAsText(file);
     }
+    
     function resetLocalChanges() {
         if (confirm('ВНИМАНИЕ! Это действие сбросит все несохранённые в GitHub изменения. Вы уверены?')) {
             loadFromLocalStorage();
@@ -1015,7 +1648,6 @@
         }
     }
     
-    // ========== GITHUB КОММИТЫ ==========
     async function loadCommits() {
         showToast('Загрузка коммитов...');
         try {
@@ -1057,21 +1689,31 @@
             const data = await res.json();
             if (data.content) {
                 const content = atob(data.content);
-                const parsed = JSON.parse(content);
+                let parsed = JSON.parse(content);
                 if (Array.isArray(parsed)) {
+                    parsed = sortAndCleanTopics(parsed);
                     topics = parsed;
-                    topics.forEach((t,i) => { if (!t.order) t.order = i; if (!t.keywords) t.keywords = []; if (!t.icon) t.icon = 'fa-file-alt'; if (!t.example) t.example = ''; if (!t.description) t.description = '<p></p>'; });
-                    selectedId = topics[0]?.id || null;
+                    topics.forEach((t, i) => { 
+                        if (!t.keywords) t.keywords = []; 
+                        if (!t.icon) t.icon = 'fa-file-alt'; 
+                        if (!t.example) t.example = ''; 
+                        if (!t.description) t.description = '<p></p>'; 
+                    });
+                    selectedIds.clear();
+                    lastSelectedId = null;
                     expandedState.clear();
                     topics.forEach(t => { if (topics.some(ch => ch.parent === t.id)) expandedState.add(t.id); });
-                    renderTree(); fillFormBySelectedNoSave(); updateJsonEditor(); saveToLocalStorage(); pushToHistory();
+                    renderTree(); 
+                    updateFormForSelection(); 
+                    updateJsonEditor(); 
+                    saveToLocalStorage(); 
+                    pushToHistory();
                     showToast(`Восстановлен коммит ${sha.substring(0,7)}`);
                 }
             } else throw new Error();
         } catch(e) { showToast('Ошибка восстановления: ' + e.message, true); }
     }
     
-    // ========== ПРЕДУПРЕЖДЕНИЯ ==========
     function showWarningDialog(onConfirm, title = 'ВНИМАНИЕ!', message = '') {
         const overlay = document.createElement('div'); overlay.className = 'overlay-warning';
         const dialog = document.createElement('div'); dialog.className = 'warning-dialog';
@@ -1087,27 +1729,29 @@
         document.getElementById('warningCancelBtn').onclick = () => { overlay.remove(); dialog.remove(); };
     }
     
-    function saveToGitHub() {
-        showWarningDialog(async () => {
-            const content = JSON.stringify(topics, null, 2);
-            const encoded = btoa(unescape(encodeURIComponent(content)));
-            showToast('Сохранение в GitHub...');
-            try {
-                const res = await fetch(`https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${GITHUB_PATH}`, { headers: { 'Authorization': `token ${GITHUB_TOKEN}` } });
-                const data = await res.json();
-                const sha = data.sha || null;
-                const putRes = await fetch(`https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${GITHUB_PATH}`, {
-                    method: 'PUT', headers: { 'Authorization': `token ${GITHUB_TOKEN}`, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ message: 'Update config', content: encoded, sha, branch: GITHUB_BRANCH })
-                });
-                const putData = await putRes.json();
-                if (putData.content) { showToast('Сохранено в GitHub'); document.getElementById('statusArea').innerText = 'Сохранено в GitHub'; }
-                else showToast('Ошибка: ' + (putData.message || '?'), true);
-            } catch(e) { showToast('Ошибка: ' + e.message, true); }
-        }, 'СОХРАНЕНИЕ В GITHUB', 'Вы собираетесь перезаписать файл config.json в репозитории. Это действие необратимо.');
+    async function saveToGitHubNoWarning() {
+        const topicsToSave = removeOrderField(topics);
+        const content = JSON.stringify(topicsToSave, null, 2);
+        const encoded = btoa(unescape(encodeURIComponent(content)));
+        showToast('Сохранение в GitHub...');
+        try {
+            const res = await fetch(`https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${GITHUB_PATH}`, { headers: { 'Authorization': `token ${GITHUB_TOKEN}` } });
+            const data = await res.json();
+            const sha = data.sha || null;
+            const putRes = await fetch(`https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${GITHUB_PATH}`, {
+                method: 'PUT', headers: { 'Authorization': `token ${GITHUB_TOKEN}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message: 'Update config', content: encoded, sha, branch: GITHUB_BRANCH })
+            });
+            const putData = await putRes.json();
+            if (putData.content) { showToast('Сохранено в GitHub'); document.getElementById('statusArea').innerText = 'Сохранено в GitHub'; }
+            else showToast('Ошибка: ' + (putData.message || '?'), true);
+        } catch(e) { showToast('Ошибка: ' + e.message, true); }
     }
     
-    // ========== РЕЖИМ ОБЫЧНОГО ТЕКСТА ==========
+    function saveToGitHub() {
+        showWarningDialog(saveToGitHubNoWarning, 'СОХРАНЕНИЕ В GITHUB', 'Вы собираетесь перезаписать файл config.json в репозитории. Это действие необратимо.');
+    }
+    
     function insertPlainText(text) {
         const sel = window.getSelection();
         if (!sel.rangeCount) return false;
@@ -1168,7 +1812,6 @@
         descriptionEditor.focus(); updateLinkColors(); saveCurrentTopic(false);
     }
     
-    // ========== ГИПЕРССЫЛКИ ==========
     let savedRange = null, savedText = '';
     function saveSelection() {
         const sel = window.getSelection();
@@ -1182,7 +1825,7 @@
     descriptionEditor.addEventListener('click', saveSelection);
     
     function showTopicSelector(callback) {
-        const others = topics.filter(t => t.id !== selectedId);
+        const others = topics.filter(t => !selectedIds.has(t.id));
         if (!others.length) { alert('Нет других тем'); return; }
         const ov = document.createElement('div'); ov.className = 'overlay';
         const dlg = document.createElement('div'); dlg.className = 'topic-selector-dialog';
@@ -1227,18 +1870,28 @@
         });
     }
     
-    // ========== ПРИМЕНЕНИЕ JSON ==========
     function applyJson() {
         try {
             let parsed = JSON.parse(jsonEditor.value);
             if (!Array.isArray(parsed)) throw new Error();
             parsed = removeDuplicateIds(parsed);
+            parsed = sortAndCleanTopics(parsed);
             topics = parsed;
-            topics.forEach((t, i) => { if (!t.order) t.order = i; if (!t.keywords) t.keywords = []; if (!t.icon) t.icon = 'fa-file-alt'; if (!t.example) t.example = ''; if (!t.description) t.description = '<p></p>'; });
-            selectedId = topics[0]?.id || null;
+            topics.forEach((t, i) => { 
+                if (!t.keywords) t.keywords = []; 
+                if (!t.icon) t.icon = 'fa-file-alt'; 
+                if (!t.example) t.example = ''; 
+                if (!t.description) t.description = '<p></p>'; 
+            });
+            selectedIds.clear();
+            lastSelectedId = null;
             expandedState.clear();
             topics.forEach(t => { if (topics.some(ch => ch.parent === t.id)) expandedState.add(t.id); });
-            renderTree(); fillFormBySelectedNoSave(); updateJsonEditor(); saveToLocalStorage(); pushToHistory();
+            renderTree(); 
+            updateFormForSelection(); 
+            updateJsonEditor(); 
+            saveToLocalStorage(); 
+            pushToHistory();
             showToast('JSON применён');
         } catch(e) { showToast('Ошибка JSON', true); }
     }
@@ -1246,18 +1899,23 @@
     function formatJson() { try { jsonEditor.value = JSON.stringify(JSON.parse(jsonEditor.value), null, 2); showToast('Форматировано'); } catch(e) { showToast('Ошибка форматирования', true); } }
     function validateJson() { try { JSON.parse(jsonEditor.value); showToast('JSON корректен'); } catch(e) { showToast('Ошибка: ' + e.message, true); } }
     
-    // ========== ЗАГРУЗКА КОНФИГА ПРИ ОТКРЫТИИ ==========
     async function loadInitialConfig() {
         try {
             const response = await fetch('config.json');
             if (response.ok) {
                 const data = await response.json();
                 if (Array.isArray(data) && data.length > 0) {
-                    topics = data;
+                    topics = sortAndCleanTopics(data);
                     topics = removeDuplicateIds(topics);
-                    topics.forEach((t, i) => { if (!t.order) t.order = i; if (!t.keywords) t.keywords = []; if (!t.icon) t.icon = 'fa-file-alt'; if (!t.example) t.example = ''; if (!t.description) t.description = '<p></p>'; });
+                    topics.forEach((t, i) => { 
+                        if (!t.keywords) t.keywords = []; 
+                        if (!t.icon) t.icon = 'fa-file-alt'; 
+                        if (!t.example) t.example = ''; 
+                        if (!t.description) t.description = '<p></p>'; 
+                    });
                     validateAndFixIds();
-                    selectedId = topics[0]?.id || null;
+                    selectedIds.clear();
+                    lastSelectedId = null;
                     expandedState.clear();
                     topics.forEach(t => { if (topics.some(ch => ch.parent === t.id)) expandedState.add(t.id); });
                     saveToLocalStorage();
@@ -1272,16 +1930,15 @@
             return true;
         }
         
-        const demo = [{ id: "geometriya", name: "Геометрия", keywords: ["геометрия"], parent: null, icon: "fa-folder", gradeLevel: 3, example: "<div>Основы геометрии</div>", description: "<p>Изучает фигуры</p>", order: 1 }];
+        const demo = [{ id: "geometriya", name: "Геометрия", keywords: ["геометрия"], parent: null, icon: "fa-folder", gradeLevel: 3, example: "<div>Основы геометрии</div>", description: "<p>Изучает фигуры</p>" }];
         topics = demo;
-        selectedId = "geometriya";
+        selectedIds.clear();
         expandedState.add("geometriya");
         saveToLocalStorage();
         showToast('Загружены демо-данные');
         return true;
     }
     
-    // ========== ИНИЦИАЛИЗАЦИЯ ==========
     async function init() {
         refreshPreviewBtn.onclick = updatePreview;
         exampleHtmlSource.addEventListener('input', () => { clearTimeout(previewTimeout); previewTimeout = setTimeout(updatePreview, 400); });
@@ -1301,12 +1958,11 @@
         document.getElementById('redoBtn').onclick = redo;
         document.getElementById('loadCommitsBtn').onclick = loadCommits;
         document.getElementById('refreshCommitsBtn').onclick = loadCommits;
+        document.getElementById('exitSelectionModeBtn').onclick = exitSelectionMode;
         
-        // Кнопки JSON темы
         document.getElementById('applyTopicJsonBtn').onclick = applyTopicJson;
         document.getElementById('refreshTopicJsonBtn').onclick = updateTopicJsonEditor;
         
-        // Разворачивание JSON панели
         const header = document.getElementById('topicJsonHeader');
         const content = document.getElementById('topicJsonContent');
         header.onclick = () => {
@@ -1324,8 +1980,13 @@
             document.getElementById(id).onclick = () => { if (!plainTextMode) { document.execCommand('insertText', false, document.getElementById(id).innerText); descriptionEditor.focus(); saveCurrentTopic(false); } };
         });
         
-        topicNameInput.addEventListener('input', function() { if (this.value.trim()) document.getElementById('topicId').value = generateIdFromName(this.value, selectedId, topics); });
+        topicNameInput.addEventListener('input', function() { 
+            if (selectedIds.size === 1 && this.value.trim()) {
+                document.getElementById('topicId').value = generateIdFromName(this.value, Array.from(selectedIds)[0], topics);
+            }
+        });
         document.getElementById('searchTopicsInput').addEventListener('input', (e) => { searchQuery = e.target.value.toLowerCase(); renderTree(); });
+        
         [topicNameInput, topicKeywordsInput, topicParentSelect, topicIconSelect, topicGradeSelect, exampleHtmlSource].forEach(f => f.addEventListener('blur', () => saveCurrentTopic(false)));
         descriptionEditor.addEventListener('blur', () => saveCurrentTopic(false));
         
@@ -1350,19 +2011,48 @@
         });
         
         window.addEventListener('keydown', (e) => {
-            if (e.ctrlKey && e.key === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
-            else if (e.ctrlKey && (e.key === 'y' || (e.shiftKey && e.key === 'Z'))) { e.preventDefault(); redo(); }
+            if (e.ctrlKey && e.key === 'z' && !e.shiftKey) { 
+                e.preventDefault(); 
+                undo(); 
+            }
+            else if (e.ctrlKey && (e.key === 'y' || (e.shiftKey && e.key === 'Z'))) { 
+                e.preventDefault(); 
+                redo(); 
+            }
+            else if (e.ctrlKey && !e.altKey && e.key === 's') { 
+                e.preventDefault(); 
+                manualSave(); 
+            }
+            else if (e.ctrlKey && e.altKey && e.key === 's') { 
+                e.preventDefault(); 
+                saveToGitHubNoWarning(); 
+            }
+            else if (e.ctrlKey && !e.altKey && e.key === 'c' && selectedIds.size > 0) { 
+                e.preventDefault(); 
+                copyTopics(); 
+            }
+            else if (e.ctrlKey && !e.altKey && e.key === 'x' && selectedIds.size > 0) { 
+                e.preventDefault(); 
+                cutTopics(); 
+            }
+            else if (e.ctrlKey && !e.altKey && e.key === 'v' && selectedIds.size === 1 && copiedTopics.length > 0) { 
+                e.preventDefault(); 
+                pasteTopicsAsChildren(Array.from(selectedIds)[0]); 
+            }
+            else if (e.ctrlKey && !e.altKey && e.key === 'd' && selectedIds.size > 0) { 
+                e.preventDefault(); 
+                duplicateTopics(); 
+            }
         });
         
         await loadInitialConfig();
         renderTree();
-        fillFormBySelectedNoSave();
+        updateFormForSelection();
         updateJsonEditor();
         pushToHistory();
         updateButtonsState();
     }
     
-    let previewTimeout = null;
     init();
 </script>
 </body>
