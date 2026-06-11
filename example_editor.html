@@ -170,6 +170,15 @@
             overflow-y: auto;
             white-space: pre-wrap;
             border: 1px solid #2a2e3a;
+            cursor: pointer;
+        }
+        .console div {
+            border-bottom: 1px solid #1a1c24;
+            padding: 2px 0;
+            transition: background 0.1s;
+        }
+        .console div:hover {
+            background: #1a1c28;
         }
 
         .status {
@@ -215,7 +224,7 @@
             <button id="nextSaveBtn">Следующая (+сохранить) ▶</button>
         </div>
         <div class="status" id="statusMsg">💡 Загрузка конфига из GitHub...</div>
-        <div class="console" id="consoleLog">[Система] Инициализация...</div>
+        <div class="console" id="consoleLog">[Система] Инициализация... (клик по строке — копировать)</div>
     </div>
 </div>
 
@@ -229,7 +238,7 @@
     const STORAGE_KEY = 'geometry_editor_progress';
     const EDITED_MARKER = '<!-- __EDITED__ -->';
 
-    // GitHub параметры
+    // GitHub параметры (только для сохранения, загрузка через raw)
     const GITHUB_TOKEN = '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';
     const GITHUB_OWNER = 'DaniksGames5242';
     const GITHUB_REPO = 'MathFrame.github.io';
@@ -291,11 +300,32 @@
     const statusMsgSpan = document.getElementById('statusMsg');
     const consoleLogDiv = document.getElementById('consoleLog');
 
+    // Функция логирования с возможностью копирования при клике
     function log(message, isError = false) {
         const prefix = isError ? '⚠️ ' : 'ℹ️ ';
-        consoleLogDiv.innerHTML += `<div style="color: ${isError ? '#ff9999' : '#aaffaa'}">${prefix}${message}</div>`;
+        const div = document.createElement('div');
+        div.style.color = isError ? '#ff9999' : '#aaffaa';
+        div.textContent = prefix + message;
+        div.title = 'Кликните, чтобы скопировать';
+        div.style.cursor = 'pointer';
+        div.style.padding = '2px 0';
+        div.style.borderBottom = '1px solid #1a1c24';
+        div.addEventListener('click', (e) => {
+            e.stopPropagation();
+            navigator.clipboard.writeText(div.textContent).then(() => {
+                const original = div.style.background;
+                div.style.background = '#2a3a4a';
+                setTimeout(() => div.style.background = original, 200);
+            }).catch(() => alert('Не удалось скопировать'));
+        });
+        consoleLogDiv.appendChild(div);
         consoleLogDiv.scrollTop = consoleLogDiv.scrollHeight;
         console.log(message);
+    }
+
+    function clearLog() {
+        consoleLogDiv.innerHTML = '';
+        log('Лог очищен');
     }
 
     function saveProgress() {
@@ -474,49 +504,30 @@
         }
     }
 
-    // ==================== GITHUB ЗАГРУЗКА (публичная, без токена) ====================
+    // ==================== ЗАГРУЗКА ИЗ GITHUB (исправленная: /config.json и raw fallback) ====================
     async function loadFromGitHub() {
-        log('Загрузка config.json из GitHub (публичный репозиторий)...');
+        log('Загрузка config.json из GitHub...');
         statusMsgSpan.innerHTML = '⏳ Загрузка из GitHub...';
         try {
-            // Запрос без токена — только для чтения публичного репозитория
-            const response = await fetch(`https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${GITHUB_PATH}`, {
-                headers: {
-                    'Accept': 'application/vnd.github.v3+json',
-                    'User-Agent': 'GeometryEditor/1.0'
-                }
-            });
-            
+            let response;
+            // Пробуем абсолютный путь от корня сайта (работает на GitHub Pages)
+            response = await fetch('/config.json');
             if (!response.ok) {
-                if (response.status === 404) {
-                    log('Файл config.json не найден в репозитории. Создаём демо-конфиг.', false);
-                    const demoConfig = [
-                        { 
-                            id: "treugolnik", 
-                            name: "Треугольник", 
-                            keywords: ["треугольник", "углы"], 
-                            gradeLevel: 7, 
-                            example: "<!-- Треугольник -->\n<div>Пример треугольника</div>", 
-                            description: "Изучаем треугольники" 
-                        }
-                    ];
-                    applyConfig(demoConfig);
-                    return;
-                }
-                throw new Error(`HTTP ${response.status} ${response.statusText}`);
+                // Если нет, пробуем относительно текущей папки
+                response = await fetch('./config.json');
             }
-            
-            const data = await response.json();
-            if (!data.content) {
-                throw new Error('Ответ GitHub не содержит поля content');
+            if (!response.ok) {
+                // Последний шанс: raw.githubusercontent.com
+                log('Не найден локально, загружаем через raw.githubusercontent...');
+                response = await fetch(`https://raw.githubusercontent.com/${GITHUB_OWNER}/${GITHUB_REPO}/${GITHUB_BRANCH}/${GITHUB_PATH}`);
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
             }
-            // Декодируем base64
-            const content = atob(data.content);
-            const json = JSON.parse(content);
+            const json = await response.json();
+            if (!Array.isArray(json)) throw new Error('Ответ не массив');
             applyConfig(json);
         } catch (err) {
-            log(`Ошибка загрузки из GitHub: ${err.message}`, true);
-            statusMsgSpan.innerHTML = `❌ Ошибка GitHub: ${err.message}`;
+            log(`Ошибка загрузки: ${err.message}`, true);
+            statusMsgSpan.innerHTML = `❌ Ошибка: ${err.message}`;
             // Пробуем локальный кеш
             if (localStorage.getItem(STORAGE_KEY)) {
                 log('Восстановление из локального кеша...');
@@ -535,7 +546,6 @@
     }
 
     function applyConfig(json) {
-        if (!Array.isArray(json)) throw new Error('JSON не является массивом');
         configData = json;
         // Нормализация полей
         configData.forEach(t => {
@@ -553,16 +563,15 @@
             currentFilteredPos = 0;
         }
         displayCurrentTopic();
-        saveProgress(); // сохраняем локально
+        saveProgress();
         log(`✅ Загружено ${configData.length} тем из GitHub`);
         statusMsgSpan.innerHTML = `📥 Загружено из GitHub: ${configData.length} тем`;
-        // Автокопирование промпта для первой неотредактированной
         if (filteredIndices.length > 0) {
             copyPromptForCurrentTopic();
         }
     }
 
-    // ==================== СОХРАНЕНИЕ В GITHUB (с токеном) ====================
+    // ==================== СОХРАНЕНИЕ В GITHUB ====================
     async function saveToGitHub() {
         if (!configData) {
             log('Нет данных для сохранения', true);
@@ -572,7 +581,6 @@
         
         log('Сохранение в GitHub...');
         try {
-            // Получаем sha текущего файла (с токеном)
             let sha = null;
             const getRes = await fetch(`https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${GITHUB_PATH}`, {
                 headers: { 
@@ -710,7 +718,7 @@
     loadFromGitHubBtn.addEventListener('click', loadFromGitHub);
     saveToGitHubBtn.addEventListener('click', saveToGitHub);
 
-    // Автозагрузка при старте
+    // Автозагрузка
     loadFromGitHub();
 </script>
 </body>
