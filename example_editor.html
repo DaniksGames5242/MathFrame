@@ -9,8 +9,6 @@
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-            user-select: none;
-            -webkit-tap-highlight-color: transparent;
         }
 
         body {
@@ -50,7 +48,7 @@
             color: #b7c9ff;
         }
 
-        .file-buttons {
+        .file-buttons, .github-buttons {
             display: flex;
             gap: 0.6rem;
             flex-wrap: wrap;
@@ -161,7 +159,7 @@
         .console {
             background: #0a0c10;
             color: #6ef0a0;
-            font-family: monospace;
+            font-family: 'Courier New', monospace;
             font-size: 12px;
             padding: 0.8rem;
             border-radius: 12px;
@@ -170,15 +168,16 @@
             overflow-y: auto;
             white-space: pre-wrap;
             border: 1px solid #2a2e3a;
-            cursor: pointer;
+            user-select: text;
+            -webkit-user-select: text;
+            cursor: text;
         }
+        
         .console div {
-            border-bottom: 1px solid #1a1c24;
-            padding: 2px 0;
-            transition: background 0.1s;
-        }
-        .console div:hover {
-            background: #1a1c28;
+            user-select: text;
+            -webkit-user-select: text;
+            white-space: pre-wrap;
+            word-break: break-all;
         }
 
         .status {
@@ -224,7 +223,7 @@
             <button id="nextSaveBtn">Следующая (+сохранить) ▶</button>
         </div>
         <div class="status" id="statusMsg">💡 Загрузка конфига из GitHub...</div>
-        <div class="console" id="consoleLog">[Система] Инициализация... (клик по строке — копировать)</div>
+        <div class="console" id="consoleLog">[Система] Инициализация...\n💡 Текст в консоли можно выделять и копировать мышкой</div>
     </div>
 </div>
 
@@ -238,7 +237,7 @@
     const STORAGE_KEY = 'geometry_editor_progress';
     const EDITED_MARKER = '<!-- __EDITED__ -->';
 
-    // GitHub параметры (только для сохранения, загрузка через raw)
+    // GitHub параметры (как в вашем примере)
     const GITHUB_TOKEN = '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';
     const GITHUB_OWNER = 'DaniksGames5242';
     const GITHUB_REPO = 'MathFrame.github.io';
@@ -246,44 +245,17 @@
     const GITHUB_BRANCH = 'main';
 
     // Промпты
-    const STANDARDIZE_INSTRUCTION = `
-Ты — эксперт по геометрии и фронтенд-разработке. Ниже приведён HTML-код интерактивного геометрического примера.
-Приведи этот код в строгое соответствие со следующим стандартом:
+    const STANDARDIZE_INSTRUCTION = `Ты — эксперт по геометрии и фронтенд-разработке. Ниже приведён HTML-код интерактивного геометрического примера.
+Приведи этот код в строгое соответствие со стандартом: добавь метку ${EDITED_MARKER} в начало body, убедись что есть canvas с перетаскиванием вершин, адаптивность, отображение углов и длин.
+Выдай ТОЛЬКО исправленный HTML-код (без пояснений).`;
 
-=== СТАНДАРТ (кратко) ===
-1. Структура: DOCTYPE, html, head (мета-вьюпорт user-scalable=no), body с прозрачным фоном.
-2. Стили: базовая адаптивность, отступы, border для canvas, цвета (чёрный, #3366cc, #ff6633 и т.д.).
-3. Перетаскивание: вершины (радиус захвата ≥ 22), стороны (строго по нормали), внутренность.
-4. Устранение "прилипания": при ограничении позиции обновлять dragOffset.
-5. Канвас должен быть статическим (без масштабирования браузером), размеры при ресайзе пересчитываются корректно.
-6. Углы отображаются целыми числами, сумма углов 180°.
-7. Валидация: минимальное расстояние между вершинами, невырожденность, границы.
-8. Информационная панель обновляется динамически.
-9. Обязательная пометка об успешном редактировании: добавь в начало HTML-кода (после <body>) строку '${EDITED_MARKER}' (как комментарий).
-10. Сохрани все ключевые функции и визуальную тему.
-
-Выдай ТОЛЬКО исправленный HTML-код (без лишних пояснений).
-`;
-
-    const WRITE_INSTRUCTION = `
-Ты — эксперт по геометрии и фронтенд-разработке. Тебе нужно создать полноценный интерактивный HTML-пример для следующей темы:
-
-=== ТЕМА ===
-Имя: %NAME%
-Класс: %GRADE%
+    const WRITE_INSTRUCTION = `Ты — эксперт по геометрии и фронтенд-разработке. Создай интерактивный HTML-пример для темы:
+%NAME% (класс %GRADE%)
 Ключевые слова: %KEYWORDS%
-Описание: %DESCRIPTION% (если нет — раскрой тему самостоятельно)
+Описание: %DESCRIPTION%
 
-Требования к примеру (согласно нашему стандарту):
-- Полноценный интерактивный canvas с перетаскиванием вершин, сторон и внутренности.
-- Фигура должна соответствовать теме.
-- Адаптивность, корректная работа на телефонах.
-- Отображение всех характерных длин, углов (целые градусы), формул.
-- Код должен быть самодостаточным (один HTML-файл).
-- В начало HTML-кода (после <body>) добавь строку '${EDITED_MARKER}' как комментарий.
-
-Выдай ТОЛЬКО готовый HTML-код (без лишних пояснений).
-`;
+Требования: canvas с перетаскиванием вершин, адаптивность, отображение параметров фигуры, метка ${EDITED_MARKER} после <body>.
+Выдай ТОЛЬКО готовый HTML-код.`;
 
     // DOM элементы
     const loadBtn = document.getElementById('loadBtn');
@@ -300,65 +272,82 @@
     const statusMsgSpan = document.getElementById('statusMsg');
     const consoleLogDiv = document.getElementById('consoleLog');
 
-    // Функция логирования с возможностью копирования при клике
     function log(message, isError = false) {
         const prefix = isError ? '⚠️ ' : 'ℹ️ ';
-        const div = document.createElement('div');
-        div.style.color = isError ? '#ff9999' : '#aaffaa';
-        div.textContent = prefix + message;
-        div.title = 'Кликните, чтобы скопировать';
-        div.style.cursor = 'pointer';
-        div.style.padding = '2px 0';
-        div.style.borderBottom = '1px solid #1a1c24';
-        div.addEventListener('click', (e) => {
-            e.stopPropagation();
-            navigator.clipboard.writeText(div.textContent).then(() => {
-                const original = div.style.background;
-                div.style.background = '#2a3a4a';
-                setTimeout(() => div.style.background = original, 200);
-            }).catch(() => alert('Не удалось скопировать'));
-        });
-        consoleLogDiv.appendChild(div);
+        const time = new Date().toLocaleTimeString();
+        consoleLogDiv.innerHTML += `<div style="color: ${isError ? '#ff9999' : '#aaffaa'}; margin-bottom: 4px;">${prefix}[${time}] ${escapeHtml(message)}</div>`;
         consoleLogDiv.scrollTop = consoleLogDiv.scrollHeight;
         console.log(message);
     }
-
-    function clearLog() {
-        consoleLogDiv.innerHTML = '';
-        log('Лог очищен');
+    
+    function escapeHtml(str) {
+        if (!str) return '';
+        return str.replace(/[&<>]/g, function(m) {
+            if (m === '&') return '&amp;';
+            if (m === '<') return '&lt;';
+            if (m === '>') return '&gt;';
+            return m;
+        });
     }
 
+    // Сохраняем ТОЛЬКО прогресс (индексы, а не полные примеры)
     function saveProgress() {
         if (!configData) return;
-        const progress = {
-            currentIndex,
-            currentFilteredPos,
-            topicsState: configData.map(topic => ({
-                id: topic.id,
-                example: topic.example,
-                edited: topic.example && topic.example.includes(EDITED_MARKER)
-            }))
-        };
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(progress));
+        try {
+            const progress = {
+                currentIndex,
+                currentFilteredPos,
+                // Сохраняем только ID тем, которые отредактированы (чтобы не дублировать огромные HTML)
+                editedTopics: configData
+                    .filter(t => t.example && t.example.includes(EDITED_MARKER))
+                    .map(t => t.id)
+            };
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(progress));
+            log(`Прогресс сохранён (тема ${currentIndex+1}/${configData.length})`);
+        } catch (e) {
+            if (e.name === 'QuotaExceededError') {
+                log('⚠️ localStorage переполнен, очищаю старые данные...', true);
+                // Очищаем и пробуем снова (только прогресс)
+                localStorage.removeItem(STORAGE_KEY);
+                try {
+                    const progress = {
+                        currentIndex,
+                        currentFilteredPos,
+                        editedTopics: configData.filter(t => t.example && t.example.includes(EDITED_MARKER)).map(t => t.id)
+                    };
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(progress));
+                    log('Прогресс сохранён после очистки');
+                } catch(e2) {
+                    log('Не удалось сохранить прогресс (localStorage заполнен)', true);
+                }
+            }
+        }
     }
 
+    // Загружаем прогресс
     function loadProgress() {
         const saved = localStorage.getItem(STORAGE_KEY);
         if (!saved) return false;
         try {
             const progress = JSON.parse(saved);
-            if (progress.topicsState && configData) {
-                for (let i = 0; i < configData.length && i < progress.topicsState.length; i++) {
-                    if (progress.topicsState[i].edited) {
-                        configData[i].example = progress.topicsState[i].example;
+            if (progress.editedTopics && configData) {
+                // Восстанавливаем метки отредактированных тем
+                for (let topic of configData) {
+                    if (progress.editedTopics.includes(topic.id)) {
+                        if (!topic.example) topic.example = '';
+                        if (!topic.example.includes(EDITED_MARKER)) {
+                            topic.example = EDITED_MARKER + '\n' + (topic.example || '');
+                        }
                     }
                 }
-                currentIndex = progress.currentIndex;
-                currentFilteredPos = progress.currentFilteredPos;
-                log(`Прогресс восстановлен из localStorage`);
+                currentIndex = progress.currentIndex || 0;
+                currentFilteredPos = progress.currentFilteredPos || 0;
+                log(`Прогресс восстановлен из localStorage (отредактировано: ${progress.editedTopics.length} тем)`);
                 return true;
             }
-        } catch(e) { }
+        } catch(e) { 
+            log(`Ошибка загрузки прогресса: ${e.message}`, true);
+        }
         return false;
     }
 
@@ -369,7 +358,7 @@
             const topic = configData[i];
             const example = topic.example || '';
             if (example.includes(EDITED_MARKER)) continue;
-            const isPlaceholder = !example || example.includes('В разработке') || example.trim() === '';
+            const isPlaceholder = !example || example.includes('В разработке') || example.trim() === '' || example === '<!-- Пример отсутствует -->';
             if (isPlaceholder && (!topic.keywords || topic.keywords.length === 0)) continue;
             filteredIndices.push(i);
         }
@@ -475,7 +464,7 @@
         let promptText = '';
         
         if (!isPlaceholder && !exampleCode.includes(EDITED_MARKER)) {
-            promptText = `${STANDARDIZE_INSTRUCTION}\n\n--- ИСХОДНЫЙ КОД ---\n${exampleCode}\n--- КОНЕЦ КОДА ---\n\nПриведи код к стандарту и добавь метку ${EDITED_MARKER}.`;
+            promptText = `${STANDARDIZE_INSTRUCTION}\n\n--- ИСХОДНЫЙ КОД ---\n${exampleCode}\n--- КОНЕЦ КОДА ---`;
         } else if (isPlaceholder) {
             let description = `Тема: ${topic.name}\nКласс: ${topic.gradeLevel || '?'}\nКлючевые слова: ${(topic.keywords || []).join(', ')}`;
             promptText = WRITE_INSTRUCTION
@@ -483,16 +472,15 @@
                 .replace('%GRADE%', topic.gradeLevel || '?')
                 .replace('%KEYWORDS%', (topic.keywords || []).join(', '))
                 .replace('%DESCRIPTION%', description);
-            promptText += `\n\nСоздай полноценный интерактивный пример.`;
         } else {
-            log(`Тема "${topic.name}" уже отредактирована, промпт не нужен`, false);
+            log(`Тема "${topic.name}" уже отредактирована`, false);
             return;
         }
 
         try {
             await navigator.clipboard.writeText(promptText);
             log(`✅ Промпт скопирован для темы "${topic.name}"`);
-            statusMsgSpan.innerHTML = `📋 Промпт скопирован! Вставьте в нейросеть и нажмите "Следующая (+сохранить)"`;
+            statusMsgSpan.innerHTML = `📋 Промпт скопирован!`;
         } catch (err) {
             const textarea = document.createElement('textarea');
             textarea.value = promptText;
@@ -504,70 +492,75 @@
         }
     }
 
-    // ==================== ЗАГРУЗКА ИЗ GITHUB (исправленная: /config.json и raw fallback) ====================
+    // ==================== ЗАГРУЗКА ИЗ GITHUB (как в примере MathFrame) ====================
     async function loadFromGitHub() {
         log('Загрузка config.json из GitHub...');
         statusMsgSpan.innerHTML = '⏳ Загрузка из GitHub...';
         try {
-            let response;
-            // Пробуем абсолютный путь от корня сайта (работает на GitHub Pages)
-            response = await fetch('/config.json');
+            // Пробуем тот же метод, что и в MathFrame — относительный путь
+            let response = await fetch('./config.json');
+            
             if (!response.ok) {
-                // Если нет, пробуем относительно текущей папки
-                response = await fetch('./config.json');
-            }
-            if (!response.ok) {
-                // Последний шанс: raw.githubusercontent.com
-                log('Не найден локально, загружаем через raw.githubusercontent...');
+                // Если не работает, пробуем raw.githubusercontent
+                log('Относительный путь не сработал, пробуем raw.githubusercontent...');
                 response = await fetch(`https://raw.githubusercontent.com/${GITHUB_OWNER}/${GITHUB_REPO}/${GITHUB_BRANCH}/${GITHUB_PATH}`);
-                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                if (!response.ok) throw new Error(`HTTP ${response.status} - файл не найден в репозитории`);
             }
+            
             const json = await response.json();
-            if (!Array.isArray(json)) throw new Error('Ответ не массив');
-            applyConfig(json);
+            if (!Array.isArray(json)) throw new Error('Ответ не является массивом');
+            
+            configData = json;
+            // Нормализация полей
+            configData.forEach(t => {
+                if (!t.keywords) t.keywords = [];
+                if (!t.icon) t.icon = 'fa-file-alt';
+                if (!t.example) t.example = t.example || '<!-- Пример отсутствует -->';
+                if (!t.description) t.description = '';
+                if (!t.gradeLevel) t.gradeLevel = 3;
+            });
+            
+            currentIndex = 0;
+            currentFilteredPos = 0;
+            // Загружаем прогресс (только метки отредактированных)
+            loadProgress();
+            rebuildFilteredList();
+            if (filteredIndices.length > 0 && !filteredIndices.includes(currentIndex)) {
+                currentIndex = filteredIndices[0];
+                currentFilteredPos = 0;
+            }
+            displayCurrentTopic();
+            
+            log(`✅ Загружено ${configData.length} тем из GitHub`);
+            statusMsgSpan.innerHTML = `📥 Загружено из GitHub: ${configData.length} тем`;
+            
+            if (filteredIndices.length > 0) {
+                copyPromptForCurrentTopic();
+            }
         } catch (err) {
             log(`Ошибка загрузки: ${err.message}`, true);
-            statusMsgSpan.innerHTML = `❌ Ошибка: ${err.message}`;
-            // Пробуем локальный кеш
-            if (localStorage.getItem(STORAGE_KEY)) {
-                log('Восстановление из локального кеша...');
-                if (loadProgress() && configData) {
-                    rebuildFilteredList();
-                    displayCurrentTopic();
-                    log('Восстановлен локальный прогресс');
-                    statusMsgSpan.innerHTML = `⚠️ GitHub недоступен, загружен локальный кеш`;
-                } else {
-                    log('Нет локального кеша.', true);
-                }
-            } else {
-                log('Нет локального кеша. Используйте кнопку "Загрузить конфиг" или проверьте соединение.', true);
-            }
-        }
-    }
-
-    function applyConfig(json) {
-        configData = json;
-        // Нормализация полей
-        configData.forEach(t => {
-            if (!t.keywords) t.keywords = [];
-            if (!t.icon) t.icon = 'fa-file-alt';
-            if (!t.example) t.example = t.example || '<!-- Пример отсутствует -->';
-            if (!t.description) t.description = '';
-            if (!t.gradeLevel) t.gradeLevel = 3;
-        });
-        currentIndex = 0;
-        currentFilteredPos = 0;
-        rebuildFilteredList();
-        if (filteredIndices.length > 0) {
-            currentIndex = filteredIndices[0];
+            statusMsgSpan.innerHTML = `❌ Файл config.json не найден в репозитории`;
+            
+            // Создаём демо-конфиг если файла нет
+            const demoConfig = [
+                { id: "treugolnik", name: "Треугольник", keywords: ["треугольник", "углы"], gradeLevel: 7, example: "<!-- Треугольник -->\n<div>Пример треугольника</div>", description: "Изучаем треугольники" },
+                { id: "pryamougolnik", name: "Прямоугольник", keywords: ["прямоугольник", "стороны"], gradeLevel: 5, example: "<!-- Прямоугольник -->\n<div>Пример прямоугольника</div>", description: "Изучаем прямоугольники" }
+            ];
+            configData = demoConfig;
+            configData.forEach(t => {
+                t.keywords = t.keywords || [];
+                t.icon = 'fa-file-alt';
+                t.example = t.example || '<!-- Пример отсутствует -->';
+                t.description = t.description || '';
+                t.gradeLevel = t.gradeLevel || 5;
+            });
+            currentIndex = 0;
             currentFilteredPos = 0;
-        }
-        displayCurrentTopic();
-        saveProgress();
-        log(`✅ Загружено ${configData.length} тем из GitHub`);
-        statusMsgSpan.innerHTML = `📥 Загружено из GitHub: ${configData.length} тем`;
-        if (filteredIndices.length > 0) {
-            copyPromptForCurrentTopic();
+            rebuildFilteredList();
+            displayCurrentTopic();
+            log('Создан демо-конфиг. Сохраните его в GitHub кнопкой выше.');
+            statusMsgSpan.innerHTML = `📁 Создан демо-конфиг (2 темы). Сохраните в GitHub!`;
+            if (filteredIndices.length > 0) copyPromptForCurrentTopic();
         }
     }
 
@@ -612,12 +605,12 @@
             });
             if (!putRes.ok) {
                 const errorText = await putRes.text();
-                throw new Error(`PUT ${putRes.status}: ${errorText}`);
+                throw new Error(`PUT ${putRes.status}`);
             }
-            log(`✅ Конфиг успешно сохранён в GitHub (${new Date().toLocaleTimeString()})`);
+            log(`✅ Конфиг сохранён в GitHub (${new Date().toLocaleTimeString()})`);
             statusMsgSpan.innerHTML = `✅ Сохранено в GitHub (${configData.length} тем)`;
         } catch (err) {
-            log(`Ошибка сохранения в GitHub: ${err.message}`, true);
+            log(`Ошибка сохранения: ${err.message}`, true);
             statusMsgSpan.innerHTML = `❌ Ошибка сохранения в GitHub`;
         }
     }
@@ -645,7 +638,6 @@
                     currentFilteredPos = 0;
                 }
                 displayCurrentTopic();
-                saveProgress();
                 log(`Загружено ${configData.length} тем из файла`);
                 statusMsgSpan.innerHTML = `📁 Загружено ${configData.length} тем.`;
                 if (filteredIndices.length > 0) copyPromptForCurrentTopic();
@@ -688,9 +680,7 @@
         const errors = validateCode(code);
         if (errors.length) {
             log(`⚠️ Найдены проблемы:\n${errors.join('\n')}`, true);
-            const errorMsg = `Ошибки в коде темы "${configData[currentIndex].name}":\n${errors.join('\n')}`;
-            navigator.clipboard.writeText(errorMsg).catch(()=>{});
-            statusMsgSpan.innerHTML = '❗ Обнаружены ошибки — список скопирован';
+            statusMsgSpan.innerHTML = '❗ Обнаружены ошибки';
             return false;
         } else {
             log('✅ Код проходит базовую проверку');
