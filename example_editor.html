@@ -229,7 +229,7 @@
     const STORAGE_KEY = 'geometry_editor_progress';
     const EDITED_MARKER = '<!-- __EDITED__ -->';
 
-    // GitHub параметры (те же, что в вашем примере)
+    // GitHub параметры
     const GITHUB_TOKEN = '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';
     const GITHUB_OWNER = 'DaniksGames5242';
     const GITHUB_REPO = 'MathFrame.github.io';
@@ -291,7 +291,6 @@
     const statusMsgSpan = document.getElementById('statusMsg');
     const consoleLogDiv = document.getElementById('consoleLog');
 
-    // Логирование
     function log(message, isError = false) {
         const prefix = isError ? '⚠️ ' : 'ℹ️ ';
         consoleLogDiv.innerHTML += `<div style="color: ${isError ? '#ff9999' : '#aaffaa'}">${prefix}${message}</div>`;
@@ -299,7 +298,6 @@
         console.log(message);
     }
 
-    // Сохранение прогресса
     function saveProgress() {
         if (!configData) return;
         const progress = {
@@ -466,7 +464,6 @@
             log(`✅ Промпт скопирован для темы "${topic.name}"`);
             statusMsgSpan.innerHTML = `📋 Промпт скопирован! Вставьте в нейросеть и нажмите "Следующая (+сохранить)"`;
         } catch (err) {
-            // fallback
             const textarea = document.createElement('textarea');
             textarea.value = promptText;
             document.body.appendChild(textarea);
@@ -477,56 +474,59 @@
         }
     }
 
-    // ==================== GITHUB ЗАГРУЗКА ====================
+    // ==================== GITHUB ЗАГРУЗКА (публичная, без токена) ====================
     async function loadFromGitHub() {
-        log('Загрузка config.json из GitHub...');
+        log('Загрузка config.json из GitHub (публичный репозиторий)...');
         statusMsgSpan.innerHTML = '⏳ Загрузка из GitHub...';
         try {
-            // Пробуем с токеном (как в примере)
+            // Запрос без токена — только для чтения публичного репозитория
             const response = await fetch(`https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${GITHUB_PATH}`, {
                 headers: {
-                    'Authorization': `token ${GITHUB_TOKEN}`,
                     'Accept': 'application/vnd.github.v3+json',
                     'User-Agent': 'GeometryEditor/1.0'
                 }
             });
             
             if (!response.ok) {
-                // Если 401 или 404, пробуем без токена (для публичных репозиториев)
-                if (response.status === 401 || response.status === 404) {
-                    log(`Попытка без токена (статус ${response.status})...`);
-                    const publicResponse = await fetch(`https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${GITHUB_PATH}`, {
-                        headers: { 'Accept': 'application/vnd.github.v3+json', 'User-Agent': 'GeometryEditor/1.0' }
-                    });
-                    if (!publicResponse.ok) throw new Error(`HTTP ${publicResponse.status}`);
-                    const publicData = await publicResponse.json();
-                    if (!publicData.content) throw new Error('Файл пуст');
-                    const content = atob(publicData.content);
-                    const json = JSON.parse(content);
-                    applyConfig(json);
+                if (response.status === 404) {
+                    log('Файл config.json не найден в репозитории. Создаём демо-конфиг.', false);
+                    const demoConfig = [
+                        { 
+                            id: "treugolnik", 
+                            name: "Треугольник", 
+                            keywords: ["треугольник", "углы"], 
+                            gradeLevel: 7, 
+                            example: "<!-- Треугольник -->\n<div>Пример треугольника</div>", 
+                            description: "Изучаем треугольники" 
+                        }
+                    ];
+                    applyConfig(demoConfig);
                     return;
                 }
                 throw new Error(`HTTP ${response.status} ${response.statusText}`);
             }
             
             const data = await response.json();
-            if (!data.content) throw new Error('Файл не содержит content');
+            if (!data.content) {
+                throw new Error('Ответ GitHub не содержит поля content');
+            }
+            // Декодируем base64
             const content = atob(data.content);
             const json = JSON.parse(content);
             applyConfig(json);
         } catch (err) {
             log(`Ошибка загрузки из GitHub: ${err.message}`, true);
             statusMsgSpan.innerHTML = `❌ Ошибка GitHub: ${err.message}`;
-            // Пробуем загрузить из localStorage как fallback
+            // Пробуем локальный кеш
             if (localStorage.getItem(STORAGE_KEY)) {
-                log('Пытаемся восстановить последний сохранённый прогресс...');
+                log('Восстановление из локального кеша...');
                 if (loadProgress() && configData) {
                     rebuildFilteredList();
                     displayCurrentTopic();
                     log('Восстановлен локальный прогресс');
                     statusMsgSpan.innerHTML = `⚠️ GitHub недоступен, загружен локальный кеш`;
                 } else {
-                    log('Нет локального кеша. Создайте конфиг вручную или загрузите файл.', true);
+                    log('Нет локального кеша.', true);
                 }
             } else {
                 log('Нет локального кеша. Используйте кнопку "Загрузить конфиг" или проверьте соединение.', true);
@@ -562,7 +562,7 @@
         }
     }
 
-    // Сохранение в GitHub (работает, как в вашем примере)
+    // ==================== СОХРАНЕНИЕ В GITHUB (с токеном) ====================
     async function saveToGitHub() {
         if (!configData) {
             log('Нет данных для сохранения', true);
@@ -572,10 +572,13 @@
         
         log('Сохранение в GitHub...');
         try {
-            // Получаем sha текущего файла
+            // Получаем sha текущего файла (с токеном)
             let sha = null;
             const getRes = await fetch(`https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${GITHUB_PATH}`, {
-                headers: { 'Authorization': `token ${GITHUB_TOKEN}`, 'Accept': 'application/vnd.github.v3+json' }
+                headers: { 
+                    'Authorization': `token ${GITHUB_TOKEN}`,
+                    'Accept': 'application/vnd.github.v3+json'
+                }
             });
             if (getRes.ok) {
                 const fileData = await getRes.json();
