@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Редактор геометрических примеров · Тёмная тема + GitHub</title>
+    <title>Редактор геометрических примеров · GitHub sync</title>
     <style>
         * {
             margin: 0;
@@ -214,32 +214,29 @@
             <button id="copyPromptBtn" class="copy-prompt-btn">📋 Копировать промпт</button>
             <button id="nextSaveBtn">Следующая (+сохранить) ▶</button>
         </div>
-        <div class="status" id="statusMsg">💡 Загрузите JSON-конфиг</div>
-        <div class="console" id="consoleLog">[Система] Ожидание загрузки конфига...</div>
+        <div class="status" id="statusMsg">💡 Загрузка конфига из GitHub...</div>
+        <div class="console" id="consoleLog">[Система] Инициализация...</div>
     </div>
 </div>
 
 <script>
     // ---------------------- Конфигурация -------------------------
-    let configData = null;          // массив тем
-    let currentIndex = 0;           // индекс текущей темы (в исходном порядке)
-    let filteredIndices = [];        // индексы тем, которые ещё НЕ отредактированы
-    let currentFilteredPos = 0;     // позиция в filteredIndices
+    let configData = null;
+    let currentIndex = 0;
+    let filteredIndices = [];
+    let currentFilteredPos = 0;
 
-    // Ключ для localStorage (сохранение прогресса)
     const STORAGE_KEY = 'geometry_editor_progress';
-
-    // Метка, сигнализирующая, что код уже приведён к стандарту (отредактирован)
     const EDITED_MARKER = '<!-- __EDITED__ -->';
 
-    // GitHub параметры (как в примере)
+    // GitHub параметры (те же, что в вашем примере)
     const GITHUB_TOKEN = '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';
     const GITHUB_OWNER = 'DaniksGames5242';
     const GITHUB_REPO = 'MathFrame.github.io';
     const GITHUB_PATH = 'config.json';
     const GITHUB_BRANCH = 'main';
 
-    // Инструкция по ПРИВЕДЕНИЮ кода к стандарту (для существующего примера)
+    // Промпты
     const STANDARDIZE_INSTRUCTION = `
 Ты — эксперт по геометрии и фронтенд-разработке. Ниже приведён HTML-код интерактивного геометрического примера.
 Приведи этот код в строгое соответствие со следующим стандартом:
@@ -259,7 +256,6 @@
 Выдай ТОЛЬКО исправленный HTML-код (без лишних пояснений).
 `;
 
-    // Инструкция по НАПИСАНИЮ нового примера
     const WRITE_INSTRUCTION = `
 Ты — эксперт по геометрии и фронтенд-разработке. Тебе нужно создать полноценный интерактивный HTML-пример для следующей темы:
 
@@ -280,7 +276,7 @@
 Выдай ТОЛЬКО готовый HTML-код (без лишних пояснений).
 `;
 
-    // Элементы DOM
+    // DOM элементы
     const loadBtn = document.getElementById('loadBtn');
     const loadConfigInput = document.getElementById('loadConfig');
     const downloadBtn = document.getElementById('downloadBtn');
@@ -295,18 +291,15 @@
     const statusMsgSpan = document.getElementById('statusMsg');
     const consoleLogDiv = document.getElementById('consoleLog');
 
-    // Вспомогательные функции логирования
+    // Логирование
     function log(message, isError = false) {
         const prefix = isError ? '⚠️ ' : 'ℹ️ ';
         consoleLogDiv.innerHTML += `<div style="color: ${isError ? '#ff9999' : '#aaffaa'}">${prefix}${message}</div>`;
         consoleLogDiv.scrollTop = consoleLogDiv.scrollHeight;
+        console.log(message);
     }
 
-    function clearLog() {
-        consoleLogDiv.innerHTML = '';
-    }
-
-    // Сохранение прогресса в localStorage
+    // Сохранение прогресса
     function saveProgress() {
         if (!configData) return;
         const progress = {
@@ -319,10 +312,8 @@
             }))
         };
         localStorage.setItem(STORAGE_KEY, JSON.stringify(progress));
-        log(`Прогресс сохранён (тема ${currentIndex+1}/${configData.length})`);
     }
 
-    // Загрузка прогресса из localStorage
     function loadProgress() {
         const saved = localStorage.getItem(STORAGE_KEY);
         if (!saved) return false;
@@ -339,11 +330,10 @@
                 log(`Прогресс восстановлен из localStorage`);
                 return true;
             }
-        } catch(e) {}
+        } catch(e) { }
         return false;
     }
 
-    // Перестроить список неотредактированных тем
     function rebuildFilteredList() {
         if (!configData) return;
         filteredIndices = [];
@@ -355,7 +345,6 @@
             if (isPlaceholder && (!topic.keywords || topic.keywords.length === 0)) continue;
             filteredIndices.push(i);
         }
-        // Синхронизация позиции
         if (filteredIndices.length > 0 && !filteredIndices.includes(currentIndex)) {
             currentIndex = filteredIndices[0];
             currentFilteredPos = 0;
@@ -368,7 +357,6 @@
         log(`Неотредактированных тем: ${filteredIndices.length}`);
     }
 
-    // Отобразить текущую тему
     function displayCurrentTopic() {
         if (!configData || configData.length === 0) {
             topicNameSpan.innerText = '—';
@@ -396,7 +384,6 @@
         }
     }
 
-    // Сохранить текущий код из textarea в конфиг
     function saveCurrentCode() {
         if (!configData) return false;
         const newCode = codeEditor.value;
@@ -411,7 +398,6 @@
         return true;
     }
 
-    // Перейти к следующей неотредактированной теме (и сохранить текущую)
     function nextTopic() {
         if (!configData) return;
         saveCurrentCode();
@@ -437,7 +423,6 @@
         saveProgress();
     }
 
-    // Перейти к предыдущей теме
     function prevTopic() {
         if (!configData) return;
         if (currentIndex <= 0) {
@@ -451,7 +436,6 @@
         saveProgress();
     }
 
-    // Копирование промпта в буфер обмена
     async function copyPromptForCurrentTopic() {
         if (!configData) {
             log('Нет загруженного конфига', true);
@@ -480,8 +464,9 @@
         try {
             await navigator.clipboard.writeText(promptText);
             log(`✅ Промпт скопирован для темы "${topic.name}"`);
-            statusMsgSpan.innerHTML = `📋 Промпт скопирован! Вставьте в нейросеть, получите код и нажмите "Следующая (+сохранить)"`;
+            statusMsgSpan.innerHTML = `📋 Промпт скопирован! Вставьте в нейросеть и нажмите "Следующая (+сохранить)"`;
         } catch (err) {
+            // fallback
             const textarea = document.createElement('textarea');
             textarea.value = promptText;
             document.body.appendChild(textarea);
@@ -492,64 +477,105 @@
         }
     }
 
-    // ==================== GITHUB ИНТЕГРАЦИЯ ====================
+    // ==================== GITHUB ЗАГРУЗКА ====================
     async function loadFromGitHub() {
         log('Загрузка config.json из GitHub...');
+        statusMsgSpan.innerHTML = '⏳ Загрузка из GitHub...';
         try {
+            // Пробуем с токеном (как в примере)
             const response = await fetch(`https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${GITHUB_PATH}`, {
-                headers: { 'Authorization': `token ${GITHUB_TOKEN}` }
+                headers: {
+                    'Authorization': `token ${GITHUB_TOKEN}`,
+                    'Accept': 'application/vnd.github.v3+json',
+                    'User-Agent': 'GeometryEditor/1.0'
+                }
             });
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            
+            if (!response.ok) {
+                // Если 401 или 404, пробуем без токена (для публичных репозиториев)
+                if (response.status === 401 || response.status === 404) {
+                    log(`Попытка без токена (статус ${response.status})...`);
+                    const publicResponse = await fetch(`https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${GITHUB_PATH}`, {
+                        headers: { 'Accept': 'application/vnd.github.v3+json', 'User-Agent': 'GeometryEditor/1.0' }
+                    });
+                    if (!publicResponse.ok) throw new Error(`HTTP ${publicResponse.status}`);
+                    const publicData = await publicResponse.json();
+                    if (!publicData.content) throw new Error('Файл пуст');
+                    const content = atob(publicData.content);
+                    const json = JSON.parse(content);
+                    applyConfig(json);
+                    return;
+                }
+                throw new Error(`HTTP ${response.status} ${response.statusText}`);
+            }
+            
             const data = await response.json();
-            if (!data.content) throw new Error('Файл не найден');
+            if (!data.content) throw new Error('Файл не содержит content');
             const content = atob(data.content);
             const json = JSON.parse(content);
-            if (!Array.isArray(json)) throw new Error('Не массив');
-            
-            configData = json;
-            // Нормализация полей
-            configData.forEach(t => {
-                if (!t.keywords) t.keywords = [];
-                if (!t.icon) t.icon = 'fa-file-alt';
-                if (!t.example) t.example = t.example || '<!-- Пример отсутствует -->';
-                if (!t.description) t.description = '';
-                if (!t.gradeLevel) t.gradeLevel = 3;
-            });
-            currentIndex = 0;
-            currentFilteredPos = 0;
-            rebuildFilteredList();
-            if (filteredIndices.length > 0) {
-                currentIndex = filteredIndices[0];
-                currentFilteredPos = 0;
-            }
-            displayCurrentTopic();
-            saveProgress(); // сохраняем в localStorage копию
-            log(`✅ Загружено ${configData.length} тем из GitHub`);
-            statusMsgSpan.innerHTML = `📥 Загружено из GitHub: ${configData.length} тем`;
-            // Автокопирование промпта для первой неотредактированной
-            if (filteredIndices.length > 0) {
-                copyPromptForCurrentTopic();
-            }
+            applyConfig(json);
         } catch (err) {
             log(`Ошибка загрузки из GitHub: ${err.message}`, true);
-            statusMsgSpan.innerHTML = `❌ Ошибка загрузки из GitHub: ${err.message}`;
+            statusMsgSpan.innerHTML = `❌ Ошибка GitHub: ${err.message}`;
+            // Пробуем загрузить из localStorage как fallback
+            if (localStorage.getItem(STORAGE_KEY)) {
+                log('Пытаемся восстановить последний сохранённый прогресс...');
+                if (loadProgress() && configData) {
+                    rebuildFilteredList();
+                    displayCurrentTopic();
+                    log('Восстановлен локальный прогресс');
+                    statusMsgSpan.innerHTML = `⚠️ GitHub недоступен, загружен локальный кеш`;
+                } else {
+                    log('Нет локального кеша. Создайте конфиг вручную или загрузите файл.', true);
+                }
+            } else {
+                log('Нет локального кеша. Используйте кнопку "Загрузить конфиг" или проверьте соединение.', true);
+            }
         }
     }
 
+    function applyConfig(json) {
+        if (!Array.isArray(json)) throw new Error('JSON не является массивом');
+        configData = json;
+        // Нормализация полей
+        configData.forEach(t => {
+            if (!t.keywords) t.keywords = [];
+            if (!t.icon) t.icon = 'fa-file-alt';
+            if (!t.example) t.example = t.example || '<!-- Пример отсутствует -->';
+            if (!t.description) t.description = '';
+            if (!t.gradeLevel) t.gradeLevel = 3;
+        });
+        currentIndex = 0;
+        currentFilteredPos = 0;
+        rebuildFilteredList();
+        if (filteredIndices.length > 0) {
+            currentIndex = filteredIndices[0];
+            currentFilteredPos = 0;
+        }
+        displayCurrentTopic();
+        saveProgress(); // сохраняем локально
+        log(`✅ Загружено ${configData.length} тем из GitHub`);
+        statusMsgSpan.innerHTML = `📥 Загружено из GitHub: ${configData.length} тем`;
+        // Автокопирование промпта для первой неотредактированной
+        if (filteredIndices.length > 0) {
+            copyPromptForCurrentTopic();
+        }
+    }
+
+    // Сохранение в GitHub (работает, как в вашем примере)
     async function saveToGitHub() {
         if (!configData) {
             log('Нет данных для сохранения', true);
             return;
         }
-        // Предупреждение (имитируем подтверждение из примера)
-        if (!confirm('ВНИМАНИЕ! Вы собираетесь перезаписать config.json в репозитории GitHub.\nПродолжить?')) return;
+        if (!confirm('ВНИМАНИЕ! Вы перезаписываете config.json в репозитории GitHub. Продолжить?')) return;
         
         log('Сохранение в GitHub...');
         try {
-            // Получаем текущий sha файла (для обновления)
+            // Получаем sha текущего файла
             let sha = null;
             const getRes = await fetch(`https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${GITHUB_PATH}`, {
-                headers: { 'Authorization': `token ${GITHUB_TOKEN}` }
+                headers: { 'Authorization': `token ${GITHUB_TOKEN}`, 'Accept': 'application/vnd.github.v3+json' }
             });
             if (getRes.ok) {
                 const fileData = await getRes.json();
@@ -585,7 +611,7 @@
         }
     }
 
-    // Загрузка конфига из локального файла
+    // Локальные файлы
     function loadConfigFromFile(file) {
         const reader = new FileReader();
         reader.onload = function(e) {
@@ -619,7 +645,6 @@
         reader.readAsText(file);
     }
 
-    // Скачать конфиг локально
     function downloadConfig() {
         if (!configData) {
             log('Нет данных для скачивания', true);
@@ -638,12 +663,11 @@
         log('Конфиг скачан локально');
     }
 
-    // Валидация кода (простая)
     function validateCode(code) {
         const errors = [];
         if (!code.includes('<canvas')) errors.push('Отсутствует <canvas>');
         if (!code.includes('addEventListener') && !code.includes('onPointer')) errors.push('Нет обработчиков перетаскивания');
-        if (!code.includes(EDITED_MARKER)) errors.push(`Нет маркера ${EDITED_MARKER} (не отмечено как отредактированное)`);
+        if (!code.includes(EDITED_MARKER)) errors.push(`Нет маркера ${EDITED_MARKER}`);
         if (code.includes('В разработке')) errors.push('Присутствует заглушка "В разработке"');
         return errors;
     }
@@ -670,22 +694,6 @@
         nextTopic();
     }
 
-    // Автозагрузка из GitHub при старте (если не получится — попробуем localStorage)
-    async function autoLoadFromGitHub() {
-        try {
-            await loadFromGitHub();
-        } catch (e) {
-            log('Не удалось загрузить из GitHub, пробуем localStorage', true);
-            if (loadProgress()) {
-                rebuildFilteredList();
-                displayCurrentTopic();
-                log('Восстановлен локальный прогресс');
-            } else {
-                log('Нет сохранённых данных. Загрузите конфиг вручную.', true);
-            }
-        }
-    }
-
     // Инициализация событий
     loadBtn.addEventListener('click', () => loadConfigInput.click());
     loadConfigInput.addEventListener('change', (e) => {
@@ -699,9 +707,8 @@
     loadFromGitHubBtn.addEventListener('click', loadFromGitHub);
     saveToGitHubBtn.addEventListener('click', saveToGitHub);
 
-    // Старт: пытаемся загрузить из GitHub, иначе локальный прогресс
-    autoLoadFromGitHub();
-    log('Редактор готов. Кнопки GitHub активны.');
+    // Автозагрузка при старте
+    loadFromGitHub();
 </script>
 </body>
 </html>
