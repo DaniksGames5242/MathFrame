@@ -1,699 +1,1028 @@
 <!DOCTYPE html>
 <html lang="ru">
-<head>
+<head> 
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Редактор геометрических примеров · GitHub sync</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            user-select: none;
-            -webkit-tap-highlight-color: transparent;
-        }
-
-        body {
-            min-height: 100vh;
-            background: #0a0c12;
-            font-family: 'Segoe UI', 'Montserrat', system-ui, sans-serif;
-            padding: 1rem;
-            color: #e3e3e8;
-        }
-
-        .container {
-            max-width: 1000px;
-            margin: 0 auto;
-            background: #12141c;
-            border-radius: 20px;
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-            overflow: hidden;
-            border: 1px solid #2a2e3a;
-        }
-
-        .header {
-            background: #1e2230;
-            color: white;
-            padding: 1rem;
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: space-between;
-            align-items: center;
-            gap: 0.8rem;
-            border-bottom: 1px solid #2a2e3a;
-        }
-
-        .title {
-            font-weight: 900;
-            font-size: 1.3rem;
-            letter-spacing: 0.05em;
-            color: #b7c9ff;
-        }
-
-        .file-buttons {
-            display: flex;
-            gap: 0.6rem;
-            flex-wrap: wrap;
-        }
-
-        button {
-            background: #2a2e3a;
-            border: 1px solid #4a5060;
-            color: #eef2ff;
-            padding: 0.4rem 1rem;
-            border-radius: 30px;
-            font-size: 0.8rem;
-            cursor: pointer;
-            font-weight: 600;
-            transition: 0.1s;
-        }
-
-        button:hover {
-            background: #3a4050;
-            border-color: #6a7080;
-        }
-
-        .github-buttons button {
-            background: #2a3a4a;
-            border-color: #4a6a8a;
-        }
-
-        .github-buttons button:hover {
-            background: #3a5a6a;
-        }
-
-        .main {
-            padding: 1rem;
-        }
-
-        .topic-header {
-            background: #1a1e28;
-            padding: 1rem;
-            border-radius: 16px;
-            margin-bottom: 1rem;
-            border: 1px solid #2a2e3a;
-        }
-
-        .topic-name {
-            font-size: 1.5rem;
-            font-weight: 800;
-            margin-bottom: 0.3rem;
-            color: #d6e6ff;
-        }
-
-        .topic-meta {
-            font-size: 0.8rem;
-            color: #8a9bc0;
-            display: flex;
-            flex-wrap: wrap;
-            gap: 1rem;
-            margin-top: 0.3rem;
-        }
-
-        .code-area {
-            margin: 1rem 0;
-        }
-
-        textarea {
-            width: 100%;
-            min-height: 400px;
-            font-family: 'Courier New', monospace;
-            font-size: 12px;
-            padding: 0.8rem;
-            border: 1px solid #2a2e3a;
-            border-radius: 12px;
-            background: #0f1119;
-            color: #eef2ff;
-            resize: vertical;
-        }
-
-        textarea:focus {
-            outline: none;
-            border-color: #5a7a9a;
-        }
-
-        .nav-buttons {
-            display: flex;
-            justify-content: space-between;
-            gap: 1rem;
-            margin-top: 1rem;
-            flex-wrap: wrap;
-        }
-
-        .nav-buttons button {
-            background: #2a3a4a;
-            color: white;
-            border: none;
-            padding: 0.6rem 1.2rem;
-            font-size: 0.9rem;
-            flex: 1;
-            min-width: 120px;
-        }
-
-        .nav-buttons button:active {
-            transform: scale(0.97);
-        }
-
-        .copy-prompt-btn {
-            background: #4a6a8a !important;
-        }
-
-        .console {
-            background: #0a0c10;
-            color: #6ef0a0;
-            font-family: monospace;
-            font-size: 12px;
-            padding: 0.8rem;
-            border-radius: 12px;
-            margin-top: 1rem;
-            max-height: 150px;
-            overflow-y: auto;
-            white-space: pre-wrap;
-            border: 1px solid #2a2e3a;
-        }
-
-        .status {
-            font-size: 0.75rem;
-            margin-top: 0.5rem;
-            color: #8ab3ff;
-            text-align: center;
-        }
-
-        @media (max-width: 700px) {
-            .topic-name { font-size: 1.2rem; }
-            textarea { min-height: 300px; font-size: 10px; }
-            button { padding: 0.3rem 0.8rem; font-size: 0.7rem; }
-            .nav-buttons button { padding: 0.5rem 0.8rem; font-size: 0.8rem; }
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <title>MathFrame | Образовательная платформа с ИИ</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700;14..32,800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style> 
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body { font-family: 'Inter', sans-serif; background: linear-gradient(145deg, #f0f4fa 0%, #e6ecf4 100%); color: #1a2c3e; height: 100vh; overflow: hidden; max-width: 100vw; overflow-x: hidden; }
+        
+        /* Анимации загрузки */
+        .loading-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: radial-gradient(circle at 30% 20%, #1e3a5f, #0a1a2f); display: flex; align-items: center; justify-content: center; z-index: 10000; transition: opacity 0.8s cubic-bezier(0.2, 0.9, 0.4, 1.1), visibility 0.8s; }
+        .loading-spinner { text-align: center; animation: floatPulse 2s infinite ease-in-out; filter: drop-shadow(0 0 20px rgba(0, 160, 255, 0.6)); }
+        .loading-spinner i { font-size: 5rem; color: #7bc5ff; animation: spin3D 1.2s infinite cubic-bezier(0.45, 0.05, 0.55, 0.95), glowPulse 1.6s infinite; display: inline-block; }
+        .loading-spinner p { margin-top: 24px; font-weight: 700; background: linear-gradient(135deg, #ffffff, #b8e1ff, #ffffff); background-size: 200% auto; -webkit-background-clip: text; background-clip: text; color: transparent; animation: shineMove 2s linear infinite, scaleSoft 1.4s infinite; letter-spacing: -0.3px; font-size: 1.3rem; }
+        @keyframes spin3D { 0% { transform: rotateY(0deg) rotateX(0deg) scale(1); } 50% { transform: rotateY(180deg) rotateX(12deg) scale(1.08); } 100% { transform: rotateY(360deg) rotateX(0deg) scale(1); } }
+        @keyframes glowPulse { 0% { text-shadow: 0 0 0px rgba(123,197,255,0); } 50% { text-shadow: 0 0 20px rgba(123,197,255,0.8); } 100% { text-shadow: 0 0 0px rgba(123,197,255,0); } }
+        @keyframes shineMove { 0% { background-position: 0% 50%; } 100% { background-position: 200% 50%; } }
+        @keyframes scaleSoft { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.03); } }
+        @keyframes floatPulse { 0% { transform: translateY(0px); } 50% { transform: translateY(-12px); } 100% { transform: translateY(0px); } }
+        
+        .app { display: flex; flex-direction: column; height: 100vh; width: 100%; opacity: 0; transform: scale(0.98); transition: opacity 0.6s cubic-bezier(0.2, 0.9, 0.4, 1.2), transform 0.6s; max-width: 100vw; overflow-x: hidden; }
+        .app.content-visible { opacity: 1; transform: scale(1); }
+        
+        /* Верхняя панель */
+        .top-bar { background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(10px); border-bottom: 1px solid rgba(226, 232, 240, 0.8); padding: 10px 24px; display: flex; align-items: center; justify-content: space-between; gap: 20px; z-index: 30; flex-shrink: 0; }
+        .logo-area { display: flex; align-items: center; gap: 16px; }
+        .menu-toggle { background: rgba(255, 255, 255, 0.9); border: 1px solid rgba(203, 213, 225, 0.5); width: 40px; height: 40px; border-radius: 14px; cursor: pointer; color: #2c6b9e; font-size: 1.1rem; display: inline-flex; align-items: center; justify-content: center; transition: all 0.25s cubic-bezier(0.18, 0.89, 0.32, 1.28); }
+        .menu-toggle:hover { background: white; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+        .logo { font-weight: 700; font-size: 1.25rem; background: linear-gradient(135deg, #0f3b5c, #1f6392); -webkit-background-clip: text; background-clip: text; color: transparent; display: flex; align-items: center; gap: 8px; }
+        .home-btn { background: rgba(255, 255, 255, 0.9); border: 1px solid rgba(203, 213, 225, 0.5); width: 40px; height: 40px; border-radius: 14px; cursor: pointer; color: #2c6b9e; font-size: 1.1rem; display: inline-flex; align-items: center; justify-content: center; transition: all 0.25s; }
+        .home-btn:hover { background: white; transform: translateY(-2px); }
+        
+        /* Контент */
+        .content-wrapper { flex: 1; overflow-y: auto; padding: 20px 24px; animation: fadeIn 0.5s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        .unified-card { max-width: 1400px; margin: 0 auto; background: rgba(255, 255, 255, 0.92); backdrop-filter: blur(5px); border-radius: 28px; border: 1px solid rgba(226, 232, 240, 0.8); overflow: hidden; animation: cardAppear 0.4s cubic-bezier(0.2, 0.9, 0.4, 1.1); }
+        @keyframes cardAppear { from { opacity: 0; transform: scale(0.98); } to { opacity: 1; transform: scale(1); } }
+        
+        .nav-buttons { display: flex; gap: 12px; padding: 14px 24px; background: rgba(251, 253, 255, 0.6); border-bottom: 1px solid #eff3f8; flex-wrap: wrap; }
+        .nav-btn { background: #f0f4fa; border: none; border-radius: 40px; padding: 6px 18px; font-size: 0.75rem; font-weight: 600; color: #2c6b9e; cursor: pointer; transition: all 0.2s; display: inline-flex; align-items: center; gap: 6px; }
+        .nav-btn:active { transform: scale(0.95); }
+        .two-columns { display: flex; gap: 0; }
+        .column-example { flex: 1; padding: 20px; border-right: 1px solid #eff3f8; }
+        .column-description { flex: 1; padding: 20px; }
+        .example-placeholder, .desc-placeholder { transition: opacity 0.2s ease; }
+        .inline-link { color: #2c6b9e; text-decoration: none; border-bottom: 1.5px dashed #9bb8d4; cursor: pointer; font-weight: 600; }
+        .welcome-message { text-align: center; padding: 30px 20px; animation: fadeSlideUp 0.5s; }
+        @keyframes fadeSlideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        .welcome-message i { font-size: 3rem; color: #2c6b9e; margin-bottom: 16px; }
+        
+        /* МОДАЛЬНОЕ ОКНО С ИЕРАРХИЕЙ (по центру) */
+        .hierarchy-modal { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.5); backdrop-filter: blur(8px); z-index: 1001; display: flex; align-items: center; justify-content: center; opacity: 0; visibility: hidden; transition: opacity 0.3s ease, visibility 0.3s ease; }
+        .hierarchy-modal.visible { opacity: 1; visibility: visible; }
+        .hierarchy-modal-content { background: white; border-radius: 32px; width: 90%; max-width: 500px; max-height: 85vh; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); transform: scale(0.9); transition: transform 0.3s cubic-bezier(0.34, 1.2, 0.64, 1); display: flex; flex-direction: column; }
+        .hierarchy-modal.visible .hierarchy-modal-content { transform: scale(1); }
+        .hierarchy-modal-header { padding: 18px 20px; background: linear-gradient(135deg, #1e3a5f, #2c6b9e); color: white; display: flex; justify-content: space-between; align-items: center; border-radius: 32px 32px 0 0; }
+        .hierarchy-modal-header h3 { font-size: 1.1rem; display: flex; align-items: center; gap: 8px; }
+        .hierarchy-modal-header button { background: none; border: none; color: white; font-size: 1.5rem; cursor: pointer; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; transition: background 0.2s; }
+        .hierarchy-modal-header button:hover { background: rgba(255,255,255,0.2); }
+        .hierarchy-modal-body { padding: 20px; overflow-y: auto; flex: 1; }
+        
+        /* Поиск внутри модального окна */
+        .modal-search { margin-bottom: 16px; }
+        .ai-search-input { width: 100%; padding: 12px; border-radius: 20px; border: 1px solid #e2e8f0; font-family: inherit; resize: vertical; margin-bottom: 12px; font-size: 0.85rem; background: #f8fafc; transition: all 0.2s; }
+        .ai-search-input:focus { outline: none; border-color: #2c6b9e; box-shadow: 0 0 0 3px rgba(44,107,158,0.1); }
+        .ai-search-btn { width: 100%; padding: 10px; background: linear-gradient(135deg, #667eea, #764ba2); border: none; border-radius: 40px; color: white; font-weight: 600; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; margin-bottom: 16px; }
+        .ai-search-btn:active { transform: scale(0.96); }
+        
+        /* Дерево тем в модальном окне */
+        .modal-tree { max-height: 300px; overflow-y: auto; margin-top: 16px; border-top: 1px solid #e2e8f0; padding-top: 16px; }
+        .tree-children { overflow: hidden; transition: max-height 0.35s cubic-bezier(0.33, 1, 0.68, 1); margin-left: 16px; padding-left: 6px; border-left: 1px dashed rgba(100, 116, 139, 0.2); }
+        .tree-children.collapsed { max-height: 0 !important; }
+        .tree-children.expanded { max-height: 100000px; }
+        .tree-node { margin: 2px 0; }
+        .tree-node-content { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 12px; cursor: pointer; transition: all 0.2s; font-weight: 500; font-size: 0.85rem; }
+        .tree-node-content:hover { background: #ecf5fe; transform: translateX(4px); }
+        .tree-node.active > .tree-node-content { background: linear-gradient(95deg, #e2effc, #d4e8fb); color: #1a5d9c; font-weight: 600; }
+        .tree-node.ai-match > .tree-node-content { background: #fef9e3; border-left: 3px solid #f1c40f; }
+        .toggle-icon { width: 18px; text-align: center; cursor: pointer; font-size: 0.7rem; color: #5f7d9c; user-select: none; }
+        .toggle-icon.empty { opacity: 0; pointer-events: none; }
+        .node-title { flex: 1; }
+        
+        /* Вкладка с фильтрами */
+        .filter-tab { border: 1px solid #e2e8f0; border-radius: 16px; margin-top: 16px; overflow: hidden; }
+        .filter-tab-header { padding: 12px 16px; background: #f8fafc; cursor: pointer; display: flex; justify-content: space-between; align-items: center; font-weight: 600; user-select: none; transition: background 0.2s; }
+        .filter-tab-header:hover { background: #f1f5f9; }
+        .filter-tab-content { padding: 16px; border-top: 1px solid #e2e8f0; display: none; }
+        .filter-tab-content.open { display: block; animation: slideDown 0.3s ease; }
+        @keyframes slideDown { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        .filter-group { margin-bottom: 16px; }
+        .filter-group label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; color: #4a627a; display: block; margin-bottom: 8px; letter-spacing: 0.5px; }
+        .filter-select { width: 100%; padding: 10px 12px; border-radius: 12px; border: 1px solid #e2e8f0; background: white; font-size: 0.85rem; }
+        .filter-options { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 8px; }
+        .filter-options label { display: flex; align-items: center; gap: 8px; font-size: 0.75rem; font-weight: normal; cursor: pointer; text-transform: none; color: #334155; margin-bottom: 0; }
+        .filter-options input { accent-color: #2c6b9e; }
+        
+        /* Бета-галочка для отключения ИИ-поиска */
+        .beta-option { background: linear-gradient(135deg, #fef3c7, #fffbeb); border-radius: 12px; padding: 8px 12px; margin-bottom: 12px; border: 1px solid #fde68a; }
+        .beta-option label { display: flex; align-items: center; gap: 10px; cursor: pointer; }
+        .beta-option .beta-badge { background: #f59e0b; color: white; font-size: 9px; padding: 2px 6px; border-radius: 12px; font-weight: 600; }
+        .beta-option input { width: 18px; height: 18px; cursor: pointer; }
+        
+        .ai-result-item { padding: 12px; margin-bottom: 8px; background: #f8fafc; border-radius: 12px; cursor: pointer; transition: all 0.2s; border: 1px solid #e2e8f0; }
+        .ai-result-item:hover { background: #eef3fc; transform: translateX(4px); }
+        .ai-result-item h4 { font-size: 0.9rem; margin-bottom: 4px; }
+        .ai-result-item p { font-size: 0.7rem; color: #6b8cae; }
+        
+        /* Кнопка чата */
+        .chat-fab { position: fixed; bottom: 24px; right: 24px; width: 56px; height: 56px; border-radius: 28px; background: linear-gradient(135deg, #667eea, #764ba2); border: none; cursor: pointer; box-shadow: 0 4px 15px rgba(0,0,0,0.2); z-index: 1000; display: flex; align-items: center; justify-content: center; transition: all 0.3s cubic-bezier(0.2, 0.9, 0.4, 1.2); }
+        .chat-fab:hover { transform: scale(1.05); box-shadow: 0 8px 25px rgba(0,0,0,0.3); }
+        .chat-fab:active { transform: scale(0.95); }
+        .chat-fab i { color: white; font-size: 1.6rem; }
+        
+        /* Модальное окно чата */
+        .chat-modal { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(8px); z-index: 1002; display: flex; align-items: center; justify-content: center; opacity: 0; visibility: hidden; transition: opacity 0.3s, visibility 0.3s; }
+        .chat-modal.visible { opacity: 1; visibility: visible; }
+        .chat-modal-content { background: white; border-radius: 28px; width: 90%; max-width: 500px; max-height: 80vh; overflow: hidden; transform: scale(0.9); transition: transform 0.3s cubic-bezier(0.34, 1.2, 0.64, 1); display: flex; flex-direction: column; }
+        .chat-modal.visible .chat-modal-content { transform: scale(1); }
+        .chat-header { padding: 16px 20px; background: linear-gradient(135deg, #667eea, #764ba2); color: white; display: flex; justify-content: space-between; align-items: center; }
+        .chat-header button { background: none; border: none; color: white; font-size: 1.5rem; cursor: pointer; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+        .chat-header button:hover { background: rgba(255,255,255,0.2); }
+        .chat-messages { flex: 1; overflow-y: auto; padding: 16px; min-height: 300px; max-height: 400px; }
+        .message { margin-bottom: 12px; display: flex; animation: messageSlide 0.3s ease; }
+        @keyframes messageSlide { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .message.user { justify-content: flex-end; }
+        .message.assistant { justify-content: flex-start; }
+        .message-bubble { max-width: 80%; padding: 10px 14px; border-radius: 18px; font-size: 0.85rem; line-height: 1.4; }
+        .message.user .message-bubble { background: #667eea; color: white; border-bottom-right-radius: 4px; }
+        .message.assistant .message-bubble { background: #f1f5f9; color: #1e293b; border-bottom-left-radius: 4px; }
+        .chat-input-area { padding: 12px 16px; border-top: 1px solid #e2e8f0; display: flex; gap: 8px; }
+        .chat-input-area input { flex: 1; padding: 10px 12px; border: 1px solid #e2e8f0; border-radius: 24px; outline: none; transition: all 0.2s; }
+        .chat-input-area input:focus { border-color: #667eea; }
+        .chat-input-area button { padding: 10px 20px; background: linear-gradient(135deg, #667eea, #764ba2); border: none; border-radius: 24px; color: white; font-weight: 600; cursor: pointer; transition: transform 0.2s; }
+        .chat-input-area button:active { transform: scale(0.96); }
+        .typing-indicator { display: flex; gap: 4px; padding: 8px 12px; background: #f1f5f9; border-radius: 18px; width: fit-content; margin-top: 8px; animation: fadeIn 0.3s; }
+        .typing-indicator span { width: 6px; height: 6px; background: #94a3b8; border-radius: 50%; animation: typing 1.4s infinite; }
+        .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+        .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes typing { 0%, 60%, 100% { transform: translateY(0); opacity: 0.4; } 30% { transform: translateY(-6px); opacity: 1; } }
+        
+        .clear-chat-btn { background: none; border: none; color: #94a3b8; font-size: 0.7rem; cursor: pointer; margin-left: 12px; padding: 4px 8px; border-radius: 12px; transition: all 0.2s; }
+        .clear-chat-btn:hover { background: rgba(255,255,255,0.2); color: white; }
+        
+        .framework-toast { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: rgba(20, 30, 45, 0.9); backdrop-filter: blur(20px); color: white; padding: 8px 20px; border-radius: 40px; font-size: 0.8rem; z-index: 2000; animation: toastSlide 0.4s cubic-bezier(0.2, 0.9, 0.4, 1.2); }
+        @keyframes toastSlide { from { opacity: 0; transform: translateX(-50%) translateY(20px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+        
+        @media (max-width: 768px) {
+            .content-wrapper { padding: 12px; }
+            .two-columns { flex-direction: column; }
+            .column-example { border-right: none; border-bottom: 1px solid #eff3f8; }
+            .hierarchy-modal-content { width: 95%; max-height: 90vh; }
         }
     </style>
 </head>
 <body>
-<div class="container">
-    <div class="header">
-        <div class="title">📐 Редактор геометрических примеров</div>
-        <div class="file-buttons">
-            <input type="file" id="loadConfig" accept=".json" style="display:none">
-            <button id="loadBtn">📂 Загрузить конфиг</button>
-            <button id="downloadBtn">💾 Скачать конфиг</button>
-        </div>
-        <div class="github-buttons">
-            <button id="loadFromGitHubBtn">📥 Загрузить из GitHub</button>
-            <button id="saveToGitHubBtn">📤 Сохранить в GitHub</button>
+<div class="loading-overlay" id="loadingOverlay">
+    <div class="loading-spinner">
+        <i class="fas fa-graduation-cap"></i>
+        <p>MathFrame | immersive learning</p>
+    </div>
+</div>
+<div class="app" id="appRoot">
+    <div class="top-bar">
+        <div class="logo-area">
+            <button class="menu-toggle" id="menuToggleBtn"><i class="fas fa-bars"></i></button>
+            <div class="logo"><i class="fas fa-graduation-cap"></i> MathFrame</div>
+            <button class="home-btn" id="globalHomeBtn"><i class="fas fa-home"></i></button>
         </div>
     </div>
-    <div class="main">
-        <div class="topic-header">
-            <div class="topic-name" id="topicName">—</div>
-            <div class="topic-meta" id="topicMeta"></div>
+    <div class="main-layout">
+        <div class="content-wrapper" id="unifiedScroller">
+            <div class="unified-card" id="unifiedCard">
+                <div class="nav-buttons" id="navButtonsContainer"></div>
+                <div class="two-columns">
+                    <div class="column-example">
+                        <div style="font-weight:600; margin-bottom:12px;"><i class="fas fa-cursor"></i> ПРИМЕР</div>
+                        <div class="example-placeholder" id="examplePlaceholder"></div>
+                    </div>
+                    <div class="column-description">
+                        <div style="font-weight:600; margin-bottom:12px;"><i class="fas fa-book"></i> ТЕОРИЯ</div>
+                        <div class="desc-placeholder" id="descriptionPlaceholder"></div>
+                    </div>
+                </div>
+            </div>
         </div>
-        <div class="code-area">
-            <textarea id="codeEditor" placeholder="HTML-код примера..."></textarea>
-        </div>
-        <div class="nav-buttons">
-            <button id="prevBtn">◀ Предыдущая</button>
-            <button id="copyPromptBtn" class="copy-prompt-btn">📋 Копировать промпт</button>
-            <button id="nextSaveBtn">Следующая (+сохранить) ▶</button>
-        </div>
-        <div class="status" id="statusMsg">💡 Загрузка конфига из GitHub...</div>
-        <div class="console" id="consoleLog">[Система] Инициализация...</div>
     </div>
 </div>
 
+<!-- Модальное окно с иерархией и ИИ-поиском -->
+<div id="hierarchyModal" class="hierarchy-modal">
+    <div class="hierarchy-modal-content">
+        <div class="hierarchy-modal-header">
+            <h3><i class="fas fa-diagram-project"></i> Содержание</h3>
+            <button id="closeModalBtn">&times;</button>
+        </div>
+        <div class="hierarchy-modal-body">
+            <!-- ИИ-поиск -->
+            <div class="modal-search">
+                <textarea id="aiQueryInput" class="ai-search-input" rows="2" placeholder="🔍 Опишите тему своими словами...&#10;Например: «признаки равенства треугольников» или «группа объектов объединённых вместе»"></textarea>
+                <button id="aiSearchSubmit" class="ai-search-btn"><i class="fas fa-robot"></i> Найти через ИИ</button>
+                <div id="aiSearchResults" style="margin-bottom: 16px;"></div>
+            </div>
+            
+            <!-- Дерево тем -->
+            <div class="modal-tree" id="modalTopicTree"></div>
+            
+            <!-- Вкладка с фильтрами -->
+            <div class="filter-tab">
+                <div class="filter-tab-header" id="filterTabHeader">
+                    <span><i class="fas fa-sliders-h"></i> Параметры и фильтры</span>
+                    <i class="fas fa-chevron-down" id="filterChevron"></i>
+                </div>
+                <div class="filter-tab-content" id="filterTabContent">
+                    <!-- Бета-галочка для отключения ИИ-поиска -->
+                    <div class="beta-option">
+                        <label>
+                            <input type="checkbox" id="disableAISearchCheckbox">
+                            <span><strong>Отключить ИИ-поиск</strong> <span class="beta-badge">Beta</span></span>
+                            <span style="font-size:0.7rem; color:#666;"> — использовать только обычный поиск по ключевым словам</span>
+                        </label>
+                    </div>
+                    
+                    <div class="filter-group">
+                        <label><i class="fas fa-filter"></i> Упростить до</label>
+                        <select id="levelSelect" class="filter-select">
+                            <option value="all">Не упрощать (все темы)</option>
+                            <option value="9">До 9 класса</option>
+                            <option value="7">До 7 класса</option>
+                            <option value="5">До 5-6 классов</option>
+                            <option value="preschool">Для классов до 5</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label><i class="fas fa-sort-amount-down"></i> Сортировка</label>
+                        <select id="sortSelect" class="filter-select">
+                            <option value="config">Как в конфиге</option>
+                            <option value="name_asc">По алфавиту (А-Я)</option>
+                            <option value="name_desc">По алфавиту (Я-А)</option>
+                            <option value="grade_asc">По классам (возрастание)</option>
+                            <option value="grade_desc">По классам (убывание)</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label><i class="fas fa-search"></i> Параметры поиска</label>
+                        <div class="filter-options">
+                            <label><input type="checkbox" id="searchInDescCheckbox"> <i class="far fa-file-alt"></i> В описании</label>
+                            <label><input type="checkbox" id="keywordsCheckbox" checked> <i class="fas fa-tags"></i> Ключевые слова</label>
+                            <label><input type="checkbox" id="fuzzyCheckbox" checked> <i class="fas fa-spell-check"></i> Опечатки</label>
+                            <label><input type="checkbox" id="smartSortCheckbox" checked> <i class="fas fa-chart-line"></i> Умная сортировка</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно чата -->
+<div id="chatModal" class="chat-modal">
+    <div class="chat-modal-content">
+        <div class="chat-header">
+            <h3><i class="fas fa-comment-dots"></i> ИИ-помощник <span style="font-size:10px; background:rgba(255,255,255,0.2); padding:2px 8px; border-radius:12px;">DeepSeek-V4</span></h3>
+            <div>
+                <button id="clearChatBtn" class="clear-chat-btn" title="Очистить историю"><i class="fas fa-trash-alt"></i></button>
+                <button id="closeChatModalBtn">&times;</button>
+            </div>
+        </div>
+        <div class="chat-messages" id="chatMessages">
+            <div class="message assistant">
+                <div class="message-bubble">👋 Привет! Я MathBot — твой помощник по математике. Спрашивай о чём угодно, я объясню простыми словами! Что тебя интересует? 📐</div>
+            </div>
+        </div>
+        <div class="typing-indicator" id="typingIndicator" style="display: none;">
+            <span></span><span></span><span></span>
+        </div>
+        <div class="chat-input-area">
+            <input type="text" id="chatInput" placeholder="Спросите меня о чём угодно..." onkeypress="if(event.key==='Enter') sendChatMessage()">
+            <button id="chatSendBtn">Отправить</button>
+        </div>
+    </div>
+</div>
+
+<!-- Кнопка чата -->
+<button class="chat-fab" id="chatFabBtn"><i class="fas fa-comment-dots"></i></button>
+
 <script>
-    // ---------------------- Конфигурация -------------------------
-    let configData = null;
-    let currentIndex = 0;
-    let filteredIndices = [];
-    let currentFilteredPos = 0;
+    // ========== ТЕМЫ ИЗ КОНФИГА ==========
+    const DEFAULT_TOPICS = [
+        { id: "math_root", name: "Математика", parent: null, icon: "fa-folder", gradeLevel: 5, keywords: ["математика"], example: '<div style="padding:20px;"><h3>Математика</h3><p>Основы математики</p></div>', description: '<p>Главный раздел математики — наука о количественных отношениях и пространственных формах действительного мира.</p>' },
+        { id: "algebra_7", name: "Алгебра 7–9", parent: "math_root", icon: "fa-folder", gradeLevel: 7, keywords: ["алгебра","выражения","формулы","7 класс"], example: '<div style="padding:20px; text-align:center;"><i class="fas fa-chart-line" style="font-size:2rem;"></i><div>Алгебра 7-9</div></div>', description: '<p><strong>Алгебра</strong> — раздел математики, изучающий операции над величинами и решение уравнений.</p>' },
+        { id: "linear_eq", name: "Линейные уравнения", parent: "algebra_7", icon: "fa-file-alt", gradeLevel: 7, keywords: ["уравнение","линейное","корень","ax+b=0"], example: '<div style="padding:20px;"><i class="fas fa-chart-line"></i><div>ax + b = 0 → x = -b/a</div><div>Пример: 2x - 6 = 0 → x = 3</div></div>', description: '<p><strong>Линейное уравнение</strong> — уравнение вида ax + b = 0, где a ≠ 0. Корень: x = -b/a.</p>' },
+        { id: "quadratic_eq", name: "Квадратные уравнения", parent: "algebra_7", icon: "fa-file-alt", gradeLevel: 8, keywords: ["дискриминант","парабола","ax²+bx+c=0"], example: '<div style="padding:20px;"><i class="fas fa-chart-line"></i><div>ax² + bx + c = 0, D = b² - 4ac</div></div>', description: '<p><strong>Квадратное уравнение</strong> — ax² + bx + c = 0. Дискриминант D = b² - 4ac. При D>0 — два корня, D=0 — один, D<0 — нет действительных корней.</p>' },
+        { id: "geometry_7", name: "Геометрия 7–9", parent: "math_root", icon: "fa-folder", gradeLevel: 7, keywords: ["геометрия","фигуры","углы"], example: '<div style="padding:20px;text-align:center;"><i class="fas fa-shapes" style="font-size:2rem;"></i><div>Геометрия</div></div>', description: '<p><strong>Геометрия</strong> — раздел математики, изучающий пространственные формы и отношения.</p>' },
+        { id: "adjacent_angles", name: "Смежные углы", parent: "geometry_7", icon: "fa-file-alt", gradeLevel: 7, keywords: ["углы","смежные","сумма 180"], example: '<div style="padding:20px;"><i class="fas fa-angle-double-right"></i><div>∠α + ∠β = 180°</div></div>', description: '<p><strong>Смежные углы</strong> — два угла с общей стороной, сумма 180°.</p>' },
+        { id: "triangles", name: "Треугольники", parent: "geometry_7", icon: "fa-file-alt", gradeLevel: 7, keywords: ["треугольник","сумма углов","признаки равенства","подобие"], example: '<div style="padding:20px;"><i class="fas fa-shapes"></i><div>Сумма углов = 180°</div></div>', description: '<p><strong>Треугольники</strong>: сумма углов 180°. Признаки равенства: по двум сторонам и углу между ними, по стороне и прилежащим углам, по трём сторонам.</p>' },
+        { id: "divisibility_rules", name: "Признаки делимости", parent: "math_root", icon: "fa-file-alt", gradeLevel: 6, keywords: ["делимость","признаки","на 2","на 3","на 5","на 9","на 10"], example: '<div style="padding:20px;"><i class="fas fa-calculator"></i><div>На 2: чётная последняя цифра<br>На 3: сумма цифр делится на 3</div></div>', description: '<p><strong>Признаки делимости</strong> — правила для определения делимости числа без выполнения деления.</p>' },
+        { id: "improper_integrals", name: "Несобственные интегралы", parent: "algebra_7", icon: "fa-file-alt", gradeLevel: 11, keywords: ["интеграл","несобственный","сходимость","расходимость"], example: '<div style="padding:20px;"><i class="fas fa-chart-line"></i><div>∫₁^∞ 1/x² dx — сходится</div></div>', description: '<p><strong>Несобственные интегралы</strong> — интегралы с бесконечными пределами или разрывами. Исследуются на сходимость.</p>' },
+        { id: "algebra_10", name: "Алгебра 10–11", parent: "math_root", icon: "fa-folder", gradeLevel: 10, keywords: ["алгебра","старшая школа","функции"], example: '<div style="padding:20px;"><i class="fas fa-chart-line"></i><div>Старшая школа</div></div>', description: '<p>Углублённое изучение функций, производных, интегралов, логарифмов.</p>' },
+        { id: "logarithms", name: "Логарифмы", parent: "algebra_10", icon: "fa-file-alt", gradeLevel: 10, keywords: ["логарифм","log","степень"], example: '<div style="padding:20px;"><i class="fas fa-chart-line"></i><div>logₐ b = c ⇔ a^c = b</div></div>', description: '<p><strong>Логарифм</strong> — показатель степени, в которую нужно возвести основание. Свойства: log(xy)=log x+log y, log(x/y)=log x-log y.</p>' },
+        { id: "straight_line", name: "Прямая", parent: "geometry_7", icon: "fa-file-alt", gradeLevel: 7, keywords: ["прямая","линия"], example: '<div style="padding:20px;"><i class="fas fa-chart-line"></i><div>Прямая линия: y = kx + b</div></div>', description: '<p><strong>Прямая</strong> — бесконечная линия. Уравнение: y = kx + b, где k — угловой коэффициент.</p>' },
+        { id: "set_theory", name: "Множество", parent: "math_root", icon: "fa-file-alt", gradeLevel: 9, keywords: ["множество","элемент","объединение","пересечение","совокупность","набор"], example: '<div style="padding:20px;"><i class="fas fa-circle-nodes"></i><div>Множество — совокупность объектов, объединённых общим свойством.</div></div>', description: '<p><strong>Множество</strong> — совокупность элементов, объединённых общим признаком. Операции: объединение, пересечение, разность.</p>' }
+    ];
 
-    const STORAGE_KEY = 'geometry_editor_progress';
-    const EDITED_MARKER = '<!-- __EDITED__ -->';
+    let currentTopics = [], currentTopicId = null, collapsedFolders = new Map(), navigationStack = [];
+    let currentGradeFilter = "all", currentSortMode = "config";
+    let currentSearchQuery = "", searchInDescription = false, keywordsEnabled = true, fuzzyEnabled = true, smartSortEnabled = true;
+    let matchOnlyByDescription = new Map(), topicRelevanceInfo = new Map();
+    let aiMatchedTopicIds = new Set();
+    let topicAI = null;
+    let disableAISearch = false;
 
-    // GitHub параметры (только для сохранения, загрузка без токена)
-    const GITHUB_TOKEN = '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';
-    const GITHUB_OWNER = 'DaniksGames5242';
-    const GITHUB_REPO = 'MathFrame.github.io';
-    const GITHUB_PATH = 'config.json';
-    const GITHUB_BRANCH = 'main';
+    // История чата
+    let chatHistory = [];
 
-    // Промпты
-    const STANDARDIZE_INSTRUCTION = `
-Ты — эксперт по геометрии и фронтенд-разработке. Ниже приведён HTML-код интерактивного геометрического примера.
-Приведи этот код в строгое соответствие со следующим стандартом:
+    // ========== Глобальный перехват ошибок для динамического контента ==========
+    window.addEventListener('error', function(e) {
+        if (e.target && e.target.tagName === 'SCRIPT') {
+            console.warn('Заблокирован скрипт в динамическом контенте:', e.target.src);
+            showToast('⚠️ Некоторые элементы не загрузились, но основной контент работает');
+        }
+    });
 
-=== СТАНДАРТ (кратко) ===
-1. Структура: DOCTYPE, html, head (мета-вьюпорт user-scalable=no), body с прозрачным фоном.
-2. Стили: базовая адаптивность, отступы, border для canvas, цвета (чёрный, #3366cc, #ff6633 и т.д.).
-3. Перетаскивание: вершины (радиус захвата ≥ 22), стороны (строго по нормали), внутренность.
-4. Устранение "прилипания": при ограничении позиции обновлять dragOffset.
-5. Канвас должен быть статическим (без масштабирования браузером), размеры при ресайзе пересчитываются корректно.
-6. Углы отображаются целыми числами, сумма углов 180°.
-7. Валидация: минимальное расстояние между вершинами, невырожденность, границы.
-8. Информационная панель обновляется динамически.
-9. Обязательная пометка об успешном редактировании: добавь в начало HTML-кода (после <body>) строку '${EDITED_MARKER}' (как комментарий).
-10. Сохрани все ключевые функции и визуальную тему.
-
-Выдай ТОЛЬКО исправленный HTML-код (без лишних пояснений).
-`;
-
-    const WRITE_INSTRUCTION = `
-Ты — эксперт по геометрии и фронтенд-разработке. Тебе нужно создать полноценный интерактивный HTML-пример для следующей темы:
-
-=== ТЕМА ===
-Имя: %NAME%
-Класс: %GRADE%
-Ключевые слова: %KEYWORDS%
-Описание: %DESCRIPTION% (если нет — раскрой тему самостоятельно)
-
-Требования к примеру (согласно нашему стандарту):
-- Полноценный интерактивный canvas с перетаскиванием вершин, сторон и внутренности.
-- Фигура должна соответствовать теме.
-- Адаптивность, корректная работа на телефонах.
-- Отображение всех характерных длин, углов (целые градусы), формул.
-- Код должен быть самодостаточным (один HTML-файл).
-- В начало HTML-кода (после <body>) добавь строку '${EDITED_MARKER}' как комментарий.
-
-Выдай ТОЛЬКО готовый HTML-код (без лишних пояснений).
-`;
-
-    // DOM элементы
-    const loadBtn = document.getElementById('loadBtn');
-    const loadConfigInput = document.getElementById('loadConfig');
-    const downloadBtn = document.getElementById('downloadBtn');
-    const prevBtn = document.getElementById('prevBtn');
-    const nextSaveBtn = document.getElementById('nextSaveBtn');
-    const copyPromptBtn = document.getElementById('copyPromptBtn');
-    const loadFromGitHubBtn = document.getElementById('loadFromGitHubBtn');
-    const saveToGitHubBtn = document.getElementById('saveToGitHubBtn');
-    const topicNameSpan = document.getElementById('topicName');
-    const topicMetaDiv = document.getElementById('topicMeta');
-    const codeEditor = document.getElementById('codeEditor');
-    const statusMsgSpan = document.getElementById('statusMsg');
-    const consoleLogDiv = document.getElementById('consoleLog');
-
-    function log(message, isError = false) {
-        const prefix = isError ? '⚠️ ' : 'ℹ️ ';
-        consoleLogDiv.innerHTML += `<div style="color: ${isError ? '#ff9999' : '#aaffaa'}">${prefix}${message}</div>`;
-        consoleLogDiv.scrollTop = consoleLogDiv.scrollHeight;
-        console.log(message);
+    // Функция для санитайзии HTML (удаляет опасные теги, но оставляет полезные)
+    function sanitizeHtml(html) {
+        if (!html) return '';
+        // Создаём временный элемент для безопасной обработки
+        const temp = document.createElement('div');
+        temp.innerHTML = html;
+        
+        // Удаляем все теги script
+        temp.querySelectorAll('script').forEach(el => el.remove());
+        
+        // Удаляем iframe, object, embed (можно закомментировать если нужны)
+        temp.querySelectorAll('iframe, object, embed').forEach(el => el.remove());
+        
+        return temp.innerHTML;
     }
 
-    function saveProgress() {
-        if (!configData) return;
-        const progress = {
-            currentIndex,
-            currentFilteredPos,
-            topicsState: configData.map(topic => ({
-                id: topic.id,
-                example: topic.example,
-                edited: topic.example && topic.example.includes(EDITED_MARKER)
-            }))
-        };
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(progress));
-    }
-
-    function loadProgress() {
-        const saved = localStorage.getItem(STORAGE_KEY);
-        if (!saved) return false;
-        try {
-            const progress = JSON.parse(saved);
-            if (progress.topicsState && configData) {
-                for (let i = 0; i < configData.length && i < progress.topicsState.length; i++) {
-                    if (progress.topicsState[i].edited) {
-                        configData[i].example = progress.topicsState[i].example;
+    // ========== ИИ ДЛЯ ПОИСКА ТЕМ ==========
+    class TopicAI {
+        constructor(topics) {
+            this.topics = topics;
+        }
+        search(query) {
+            if (disableAISearch) return [];
+            const queryLower = query.toLowerCase();
+            let scores = [];
+            const validTopics = this.topics.filter(t => t.id !== 'math_root' && t.id !== 'algebra_7' && t.id !== 'geometry_7' && t.id !== 'algebra_10');
+            for (let topic of validTopics) {
+                let score = 0;
+                if (queryLower === topic.name.toLowerCase()) score = 100;
+                if (topic.keywords) {
+                    for (let kw of topic.keywords) {
+                        if (queryLower.includes(kw.toLowerCase())) score += 30;
                     }
                 }
-                currentIndex = progress.currentIndex;
-                currentFilteredPos = progress.currentFilteredPos;
-                log(`Прогресс восстановлен из localStorage`);
-                return true;
+                if (topic.description && topic.description.toLowerCase().includes(queryLower)) score += 40;
+                if (queryLower.includes('группа') && queryLower.includes('объект') && topic.id === 'set_theory') score += 100;
+                if ((queryLower.includes('признак') && queryLower.includes('равенство')) && topic.id === 'triangles') score += 80;
+                if (score > 0) scores.push({ topic, score });
             }
-        } catch(e) { }
-        return false;
-    }
-
-    function rebuildFilteredList() {
-        if (!configData) return;
-        filteredIndices = [];
-        for (let i = 0; i < configData.length; i++) {
-            const topic = configData[i];
-            const example = topic.example || '';
-            if (example.includes(EDITED_MARKER)) continue;
-            const isPlaceholder = !example || example.includes('В разработке') || example.trim() === '';
-            if (isPlaceholder && (!topic.keywords || topic.keywords.length === 0)) continue;
-            filteredIndices.push(i);
-        }
-        if (filteredIndices.length > 0 && !filteredIndices.includes(currentIndex)) {
-            currentIndex = filteredIndices[0];
-            currentFilteredPos = 0;
-        } else if (filteredIndices.length === 0) {
-            log(`🎉 Все темы отредактированы!`);
-        } else {
-            const pos = filteredIndices.indexOf(currentIndex);
-            if (pos !== -1) currentFilteredPos = pos;
-        }
-        log(`Неотредактированных тем: ${filteredIndices.length}`);
-    }
-
-    function displayCurrentTopic() {
-        if (!configData || configData.length === 0) {
-            topicNameSpan.innerText = '—';
-            topicMetaDiv.innerHTML = '';
-            codeEditor.value = '';
-            statusMsgSpan.innerText = '❌ Нет загруженного конфига';
-            return;
-        }
-        const topic = configData[currentIndex];
-        topicNameSpan.innerText = topic.name || 'Без названия';
-        const grade = topic.gradeLevel ? `${topic.gradeLevel} класс` : '';
-        const keywords = (topic.keywords || []).join(' · ');
-        topicMetaDiv.innerHTML = `<span>📚 ${grade}</span><span>🏷️ ${keywords}</span>`;
-        codeEditor.value = topic.example || '<!-- Пример отсутствует -->';
-
-        const total = configData.length;
-        const pos = filteredIndices.indexOf(currentIndex);
-        const pendingCount = filteredIndices.length;
-        if (pendingCount > 0 && pos !== -1) {
-            statusMsgSpan.innerHTML = `Тема ${currentIndex+1}/${total} | Очередь: ${pos+1}/${pendingCount} неотредактированных`;
-        } else if (pendingCount === 0) {
-            statusMsgSpan.innerHTML = `✅ Все темы обработаны! (${total} всего)`;
-        } else {
-            statusMsgSpan.innerHTML = `Тема ${currentIndex+1}/${total} (уже отредактирована)`;
+            scores.sort((a, b) => b.score - a.score);
+            return scores.filter(s => s.score >= 20).slice(0, 5);
         }
     }
 
-    function saveCurrentCode() {
-        if (!configData) return false;
-        const newCode = codeEditor.value;
-        configData[currentIndex].example = newCode;
-        if (newCode.includes(EDITED_MARKER)) {
-            log(`Тема "${configData[currentIndex].name}" помечена как отредактированная`);
-        } else {
-            log(`Тема "${configData[currentIndex].name}" сохранена, но метка редактирования отсутствует.`);
+    // ========== ОСНОВНЫЕ ФУНКЦИИ ==========
+    async function loadConfig() { 
+        try { const r=await fetch('./config.json'); if(r.ok) return await r.json(); } catch(e){} 
+        return JSON.parse(JSON.stringify(DEFAULT_TOPICS)); 
+    }
+    
+    function buildHierarchyOrder(topics) {
+        const ordered = [];
+        const roots = topics.filter(t => t.parent === null).sort((a,b)=>a.name.localeCompare(b.name));
+        function dfs(t) { ordered.push(t); topics.filter(c=>c.parent===t.id).sort((a,b)=>a.name.localeCompare(b.name)).forEach(ch=>dfs(ch)); }
+        roots.forEach(r=>dfs(r));
+        return ordered;
+    }
+    
+    function levenshtein(a,b) { const m=[]; for(let i=0;i<=b.length;i++) m[i]=[i]; for(let j=0;j<=a.length;j++) m[0][j]=j; for(let i=1;i<=b.length;i++) for(let j=1;j<=a.length;j++) m[i][j]=Math.min(m[i-1][j]+1,m[i][j-1]+1,m[i-1][j-1]+(a[j-1]===b[i-1]?0:1)); return m[b.length][a.length]; }
+    
+    function getMatchPercent(word, text) {
+        if (!text) return 0;
+        const lw = word.toLowerCase();
+        const lt = text.toLowerCase();
+        if (lw === lt) return 100;
+        const wordBoundary = new RegExp(`\\b${lw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+        if (wordBoundary.test(text)) return 100;
+        if (lt.includes(lw)) return 90;
+        if (fuzzyEnabled && lw.length >= 3) {
+            const words = lt.split(/\s+/);
+            for (let w of words) {
+                if (w.length >= 3) {
+                    const d = levenshtein(lw, w);
+                    if (d === 1) return 85;
+                    if (d === 2) return 70;
+                }
+            }
         }
-        saveProgress();
-        rebuildFilteredList();
+        return 0;
+    }
+    
+    function getRelevance(t, words) {
+        if (!words.length) return { found: false, score: 0 };
+        let nameScore = 0, kwScore = 0, descScore = 0;
+        let bestName = 0, bestKw = 0, bestDesc = 0;
+        let matchCount = 0;
+        for (let w of words) {
+            const np = getMatchPercent(w, t.name);
+            const kwp = (keywordsEnabled && t.keywords) ? getMatchPercent(w, Array.isArray(t.keywords) ? t.keywords.join(" ") : String(t.keywords)) : 0;
+            const dp = (searchInDescription && t.description) ? getMatchPercent(w, t.description.replace(/<[^>]*>/g, '')) : 0;
+            bestName = Math.max(bestName, np);
+            bestKw = Math.max(bestKw, kwp);
+            bestDesc = Math.max(bestDesc, dp);
+            nameScore += np;
+            kwScore += kwp;
+            descScore += dp;
+            if (np > 0 || kwp > 0 || dp > 0) matchCount++;
+        }
+        let group = 0, percent = 0, onlyDesc = false;
+        if (bestName > 0) { group = 1; percent = bestName; }
+        else if (bestKw > 0) { group = 2; percent = bestKw; }
+        else if (bestDesc > 0) { group = 3; percent = bestDesc; onlyDesc = true; }
+        const totalScore = nameScore + kwScore * 0.7 + descScore * 0.3 + (matchCount * 20);
+        return { found: group > 0, group, percent, onlyDesc, score: totalScore };
+    }
+    
+    function sortByRelevance(arr) {
+        if (!smartSortEnabled || !currentSearchQuery) {
+            if (currentSortMode === "name_asc") return [...arr].sort((a,b)=>a.name.localeCompare(b.name));
+            if (currentSortMode === "name_desc") return [...arr].sort((a,b)=>b.name.localeCompare(a.name));
+            if (currentSortMode === "grade_asc") return [...arr].sort((a,b)=>(a.gradeLevel||0)-(b.gradeLevel||0));
+            if (currentSortMode === "grade_desc") return [...arr].sort((a,b)=>(b.gradeLevel||0)-(a.gradeLevel||0));
+            return [...arr];
+        }
+        return [...arr].sort((a,b)=>{
+            const ia = topicRelevanceInfo.get(a.id) || { group: 999, score: 0 };
+            const ib = topicRelevanceInfo.get(b.id) || { group: 999, score: 0 };
+            if (ia.group !== ib.group) return ia.group - ib.group;
+            if (ia.score !== ib.score) return ib.score - ia.score;
+            return a.name.localeCompare(b.name);
+        });
+    }
+    
+    function getSearchWords() { return currentSearchQuery ? currentSearchQuery.toLowerCase().split(/\s+/).filter(w => w) : []; }
+    
+    function isVisible(t){ 
+        const g = t.gradeLevel || 1; 
+        if (currentGradeFilter === "all") return true;
+        if (currentGradeFilter === "9") return g <= 9;
+        if (currentGradeFilter === "7") return g <= 7;
+        if (currentGradeFilter === "5") return g <= 5;
+        if (currentGradeFilter === "preschool") return g <= 4;
         return true;
     }
-
-    function nextTopic() {
-        if (!configData) return;
-        saveCurrentCode();
-        if (filteredIndices.length === 0) {
-            statusMsgSpan.innerHTML = '✅ Все темы обработаны!';
-            log('Все темы отредактированы!', false);
-            return;
+    
+    function getChildrenSorted(id){ return sortByRelevance(currentTopics.filter(t => t.parent === id && isVisible(t))); }
+    
+    function hasVisibleChildren(id){ 
+        const kids = getChildrenSorted(id);
+        if (!kids.length) return false;
+        if (!currentSearchQuery) return kids.length > 0;
+        for (let c of kids) {
+            if (topicRelevanceInfo.get(c.id)?.found) return true;
+            if (hasMatchingDescendant(c.id)) return true;
         }
-        let pos = filteredIndices.indexOf(currentIndex);
-        let nextPos = (pos !== -1) ? pos + 1 : 0;
-        if (nextPos >= filteredIndices.length) {
-            statusMsgSpan.innerHTML = '✅ Все темы обработаны!';
-            log('Все темы отредактированы!', false);
-            return;
-        }
-        currentFilteredPos = nextPos;
-        currentIndex = filteredIndices[nextPos];
-        displayCurrentTopic();
-        const topic = configData[currentIndex];
-        if (!topic.example || !topic.example.includes(EDITED_MARKER)) {
-            copyPromptForCurrentTopic();
-        }
-        saveProgress();
+        return false;
     }
-
-    function prevTopic() {
-        if (!configData) return;
-        if (currentIndex <= 0) {
-            log('Это первая тема', false);
-            return;
+    
+    function hasMatchingDescendant(id) {
+        const children = currentTopics.filter(t => t.parent === id && isVisible(t));
+        for (let child of children) {
+            if (topicRelevanceInfo.get(child.id)?.found) return true;
+            if (hasMatchingDescendant(child.id)) return true;
         }
-        currentIndex--;
-        const pos = filteredIndices.indexOf(currentIndex);
-        if (pos !== -1) currentFilteredPos = pos;
-        displayCurrentTopic();
-        saveProgress();
+        return false;
     }
-
-    async function copyPromptForCurrentTopic() {
-        if (!configData) {
-            log('Нет загруженного конфига', true);
-            return;
-        }
-        const topic = configData[currentIndex];
-        const exampleCode = topic.example || '';
-        const isPlaceholder = !exampleCode || exampleCode.includes('В разработке') || exampleCode.trim() === '' || exampleCode === '<!-- Пример отсутствует -->';
-        let promptText = '';
-        
-        if (!isPlaceholder && !exampleCode.includes(EDITED_MARKER)) {
-            promptText = `${STANDARDIZE_INSTRUCTION}\n\n--- ИСХОДНЫЙ КОД ---\n${exampleCode}\n--- КОНЕЦ КОДА ---\n\nПриведи код к стандарту и добавь метку ${EDITED_MARKER}.`;
-        } else if (isPlaceholder) {
-            let description = `Тема: ${topic.name}\nКласс: ${topic.gradeLevel || '?'}\nКлючевые слова: ${(topic.keywords || []).join(', ')}`;
-            promptText = WRITE_INSTRUCTION
-                .replace('%NAME%', topic.name || 'Геометрическая тема')
-                .replace('%GRADE%', topic.gradeLevel || '?')
-                .replace('%KEYWORDS%', (topic.keywords || []).join(', '))
-                .replace('%DESCRIPTION%', description);
-            promptText += `\n\nСоздай полноценный интерактивный пример.`;
-        } else {
-            log(`Тема "${topic.name}" уже отредактирована, промпт не нужен`, false);
-            return;
-        }
-
-        try {
-            await navigator.clipboard.writeText(promptText);
-            log(`✅ Промпт скопирован для темы "${topic.name}"`);
-            statusMsgSpan.innerHTML = `📋 Промпт скопирован! Вставьте в нейросеть и нажмите "Следующая (+сохранить)"`;
-        } catch (err) {
-            const textarea = document.createElement('textarea');
-            textarea.value = promptText;
-            document.body.appendChild(textarea);
-            textarea.select();
-            document.execCommand('copy');
-            document.body.removeChild(textarea);
-            log(`✅ Промпт скопирован (резервный метод)`, false);
-        }
+    
+    function updateRelevance(){ 
+        matchOnlyByDescription.clear(); topicRelevanceInfo.clear(); 
+        if (!currentSearchQuery) return; 
+        const words = getSearchWords(); 
+        for (let t of currentTopics) { 
+            const info = getRelevance(t, words); 
+            topicRelevanceInfo.set(t.id, info); 
+            if (info.found && info.onlyDesc) matchOnlyByDescription.set(t.id, true); 
+        } 
     }
-
-    // ==================== ЗАГРУЗКА ИЗ GITHUB (как в примере: обычный fetch без токена) ====================
-    async function loadFromGitHub() {
-        log('Загрузка config.json из GitHub (публичный репозиторий)...');
-        statusMsgSpan.innerHTML = '⏳ Загрузка из GitHub...';
-        try {
-            // Используем относительный путь, как в примере. Если редактор запущен на том же домене, где лежит config.json, этого достаточно.
-            // Для надёжности также пробуем прямой raw URL.
-            let response;
-            try {
-                // Сначала пробуем относительный путь (работает, если index.html и config.json в одной папке на сервере)
-                response = await fetch('./config.json');
-                if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            } catch (relErr) {
-                // Если не получилось, пробуем raw.githubusercontent.com
-                log('Относительный путь не сработал, пробуем raw.githubusercontent...', false);
-                response = await fetch(`https://raw.githubusercontent.com/${GITHUB_OWNER}/${GITHUB_REPO}/${GITHUB_BRANCH}/${GITHUB_PATH}`);
-                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    
+    function expandToTopic(topicId) {
+        let current = currentTopics.find(t => t.id === topicId);
+        const parentsToExpand = [];
+        while (current && current.parent) {
+            parentsToExpand.unshift(current.parent);
+            current = currentTopics.find(t => t.id === current.parent);
+        }
+        for (let parentId of parentsToExpand) {
+            if (collapsedFolders.get(parentId) === true) {
+                collapsedFolders.set(parentId, false);
+                const parentNode = document.querySelector(`#modalTopicTree .tree-node[data-id="${parentId}"] .tree-children`);
+                const toggleIcon = document.querySelector(`#modalTopicTree .tree-node[data-id="${parentId}"] .toggle-icon`);
+                if (parentNode) {
+                    parentNode.classList.remove('collapsed');
+                    parentNode.classList.add('expanded');
+                }
+                if (toggleIcon) toggleIcon.innerHTML = '<i class="fas fa-chevron-down"></i>';
             }
+        }
+    }
+    
+    function renderModalTree() {
+        const container = document.getElementById('modalTopicTree');
+        if (!container) return;
+        container.innerHTML = '';
+        updateRelevance();
+        const roots = sortByRelevance(currentTopics.filter(t => t.parent === null && isVisible(t)));
+        for (let r of roots) renderNode(r, container);
+        
+        if (currentSearchQuery) {
+            const matching = new Set();
+            for (let t of currentTopics) {
+                if (topicRelevanceInfo.get(t.id)?.found) {
+                    matching.add(t.id);
+                    let p = t.parent;
+                    while (p) { matching.add(p); p = currentTopics.find(x => x.id === p)?.parent; }
+                }
+            }
+            document.querySelectorAll('#modalTopicTree .tree-node').forEach(n => {
+                n.style.display = matching.has(n.getAttribute('data-id')) ? '' : 'none';
+            });
+        } else {
+            document.querySelectorAll('#modalTopicTree .tree-node').forEach(n => n.style.display = '');
+        }
+    }
+    
+    function renderNode(topic, parentEl) {
+        const children = getChildrenSorted(topic.id);
+        const hasKids = children.length > 0 && hasVisibleChildren(topic.id);
+        const collapsed = collapsedFolders.get(topic.id) === true;
+        const node = document.createElement('div');
+        node.className = 'tree-node';
+        node.setAttribute('data-id', topic.id);
+        if (aiMatchedTopicIds.has(topic.id)) node.classList.add('ai-match');
+        if (matchOnlyByDescription.get(topic.id)) node.classList.add('search-match-description');
+        
+        const content = document.createElement('div');
+        content.className = 'tree-node-content';
+        
+        const toggle = document.createElement('span');
+        toggle.className = 'toggle-icon';
+        if (hasKids) {
+            toggle.innerHTML = collapsed ? '<i class="fas fa-chevron-right"></i>' : '<i class="fas fa-chevron-down"></i>';
+        } else {
+            toggle.classList.add('empty');
+        }
+        content.appendChild(toggle);
+        
+        const icon = document.createElement('i');
+        icon.className = `fas ${topic.icon || 'fa-book'}`;
+        icon.style.width = '18px';
+        content.appendChild(icon);
+        
+        const title = document.createElement('span');
+        title.className = 'node-title';
+        title.textContent = topic.name;
+        content.appendChild(title);
+        node.appendChild(content);
+        
+        if (hasKids) {
+            const kidsDiv = document.createElement('div');
+            kidsDiv.className = `tree-children ${collapsed ? 'collapsed' : 'expanded'}`;
+            for (let c of children) renderNode(c, kidsDiv);
+            node.appendChild(kidsDiv);
             
-            const json = await response.json();
-            if (!Array.isArray(json)) throw new Error('Ответ не является массивом');
-            
-            applyConfig(json);
-        } catch (err) {
-            log(`Ошибка загрузки из GitHub: ${err.message}`, true);
-            statusMsgSpan.innerHTML = `❌ Ошибка загрузки: ${err.message}`;
-            // Пробуем локальный кеш
-            if (localStorage.getItem(STORAGE_KEY)) {
-                log('Восстановление из локального кеша...');
-                if (loadProgress() && configData) {
-                    rebuildFilteredList();
-                    displayCurrentTopic();
-                    log('Восстановлен локальный прогресс');
-                    statusMsgSpan.innerHTML = `⚠️ GitHub недоступен, загружен локальный кеш`;
+            toggle.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const newCollapsed = !collapsedFolders.get(topic.id);
+                collapsedFolders.set(topic.id, newCollapsed);
+                if (newCollapsed) {
+                    kidsDiv.classList.remove('expanded');
+                    kidsDiv.classList.add('collapsed');
+                    toggle.innerHTML = '<i class="fas fa-chevron-right"></i>';
                 } else {
-                    log('Нет локального кеша.', true);
+                    kidsDiv.classList.remove('collapsed');
+                    kidsDiv.classList.add('expanded');
+                    toggle.innerHTML = '<i class="fas fa-chevron-down"></i>';
                 }
-            } else {
-                log('Нет локального кеша. Используйте кнопку "Загрузить конфиг" или проверьте соединение.', true);
-            }
+            });
         }
-    }
-
-    function applyConfig(json) {
-        configData = json;
-        // Нормализация полей
-        configData.forEach(t => {
-            if (!t.keywords) t.keywords = [];
-            if (!t.icon) t.icon = 'fa-file-alt';
-            if (!t.example) t.example = t.example || '<!-- Пример отсутствует -->';
-            if (!t.description) t.description = '';
-            if (!t.gradeLevel) t.gradeLevel = 3;
-        });
-        currentIndex = 0;
-        currentFilteredPos = 0;
-        rebuildFilteredList();
-        if (filteredIndices.length > 0) {
-            currentIndex = filteredIndices[0];
-            currentFilteredPos = 0;
-        }
-        displayCurrentTopic();
-        saveProgress(); // сохраняем локально
-        log(`✅ Загружено ${configData.length} тем из GitHub`);
-        statusMsgSpan.innerHTML = `📥 Загружено из GitHub: ${configData.length} тем`;
-        // Автокопирование промпта для первой неотредактированной
-        if (filteredIndices.length > 0) {
-            copyPromptForCurrentTopic();
-        }
-    }
-
-    // ==================== СОХРАНЕНИЕ В GITHUB (с токеном) ====================
-    async function saveToGitHub() {
-        if (!configData) {
-            log('Нет данных для сохранения', true);
-            return;
-        }
-        if (!confirm('ВНИМАНИЕ! Вы перезаписываете config.json в репозитории GitHub. Продолжить?')) return;
         
-        log('Сохранение в GitHub...');
+        parentEl.appendChild(node);
+        content.addEventListener('click', (e) => {
+            if (e.target.closest('.toggle-icon') && !e.target.closest('.toggle-icon')?.classList.contains('empty')) return;
+            loadTopic(topic.id, false);
+            document.getElementById('hierarchyModal').classList.remove('visible');
+        });
+    }
+    
+    function loadTopic(id, fromLink) {
+        if (id === 'welcome') { showWelcomeScreen(); return; }
+        const topic = currentTopics.find(t => t.id === id);
+        if (!topic) return;
+        
+        if (fromLink && currentTopicId && currentTopicId !== 'welcome') navigationStack.push(currentTopicId);
+        currentTopicId = id;
+        
+        const exampleDiv = document.getElementById('examplePlaceholder');
+        const descDiv = document.getElementById('descriptionPlaceholder');
+        
+        // Безопасная вставка контента с fallback
         try {
-            // Получаем sha текущего файла (с токеном)
-            let sha = null;
-            const getRes = await fetch(`https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${GITHUB_PATH}`, {
-                headers: { 
-                    'Authorization': `token ${GITHUB_TOKEN}`,
-                    'Accept': 'application/vnd.github.v3+json'
-                }
-            });
-            if (getRes.ok) {
-                const fileData = await getRes.json();
-                sha = fileData.sha;
-            }
+            // Вставляем пример с защитой от пустых значений
+            const exampleContent = topic.example || '<div style="padding:20px; color:#999;">📝 Пример отсутствует</div>';
+            exampleDiv.innerHTML = sanitizeHtml(exampleContent);
             
-            const content = JSON.stringify(configData, null, 2);
-            const encoded = btoa(unescape(encodeURIComponent(content)));
-            const putBody = {
-                message: 'Update config.json from geometry editor',
-                content: encoded,
-                branch: GITHUB_BRANCH
-            };
-            if (sha) putBody.sha = sha;
+            // Вставляем теорию
+            const descContent = topic.description || '<p>📖 Описание отсутствует</p>';
+            descDiv.innerHTML = sanitizeHtml(descContent);
             
-            const putRes = await fetch(`https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${GITHUB_PATH}`, {
-                method: 'PUT',
-                headers: {
-                    'Authorization': `token ${GITHUB_TOKEN}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(putBody)
-            });
-            if (!putRes.ok) {
-                const errorText = await putRes.text();
-                throw new Error(`PUT ${putRes.status}: ${errorText}`);
-            }
-            log(`✅ Конфиг успешно сохранён в GitHub (${new Date().toLocaleTimeString()})`);
-            statusMsgSpan.innerHTML = `✅ Сохранено в GitHub (${configData.length} тем)`;
-        } catch (err) {
-            log(`Ошибка сохранения в GitHub: ${err.message}`, true);
-            statusMsgSpan.innerHTML = `❌ Ошибка сохранения в GitHub`;
-        }
-    }
-
-    // Локальные файлы
-    function loadConfigFromFile(file) {
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            try {
-                const json = JSON.parse(e.target.result);
-                if (!Array.isArray(json)) throw new Error('Не массив');
-                configData = json;
-                configData.forEach(t => {
-                    if (!t.keywords) t.keywords = [];
-                    if (!t.icon) t.icon = 'fa-file-alt';
-                    if (!t.example) t.example = t.example || '<!-- Пример отсутствует -->';
-                    if (!t.description) t.description = '';
-                    if (!t.gradeLevel) t.gradeLevel = 3;
+            // Безопасная обработка inline-ссылок
+            setTimeout(() => {
+                const links = descDiv.querySelectorAll('.inline-link');
+                links.forEach(link => {
+                    // Удаляем старые обработчики, чтобы не было дублирования
+                    const newLink = link.cloneNode(true);
+                    link.parentNode.replaceChild(newLink, link);
+                    
+                    newLink.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        const tid = newLink.getAttribute('data-topic-id');
+                        if (tid && currentTopics.find(t => t.id === tid)) {
+                            loadTopic(tid, true);
+                        }
+                    });
                 });
-                currentIndex = 0;
-                currentFilteredPos = 0;
-                rebuildFilteredList();
-                if (filteredIndices.length > 0) {
-                    currentIndex = filteredIndices[0];
-                    currentFilteredPos = 0;
-                }
-                displayCurrentTopic();
-                saveProgress();
-                log(`Загружено ${configData.length} тем из файла`);
-                statusMsgSpan.innerHTML = `📁 Загружено ${configData.length} тем.`;
-                if (filteredIndices.length > 0) copyPromptForCurrentTopic();
-            } catch(err) {
-                log(`Ошибка парсинга JSON: ${err.message}`, true);
-            }
-        };
-        reader.readAsText(file);
+            }, 10);
+            
+        } catch (error) {
+            console.error('Ошибка отображения темы:', error);
+            exampleDiv.innerHTML = '<div style="padding:20px; color:#c0392b;">⚠️ Ошибка загрузки примера</div>';
+            descDiv.innerHTML = '<p>⚠️ Ошибка загрузки описания</p>';
+        }
+        
+        updateNavButtons();
+        showToast(topic.name);
     }
-
-    function downloadConfig() {
-        if (!configData) {
-            log('Нет данных для скачивания', true);
+    
+    function showWelcomeScreen() {
+        currentTopicId = 'welcome';
+        document.getElementById('examplePlaceholder').innerHTML = `<div class="welcome-message"><i class="fas fa-graduation-cap"></i><h2>MathFrame</h2><p>Современная платформа для изучения точных наук</p><p style="font-size:0.85rem; margin-top:16px;">📚 Нажмите на кнопку <i class="fas fa-bars"></i> вверху для открытия меню с темами</p><p style="margin-top:8px;">🤖 Или спросите у чат-бота справа внизу</p></div>`;
+        document.getElementById('descriptionPlaceholder').innerHTML = `<p><strong>Добро пожаловать!</strong><br>• <strong>📚 Меню</strong> — все темы с фильтрами и ИИ-поиском (можно отключить в параметрах)<br>• <strong>💬 Чат</strong> — задайте вопрос, ИИ объяснит простыми словами</p><p>Доступные разделы: ${currentTopics.filter(t => t.parent === null && t.id !== 'math_root').map(t => t.name).join(', ')}</p>`;
+        updateNavButtons();
+    }
+    
+    function updateNavButtons() {
+        const cont = document.getElementById('navButtonsContainer');
+        if (!cont) return;
+        if (currentTopicId === 'welcome') {
+            cont.innerHTML = '<button class="nav-btn" id="homeWelcomeBtn"><i class="fas fa-home"></i> Главная</button>';
+            document.getElementById('homeWelcomeBtn')?.addEventListener('click', () => showWelcomeScreen());
             return;
         }
-        const dataStr = JSON.stringify(configData, null, 2);
-        const blob = new Blob([dataStr], {type: 'application/json'});
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'geometry_config_edited.json';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        log('Конфиг скачан локально');
-    }
-
-    function validateCode(code) {
-        const errors = [];
-        if (!code.includes('<canvas')) errors.push('Отсутствует <canvas>');
-        if (!code.includes('addEventListener') && !code.includes('onPointer')) errors.push('Нет обработчиков перетаскивания');
-        if (!code.includes(EDITED_MARKER)) errors.push(`Нет маркера ${EDITED_MARKER}`);
-        if (code.includes('В разработке')) errors.push('Присутствует заглушка "В разработке"');
-        return errors;
-    }
-
-    function handleCodeValidation() {
-        const code = codeEditor.value;
-        const errors = validateCode(code);
-        if (errors.length) {
-            log(`⚠️ Найдены проблемы:\n${errors.join('\n')}`, true);
-            const errorMsg = `Ошибки в коде темы "${configData[currentIndex].name}":\n${errors.join('\n')}`;
-            navigator.clipboard.writeText(errorMsg).catch(()=>{});
-            statusMsgSpan.innerHTML = '❗ Обнаружены ошибки — список скопирован';
-            return false;
-        } else {
-            log('✅ Код проходит базовую проверку');
-            statusMsgSpan.innerHTML = '✅ Код валиден';
-            return true;
+        const topic = currentTopics.find(t => t.id === currentTopicId);
+        const hasParent = topic && topic.parent && currentTopics.some(p => p.id === topic.parent);
+        cont.innerHTML = '';
+        if (hasParent) {
+            const btn = document.createElement('button');
+            btn.className = 'nav-btn';
+            btn.innerHTML = '<i class="fas fa-arrow-up"></i> Родительская тема';
+            btn.onclick = () => { if (topic.parent) loadTopic(topic.parent, false); };
+            cont.appendChild(btn);
+        }
+        if (navigationStack.length) {
+            const back = document.createElement('button');
+            back.className = 'nav-btn';
+            back.innerHTML = '<i class="fas fa-undo-alt"></i> Назад';
+            back.onclick = () => { if (navigationStack.length) loadTopic(navigationStack.pop(), false); else showToast('Нет истории'); };
+            cont.appendChild(back);
         }
     }
-
-    function onNextSave() {
-        saveCurrentCode();
-        handleCodeValidation();
-        nextTopic();
+    
+    function applyFilters() {
+        currentGradeFilter = document.getElementById('levelSelect').value;
+        currentSortMode = document.getElementById('sortSelect').value;
+        saveToStorage();
+        renderModalTree();
+        if (currentTopicId && currentTopicId !== 'welcome') {
+            const cur = currentTopics.find(t => t.id === currentTopicId);
+            if (cur && isVisible(cur)) {
+                const descDiv = document.getElementById('descriptionPlaceholder');
+                descDiv.innerHTML = sanitizeHtml(cur.description || '<p>Нет описания</p>');
+            } else {
+                const first = currentTopics.find(t => t.parent === null && isVisible(t));
+                if (first) loadTopic(first.id, false);
+                else showWelcomeScreen();
+            }
+        }
     }
-
-    // Инициализация событий
-    loadBtn.addEventListener('click', () => loadConfigInput.click());
-    loadConfigInput.addEventListener('change', (e) => {
-        if (e.target.files.length) loadConfigFromFile(e.target.files[0]);
-        loadConfigInput.value = '';
-    });
-    downloadBtn.addEventListener('click', downloadConfig);
-    prevBtn.addEventListener('click', prevTopic);
-    nextSaveBtn.addEventListener('click', onNextSave);
-    copyPromptBtn.addEventListener('click', copyPromptForCurrentTopic);
-    loadFromGitHubBtn.addEventListener('click', loadFromGitHub);
-    saveToGitHubBtn.addEventListener('click', saveToGitHub);
-
-    // Автозагрузка при старте (как в примере)
-    loadFromGitHub();
+    
+    function saveToStorage() {
+        localStorage.setItem('mathframe_collapsed', JSON.stringify(Object.fromEntries(collapsedFolders)));
+        localStorage.setItem('mathframe_filter', currentGradeFilter);
+        localStorage.setItem('mathframe_sort', currentSortMode);
+        localStorage.setItem('mathframe_search_in_desc', searchInDescription);
+        localStorage.setItem('mathframe_keywords', keywordsEnabled);
+        localStorage.setItem('mathframe_fuzzy', fuzzyEnabled);
+        localStorage.setItem('mathframe_smart_sort', smartSortEnabled);
+        localStorage.setItem('mathframe_disable_ai_search', disableAISearch);
+    }
+    
+    function loadFromStorage() {
+        const sc = localStorage.getItem('mathframe_collapsed');
+        if (sc) collapsedFolders = new Map(Object.entries(JSON.parse(sc)));
+        currentGradeFilter = localStorage.getItem('mathframe_filter') || "all";
+        currentSortMode = localStorage.getItem('mathframe_sort') || "config";
+        searchInDescription = localStorage.getItem('mathframe_search_in_desc') === 'true';
+        keywordsEnabled = localStorage.getItem('mathframe_keywords') !== 'false';
+        fuzzyEnabled = localStorage.getItem('mathframe_fuzzy') !== 'false';
+        smartSortEnabled = localStorage.getItem('mathframe_smart_sort') !== 'false';
+        disableAISearch = localStorage.getItem('mathframe_disable_ai_search') === 'true';
+        
+        const levelSelect = document.getElementById('levelSelect');
+        const sortSelect = document.getElementById('sortSelect');
+        const searchInDesc = document.getElementById('searchInDescCheckbox');
+        const keywords = document.getElementById('keywordsCheckbox');
+        const fuzzy = document.getElementById('fuzzyCheckbox');
+        const smartSort = document.getElementById('smartSortCheckbox');
+        const disableAICheckbox = document.getElementById('disableAISearchCheckbox');
+        if (levelSelect) levelSelect.value = currentGradeFilter;
+        if (sortSelect) sortSelect.value = currentSortMode;
+        if (searchInDesc) searchInDesc.checked = searchInDescription;
+        if (keywords) keywords.checked = keywordsEnabled;
+        if (fuzzy) fuzzy.checked = fuzzyEnabled;
+        if (smartSort) smartSort.checked = smartSortEnabled;
+        if (disableAICheckbox) disableAICheckbox.checked = disableAISearch;
+    }
+    
+    function showToast(msg) {
+        let t = document.querySelector('.framework-toast');
+        if (t) t.remove();
+        t = document.createElement('div');
+        t.className = 'framework-toast';
+        t.textContent = msg;
+        document.body.appendChild(t);
+        setTimeout(() => t.remove(), 2000);
+    }
+    
+    // ========== ИИ-ПОИСК ==========
+    async function performAISearch() {
+        if (disableAISearch) {
+            document.getElementById('aiSearchResults').innerHTML = '<div style="color:#fab387; padding:12px; text-align:center;">🔘 ИИ-поиск отключен в настройках. Включите его в параметрах поиска.</div>';
+            return;
+        }
+        
+        const query = document.getElementById('aiQueryInput').value.trim();
+        const resultsDiv = document.getElementById('aiSearchResults');
+        
+        if (!query) {
+            resultsDiv.innerHTML = '<div style="color:#e74c3c; padding:12px; text-align:center;">⚠️ Введите описание темы</div>';
+            return;
+        }
+        
+        resultsDiv.innerHTML = '<div style="text-align:center; padding:12px;"><i class="fas fa-brain fa-pulse"></i> ИИ анализирует...</div>';
+        
+        if (!topicAI) topicAI = new TopicAI(currentTopics);
+        
+        setTimeout(() => {
+            const results = topicAI.search(query);
+            
+            if (results.length === 0) {
+                resultsDiv.innerHTML = '<div style="color:#fab387; padding:12px; text-align:center;">😕 ИИ не нашёл подходящих тем. Попробуйте переформулировать запрос.</div>';
+                return;
+            }
+            
+            aiMatchedTopicIds.clear();
+            for (let r of results) {
+                aiMatchedTopicIds.add(r.topic.id);
+                expandToTopic(r.topic.id);
+            }
+            
+            resultsDiv.innerHTML = results.map(r => `
+                <div class="ai-result-item" onclick="window.loadTopicFromModal('${r.topic.id}')">
+                    <h4>📘 ${escapeHtml(r.topic.name)}</h4>
+                    <p>${escapeHtml((r.topic.description || '').substring(0, 100))}...</p>
+                    <div style="font-size:0.7rem; color:#667eea;">🎯 совпадение: ${Math.min(100, r.score)}%</div>
+                </div>
+            `).join('');
+            
+            renderModalTree();
+            showToast(`🤖 ИИ нашёл ${results.length} тем`);
+        }, 100);
+    }
+    
+    function escapeHtml(str) {
+        if (!str) return '';
+        return str.replace(/[&<>]/g, function(m) {
+            if (m === '&') return '&amp;';
+            if (m === '<') return '&lt;';
+            if (m === '>') return '&gt;';
+            return m;
+        });
+    }
+    
+    window.loadTopicFromModal = function(id) {
+        loadTopic(id, false);
+        document.getElementById('hierarchyModal').classList.remove('visible');
+    };
+    
+    // ========== ЧАТ С ИСТОРИЕЙ ==========
+    const YANDEX_API_KEY = 'AQVNw9zYMNV-A36YXNH4Y_NccPqNX4z8E1hmVm7h';
+    const YANDEX_FOLDER_ID = 'b1g3i639pqpj9qqrp1m9';
+    const CHAT_PROMPT_ID = 'fvto3dk1tv0if74mcu31';
+    
+    async function sendChatMessage() {
+        const input = document.getElementById('chatInput');
+        const message = input.value.trim();
+        if (!message) return;
+        
+        input.value = '';
+        addChatMessage(message, 'user');
+        showTyping(true);
+        
+        try {
+            const response = await callChatAPI(message);
+            addChatMessage(response, 'assistant');
+        } catch (error) {
+            addChatMessage('Извините, произошла ошибка. Попробуйте позже.', 'assistant');
+        } finally {
+            showTyping(false);
+        }
+    }
+    
+    async function callChatAPI(userMessage) {
+        const allTopics = currentTopics.filter(t => t.id !== 'math_root');
+        let topicsContext = "Вот список всех доступных тем с их описаниями (используй для ответов, но НЕ ЦИТИРУЙ дословно, пересказывай своими словами):\n\n";
+        for (let t of allTopics) {
+            topicsContext += `📌 **${t.name}**\n`;
+            topicsContext += `   Описание: ${(t.description || '').replace(/<[^>]*>/g, '').substring(0, 300)}\n`;
+            if (t.keywords) topicsContext += `   Ключевые слова: ${t.keywords.join(', ')}\n\n`;
+        }
+        
+        // Формируем историю для контекста (последние 5 сообщений)
+        const recentHistory = chatHistory.slice(-5);
+        let historyText = "";
+        if (recentHistory.length > 0) {
+            historyText = "\n\nИСТОРИЯ ДИАЛОГА:\n";
+            for (let msg of recentHistory) {
+                historyText += `${msg.role === 'user' ? 'Пользователь' : 'MathBot'}: ${msg.content}\n`;
+            }
+        }
+        
+        const url = 'https://ai.api.cloud.yandex.net/v1/responses';
+        const requestBody = {
+            prompt: { id: CHAT_PROMPT_ID },
+            input: `${topicsContext}\n\n${historyText}\n\nПользователь спрашивает: "${userMessage}"\n\nОтветь дружелюбно, простыми словами, с примерами. НЕ КОПИРУЙ описания дословно — ПЕРЕСКАЖИ своими словами. Будь живым и разнообразным в ответах. Используй эмодзи.`
+        };
+        
+        try {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Api-Key ${YANDEX_API_KEY}`
+                },
+                body: JSON.stringify(requestBody)
+            });
+            if (!response.ok) throw new Error(`API error: ${response.status}`);
+            const data = await response.json();
+            const reply = data.output_text || "Извините, не удалось получить ответ.";
+            // Сохраняем в историю
+            chatHistory.push({ role: 'user', content: userMessage });
+            chatHistory.push({ role: 'assistant', content: reply });
+            return reply;
+        } catch (error) {
+            const localReply = await getLocalResponse(userMessage);
+            chatHistory.push({ role: 'user', content: userMessage });
+            chatHistory.push({ role: 'assistant', content: localReply });
+            return localReply;
+        }
+    }
+    
+    async function getLocalResponse(query) {
+        const qLower = query.toLowerCase();
+        const topics = currentTopics.filter(t => t.id !== 'math_root');
+        for (let t of topics) {
+            if (qLower.includes(t.name.toLowerCase()) || 
+                (t.keywords && t.keywords.some(k => qLower.includes(k.toLowerCase())))) {
+                const desc = (t.description || '').replace(/<[^>]*>/g, '');
+                if (t.id === 'linear_eq') {
+                    return "📐 Отличный вопрос про линейные уравнения! Представь, что у тебя есть загадка: 'Какое число нужно прибавить к 5, чтобы получить 8?' Это и есть линейное уравнение: x + 5 = 8. Решается в уме: x = 3. Формула та же: x = -b/a. Хочешь попробовать решить своё уравнение? 😊";
+                } else if (t.id === 'triangles') {
+                    return "🔺 Треугольники — это как тренога у табуретки: три опоры, три угла. И знаешь что круто? Если измерить все три угла и сложить, всегда получится 180°! Проверь сам на любом треугольнике. А ещё если у двух треугольников совпадают две стороны и угол между ними — они близнецы, полностью одинаковые. Понятно объясняю? 🤓";
+                } else {
+                    return `📚 **${t.name}**\n\n${desc.substring(0, 200)}...\n\nХотите узнать подробнее? Нажмите на тему в меню! 💡`;
+                }
+            }
+        }
+        
+        const funnyResponses = [
+            "🧐 Хм, интересный вопрос! Я больше по математике, но давай подумаем вместе... Что именно тебя интересует?",
+            "🤔 О, а это уже философский вопрос! Я, конечно, математический бот, но могу попробовать помочь. Уточни, пожалуйста, что ты имеешь в виду?",
+            "😊 Знаешь, я лучше всего разбираюсь в числах, формулах и фигурах. Спрашивай про треугольники, уравнения или логарифмы — я в деле!",
+            "💡 А давай я расскажу лучше про математику? Например, знаешь ли ты, что сумма углов любого треугольника всегда 180 градусов? Удивительно, правда?"
+        ];
+        return funnyResponses[Math.floor(Math.random() * funnyResponses.length)];
+    }
+    
+    function addChatMessage(text, sender) {
+        const container = document.getElementById('chatMessages');
+        const div = document.createElement('div');
+        div.className = `message ${sender}`;
+        div.innerHTML = `<div class="message-bubble">${escapeHtml(text).replace(/\n/g, '<br>')}</div>`;
+        container.appendChild(div);
+        container.scrollTop = container.scrollHeight;
+    }
+    
+    function showTyping(show) {
+        document.getElementById('typingIndicator').style.display = show ? 'flex' : 'none';
+        if (show) {
+            document.getElementById('chatMessages').scrollTop = document.getElementById('chatMessages').scrollHeight;
+        }
+    }
+    
+    function clearChatHistory() {
+        chatHistory = [];
+        const container = document.getElementById('chatMessages');
+        container.innerHTML = '';
+        const welcomeMsg = document.createElement('div');
+        welcomeMsg.className = 'message assistant';
+        welcomeMsg.innerHTML = '<div class="message-bubble">👋 История очищена! Чем могу помочь? 📐</div>';
+        container.appendChild(welcomeMsg);
+        showToast('История чата очищена');
+    }
+    
+    window.loadTopic = loadTopic;
+    
+    // ========== ИНИЦИАЛИЗАЦИЯ ==========
+    async function init() {
+        const loaded = await loadConfig();
+        currentTopics = buildHierarchyOrder(loaded);
+        collapsedFolders.clear();
+        for (let t of currentTopics) if (currentTopics.some(c => c.parent === t.id)) collapsedFolders.set(t.id, true);
+        loadFromStorage();
+        
+        showWelcomeScreen();
+        
+        // Модальное окно иерархии
+        const modal = document.getElementById('hierarchyModal');
+        const menuBtn = document.getElementById('menuToggleBtn');
+        const closeModalBtn = document.getElementById('closeModalBtn');
+        
+        menuBtn.addEventListener('click', () => {
+            renderModalTree();
+            modal.classList.add('visible');
+        });
+        closeModalBtn.addEventListener('click', () => {
+            modal.classList.remove('visible');
+        });
+        modal.addEventListener('click', (e) => { if (e.target === modal) modal.classList.remove('visible'); });
+        
+        // Фильтры
+        document.getElementById('levelSelect').addEventListener('change', applyFilters);
+        document.getElementById('sortSelect').addEventListener('change', applyFilters);
+        document.getElementById('searchInDescCheckbox').addEventListener('change', (e) => { searchInDescription = e.target.checked; saveToStorage(); renderModalTree(); });
+        document.getElementById('keywordsCheckbox').addEventListener('change', (e) => { keywordsEnabled = e.target.checked; saveToStorage(); renderModalTree(); });
+        document.getElementById('fuzzyCheckbox').addEventListener('change', (e) => { fuzzyEnabled = e.target.checked; saveToStorage(); renderModalTree(); });
+        document.getElementById('smartSortCheckbox').addEventListener('change', (e) => { smartSortEnabled = e.target.checked; saveToStorage(); renderModalTree(); });
+        
+        // Бета-галочка для отключения ИИ-поиска
+        const disableAICheckbox = document.getElementById('disableAISearchCheckbox');
+        disableAICheckbox.addEventListener('change', (e) => { 
+            disableAISearch = e.target.checked; 
+            saveToStorage(); 
+            if (disableAISearch) {
+                showToast('🔘 ИИ-поиск отключен (режим Beta)');
+                document.getElementById('aiSearchResults').innerHTML = '';
+            } else {
+                showToast('🤖 ИИ-поиск включен');
+            }
+        });
+        
+        // Вкладка фильтров
+        const filterHeader = document.getElementById('filterTabHeader');
+        const filterContent = document.getElementById('filterTabContent');
+        const filterChevron = document.getElementById('filterChevron');
+        filterHeader.addEventListener('click', () => {
+            filterContent.classList.toggle('open');
+            filterChevron.style.transform = filterContent.classList.contains('open') ? 'rotate(180deg)' : 'rotate(0deg)';
+        });
+        
+        // ИИ поиск
+        document.getElementById('aiSearchSubmit').addEventListener('click', performAISearch);
+        document.getElementById('aiQueryInput').addEventListener('keypress', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); performAISearch(); } });
+        
+        // Чат
+        const chatModal = document.getElementById('chatModal');
+        const chatFab = document.getElementById('chatFabBtn');
+        const closeChatBtn = document.getElementById('closeChatModalBtn');
+        const clearChatBtn = document.getElementById('clearChatBtn');
+        chatFab.addEventListener('click', () => { chatModal.classList.add('visible'); });
+        closeChatBtn.addEventListener('click', () => { chatModal.classList.remove('visible'); });
+        clearChatBtn.addEventListener('click', clearChatHistory);
+        chatModal.addEventListener('click', (e) => { if (e.target === chatModal) chatModal.classList.remove('visible'); });
+        document.getElementById('chatSendBtn').addEventListener('click', sendChatMessage);
+        document.getElementById('chatInput').addEventListener('keypress', (e) => { if (e.key === 'Enter') sendChatMessage(); });
+        
+        // Главная кнопка
+        document.getElementById('globalHomeBtn').addEventListener('click', () => showWelcomeScreen());
+        
+        setTimeout(() => {
+            const loader = document.getElementById('loadingOverlay');
+            if (loader) {
+                loader.style.opacity = '0';
+                setTimeout(() => { loader.style.display = 'none'; document.getElementById('appRoot').classList.add('content-visible'); }, 700);
+            }
+        }, 800);
+    }
+    
+    init();
 </script>
 </body>
 </html>
