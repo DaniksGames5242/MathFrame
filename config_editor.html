@@ -339,8 +339,19 @@
             font-size: 0.7rem;
         }
         
+        /* Стили для оверлея (выбора темы и предупреждений) */
+        .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 1050;
+        }
+        
         .toast-area { position: fixed; bottom: 20px; right: 20px; left: 20px; z-index: 1000; display: flex; justify-content: flex-end; }
-        .toast { background: #2a5a2a; padding: 8px 20px; border-radius: 40px; font-size: 0.8rem; opacity: 0; transition: opacity 0.2s; pointer-events: none; }
+        .toast { background: #2a5a2a; padding: 8px 20px; border-radius: 40px; font-size: 0.8rem; opacity: 0; transition: opacity 0.2s; pointer-events: none; position: fixed; bottom: 20px; right: 20px; z-index: 1000; }
         .toast.show { opacity: 1; }
         .toast.error { background: #5a2a2a; }
         .topic-selector-dialog {
@@ -391,7 +402,7 @@
             <button id="newBtn">+ Создать тему</button>
         </div>
         <div class="small-note">Клик — выделить. Перетащите за строку: в середину → сделать дочерней; между строк → изменить порядок.</div>
-        <div class="small-note">Новая тема создаётся как дочерняя для выделенной.</div>
+        <div class="small-note">Новая тема создаётся как дочерняя для выделенной (или корневая, если ничего не выделено).</div>
     </div>
 
     <div class="editor-panel">
@@ -486,7 +497,7 @@
     </div>
 </div>
 
-<div id="toastMsg" class="toast" style="position:fixed; bottom:20px; right:20px; z-index:1000;"></div>
+<div id="toastMsg" class="toast"></div>
 
 <script>
     // ========== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ==========
@@ -496,6 +507,7 @@
     let searchQuery = '';
     let autoSaveEnabled = true;
     let plainTextMode = false;
+    let previewTimeout = null;
     
     // История
     let historyStack = [];
@@ -522,6 +534,34 @@
     const jsonEditor = document.getElementById('jsonEditor');
     const plainTextCheckbox = document.getElementById('plainTextMode');
     const topicJsonEditor = document.getElementById('topicJsonEditor');
+    
+    // ========== ФУНКЦИЯ ДЛЯ УДАЛЕНИЯ ПОЛЯ ORDER ИЗ ТЕМ ==========
+    function removeOrderField(topicsArray) {
+        return topicsArray.map(topic => {
+            const { order, ...cleanTopic } = topic;
+            return cleanTopic;
+        });
+    }
+    
+    // ========== СОРТИРОВКА ТЕМ ПО ПОЛЮ ORDER (ЕСЛИ ОНО ЕСТЬ) И ПОСЛЕДУЮЩЕЕ УДАЛЕНИЕ ==========
+    function sortAndCleanTopics(topicsArray) {
+        // Сначала проверяем, есть ли поле order у каких-то тем
+        const hasOrder = topicsArray.some(t => t.order !== undefined);
+        
+        if (hasOrder) {
+            // Сортируем по order
+            const sorted = [...topicsArray].sort((a, b) => {
+                const orderA = a.order !== undefined ? a.order : Infinity;
+                const orderB = b.order !== undefined ? b.order : Infinity;
+                return orderA - orderB;
+            });
+            // Удаляем поле order
+            return removeOrderField(sorted);
+        }
+        
+        // Если поля order нет, просто возвращаем массив без изменений (но всё равно удаляем на всякий случай)
+        return removeOrderField(topicsArray);
+    }
     
     // ========== ТРАНСЛИТЕРАЦИЯ ДЛЯ ID ==========
     function transliterate(word) {
@@ -599,7 +639,9 @@
     }
     
     function saveToLocalStorage() {
-        localStorage.setItem('geometry_editor_topics', JSON.stringify(topics));
+        // Сохраняем без поля order
+        const topicsToSave = removeOrderField(topics);
+        localStorage.setItem('geometry_editor_topics', JSON.stringify(topicsToSave));
         localStorage.setItem('geometry_editor_expanded', JSON.stringify(Array.from(expandedState)));
     }
     
@@ -607,10 +649,18 @@
         const saved = localStorage.getItem('geometry_editor_topics');
         if (saved) {
             try {
-                const parsed = JSON.parse(saved);
+                let parsed = JSON.parse(saved);
                 if (Array.isArray(parsed) && parsed.length > 0) {
+                    // Сортируем и чистим от order (на случай, если в localStorage попал order)
+                    parsed = sortAndCleanTopics(parsed);
                     topics = parsed;
-                    topics.forEach((t, i) => { if (!t.order) t.order = i; if (!t.keywords) t.keywords = []; if (!t.icon) t.icon = 'fa-file-alt'; if (!t.example) t.example = ''; if (!t.description) t.description = '<p></p>'; });
+                    // Добавляем недостающие поля
+                    topics.forEach((t, i) => { 
+                        if (!t.keywords) t.keywords = []; 
+                        if (!t.icon) t.icon = 'fa-file-alt'; 
+                        if (!t.example) t.example = ''; 
+                        if (!t.description) t.description = '<p></p>'; 
+                    });
                     selectedId = topics[0]?.id || null;
                     const savedExpanded = localStorage.getItem('geometry_editor_expanded');
                     if (savedExpanded) expandedState = new Set(JSON.parse(savedExpanded));
@@ -712,13 +762,19 @@
         });
     }
     
-    function updateJsonEditor() { jsonEditor.value = JSON.stringify(topics, null, 2); }
+    function updateJsonEditor() { 
+        // Показываем в JSON-редакторе темы без поля order
+        const topicsToShow = removeOrderField(topics);
+        jsonEditor.value = JSON.stringify(topicsToShow, null, 2); 
+    }
     
     function updateTopicJsonEditor() {
         if (selectedId) {
             const topic = topics.find(t => t.id === selectedId);
             if (topic) {
-                topicJsonEditor.value = JSON.stringify(topic, null, 2);
+                // Показываем тему без поля order
+                const { order, ...cleanTopic } = topic;
+                topicJsonEditor.value = JSON.stringify(cleanTopic, null, 2);
             }
         }
     }
@@ -726,7 +782,7 @@
     function applyTopicJson() {
         if (!selectedId) { showToast('Нет выбранной темы', true); return; }
         try {
-            const parsed = JSON.parse(topicJsonEditor.value);
+            let parsed = JSON.parse(topicJsonEditor.value);
             if (!parsed.id || !parsed.name) throw new Error('Тема должна содержать id и name');
             
             const idx = topics.findIndex(t => t.id === selectedId);
@@ -738,8 +794,11 @@
                 return;
             }
             
-            topics[idx] = parsed;
-            selectedId = parsed.id;
+            // Удаляем поле order, если оно есть
+            const { order, ...cleanParsed } = parsed;
+            
+            topics[idx] = cleanParsed;
+            selectedId = cleanParsed.id;
             
             renderTree();
             fillFormBySelectedNoSave();
@@ -799,8 +858,9 @@
     
     function manualSave() { if (selectedId) saveCurrentTopic(true); else showToast('Нет выбранной темы', true); }
     
-    // ========== НОВАЯ ТЕМА (КАК ДОЧЕРНЯЯ ДЛЯ ВЫДЕЛЕННОЙ) ==========
+    // ========== НОВАЯ ТЕМА ==========
     function newTopic() {
+        // Если нет выделенной темы, parent = null
         const parentId = selectedId || null;
         const baseName = 'Новая тема';
         const newId = generateIdFromName(baseName, null, topics);
@@ -812,8 +872,7 @@
             icon: 'fa-file-alt', 
             gradeLevel: 3, 
             example: '', 
-            description: '<p>Новая тема</p>', 
-            order: topics.length 
+            description: '<p>Новая тема</p>'
         };
         topics.push(newTopicObj);
         selectedId = newId;
@@ -824,6 +883,35 @@
         saveToLocalStorage();
         pushToHistory();
         showToast(parentId ? `Тема создана как дочерняя для "${topics.find(t => t.id === parentId)?.name}"` : 'Тема создана как корневая');
+    }
+    
+    // ========== ОБРАБОТЧИК КЛИКА ПО ТЕМЕ (ВЫДЕЛЕНИЕ/СНЯТИЕ) ==========
+    function handleTopicClick(topicId, event, isDelBtn, isExpandBtn) {
+        if (isDelBtn || isExpandBtn) return;
+        
+        // Если кликнули на уже выделенную тему - снимаем выделение
+        if (selectedId === topicId) {
+            selectedId = null;
+            renderTree(); // Перерисовываем, чтобы убрать класс selected
+            // Очищаем форму
+            document.getElementById('topicId').value = '';
+            topicNameInput.value = '';
+            topicKeywordsInput.value = '';
+            topicIconSelect.value = 'fa-file-alt';
+            topicGradeSelect.value = '3';
+            descriptionEditor.innerHTML = '';
+            exampleHtmlSource.value = '';
+            topicParentSelect.innerHTML = '<option value="">(нет)</option>';
+            updatePreview();
+            updateTopicJsonEditor();
+            showToast('Выделение снято');
+        } else {
+            // Иначе выделяем новую тему
+            saveCurrentTopic(false);
+            selectedId = topicId;
+            renderTree();
+            fillFormBySelectedNoSave();
+        }
     }
     
     // ========== RENDER TREE ==========
@@ -881,15 +969,16 @@
                 if (isCyclic(dragSourceId, newParent)) { showToast('Циклическая зависимость', true); cleanDrag(); return; }
                 source.parent = newParent;
             }
-            let siblings = topics.filter(t => t.parent === source.parent).sort((a,b) => (a.order||0) - (b.order||0));
-            const srcIdx = siblings.findIndex(s => s.id === dragSourceId);
-            const tgtIdx = siblings.findIndex(s => s.id === targetId);
+            // Перемещаем в массиве
+            const srcIdx = topics.findIndex(t => t.id === dragSourceId);
+            const tgtIdx = topics.findIndex(t => t.id === targetId);
             if (srcIdx !== -1 && tgtIdx !== -1) {
-                siblings.splice(srcIdx, 1);
-                let insertPos = tgtIdx;
-                if (dropMode === 'after') insertPos = tgtIdx + 1;
-                siblings.splice(insertPos, 0, source);
-                siblings.forEach((s, i) => s.order = i);
+                const moving = topics[srcIdx];
+                topics.splice(srcIdx, 1);
+                let newIndex = tgtIdx;
+                if (dropMode === 'after') newIndex = tgtIdx + 1;
+                if (srcIdx < newIndex) newIndex--;
+                topics.splice(newIndex, 0, moving);
             }
             showToast(`Порядок обновлён`);
         }
@@ -912,7 +1001,7 @@
         const container = document.getElementById('topicList');
         if (!container) return;
         function renderNode(parentId, level = 0) {
-            const children = topics.filter(t => t.parent === parentId).sort((a,b) => (a.order||0) - (b.order||0));
+            const children = topics.filter(t => t.parent === parentId);
             if (!children.length && parentId !== null) return null;
             const ul = document.createElement('ul'); ul.className = 'tree-item'; ul.style.paddingLeft = level > 0 ? '18px' : '0';
             for (let node of children) {
@@ -940,9 +1029,36 @@
                 const pt = topics.find(p => p.id === node.parent); parentSpan.textContent = pt ? `(${pt.name})` : '(корень)';
                 left.appendChild(expand); left.appendChild(iconSpan); left.appendChild(nameSpan); left.appendChild(parentSpan);
                 const del = document.createElement('button'); del.className = 'del-topic'; del.textContent = '✖';
-                del.onclick = (e) => { e.stopPropagation(); if (confirm('Удалить тему?')) { topics = topics.filter(t => t.id !== node.id); if (selectedId === node.id) selectedId = topics[0]?.id || null; renderTree(); fillFormBySelectedNoSave(); updateJsonEditor(); saveToLocalStorage(); pushToHistory(); showToast('Тема удалена'); } };
+                del.onclick = (e) => { 
+                    e.stopPropagation(); 
+                    if (confirm('Удалить тему?')) { 
+                        topics = topics.filter(t => t.id !== node.id); 
+                        if (selectedId === node.id) selectedId = topics[0]?.id || null; 
+                        renderTree(); 
+                        if (selectedId) fillFormBySelectedNoSave(); 
+                        else {
+                            // Очищаем форму если нет выделенной темы
+                            document.getElementById('topicId').value = '';
+                            topicNameInput.value = '';
+                            topicKeywordsInput.value = '';
+                            descriptionEditor.innerHTML = '';
+                            exampleHtmlSource.value = '';
+                        }
+                        updateJsonEditor(); 
+                        saveToLocalStorage(); 
+                        pushToHistory(); 
+                        showToast('Тема удалена'); 
+                    } 
+                };
                 row.appendChild(left); row.appendChild(del);
-                row.addEventListener('click', (e) => { if (e.target === del || e.target === expand) return; saveCurrentTopic(false); selectedId = node.id; renderTree(); fillFormBySelectedNoSave(); });
+                
+                // Обработчик клика по строке темы
+                row.addEventListener('click', (e) => {
+                    const isDel = e.target === del || del.contains(e.target);
+                    const isExpand = e.target === expand || expand.contains(e.target);
+                    handleTopicClick(node.id, e, isDel, isExpand);
+                });
+                
                 li.appendChild(row);
                 if (hasChildren && expandedState.has(node.id)) { const childUl = renderNode(node.id, level + 1); if (childUl) li.appendChild(childUl); }
                 ul.appendChild(li);
@@ -957,11 +1073,13 @@
     
     // ========== ИМПОРТ/ЭКСПОРТ ==========
     function exportLocal() {
-        const data = JSON.stringify(topics, null, 2);
+        const dataToExport = removeOrderField(topics);
+        const data = JSON.stringify(dataToExport, null, 2);
         const blob = new Blob([data], {type:'application/json'});
         const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'topics_backup.json'; a.click(); URL.revokeObjectURL(blob);
         showToast('Экспорт выполнен');
     }
+    
     function importLocal(file) {
         const reader = new FileReader();
         reader.onload = (e) => {
@@ -969,17 +1087,29 @@
                 let imported = JSON.parse(e.target.result);
                 if (!Array.isArray(imported)) throw new Error();
                 imported = removeDuplicateIds(imported);
+                // Сортируем по order (если есть) и удаляем order
+                imported = sortAndCleanTopics(imported);
                 topics = imported;
-                topics.forEach((t,i) => { if (!t.order) t.order = i; if (!t.keywords) t.keywords = []; if (!t.icon) t.icon = 'fa-file-alt'; if (!t.example) t.example = ''; if (!t.description) t.description = '<p></p>'; });
+                topics.forEach((t, i) => { 
+                    if (!t.keywords) t.keywords = []; 
+                    if (!t.icon) t.icon = 'fa-file-alt'; 
+                    if (!t.example) t.example = ''; 
+                    if (!t.description) t.description = '<p></p>'; 
+                });
                 selectedId = topics[0]?.id || null;
                 expandedState.clear();
                 topics.forEach(t => { if (topics.some(ch => ch.parent === t.id)) expandedState.add(t.id); });
-                renderTree(); fillFormBySelectedNoSave(); updateJsonEditor(); saveToLocalStorage(); pushToHistory();
+                renderTree(); 
+                if (selectedId) fillFormBySelectedNoSave(); 
+                updateJsonEditor(); 
+                saveToLocalStorage(); 
+                pushToHistory();
                 showToast('Импорт выполнен');
             } catch(e) { showToast('Ошибка импорта', true); }
         };
         reader.readAsText(file);
     }
+    
     function importShortJSON(file) {
         const reader = new FileReader();
         reader.onload = (e) => {
@@ -995,19 +1125,23 @@
                     topics.push({ id: String(id), name: String(name), gradeLevel: parseInt(grade) || 3,
                         keywords: typeof kw === 'string' ? kw.split(',').map(k=>k.trim()).filter(k=>k) : [],
                         parent: parent === null || parent === '' ? null : String(parent),
-                        icon: 'fa-file-alt', example: 'В разработке', description: '<p>В разработке</p>', order: topics.length });
+                        icon: 'fa-file-alt', example: 'В разработке', description: '<p>В разработке</p>' });
                     added++;
                 }
                 if (added) {
                     topics = removeDuplicateIds(topics);
-                    topics.forEach((t,i)=>t.order=i);
-                    renderTree(); fillFormBySelectedNoSave(); updateJsonEditor(); saveToLocalStorage(); pushToHistory();
+                    renderTree(); 
+                    if (selectedId) fillFormBySelectedNoSave(); 
+                    updateJsonEditor(); 
+                    saveToLocalStorage(); 
+                    pushToHistory();
                     showToast(`Добавлено ${added} тем`);
                 } else showToast('Нет новых тем', true);
             } catch(e) { showToast('Ошибка', true); }
         };
         reader.readAsText(file);
     }
+    
     function resetLocalChanges() {
         if (confirm('ВНИМАНИЕ! Это действие сбросит все несохранённые в GitHub изменения. Вы уверены?')) {
             loadFromLocalStorage();
@@ -1057,14 +1191,25 @@
             const data = await res.json();
             if (data.content) {
                 const content = atob(data.content);
-                const parsed = JSON.parse(content);
+                let parsed = JSON.parse(content);
                 if (Array.isArray(parsed)) {
+                    // Сортируем по order (если есть) и удаляем order
+                    parsed = sortAndCleanTopics(parsed);
                     topics = parsed;
-                    topics.forEach((t,i) => { if (!t.order) t.order = i; if (!t.keywords) t.keywords = []; if (!t.icon) t.icon = 'fa-file-alt'; if (!t.example) t.example = ''; if (!t.description) t.description = '<p></p>'; });
+                    topics.forEach((t, i) => { 
+                        if (!t.keywords) t.keywords = []; 
+                        if (!t.icon) t.icon = 'fa-file-alt'; 
+                        if (!t.example) t.example = ''; 
+                        if (!t.description) t.description = '<p></p>'; 
+                    });
                     selectedId = topics[0]?.id || null;
                     expandedState.clear();
                     topics.forEach(t => { if (topics.some(ch => ch.parent === t.id)) expandedState.add(t.id); });
-                    renderTree(); fillFormBySelectedNoSave(); updateJsonEditor(); saveToLocalStorage(); pushToHistory();
+                    renderTree(); 
+                    if (selectedId) fillFormBySelectedNoSave(); 
+                    updateJsonEditor(); 
+                    saveToLocalStorage(); 
+                    pushToHistory();
                     showToast(`Восстановлен коммит ${sha.substring(0,7)}`);
                 }
             } else throw new Error();
@@ -1089,7 +1234,9 @@
     
     function saveToGitHub() {
         showWarningDialog(async () => {
-            const content = JSON.stringify(topics, null, 2);
+            // Убираем поле order перед сохранением
+            const topicsToSave = removeOrderField(topics);
+            const content = JSON.stringify(topicsToSave, null, 2);
             const encoded = btoa(unescape(encodeURIComponent(content)));
             showToast('Сохранение в GitHub...');
             try {
@@ -1233,12 +1380,23 @@
             let parsed = JSON.parse(jsonEditor.value);
             if (!Array.isArray(parsed)) throw new Error();
             parsed = removeDuplicateIds(parsed);
+            // Сортируем по order (если есть) и удаляем order
+            parsed = sortAndCleanTopics(parsed);
             topics = parsed;
-            topics.forEach((t, i) => { if (!t.order) t.order = i; if (!t.keywords) t.keywords = []; if (!t.icon) t.icon = 'fa-file-alt'; if (!t.example) t.example = ''; if (!t.description) t.description = '<p></p>'; });
+            topics.forEach((t, i) => { 
+                if (!t.keywords) t.keywords = []; 
+                if (!t.icon) t.icon = 'fa-file-alt'; 
+                if (!t.example) t.example = ''; 
+                if (!t.description) t.description = '<p></p>'; 
+            });
             selectedId = topics[0]?.id || null;
             expandedState.clear();
             topics.forEach(t => { if (topics.some(ch => ch.parent === t.id)) expandedState.add(t.id); });
-            renderTree(); fillFormBySelectedNoSave(); updateJsonEditor(); saveToLocalStorage(); pushToHistory();
+            renderTree(); 
+            if (selectedId) fillFormBySelectedNoSave(); 
+            updateJsonEditor(); 
+            saveToLocalStorage(); 
+            pushToHistory();
             showToast('JSON применён');
         } catch(e) { showToast('Ошибка JSON', true); }
     }
@@ -1253,9 +1411,15 @@
             if (response.ok) {
                 const data = await response.json();
                 if (Array.isArray(data) && data.length > 0) {
-                    topics = data;
+                    // Сортируем по order (если есть) и удаляем order
+                    topics = sortAndCleanTopics(data);
                     topics = removeDuplicateIds(topics);
-                    topics.forEach((t, i) => { if (!t.order) t.order = i; if (!t.keywords) t.keywords = []; if (!t.icon) t.icon = 'fa-file-alt'; if (!t.example) t.example = ''; if (!t.description) t.description = '<p></p>'; });
+                    topics.forEach((t, i) => { 
+                        if (!t.keywords) t.keywords = []; 
+                        if (!t.icon) t.icon = 'fa-file-alt'; 
+                        if (!t.example) t.example = ''; 
+                        if (!t.description) t.description = '<p></p>'; 
+                    });
                     validateAndFixIds();
                     selectedId = topics[0]?.id || null;
                     expandedState.clear();
@@ -1272,7 +1436,7 @@
             return true;
         }
         
-        const demo = [{ id: "geometriya", name: "Геометрия", keywords: ["геометрия"], parent: null, icon: "fa-folder", gradeLevel: 3, example: "<div>Основы геометрии</div>", description: "<p>Изучает фигуры</p>", order: 1 }];
+        const demo = [{ id: "geometriya", name: "Геометрия", keywords: ["геометрия"], parent: null, icon: "fa-folder", gradeLevel: 3, example: "<div>Основы геометрии</div>", description: "<p>Изучает фигуры</p>" }];
         topics = demo;
         selectedId = "geometriya";
         expandedState.add("geometriya");
@@ -1349,20 +1513,33 @@
             };
         });
         
+        // Глобальные сочетания клавиш
         window.addEventListener('keydown', (e) => {
-            if (e.ctrlKey && e.key === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
-            else if (e.ctrlKey && (e.key === 'y' || (e.shiftKey && e.key === 'Z'))) { e.preventDefault(); redo(); }
+            // Ctrl+Z - отмена
+            if (e.ctrlKey && e.key === 'z' && !e.shiftKey) { 
+                e.preventDefault(); 
+                undo(); 
+            }
+            // Ctrl+Y или Ctrl+Shift+Z - возврат
+            else if (e.ctrlKey && (e.key === 'y' || (e.shiftKey && e.key === 'Z'))) { 
+                e.preventDefault(); 
+                redo(); 
+            }
+            // Ctrl+S - сохранение текущей темы (отменяем стандартное поведение браузера)
+            else if (e.ctrlKey && e.key === 's') { 
+                e.preventDefault(); 
+                manualSave(); 
+            }
         });
         
         await loadInitialConfig();
         renderTree();
-        fillFormBySelectedNoSave();
+        if (selectedId) fillFormBySelectedNoSave();
         updateJsonEditor();
         pushToHistory();
         updateButtonsState();
     }
     
-    let previewTimeout = null;
     init();
 </script>
 </body>
