@@ -1,0 +1,2366 @@
+fileFormatVersion: 2
+guid: afdd3a541121f8d429ffd30eabe55cb5
+TextureImporter:
+  internalIDToNameTable:
+  - first:
+      213: 4214017044819018645
+    second: locust_fibers_tex_0
+  - first:
+      213: -3264263636550488885
+    second: locust_fibers_tex_1
+  - first:
+      213: -6563227235258430284
+    second: locust_fibers_tex_2
+  - first:
+      213: 495890844760830283
+    second: locust_fibers_tex_3
+  - first:
+      213: -4403477043902735448
+    second: locust_fibers_tex_4
+  - first:
+      213: 7361256428173526475
+    second: locust_fibers_tex_5
+  - first:
+      213: -4299368495660135522
+    second: locust_fibers_tex_6
+  - first:
+      213: -6274219522821305712
+    second: locust_fibers_tex_7
+  - first:
+      213: 9210785510114991455
+    second: locust_fibers_tex_8
+  - first:
+      213: 8790247532368923944
+    second: locust_fibers_tex_9
+  - first:
+      213: -8299320883134730893
+    second: locust_fibers_tex_10
+  - first:
+      213: 3393983648134344176
+    second: locust_fibers_tex_11
+  - first:
+      213: -809899795381090866
+    second: locust_fibers_tex_12
+  - first:
+      213: -2478997295040186185
+    second: locust_fibers_tex_13
+  - first:
+      213: 7414319981975676026
+    second: locust_fibers_tex_14
+  - first:
+      213: -5365589809531840635
+    second: locust_fibers_tex_15
+  - first:
+      213: 6076389729442152839
+    second: locust_fibers_tex_16
+  - first:
+      213: -5889957648232275679
+    second: locust_fibers_tex_17
+  - first:
+      213: -4892266390808250790
+    second: locust_fibers_tex_18
+  - first:
+      213: 7696508618205326276
+    second: locust_fibers_tex_19
+  - first:
+      213: -8468843272346445343
+    second: locust_fibers_tex_20
+  - first:
+      213: 184896189897167732
+    second: locust_fibers_tex_21
+  - first:
+      213: -8352200950333136824
+    second: locust_fibers_tex_22
+  - first:
+      213: 903971604121713921
+    second: locust_fibers_tex_23
+  - first:
+      213: 5590913513652558496
+    second: locust_fibers_tex_24
+  - first:
+      213: 322157207047559973
+    second: locust_fibers_tex_25
+  - first:
+      213: -1339251340837355715
+    second: locust_fibers_tex_26
+  - first:
+      213: 517631256514320714
+    second: locust_fibers_tex_27
+  - first:
+      213: 4345791744299025879
+    second: locust_fibers_tex_28
+  - first:
+      213: -6513914114053180959
+    second: locust_fibers_tex_29
+  - first:
+      213: 6119817389517325232
+    second: locust_fibers_tex_30
+  - first:
+      213: -7271964834076133518
+    second: locust_fibers_tex_31
+  - first:
+      213: -1856442633659161543
+    second: locust_fibers_tex_32
+  - first:
+      213: 2080203581955458493
+    second: locust_fibers_tex_33
+  - first:
+      213: -2614887440836954613
+    second: locust_fibers_tex_34
+  - first:
+      213: 5071746026033314338
+    second: locust_fibers_tex_35
+  - first:
+      213: 2702517078690474012
+    second: locust_fibers_tex_36
+  - first:
+      213: -8682636633888598631
+    second: locust_fibers_tex_37
+  - first:
+      213: -8164589715609729954
+    second: locust_fibers_tex_38
+  - first:
+      213: -2504308415873723660
+    second: locust_fibers_tex_39
+  - first:
+      213: -5651041420697733753
+    second: locust_fibers_tex_40
+  - first:
+      213: -2987004813716012883
+    second: locust_fibers_tex_41
+  - first:
+      213: -2236310706243737548
+    second: locust_fibers_tex_42
+  - first:
+      213: -8727326152264690761
+    second: locust_fibers_tex_43
+  - first:
+      213: -3803746994930042468
+    second: locust_fibers_tex_44
+  - first:
+      213: -3590282275851744951
+    second: locust_fibers_tex_45
+  - first:
+      213: -5738648028094655440
+    second: locust_fibers_tex_46
+  - first:
+      213: 1993967887532517056
+    second: locust_fibers_tex_47
+  - first:
+      213: 2831809382681199249
+    second: locust_fibers_tex_48
+  - first:
+      213: -5010446357179173436
+    second: locust_fibers_tex_49
+  - first:
+      213: 3956900882135433966
+    second: locust_fibers_tex_50
+  - first:
+      213: 3984902276905606878
+    second: locust_fibers_tex_51
+  - first:
+      213: 4873608509110647933
+    second: locust_fibers_tex_52
+  - first:
+      213: -8964936589808447903
+    second: locust_fibers_tex_53
+  - first:
+      213: -4086838501362938829
+    second: locust_fibers_tex_54
+  - first:
+      213: 6188549100205246294
+    second: locust_fibers_tex_55
+  - first:
+      213: 2739526172588696470
+    second: locust_fibers_tex_56
+  - first:
+      213: 4634335945476056981
+    second: locust_fibers_tex_57
+  - first:
+      213: -5647670732676622272
+    second: locust_fibers_tex_58
+  - first:
+      213: 9028611192123210632
+    second: locust_fibers_tex_59
+  - first:
+      213: -7649897009903976829
+    second: locust_fibers_tex_60
+  - first:
+      213: -5231037124571581951
+    second: locust_fibers_tex_61
+  - first:
+      213: 4936317700096690974
+    second: locust_fibers_tex_62
+  - first:
+      213: -5439240423378792625
+    second: locust_fibers_tex_63
+  - first:
+      213: 1179089648437630877
+    second: locust_fibers_tex_64
+  - first:
+      213: 5318543563955566400
+    second: locust_fibers_tex_65
+  - first:
+      213: -1942637641932068399
+    second: locust_fibers_tex_66
+  - first:
+      213: 1788378668713313051
+    second: locust_fibers_tex_67
+  - first:
+      213: 1949724188326939616
+    second: locust_fibers_tex_68
+  - first:
+      213: 1438902653974638104
+    second: locust_fibers_tex_69
+  - first:
+      213: 6608293526460221754
+    second: locust_fibers_tex_70
+  - first:
+      213: 932240756049462732
+    second: locust_fibers_tex_71
+  - first:
+      213: -5708793146043970856
+    second: locust_fibers_tex_72
+  - first:
+      213: 8730734763693253928
+    second: locust_fibers_tex_73
+  - first:
+      213: 3084720584015567928
+    second: locust_fibers_tex_74
+  - first:
+      213: 1305457380005680833
+    second: locust_fibers_tex_75
+  - first:
+      213: 431341110085051839
+    second: locust_fibers_tex_76
+  - first:
+      213: -2777675500294094109
+    second: locust_fibers_tex_77
+  - first:
+      213: -6729480062276427778
+    second: locust_fibers_tex_78
+  - first:
+      213: 4348644160915367943
+    second: locust_fibers_tex_79
+  - first:
+      213: 4402879460652224072
+    second: locust_fibers_tex_80
+  - first:
+      213: -923105024994855777
+    second: locust_fibers_tex_81
+  - first:
+      213: -5358298680595911441
+    second: locust_fibers_tex_82
+  - first:
+      213: -5731101635635596119
+    second: locust_fibers_tex_83
+  - first:
+      213: 1253412236721989112
+    second: locust_fibers_tex_84
+  externalObjects: {}
+  serializedVersion: 13
+  mipmaps:
+    mipMapMode: 0
+    enableMipMap: 0
+    sRGBTexture: 1
+    linearTexture: 0
+    fadeOut: 0
+    borderMipMap: 0
+    mipMapsPreserveCoverage: 0
+    alphaTestReferenceValue: 0.5
+    mipMapFadeDistanceStart: 1
+    mipMapFadeDistanceEnd: 3
+  bumpmap:
+    convertToNormalMap: 0
+    externalNormalMap: 0
+    heightScale: 0.25
+    normalMapFilter: 0
+    flipGreenChannel: 0
+  isReadable: 0
+  streamingMipmaps: 0
+  streamingMipmapsPriority: 0
+  vTOnly: 0
+  ignoreMipmapLimit: 0
+  grayScaleToAlpha: 0
+  generateCubemap: 6
+  cubemapConvolution: 0
+  seamlessCubemap: 0
+  textureFormat: 1
+  maxTextureSize: 2048
+  textureSettings:
+    serializedVersion: 2
+    filterMode: 1
+    aniso: 1
+    mipBias: 0
+    wrapU: 1
+    wrapV: 1
+    wrapW: 1
+  nPOTScale: 0
+  lightmap: 0
+  compressionQuality: 50
+  spriteMode: 2
+  spriteExtrude: 1
+  spriteMeshType: 1
+  alignment: 0
+  spritePivot: {x: 0.5, y: 0.5}
+  spritePixelsToUnits: 100
+  spriteBorder: {x: 0, y: 0, z: 0, w: 0}
+  spriteGenerateFallbackPhysicsShape: 1
+  alphaUsage: 1
+  alphaIsTransparency: 1
+  spriteTessellationDetail: -1
+  textureType: 8
+  textureShape: 1
+  singleChannelComponent: 0
+  flipbookRows: 1
+  flipbookColumns: 1
+  maxTextureSizeSet: 0
+  compressionQualitySet: 0
+  textureFormatSet: 0
+  ignorePngGamma: 0
+  applyGammaDecoding: 0
+  swizzle: 50462976
+  cookieLightType: 0
+  platformSettings:
+  - serializedVersion: 4
+    buildTarget: DefaultTexturePlatform
+    maxTextureSize: 2048
+    resizeAlgorithm: 0
+    textureFormat: -1
+    textureCompression: 1
+    compressionQuality: 50
+    crunchedCompression: 0
+    allowsAlphaSplitting: 0
+    overridden: 0
+    ignorePlatformSupport: 0
+    androidETC2FallbackOverride: 0
+    forceMaximumCompressionQuality_BC6H_BC7: 0
+  - serializedVersion: 4
+    buildTarget: Standalone
+    maxTextureSize: 2048
+    resizeAlgorithm: 0
+    textureFormat: -1
+    textureCompression: 1
+    compressionQuality: 50
+    crunchedCompression: 0
+    allowsAlphaSplitting: 0
+    overridden: 0
+    ignorePlatformSupport: 0
+    androidETC2FallbackOverride: 0
+    forceMaximumCompressionQuality_BC6H_BC7: 0
+  - serializedVersion: 4
+    buildTarget: Android
+    maxTextureSize: 2048
+    resizeAlgorithm: 0
+    textureFormat: -1
+    textureCompression: 1
+    compressionQuality: 50
+    crunchedCompression: 0
+    allowsAlphaSplitting: 0
+    overridden: 0
+    ignorePlatformSupport: 0
+    androidETC2FallbackOverride: 0
+    forceMaximumCompressionQuality_BC6H_BC7: 0
+  - serializedVersion: 4
+    buildTarget: WebGL
+    maxTextureSize: 2048
+    resizeAlgorithm: 0
+    textureFormat: -1
+    textureCompression: 1
+    compressionQuality: 50
+    crunchedCompression: 0
+    allowsAlphaSplitting: 0
+    overridden: 0
+    ignorePlatformSupport: 0
+    androidETC2FallbackOverride: 0
+    forceMaximumCompressionQuality_BC6H_BC7: 0
+  - serializedVersion: 4
+    buildTarget: WindowsStoreApps
+    maxTextureSize: 2048
+    resizeAlgorithm: 0
+    textureFormat: -1
+    textureCompression: 1
+    compressionQuality: 50
+    crunchedCompression: 0
+    allowsAlphaSplitting: 0
+    overridden: 0
+    ignorePlatformSupport: 0
+    androidETC2FallbackOverride: 0
+    forceMaximumCompressionQuality_BC6H_BC7: 0
+  spriteSheet:
+    serializedVersion: 2
+    sprites:
+    - serializedVersion: 2
+      name: locust_fibers_tex_0
+      rect:
+        serializedVersion: 2
+        x: 659
+        y: 938
+        width: 13
+        height: 25
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 59301e9ec223b7a30800000000000000
+      internalID: 4214017044819018645
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_1
+      rect:
+        serializedVersion: 2
+        x: 733
+        y: 865
+        width: 148
+        height: 122
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: bccee22748103b2d0800000000000000
+      internalID: -3264263636550488885
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_2
+      rect:
+        serializedVersion: 2
+        x: 711
+        y: 910
+        width: 33
+        height: 21
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 4bc804e5a9bbae4a0800000000000000
+      internalID: -6563227235258430284
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_3
+      rect:
+        serializedVersion: 2
+        x: 0
+        y: 504
+        width: 128
+        height: 378
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: b4176519812c1e600800000000000000
+      internalID: 495890844760830283
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_4
+      rect:
+        serializedVersion: 2
+        x: 248
+        y: 833
+        width: 17
+        height: 18
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 8ab179d85f4b3e2c0800000000000000
+      internalID: -4403477043902735448
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_5
+      rect:
+        serializedVersion: 2
+        x: 340
+        y: 482
+        width: 119
+        height: 380
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: bc508d548bf682660800000000000000
+      internalID: 7361256428173526475
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_6
+      rect:
+        serializedVersion: 2
+        x: 484
+        y: 846
+        width: 92
+        height: 41
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: e9b0ca9d1239554c0800000000000000
+      internalID: -4299368495660135522
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_7
+      rect:
+        serializedVersion: 2
+        x: 661
+        y: 806
+        width: 63
+        height: 75
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 09a4a63169e7de8a0800000000000000
+      internalID: -6274219522821305712
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_8
+      rect:
+        serializedVersion: 2
+        x: 753
+        y: 784
+        width: 113
+        height: 79
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: f5d18b0ee9843df70800000000000000
+      internalID: 9210785510114991455
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_9
+      rect:
+        serializedVersion: 2
+        x: 864
+        y: 826
+        width: 18
+        height: 47
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 82d8a96de8b3df970800000000000000
+      internalID: 8790247532368923944
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_10
+      rect:
+        serializedVersion: 2
+        x: 876
+        y: 851
+        width: 7
+        height: 8
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 37de5c3e0a3e2dc80800000000000000
+      internalID: -8299320883134730893
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_11
+      rect:
+        serializedVersion: 2
+        x: 726
+        y: 842
+        width: 6
+        height: 7
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 0fd2888552ad91f20800000000000000
+      internalID: 3393983648134344176
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_12
+      rect:
+        serializedVersion: 2
+        x: 485
+        y: 828
+        width: 15
+        height: 8
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: ec506a85d68a2c4f0800000000000000
+      internalID: -809899795381090866
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_13
+      rect:
+        serializedVersion: 2
+        x: 505
+        y: 826
+        width: 34
+        height: 15
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 7b8b9fd2815d89dd0800000000000000
+      internalID: -2478997295040186185
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_14
+      rect:
+        serializedVersion: 2
+        x: 658
+        y: 774
+        width: 88
+        height: 58
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: a74adb8adb4f4e660800000000000000
+      internalID: 7414319981975676026
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_15
+      rect:
+        serializedVersion: 2
+        x: 529
+        y: 808
+        width: 14
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 58716601f789985b0800000000000000
+      internalID: -5365589809531840635
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_16
+      rect:
+        serializedVersion: 2
+        x: 474
+        y: 762
+        width: 138
+        height: 40
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 7814b3cc34ca35450800000000000000
+      internalID: 6076389729442152839
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_17
+      rect:
+        serializedVersion: 2
+        x: 876
+        y: 619
+        width: 148
+        height: 169
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 121250ba9baa24ea0800000000000000
+      internalID: -5889957648232275679
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_18
+      rect:
+        serializedVersion: 2
+        x: 872
+        y: 744
+        width: 6
+        height: 9
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: a56ba4d43ad2b1cb0800000000000000
+      internalID: -4892266390808250790
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_19
+      rect:
+        serializedVersion: 2
+        x: 181
+        y: 401
+        width: 139
+        height: 286
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 4cb6cd67fcd7fca60800000000000000
+      internalID: 7696508618205326276
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_20
+      rect:
+        serializedVersion: 2
+        x: 485
+        y: 464
+        width: 171
+        height: 227
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 1e95555e9ef987a80800000000000000
+      internalID: -8468843272346445343
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_21
+      rect:
+        serializedVersion: 2
+        x: 650
+        y: 603
+        width: 154
+        height: 125
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 473d427ea12e09200800000000000000
+      internalID: 184896189897167732
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_22
+      rect:
+        serializedVersion: 2
+        x: 812
+        y: 621
+        width: 38
+        height: 85
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 840a6becc75071c80800000000000000
+      internalID: -8352200950333136824
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_23
+      rect:
+        serializedVersion: 2
+        x: 663
+        y: 598
+        width: 8
+        height: 7
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 10df6be626d8b8c00800000000000000
+      internalID: 903971604121713921
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_24
+      rect:
+        serializedVersion: 2
+        x: 755
+        y: 598
+        width: 50
+        height: 7
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 0aa113ff73ae69d40800000000000000
+      internalID: 5590913513652558496
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_25
+      rect:
+        serializedVersion: 2
+        x: 911
+        y: 543
+        width: 112
+        height: 75
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 52bd6efd548887400800000000000000
+      internalID: 322157207047559973
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_26
+      rect:
+        serializedVersion: 2
+        x: 655
+        y: 474
+        width: 168
+        height: 95
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: d3f7c6c40060a6de0800000000000000
+      internalID: -1339251340837355715
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_27
+      rect:
+        serializedVersion: 2
+        x: 901
+        y: 462
+        width: 123
+        height: 82
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: a49dc21a2eefe2700800000000000000
+      internalID: 517631256514320714
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_28
+      rect:
+        serializedVersion: 2
+        x: 534
+        y: 277
+        width: 61
+        height: 114
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 7d5c4c2019a5f4c30800000000000000
+      internalID: 4345791744299025879
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_29
+      rect:
+        serializedVersion: 2
+        x: 723
+        y: 215
+        width: 182
+        height: 163
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 1e1f47e10ade995a0800000000000000
+      internalID: -6513914114053180959
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_30
+      rect:
+        serializedVersion: 2
+        x: 912
+        y: 375
+        width: 17
+        height: 12
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 0b34078dd75fde450800000000000000
+      internalID: 6119817389517325232
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_31
+      rect:
+        serializedVersion: 2
+        x: 928
+        y: 378
+        width: 11
+        height: 9
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 27772cd038ac41b90800000000000000
+      internalID: -7271964834076133518
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_32
+      rect:
+        serializedVersion: 2
+        x: 1
+        y: 343
+        width: 92
+        height: 32
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 934ead2b2479c36e0800000000000000
+      internalID: -1856442633659161543
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_33
+      rect:
+        serializedVersion: 2
+        x: 297
+        y: 244
+        width: 57
+        height: 131
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: db543fae22e5edc10800000000000000
+      internalID: 2080203581955458493
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_34
+      rect:
+        serializedVersion: 2
+        x: 331
+        y: 359
+        width: 25
+        height: 6
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: b0678411abd06bbd0800000000000000
+      internalID: -2614887440836954613
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_35
+      rect:
+        serializedVersion: 2
+        x: 342
+        y: 325
+        width: 60
+        height: 47
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 22af6b0b326726640800000000000000
+      internalID: 5071746026033314338
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_36
+      rect:
+        serializedVersion: 2
+        x: 8
+        y: 78
+        width: 125
+        height: 268
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: c18a5cae6f4418520800000000000000
+      internalID: 2702517078690474012
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_37
+      rect:
+        serializedVersion: 2
+        x: 211
+        y: 297
+        width: 64
+        height: 54
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 995d64bebf3118780800000000000000
+      internalID: -8682636633888598631
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_38
+      rect:
+        serializedVersion: 2
+        x: 507
+        y: 329
+        width: 29
+        height: 22
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: e54464859ec81be80800000000000000
+      internalID: -8164589715609729954
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_39
+      rect:
+        serializedVersion: 2
+        x: 531
+        y: 339
+        width: 7
+        height: 9
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 4f253df93c8ee3dd0800000000000000
+      internalID: -2504308415873723660
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_40
+      rect:
+        serializedVersion: 2
+        x: 228
+        y: 252
+        width: 45
+        height: 51
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 785fa44b4c77391b0800000000000000
+      internalID: -5651041420697733753
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_41
+      rect:
+        serializedVersion: 2
+        x: 273
+        y: 298
+        width: 9
+        height: 14
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: da04310a2f60c86d0800000000000000
+      internalID: -2987004813716012883
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_42
+      rect:
+        serializedVersion: 2
+        x: 397
+        y: 284
+        width: 32
+        height: 28
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 43860fad24707f0e0800000000000000
+      internalID: -2236310706243737548
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_43
+      rect:
+        serializedVersion: 2
+        x: 369
+        y: 262
+        width: 8
+        height: 8
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 7b359479a1f42e680800000000000000
+      internalID: -8727326152264690761
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_44
+      rect:
+        serializedVersion: 2
+        x: 376
+        y: 268
+        width: 23
+        height: 17
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: c993cbfd240663bc0800000000000000
+      internalID: -3803746994930042468
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_45
+      rect:
+        serializedVersion: 2
+        x: 397
+        y: 264
+        width: 10
+        height: 20
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 949c970da41cc2ec0800000000000000
+      internalID: -3590282275851744951
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_46
+      rect:
+        serializedVersion: 2
+        x: 498
+        y: 232
+        width: 59
+        height: 47
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 0341c6ae50a3c50b0800000000000000
+      internalID: -5738648028094655440
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_47
+      rect:
+        serializedVersion: 2
+        x: 808
+        y: 250
+        width: 126
+        height: 38
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 0c669edaa3ffbab10800000000000000
+      internalID: 1993967887532517056
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_48
+      rect:
+        serializedVersion: 2
+        x: 347
+        y: 229
+        width: 19
+        height: 31
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 192c45641ab9c4720800000000000000
+      internalID: 2831809382681199249
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_49
+      rect:
+        serializedVersion: 2
+        x: 364
+        y: 258
+        width: 6
+        height: 6
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 4c57f2aa591577ab0800000000000000
+      internalID: -5010446357179173436
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_50
+      rect:
+        serializedVersion: 2
+        x: 393
+        y: 243
+        width: 8
+        height: 22
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: ee2cc13436cb9e630800000000000000
+      internalID: 3956900882135433966
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_51
+      rect:
+        serializedVersion: 2
+        x: 201
+        y: 232
+        width: 32
+        height: 21
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: ede9a9702873d4730800000000000000
+      internalID: 3984902276905606878
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_52
+      rect:
+        serializedVersion: 2
+        x: 389
+        y: 216
+        width: 6
+        height: 20
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: d7c7cd71e1982a340800000000000000
+      internalID: 4873608509110647933
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_53
+      rect:
+        serializedVersion: 2
+        x: 390
+        y: 235
+        width: 6
+        height: 9
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 16ec09a7ba5269380800000000000000
+      internalID: -8964936589808447903
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_54
+      rect:
+        serializedVersion: 2
+        x: 265
+        y: 168
+        width: 66
+        height: 33
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 33c4fd73902a847c0800000000000000
+      internalID: -4086838501362938829
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_55
+      rect:
+        serializedVersion: 2
+        x: 328
+        y: 200
+        width: 22
+        height: 30
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 6570cc84e9422e550800000000000000
+      internalID: 6188549100205246294
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_56
+      rect:
+        serializedVersion: 2
+        x: 338
+        y: 195
+        width: 10
+        height: 13
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 693e8021a80c40620800000000000000
+      internalID: 2739526172588696470
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_57
+      rect:
+        serializedVersion: 2
+        x: 380
+        y: 170
+        width: 13
+        height: 47
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 597ace71df7705040800000000000000
+      internalID: 4634335945476056981
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_58
+      rect:
+        serializedVersion: 2
+        x: 323
+        y: 177
+        width: 18
+        height: 19
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 048907a24617f91b0800000000000000
+      internalID: -5647670732676622272
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_59
+      rect:
+        serializedVersion: 2
+        x: 802
+        y: 150
+        width: 182
+        height: 37
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 88bbe992b021c4d70800000000000000
+      internalID: 9028611192123210632
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_60
+      rect:
+        serializedVersion: 2
+        x: 204
+        y: 140
+        width: 28
+        height: 35
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 38eb95c433b16d590800000000000000
+      internalID: -7649897009903976829
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_61
+      rect:
+        serializedVersion: 2
+        x: 323
+        y: 157
+        width: 7
+        height: 8
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 102b70f437f9767b0800000000000000
+      internalID: -5231037124571581951
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_62
+      rect:
+        serializedVersion: 2
+        x: 375
+        y: 154
+        width: 9
+        height: 17
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: e1b8cb46bc2518440800000000000000
+      internalID: 4936317700096690974
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_63
+      rect:
+        serializedVersion: 2
+        x: 506
+        y: 163
+        width: 9
+        height: 9
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: f4fcf8c37afe384b0800000000000000
+      internalID: -5439240423378792625
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_64
+      rect:
+        serializedVersion: 2
+        x: 510
+        y: 156
+        width: 84
+        height: 20
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: d971775c9c7fc5010800000000000000
+      internalID: 1179089648437630877
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_65
+      rect:
+        serializedVersion: 2
+        x: 883
+        y: 154
+        width: 26
+        height: 9
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 047f20c41334fc940800000000000000
+      internalID: 5318543563955566400
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_66
+      rect:
+        serializedVersion: 2
+        x: 950
+        y: 154
+        width: 14
+        height: 9
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 1d926517b5d5a05e0800000000000000
+      internalID: -1942637641932068399
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_67
+      rect:
+        serializedVersion: 2
+        x: 223
+        y: 153
+        width: 8
+        height: 9
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: b130b888ce891d810800000000000000
+      internalID: 1788378668713313051
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_68
+      rect:
+        serializedVersion: 2
+        x: 315
+        y: 150
+        width: 10
+        height: 12
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 0ebc637b1dfce0b10800000000000000
+      internalID: 1949724188326939616
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_69
+      rect:
+        serializedVersion: 2
+        x: 319
+        y: 137
+        width: 18
+        height: 21
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 81e6684175208f310800000000000000
+      internalID: 1438902653974638104
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_70
+      rect:
+        serializedVersion: 2
+        x: 373
+        y: 138
+        width: 6
+        height: 17
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: a39cc2833ff55bb50800000000000000
+      internalID: 6608293526460221754
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_71
+      rect:
+        serializedVersion: 2
+        x: 816
+        y: 154
+        width: 6
+        height: 8
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: cc54875470cffec00800000000000000
+      internalID: 932240756049462732
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_72
+      rect:
+        serializedVersion: 2
+        x: 332
+        y: 135
+        width: 10
+        height: 9
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 8da4dd151ea46c0b0800000000000000
+      internalID: -5708793146043970856
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_73
+      rect:
+        serializedVersion: 2
+        x: 802
+        y: 144
+        width: 14
+        height: 9
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 825271a920dc92970800000000000000
+      internalID: 8730734763693253928
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_74
+      rect:
+        serializedVersion: 2
+        x: 220
+        y: 104
+        width: 11
+        height: 28
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 83c559117012fca20800000000000000
+      internalID: 3084720584015567928
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_75
+      rect:
+        serializedVersion: 2
+        x: 222
+        y: 127
+        width: 9
+        height: 14
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 1c696ac029aed1210800000000000000
+      internalID: 1305457380005680833
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_76
+      rect:
+        serializedVersion: 2
+        x: 277
+        y: 107
+        width: 71
+        height: 28
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: fb564ab447e6cf500800000000000000
+      internalID: 431341110085051839
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_77
+      rect:
+        serializedVersion: 2
+        x: 354
+        y: 63
+        width: 61
+        height: 76
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 3e24aa769d6b379d0800000000000000
+      internalID: -2777675500294094109
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_78
+      rect:
+        serializedVersion: 2
+        x: 65
+        y: 76
+        width: 18
+        height: 23
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: eff90f4a9851c92a0800000000000000
+      internalID: -6729480062276427778
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_79
+      rect:
+        serializedVersion: 2
+        x: 85
+        y: 67
+        width: 9
+        height: 7
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 708efe103dc795c30800000000000000
+      internalID: 4348644160915367943
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_80
+      rect:
+        serializedVersion: 2
+        x: 92
+        y: 64
+        width: 16
+        height: 10
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 84e0a01ca8b2a1d30800000000000000
+      internalID: 4402879460652224072
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_81
+      rect:
+        serializedVersion: 2
+        x: 185
+        y: 79
+        width: 32
+        height: 16
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: f94bdceded87033f0800000000000000
+      internalID: -923105024994855777
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_82
+      rect:
+        serializedVersion: 2
+        x: 213
+        y: 84
+        width: 20
+        height: 23
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: fece2ae4dbf73a5b0800000000000000
+      internalID: -5358298680595911441
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_83
+      rect:
+        serializedVersion: 2
+        x: 489
+        y: 13
+        width: 163
+        height: 95
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 9a4b7445d690770b0800000000000000
+      internalID: -5731101635635596119
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: locust_fibers_tex_84
+      rect:
+        serializedVersion: 2
+        x: 802
+        y: 57
+        width: 135
+        height: 59
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 8f521f6d9c3056110800000000000000
+      internalID: 1253412236721989112
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    outline: []
+    customData: 
+    physicsShape: []
+    bones: []
+    spriteID: 
+    internalID: 0
+    vertices: []
+    indices: 
+    edges: []
+    weights: []
+    secondaryTextures: []
+    spriteCustomMetadata:
+      entries: []
+    nameFileIdTable:
+      locust_fibers_tex_0: 4214017044819018645
+      locust_fibers_tex_1: -3264263636550488885
+      locust_fibers_tex_10: -8299320883134730893
+      locust_fibers_tex_11: 3393983648134344176
+      locust_fibers_tex_12: -809899795381090866
+      locust_fibers_tex_13: -2478997295040186185
+      locust_fibers_tex_14: 7414319981975676026
+      locust_fibers_tex_15: -5365589809531840635
+      locust_fibers_tex_16: 6076389729442152839
+      locust_fibers_tex_17: -5889957648232275679
+      locust_fibers_tex_18: -4892266390808250790
+      locust_fibers_tex_19: 7696508618205326276
+      locust_fibers_tex_2: -6563227235258430284
+      locust_fibers_tex_20: -8468843272346445343
+      locust_fibers_tex_21: 184896189897167732
+      locust_fibers_tex_22: -8352200950333136824
+      locust_fibers_tex_23: 903971604121713921
+      locust_fibers_tex_24: 5590913513652558496
+      locust_fibers_tex_25: 322157207047559973
+      locust_fibers_tex_26: -1339251340837355715
+      locust_fibers_tex_27: 517631256514320714
+      locust_fibers_tex_28: 4345791744299025879
+      locust_fibers_tex_29: -6513914114053180959
+      locust_fibers_tex_3: 495890844760830283
+      locust_fibers_tex_30: 6119817389517325232
+      locust_fibers_tex_31: -7271964834076133518
+      locust_fibers_tex_32: -1856442633659161543
+      locust_fibers_tex_33: 2080203581955458493
+      locust_fibers_tex_34: -2614887440836954613
+      locust_fibers_tex_35: 5071746026033314338
+      locust_fibers_tex_36: 2702517078690474012
+      locust_fibers_tex_37: -8682636633888598631
+      locust_fibers_tex_38: -8164589715609729954
+      locust_fibers_tex_39: -2504308415873723660
+      locust_fibers_tex_4: -4403477043902735448
+      locust_fibers_tex_40: -5651041420697733753
+      locust_fibers_tex_41: -2987004813716012883
+      locust_fibers_tex_42: -2236310706243737548
+      locust_fibers_tex_43: -8727326152264690761
+      locust_fibers_tex_44: -3803746994930042468
+      locust_fibers_tex_45: -3590282275851744951
+      locust_fibers_tex_46: -5738648028094655440
+      locust_fibers_tex_47: 1993967887532517056
+      locust_fibers_tex_48: 2831809382681199249
+      locust_fibers_tex_49: -5010446357179173436
+      locust_fibers_tex_5: 7361256428173526475
+      locust_fibers_tex_50: 3956900882135433966
+      locust_fibers_tex_51: 3984902276905606878
+      locust_fibers_tex_52: 4873608509110647933
+      locust_fibers_tex_53: -8964936589808447903
+      locust_fibers_tex_54: -4086838501362938829
+      locust_fibers_tex_55: 6188549100205246294
+      locust_fibers_tex_56: 2739526172588696470
+      locust_fibers_tex_57: 4634335945476056981
+      locust_fibers_tex_58: -5647670732676622272
+      locust_fibers_tex_59: 9028611192123210632
+      locust_fibers_tex_6: -4299368495660135522
+      locust_fibers_tex_60: -7649897009903976829
+      locust_fibers_tex_61: -5231037124571581951
+      locust_fibers_tex_62: 4936317700096690974
+      locust_fibers_tex_63: -5439240423378792625
+      locust_fibers_tex_64: 1179089648437630877
+      locust_fibers_tex_65: 5318543563955566400
+      locust_fibers_tex_66: -1942637641932068399
+      locust_fibers_tex_67: 1788378668713313051
+      locust_fibers_tex_68: 1949724188326939616
+      locust_fibers_tex_69: 1438902653974638104
+      locust_fibers_tex_7: -6274219522821305712
+      locust_fibers_tex_70: 6608293526460221754
+      locust_fibers_tex_71: 932240756049462732
+      locust_fibers_tex_72: -5708793146043970856
+      locust_fibers_tex_73: 8730734763693253928
+      locust_fibers_tex_74: 3084720584015567928
+      locust_fibers_tex_75: 1305457380005680833
+      locust_fibers_tex_76: 431341110085051839
+      locust_fibers_tex_77: -2777675500294094109
+      locust_fibers_tex_78: -6729480062276427778
+      locust_fibers_tex_79: 4348644160915367943
+      locust_fibers_tex_8: 9210785510114991455
+      locust_fibers_tex_80: 4402879460652224072
+      locust_fibers_tex_81: -923105024994855777
+      locust_fibers_tex_82: -5358298680595911441
+      locust_fibers_tex_83: -5731101635635596119
+      locust_fibers_tex_84: 1253412236721989112
+      locust_fibers_tex_9: 8790247532368923944
+  mipmapLimitGroupName: 
+  pSDRemoveMatte: 0
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
