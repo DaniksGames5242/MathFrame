@@ -535,34 +535,6 @@
     const plainTextCheckbox = document.getElementById('plainTextMode');
     const topicJsonEditor = document.getElementById('topicJsonEditor');
     
-    // ========== ФУНКЦИЯ ДЛЯ УДАЛЕНИЯ ПОЛЯ ORDER ИЗ ТЕМ ==========
-    function removeOrderField(topicsArray) {
-        return topicsArray.map(topic => {
-            const { order, ...cleanTopic } = topic;
-            return cleanTopic;
-        });
-    }
-    
-    // ========== СОРТИРОВКА ТЕМ ПО ПОЛЮ ORDER (ЕСЛИ ОНО ЕСТЬ) И ПОСЛЕДУЮЩЕЕ УДАЛЕНИЕ ==========
-    function sortAndCleanTopics(topicsArray) {
-        // Сначала проверяем, есть ли поле order у каких-то тем
-        const hasOrder = topicsArray.some(t => t.order !== undefined);
-        
-        if (hasOrder) {
-            // Сортируем по order
-            const sorted = [...topicsArray].sort((a, b) => {
-                const orderA = a.order !== undefined ? a.order : Infinity;
-                const orderB = b.order !== undefined ? b.order : Infinity;
-                return orderA - orderB;
-            });
-            // Удаляем поле order
-            return removeOrderField(sorted);
-        }
-        
-        // Если поля order нет, просто возвращаем массив без изменений (но всё равно удаляем на всякий случай)
-        return removeOrderField(topicsArray);
-    }
-    
     // ========== ТРАНСЛИТЕРАЦИЯ ДЛЯ ID ==========
     function transliterate(word) {
         const map = {'а':'a','б':'b','в':'v','г':'g','д':'d','е':'e','ё':'e','ж':'zh','з':'z','и':'i','й':'y',
@@ -574,6 +546,7 @@
         return word.split('').map(ch => map[ch] || (/[a-zA-Z0-9]/i.test(ch) ? ch : '')).join('');
     }
     
+    // Генерация ID с возможностью передать существующий массив тем
     function generateIdFromName(name, excludeId = null, existingTopics = null) {
         const topicsList = existingTopics || topics;
         if (!name) return "topic";
@@ -584,44 +557,124 @@
         return candidate;
     }
     
-    // ========== ФУНКЦИЯ ВАЛИДАЦИИ И ИСПРАВЛЕНИЯ ID ==========
-    function validateAndFixIds() {
-        let changesCount = 0;
-        const idMap = new Map();
+    // ========== НОРМАЛИЗАЦИЯ ТЕМ (ИСПРАВЛЕНИЕ ОШИБОК) ==========
+    function normalizeTopics(topicsArray) {
+        if (!Array.isArray(topicsArray)) return [];
+        let normalized = [];
+        const idMap = new Map(); // для проверки дубликатов
+        const validIcons = ['fa-folder','fa-file-alt','fa-star','fa-circle','fa-square','fa-chalkboard'];
         
-        for (let topic of topics) {
-            const correctId = generateIdFromName(topic.name, null, topics);
-            if (topic.id !== correctId) {
-                idMap.set(topic.id, correctId);
-                changesCount++;
-            }
-        }
-        
-        if (changesCount === 0) return false;
-        
-        for (let topic of topics) {
-            if (idMap.has(topic.id)) {
-                topic.id = idMap.get(topic.id);
-            }
-            if (topic.parent && idMap.has(topic.parent)) {
-                topic.parent = idMap.get(topic.parent);
-            }
-            if (topic.description) {
-                let updatedDescription = topic.description;
-                for (let [oldId, newId] of idMap) {
-                    const regex = new RegExp(`data-topic-id=["']${oldId}["']`, 'g');
-                    updatedDescription = updatedDescription.replace(regex, `data-topic-id="${newId}"`);
+        // Первый проход: базовые поля и ID
+        for (let item of topicsArray) {
+            let obj = { ...item };
+            
+            // name
+            if (!obj.name || typeof obj.name !== 'string') obj.name = 'Без названия';
+            else obj.name = obj.name.trim() || 'Без названия';
+            
+            // id
+            if (!obj.id || typeof obj.id !== 'string') obj.id = generateIdFromName(obj.name, null, normalized);
+            else obj.id = obj.id.trim() || generateIdFromName(obj.name, null, normalized);
+            
+            // Проверяем дубликат ID, если уже есть, генерируем новый
+            if (idMap.has(obj.id)) {
+                let newId = generateIdFromName(obj.name, null, normalized);
+                let counter = 1;
+                while (idMap.has(newId) || normalized.some(t => t.id === newId)) {
+                    newId = `${generateIdFromName(obj.name, null, normalized)}_${counter++}`;
                 }
-                topic.description = updatedDescription;
+                obj.id = newId;
+            }
+            idMap.set(obj.id, obj);
+            
+            // keywords
+            if (typeof obj.keywords === 'string') {
+                obj.keywords = obj.keywords.split(',').map(k => k.trim()).filter(k => k);
+            } else if (!Array.isArray(obj.keywords)) {
+                obj.keywords = [];
+            } else {
+                obj.keywords = obj.keywords.filter(k => typeof k === 'string' && k.trim() !== '');
+            }
+            
+            // icon
+            if (!validIcons.includes(obj.icon)) obj.icon = 'fa-file-alt';
+            
+            // gradeLevel
+            if (obj.gradeLevel === undefined || obj.gradeLevel === null || isNaN(Number(obj.gradeLevel))) {
+                obj.gradeLevel = 3;
+            } else {
+                obj.gradeLevel = Number(obj.gradeLevel);
+                if (!Number.isInteger(obj.gradeLevel) || obj.gradeLevel < 1 || obj.gradeLevel > 11) obj.gradeLevel = 3;
+            }
+            
+            // example
+            if (obj.example === undefined || obj.example === null) obj.example = '';
+            else obj.example = String(obj.example);
+            
+            // description
+            if (obj.description === undefined || obj.description === null || obj.description === '') obj.description = '<p></p>';
+            else obj.description = String(obj.description);
+            
+            // parent — пока оставляем как есть, позже проверим
+            if (obj.parent !== undefined && obj.parent !== null && obj.parent !== '') {
+                obj.parent = String(obj.parent).trim() || null;
+            } else {
+                obj.parent = null;
+            }
+            
+            // удаляем поле order
+            delete obj.order;
+            
+            normalized.push(obj);
+        }
+        
+        // Второй проход: проверка существования родителей
+        const allIds = new Set(normalized.map(t => t.id));
+        for (let obj of normalized) {
+            if (obj.parent && !allIds.has(obj.parent)) {
+                obj.parent = null;
             }
         }
         
-        if (selectedId && idMap.has(selectedId)) {
-            selectedId = idMap.get(selectedId);
+        // Третий проход: устранение циклических зависимостей
+        function hasCycle(startId, parentId, visited = new Set()) {
+            if (!parentId) return false;
+            if (parentId === startId) return true;
+            if (visited.has(parentId)) return false;
+            visited.add(parentId);
+            const parent = normalized.find(t => t.id === parentId);
+            if (!parent) return false;
+            return hasCycle(startId, parent.parent, visited);
+        }
+        for (let obj of normalized) {
+            if (obj.parent && hasCycle(obj.id, obj.parent)) {
+                obj.parent = null;
+            }
         }
         
-        showToast(`Исправлено ${changesCount} ID тем и обновлены ссылки`, false);
-        return true;
+        return normalized;
+    }
+    
+    // ========== ФУНКЦИЯ ДЛЯ УДАЛЕНИЯ ПОЛЯ ORDER ИЗ ТЕМ (используется при экспорте) ==========
+    function removeOrderField(topicsArray) {
+        return topicsArray.map(topic => {
+            const { order, ...cleanTopic } = topic;
+            return cleanTopic;
+        });
+    }
+    
+    // ========== СОРТИРОВКА ТЕМ ПО ПОЛЮ ORDER (ЕСЛИ ОНО ЕСТЬ) И ПОСЛЕДУЮЩЕЕ УДАЛЕНИЕ ==========
+    function sortAndCleanTopics(topicsArray) {
+        const hasOrder = topicsArray.some(t => t.order !== undefined);
+        if (hasOrder) {
+            const sorted = [...topicsArray].sort((a, b) => {
+                const orderA = a.order !== undefined ? a.order : Infinity;
+                const orderB = b.order !== undefined ? b.order : Infinity;
+                return orderA - orderB;
+            });
+            return removeOrderField(sorted);
+        }
+        return removeOrderField(topicsArray);
     }
     
     // ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
@@ -639,7 +692,6 @@
     }
     
     function saveToLocalStorage() {
-        // Сохраняем без поля order
         const topicsToSave = removeOrderField(topics);
         localStorage.setItem('geometry_editor_topics', JSON.stringify(topicsToSave));
         localStorage.setItem('geometry_editor_expanded', JSON.stringify(Array.from(expandedState)));
@@ -651,16 +703,9 @@
             try {
                 let parsed = JSON.parse(saved);
                 if (Array.isArray(parsed) && parsed.length > 0) {
-                    // Сортируем и чистим от order (на случай, если в localStorage попал order)
-                    parsed = sortAndCleanTopics(parsed);
+                    // Нормализуем (исправляем ошибки)
+                    parsed = normalizeTopics(parsed);
                     topics = parsed;
-                    // Добавляем недостающие поля
-                    topics.forEach((t, i) => { 
-                        if (!t.keywords) t.keywords = []; 
-                        if (!t.icon) t.icon = 'fa-file-alt'; 
-                        if (!t.example) t.example = ''; 
-                        if (!t.description) t.description = '<p></p>'; 
-                    });
                     selectedId = topics[0]?.id || null;
                     const savedExpanded = localStorage.getItem('geometry_editor_expanded');
                     if (savedExpanded) expandedState = new Set(JSON.parse(savedExpanded));
@@ -763,7 +808,6 @@
     }
     
     function updateJsonEditor() { 
-        // Показываем в JSON-редакторе темы без поля order
         const topicsToShow = removeOrderField(topics);
         jsonEditor.value = JSON.stringify(topicsToShow, null, 2); 
     }
@@ -772,7 +816,6 @@
         if (selectedId) {
             const topic = topics.find(t => t.id === selectedId);
             if (topic) {
-                // Показываем тему без поля order
                 const { order, ...cleanTopic } = topic;
                 topicJsonEditor.value = JSON.stringify(cleanTopic, null, 2);
             }
@@ -798,10 +841,12 @@
             const { order, ...cleanParsed } = parsed;
             
             topics[idx] = cleanParsed;
-            selectedId = cleanParsed.id;
+            // Нормализуем всю коллекцию (на случай, если изменились связи)
+            topics = normalizeTopics(topics);
+            selectedId = topics.find(t => t.id === selectedId)?.id || null;
             
             renderTree();
-            fillFormBySelectedNoSave();
+            if (selectedId) fillFormBySelectedNoSave();
             updateJsonEditor();
             saveToLocalStorage();
             pushToHistory();
@@ -844,7 +889,8 @@
                 for (let t of newTopics) if (t.parent === selectedId) t.parent = newId;
                 newTopics.push(updated);
             } else newTopics[idx] = updated;
-            topics = removeDuplicateIds(newTopics);
+            // Нормализуем всю коллекцию
+            topics = normalizeTopics(newTopics);
             selectedId = updated.id;
             renderTree();
             fillFormFieldsOnly();
@@ -860,7 +906,6 @@
     
     // ========== НОВАЯ ТЕМА ==========
     function newTopic() {
-        // Если нет выделенной темы, parent = null
         const parentId = selectedId || null;
         const baseName = 'Новая тема';
         const newId = generateIdFromName(baseName, null, topics);
@@ -875,6 +920,8 @@
             description: '<p>Новая тема</p>'
         };
         topics.push(newTopicObj);
+        // Нормализуем (на всякий случай)
+        topics = normalizeTopics(topics);
         selectedId = newId;
         expandedState.add(newId);
         renderTree();
@@ -889,11 +936,9 @@
     function handleTopicClick(topicId, event, isDelBtn, isExpandBtn) {
         if (isDelBtn || isExpandBtn) return;
         
-        // Если кликнули на уже выделенную тему - снимаем выделение
         if (selectedId === topicId) {
             selectedId = null;
-            renderTree(); // Перерисовываем, чтобы убрать класс selected
-            // Очищаем форму
+            renderTree();
             document.getElementById('topicId').value = '';
             topicNameInput.value = '';
             topicKeywordsInput.value = '';
@@ -906,7 +951,6 @@
             updateTopicJsonEditor();
             showToast('Выделение снято');
         } else {
-            // Иначе выделяем новую тему
             saveCurrentTopic(false);
             selectedId = topicId;
             renderTree();
@@ -969,7 +1013,6 @@
                 if (isCyclic(dragSourceId, newParent)) { showToast('Циклическая зависимость', true); cleanDrag(); return; }
                 source.parent = newParent;
             }
-            // Перемещаем в массиве
             const srcIdx = topics.findIndex(t => t.id === dragSourceId);
             const tgtIdx = topics.findIndex(t => t.id === targetId);
             if (srcIdx !== -1 && tgtIdx !== -1) {
@@ -982,7 +1025,7 @@
             }
             showToast(`Порядок обновлён`);
         }
-        topics = removeDuplicateIds(topics);
+        topics = normalizeTopics(topics);
         renderTree();
         if (selectedId === source.id) fillFormBySelectedNoSave();
         saveCurrentTopic(true);
@@ -1037,7 +1080,6 @@
                         renderTree(); 
                         if (selectedId) fillFormBySelectedNoSave(); 
                         else {
-                            // Очищаем форму если нет выделенной темы
                             document.getElementById('topicId').value = '';
                             topicNameInput.value = '';
                             topicKeywordsInput.value = '';
@@ -1052,7 +1094,6 @@
                 };
                 row.appendChild(left); row.appendChild(del);
                 
-                // Обработчик клика по строке темы
                 row.addEventListener('click', (e) => {
                     const isDel = e.target === del || del.contains(e.target);
                     const isExpand = e.target === expand || expand.contains(e.target);
@@ -1087,15 +1128,9 @@
                 let imported = JSON.parse(e.target.result);
                 if (!Array.isArray(imported)) throw new Error();
                 imported = removeDuplicateIds(imported);
-                // Сортируем по order (если есть) и удаляем order
                 imported = sortAndCleanTopics(imported);
-                topics = imported;
-                topics.forEach((t, i) => { 
-                    if (!t.keywords) t.keywords = []; 
-                    if (!t.icon) t.icon = 'fa-file-alt'; 
-                    if (!t.example) t.example = ''; 
-                    if (!t.description) t.description = '<p></p>'; 
-                });
+                // Нормализуем
+                topics = normalizeTopics(imported);
                 selectedId = topics[0]?.id || null;
                 expandedState.clear();
                 topics.forEach(t => { if (topics.some(ch => ch.parent === t.id)) expandedState.add(t.id); });
@@ -1129,7 +1164,7 @@
                     added++;
                 }
                 if (added) {
-                    topics = removeDuplicateIds(topics);
+                    topics = normalizeTopics(topics);
                     renderTree(); 
                     if (selectedId) fillFormBySelectedNoSave(); 
                     updateJsonEditor(); 
@@ -1193,15 +1228,8 @@
                 const content = atob(data.content);
                 let parsed = JSON.parse(content);
                 if (Array.isArray(parsed)) {
-                    // Сортируем по order (если есть) и удаляем order
                     parsed = sortAndCleanTopics(parsed);
-                    topics = parsed;
-                    topics.forEach((t, i) => { 
-                        if (!t.keywords) t.keywords = []; 
-                        if (!t.icon) t.icon = 'fa-file-alt'; 
-                        if (!t.example) t.example = ''; 
-                        if (!t.description) t.description = '<p></p>'; 
-                    });
+                    topics = normalizeTopics(parsed);
                     selectedId = topics[0]?.id || null;
                     expandedState.clear();
                     topics.forEach(t => { if (topics.some(ch => ch.parent === t.id)) expandedState.add(t.id); });
@@ -1234,7 +1262,6 @@
     
     function saveToGitHub() {
         showWarningDialog(async () => {
-            // Убираем поле order перед сохранением
             const topicsToSave = removeOrderField(topics);
             const content = JSON.stringify(topicsToSave, null, 2);
             const encoded = btoa(unescape(encodeURIComponent(content)));
@@ -1380,15 +1407,8 @@
             let parsed = JSON.parse(jsonEditor.value);
             if (!Array.isArray(parsed)) throw new Error();
             parsed = removeDuplicateIds(parsed);
-            // Сортируем по order (если есть) и удаляем order
             parsed = sortAndCleanTopics(parsed);
-            topics = parsed;
-            topics.forEach((t, i) => { 
-                if (!t.keywords) t.keywords = []; 
-                if (!t.icon) t.icon = 'fa-file-alt'; 
-                if (!t.example) t.example = ''; 
-                if (!t.description) t.description = '<p></p>'; 
-            });
+            topics = normalizeTopics(parsed);
             selectedId = topics[0]?.id || null;
             expandedState.clear();
             topics.forEach(t => { if (topics.some(ch => ch.parent === t.id)) expandedState.add(t.id); });
@@ -1411,16 +1431,7 @@
             if (response.ok) {
                 const data = await response.json();
                 if (Array.isArray(data) && data.length > 0) {
-                    // Сортируем по order (если есть) и удаляем order
-                    topics = sortAndCleanTopics(data);
-                    topics = removeDuplicateIds(topics);
-                    topics.forEach((t, i) => { 
-                        if (!t.keywords) t.keywords = []; 
-                        if (!t.icon) t.icon = 'fa-file-alt'; 
-                        if (!t.example) t.example = ''; 
-                        if (!t.description) t.description = '<p></p>'; 
-                    });
-                    validateAndFixIds();
+                    topics = normalizeTopics(data);
                     selectedId = topics[0]?.id || null;
                     expandedState.clear();
                     topics.forEach(t => { if (topics.some(ch => ch.parent === t.id)) expandedState.add(t.id); });
@@ -1437,7 +1448,7 @@
         }
         
         const demo = [{ id: "geometriya", name: "Геометрия", keywords: ["геометрия"], parent: null, icon: "fa-folder", gradeLevel: 3, example: "<div>Основы геометрии</div>", description: "<p>Изучает фигуры</p>" }];
-        topics = demo;
+        topics = normalizeTopics(demo);
         selectedId = "geometriya";
         expandedState.add("geometriya");
         saveToLocalStorage();
@@ -1515,17 +1526,14 @@
         
         // Глобальные сочетания клавиш
         window.addEventListener('keydown', (e) => {
-            // Ctrl+Z - отмена
             if (e.ctrlKey && e.key === 'z' && !e.shiftKey) { 
                 e.preventDefault(); 
                 undo(); 
             }
-            // Ctrl+Y или Ctrl+Shift+Z - возврат
             else if (e.ctrlKey && (e.key === 'y' || (e.shiftKey && e.key === 'Z'))) { 
                 e.preventDefault(); 
                 redo(); 
             }
-            // Ctrl+S - сохранение текущей темы (отменяем стандартное поведение браузера)
             else if (e.ctrlKey && e.key === 's') { 
                 e.preventDefault(); 
                 manualSave(); 
