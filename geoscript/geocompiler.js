@@ -2663,7 +2663,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '        }\n',
             '      }\n',
             '\n',
-      '      // draw Text (формулы) – DOM-элементы поверх canvas\n',
+            '      // draw Text (формулы) – DOM-элементы поверх canvas\n',
       '      const overlay = document.getElementById(\'formulaOverlay\');\n',
       '      while (overlay.firstChild) overlay.removeChild(overlay.firstChild);\n',
       '      for (let d of drawTexts) {\n',
@@ -2683,7 +2683,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
       '        const text = d.text || \'\';\n',
       '        if (typeof katex !== \'undefined\' && (text.includes(\'\\\\(\') || text.includes(\'\\\\[\'))) {\n',
       '          try {\n',
-      '            el.innerHTML = katex.renderToString(text, { throwOnError: false });\n',
+      '            el.innerHTML = renderKaTeX(text);\n',  // <-- используем renderKaTeX
       '          } catch (e) {\n',
       '            el.textContent = text;\n',
       '          }\n',
