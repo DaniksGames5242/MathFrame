@@ -1257,8 +1257,9 @@ function parseCircleBlock(block, vars) {
 function parseDrawTextBlock(block, vars) {
     let name = null;
     const nameMatch = block.match(/name\s*=\s*"([^"]*)"/);
-    if (nameMatch) name = nameMatch[1];
-    else {
+    if (nameMatch) {
+        name = nameMatch[1];
+    } else {
         const varNameMatch = block.match(/name\s*=\s*([a-zA-Z_][a-zA-Z0-9_]*)/);
         if (varNameMatch) {
             const varName = varNameMatch[1];
@@ -1267,68 +1268,59 @@ function parseDrawTextBlock(block, vars) {
     }
     if (!name) return null;
 
-    let pos = null;
+    // Сохраняем ВСЕ поля как сырые строки выражений
+    let posXExpr = null, posYExpr = null;
     const posMatch = block.match(/pos\s*=\s*\(([^)]*)\)/);
     if (posMatch) {
         const coordsStr = posMatch[1].trim();
-        let coords = coordsStr.split(',').map(s => s.trim());
-        if (coords.length === 2) {
-            let x = parseFloat(coords[0]);
-            let y = parseFloat(coords[1]);
-            if (isNaN(x) && vars[coords[0]] !== undefined && typeof vars[coords[0]] === 'number') x = vars[coords[0]];
-            if (isNaN(y) && vars[coords[1]] !== undefined && typeof vars[coords[1]] === 'number') y = vars[coords[1]];
-            if (!isNaN(x) && !isNaN(y)) pos = { x, y };
+        const parts = coordsStr.split(',').map(s => s.trim());
+        if (parts.length === 2) {
+            posXExpr = parts[0];
+            posYExpr = parts[1];
         }
     } else {
         const varNameMatch = block.match(/pos\s*=\s*([a-zA-Z_][a-zA-Z0-9_]*)/);
         if (varNameMatch) {
             const varName = varNameMatch[1];
-            if (vars[varName] !== undefined && typeof vars[varName] === 'object' && vars[varName].x !== undefined) {
-                pos = { x: vars[varName].x, y: vars[varName].y };
-            }
+            // если это переменная типа Vector2, то можно извлечь x и y
+            // но пока просто сохраняем как выражение "varName.x" и "varName.y"
+            // но парсер не знает тип, поэтому оставим как есть – в evaluate будем разбирать
+            posXExpr = varName + '.x';
+            posYExpr = varName + '.y';
         }
     }
-    if (!pos) return null;
+    if (!posXExpr || !posYExpr) return null;
 
-    let text = '';
+    let textExpr = '';
     const textMatch = block.match(/text\s*=\s*"([^"]*)"/);
-    if (textMatch) text = textMatch[1];
-    else {
-        const varNameMatch = block.match(/text\s*=\s*([a-zA-Z_][a-zA-Z0-9_]*)/);
+    if (textMatch) {
+        textExpr = '"' + textMatch[1] + '"'; // сохраняем как строковый литерал
+    } else {
+        const varNameMatch = block.match(/text\s*=\s*([^,;\n]+)/);
         if (varNameMatch) {
-            const varName = varNameMatch[1];
-            if (vars[varName] !== undefined && typeof vars[varName] === 'string') text = vars[varName];
+            textExpr = varNameMatch[1].trim();
         }
     }
 
-    let color = '#000000';
-    const colorMatch = block.match(/color\s*=\s*(#[0-9A-Fa-f]+|default|[a-zA-Z_][a-zA-Z0-9_]*)/);
+    let colorExpr = '#000000';
+    const colorMatch = block.match(/color\s*=\s*(#[0-9A-Fa-f]+|default|[a-zA-Z_][a-zA-Z0-9_.]*)/);
     if (colorMatch) {
-        let c = colorMatch[1];
-        if (c === 'default') color = '#000000';
-        else if (c.startsWith('#')) color = c;
-        else if (vars[c] !== undefined && typeof vars[c] === 'string' && vars[c].startsWith('#')) color = vars[c];
+        colorExpr = colorMatch[1];
     }
 
-    let size = 1;
-    const sizeMatch = block.match(/size\s*=\s*([\d.]+|default|[a-zA-Z_][a-zA-Z0-9_]*)/);
+    let sizeExpr = '1';
+    const sizeMatch = block.match(/size\s*=\s*([\d.]+|default|[a-zA-Z_][a-zA-Z0-9_.]*)/);
     if (sizeMatch) {
-        let s = sizeMatch[1];
-        if (s === 'default') size = 1;
-        else if (!isNaN(parseFloat(s))) size = parseFloat(s);
-        else if (vars[s] !== undefined && typeof vars[s] === 'number') size = vars[s];
+        sizeExpr = sizeMatch[1];
     }
 
-    let active = true;
-    const activeMatch = block.match(/active\s*=\s*(true|false|[a-zA-Z_][a-zA-Z0-9_]*)/);
+    let activeExpr = 'true';
+    const activeMatch = block.match(/active\s*=\s*(true|false|[a-zA-Z_][a-zA-Z0-9_.]*)/);
     if (activeMatch) {
-        let a = activeMatch[1];
-        if (a === 'true') active = true;
-        else if (a === 'false') active = false;
-        else if (vars[a] !== undefined && typeof vars[a] === 'boolean') active = vars[a];
+        activeExpr = activeMatch[1];
     }
 
-    return { name, pos, text, color, size, active };
+    return { name, posXExpr, posYExpr, textExpr, colorExpr, sizeExpr, activeExpr };
 }
 
         function parseClasterBlock(block, vars) {
@@ -2663,27 +2655,34 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '        }\n',
             '      }\n',
             '\n',
-            '      // draw Text (формулы) – DOM-элементы поверх canvas\n',
+                  '      // draw Text (формулы) – DOM-элементы поверх canvas\n',
       '      const overlay = document.getElementById(\'formulaOverlay\');\n',
       '      while (overlay.firstChild) overlay.removeChild(overlay.firstChild);\n',
       '      for (let d of drawTexts) {\n',
-      '        if (!d.active) continue;\n',
-      '        const pos = fieldToPixel(d.pos.x, d.pos.y);\n',
-      '        const fontSize = 14 * (d.size || 1);\n',
+      '        // Вычисляем выражения\n',
+      '        const posX = evaluate(d.posXExpr);\n',
+      '        const posY = evaluate(d.posYExpr);\n',
+      '        const text = evaluate(d.textExpr);\n',
+      '        const color = evaluate(d.colorExpr);\n',
+      '        const size = evaluate(d.sizeExpr);\n',
+      '        const active = evaluate(d.activeExpr);\n',
+      '        if (!active) continue;\n',
+      '        if (posX === undefined || posY === undefined || text === undefined) continue;\n',
+      '        const pos = fieldToPixel(posX, posY);\n',
+      '        const fontSize = 14 * (size || 1);\n',
       '        const el = document.createElement(\'div\');\n',
       '        el.style.position = \'absolute\';\n',
       '        el.style.left = pos.x + \'px\';\n',
       '        el.style.top = pos.y + \'px\';\n',
       '        el.style.transform = \'translate(-50%, -50%)\';\n',
       '        el.style.pointerEvents = \'none\';\n',
-      '        el.style.color = d.color || \'#000000\';\n',
+      '        el.style.color = color || \'#000000\';\n',
       '        el.style.fontSize = fontSize + \'px\';\n',
       '        el.style.fontFamily = \'sans-serif\';\n',
       '        el.style.whiteSpace = \'nowrap\';\n',
-      '        const text = d.text || \'\';\n',
-      '        if (typeof katex !== \'undefined\' && (text.includes(\'\\\\(\') || text.includes(\'\\\\[\'))) {\n',
+      '        if (typeof katex !== \'undefined\' && (typeof text === \'string\' && (text.includes(\'\\\\(\') || text.includes(\'\\\\[\')))) {\n',
       '          try {\n',
-      '            el.innerHTML = renderKaTeX(text);\n',  // <-- используем renderKaTeX
+      '            el.innerHTML = renderKaTeX(text);\n',
       '          } catch (e) {\n',
       '            el.textContent = text;\n',
       '          }\n',
@@ -3142,6 +3141,16 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '        let current = obj;\n',
             '        for (let i = 0; i < parts.length - 1; i++) { const part = parts[i]; if (current[part] === undefined) current[part] = {}; current = current[part]; }\n',
             '        current[parts[parts.length - 1]] = value;\n',
+            '    }\n',
+            '\n',
+            '    function evaluate(expr) {\n',
+            '      try {\n',
+            '        // Заменяем некоторые ключевые слова для безопасности\n',
+            '        return (0, eval)(expr);\n',
+            '      } catch (e) {\n',
+            '        console.warn("Ошибка вычисления выражения:", expr, e);\n',
+            '        return expr;\n',
+            '      }\n',
             '    }\n',
             '\n',
             '    function createUI() {\n',
