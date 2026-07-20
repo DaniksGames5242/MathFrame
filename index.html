@@ -389,21 +389,26 @@
   <script type="module" src="assets/js/auth.js"></script>
   <script src="assets/js/common.js"></script>
   <script>
-    document.addEventListener('DOMContentLoaded', () => {
+    (function() {
       const sideLeft = document.getElementById('sideLeft');
       const sideRight = document.getElementById('sideRight');
       if (!sideLeft || !sideRight) return;
 
-      function checkWidth() {
-        const enabled = window.innerWidth > 1024;
+      // Проверка: ширина > 1024 И соотношение сторон не уже 4:3 (ширина >= высоты * 4/3)
+      function checkDisplay() {
+        const ratio = window.innerWidth / window.innerHeight;
+        const enabled = window.innerWidth > 1024 && ratio >= 4 / 3;
         sideLeft.style.display = enabled ? '' : 'none';
         sideRight.style.display = enabled ? '' : 'none';
         return enabled;
       }
 
-      let parallaxEnabled = checkWidth();
-      window.addEventListener('resize', () => { parallaxEnabled = checkWidth(); });
+      let parallaxEnabled = checkDisplay();
+      window.addEventListener('resize', () => {
+        parallaxEnabled = checkDisplay();
+      });
 
+      // Финализация анимации появления
       function finalizeAnimation(el) {
         el.style.animation = 'none';
         el.style.opacity = '1';
@@ -412,7 +417,6 @@
 
       sideLeft.addEventListener('animationend', () => finalizeAnimation(sideLeft), { once: true });
       sideRight.addEventListener('animationend', () => finalizeAnimation(sideRight), { once: true });
-
       if (sideLeft.getAnimations().length === 0) {
         finalizeAnimation(sideLeft);
         finalizeAnimation(sideRight);
@@ -426,7 +430,7 @@
         sideLeft.style.transform = `translate(${(x - 0.5) * baseMove * 0.8}px, ${(y - 0.5) * baseMove * 0.8}px)`;
         sideRight.style.transform = `translate(${-(x - 0.5) * baseMove * 0.6}px, ${-(y - 0.5) * baseMove * 0.6}px)`;
       });
-    });
+    })();
   </script>
 </body>
 </html>

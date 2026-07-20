@@ -1,18 +1,4 @@
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
-import {
-  getAuth,
-  signInWithPopup,
-  GoogleAuthProvider,
-  OAuthProvider,
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  sendPasswordResetEmail,
-  signOut,
-  onAuthStateChanged,
-  updateProfile,
-  signInWithPhoneNumber,
-  RecaptchaVerifier
-} from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+// Firebase compat SDK должна быть подключена в index.html до этого скрипта
 
 const firebaseConfig = {
   apiKey: "AIzaSyBaxewKo6Aoi5nTOcjkZfvg0IyKssWR5us",
@@ -20,75 +6,52 @@ const firebaseConfig = {
   projectId: "mathframe-ff436",
   storageBucket: "mathframe-ff436.firebasestorage.app",
   messagingSenderId: "470778322895",
-  appId: "1:470778322895:web:7180eccc946e907bcbbcba",
-  measurementId: "G-NQ0NFKH0N1"
+  appId: "1:470778322895:web:7180eccc946e907bcbbcba"
 };
 
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const storage = firebase.storage();
 
-const googleProvider = new GoogleAuthProvider();
-const appleProvider = new OAuthProvider('apple.com');
+const googleProvider = new firebase.auth.GoogleAuthProvider();
+const appleProvider = new firebase.auth.OAuthProvider('apple.com');
 appleProvider.addScope('email');
 appleProvider.addScope('name');
 
-// Функции
-async function loginWithGoogle() {
-  return signInWithPopup(auth, googleProvider);
-}
+const AuthAPI = {
+  loginWithGoogle: () => auth.signInWithPopup(googleProvider),
+  loginWithApple: () => auth.signInWithPopup(appleProvider),
+  loginWithEmail: (email, password) => auth.signInWithEmailAndPassword(email, password),
+  registerWithEmail: (email, password) => auth.createUserWithEmailAndPassword(email, password),
+  resetPassword: (email) => auth.sendPasswordResetEmail(email),
+  loginWithPhoneNumber: (phoneNumber, recaptchaVerifier) =>
+    auth.signInWithPhoneNumber(phoneNumber, recaptchaVerifier),
+  createRecaptchaVerifier: (containerId) =>
+    new firebase.auth.RecaptchaVerifier(containerId, {
+      size: 'invisible',
+      callback: () => {}
+    }),
+  logout: () => auth.signOut(),
+  updateUserProfile: (displayName, photoURL) => {
+    const user = auth.currentUser;
+    if (user) {
+      const profile = { displayName };
+      if (photoURL) profile.photoURL = photoURL;
+      return user.updateProfile(profile);
+    }
+    return Promise.resolve();
+  },
+  onAuthChange: (callback) => auth.onAuthStateChanged(callback),
+  getCurrentUser: () => auth.currentUser,
 
-async function loginWithApple() {
-  return signInWithPopup(auth, appleProvider);
-}
-
-async function loginWithEmail(email, password) {
-  return signInWithEmailAndPassword(auth, email, password);
-}
-
-async function registerWithEmail(email, password) {
-  return createUserWithEmailAndPassword(auth, email, password);
-}
-
-async function resetPassword(email) {
-  return sendPasswordResetEmail(auth, email);
-}
-
-async function loginWithPhoneNumber(phoneNumber, recaptchaVerifier) {
-  return signInWithPhoneNumber(auth, phoneNumber, recaptchaVerifier);
-}
-
-function createRecaptchaVerifier(containerId) {
-  return new RecaptchaVerifier(auth, containerId, {
-    size: 'invisible',
-    callback: () => {}
-  });
-}
-
-async function logout() {
-  return signOut(auth);
-}
-
-async function updateUserProfile(displayName) {
-  const user = auth.currentUser;
-  if (user) {
-    return updateProfile(user, { displayName });
+  // Загрузка аватара в Firebase Storage и получение URL
+  uploadAvatar: (file) => {
+    const user = auth.currentUser;
+    if (!user) return Promise.reject('Не авторизован');
+    const storageRef = storage.ref(`avatars/${user.uid}/${file.name}`);
+    return storageRef.put(file).then(() => storageRef.getDownloadURL());
   }
-}
-
-// Глобальный объект
-window.Auth = {
-  loginWithGoogle,
-  loginWithApple,
-  loginWithEmail,
-  registerWithEmail,
-  resetPassword,
-  loginWithPhoneNumber,
-  createRecaptchaVerifier,
-  logout,
-  updateUserProfile,
-  onAuthChange: (callback) => onAuthStateChanged(auth, callback),
-  getCurrentUser: () => auth.currentUser
 };
 
-// Оповещаем, что Auth готов
+window.Auth = AuthAPI;
 document.dispatchEvent(new Event('authReady'));
