@@ -1,4 +1,4 @@
-<!DOCTYPE html> 
+<!DOCTYPE html>
 <html lang="ru">
 <head>
   <meta charset="UTF-8" />
@@ -6,14 +6,12 @@
   <title>MathFrame — интерактивная математика</title>
 
   <style>
-    /* ===== ПОДКЛЮЧЕНИЕ ЛОКАЛЬНЫХ ШРИФТОВ (OTF) ===== */
     @font-face {
       font-family: 'LogoFont';
       src: url('assets/fonts/logo-font.otf') format('opentype');
       font-weight: 700;
       font-style: normal;
     }
-
     @font-face {
       font-family: 'BodyFont';
       src: url('assets/fonts/body-font.otf') format('opentype');
@@ -27,7 +25,6 @@
       font-style: normal;
     }
 
-    /* ===== ПЕРЕМЕННЫЕ ===== */
     :root {
       --font-logo: 'LogoFont', cursive;
       --font-body: 'BodyFont', sans-serif;
@@ -52,12 +49,8 @@
       background: var(--bg-body);
     }
 
-    h1, h2, h3, h4, h5, h6 {
-      font-family: var(--font-body);
-      font-weight: 700;
-    }
+    h1, h2, h3, h4, h5, h6 { font-family: var(--font-body); font-weight: 700; }
 
-    /* ===== HERO-СЕКЦИЯ ===== */
     .hero {
       position: relative;
       min-height: calc(100vh - var(--header-height));
@@ -113,20 +106,13 @@
       letter-spacing: -0.03em;
       margin-bottom: 1rem;
       color: #3b82f6;
-      text-shadow: 
-        0 0 20px rgba(59, 130, 246, 0.7),
-        0 0 40px rgba(59, 130, 246, 0.4),
-        0 4px 12px rgba(0,0,0,0.6);
+      text-shadow: 0 0 20px rgba(59, 130, 246, 0.7), 0 0 40px rgba(59, 130, 246, 0.4), 0 4px 12px rgba(0,0,0,0.6);
       animation: titleGlow 2s ease-in-out infinite alternate;
     }
 
     @keyframes titleGlow {
-      from {
-        text-shadow: 0 0 15px rgba(59, 130, 246, 0.6), 0 0 30px rgba(59, 130, 246, 0.3), 0 4px 10px rgba(0,0,0,0.5);
-      }
-      to {
-        text-shadow: 0 0 25px rgba(59, 130, 246, 0.9), 0 0 50px rgba(59, 130, 246, 0.5), 0 4px 15px rgba(0,0,0,0.7);
-      }
+      from { text-shadow: 0 0 15px rgba(59, 130, 246, 0.6), 0 0 30px rgba(59, 130, 246, 0.3), 0 4px 10px rgba(0,0,0,0.5); }
+      to { text-shadow: 0 0 25px rgba(59, 130, 246, 0.9), 0 0 50px rgba(59, 130, 246, 0.5), 0 4px 15px rgba(0,0,0,0.7); }
     }
 
     .hero p {
@@ -143,7 +129,6 @@
       flex-wrap: wrap;
     }
 
-    /* ===== КНОПКИ ===== */
     .btn {
       display: inline-flex;
       align-items: center;
@@ -177,35 +162,15 @@
       transition: left 0.4s;
     }
 
-    .btn:hover {
-      transform: translateY(-2px);
-      border-color: rgba(255,255,255,0.25);
-      box-shadow: 0 8px 20px rgba(0,0,0,0.4);
-    }
-
+    .btn:hover { transform: translateY(-2px); border-color: rgba(255,255,255,0.25); box-shadow: 0 8px 20px rgba(0,0,0,0.4); }
     .btn:hover::before { left: 100%; }
 
-    .btn-primary {
-      background: #2563eb;
-      border-color: #2563eb;
-      color: white;
-    }
-
+    .btn-primary { background: #2563eb; border-color: #2563eb; color: white; }
     .btn-primary:hover { background: #1d4ed8; }
 
-    .btn-outline {
-      background: transparent;
-      border: 1.5px solid #3b82f6;
-      color: #3b82f6;
-    }
+    .btn-outline { background: transparent; border: 1.5px solid #3b82f6; color: #3b82f6; }
+    .btn-outline:hover { background: rgba(59, 130, 246, 0.15); border-color: #60a5fa; color: #60a5fa; }
 
-    .btn-outline:hover {
-      background: rgba(59, 130, 246, 0.15);
-      border-color: #60a5fa;
-      color: #60a5fa;
-    }
-
-    /* ===== БОКОВЫЕ ОКНА ===== */
     .side-window {
       position: absolute;
       z-index: 3;
@@ -218,35 +183,15 @@
       animation-delay: 0.6s;
     }
 
-    .side-window img {
-      width: 100%;
-      height: auto;
-      display: block;
-    }
+    .side-window img { width: 100%; height: auto; display: block; }
 
-    .side-window.left {
-      left: var(--side-left-offset);
-      top: var(--side-left-top);
-      width: var(--side-left-width);
-      transform: translateX(-25px);
-    }
+    .side-window.left { left: var(--side-left-offset); top: var(--side-left-top); width: var(--side-left-width); transform: translateX(-25px); }
+    .side-window.right { right: var(--side-right-offset); top: var(--side-right-top); width: var(--side-right-width); transform: translateX(25px); }
 
-    .side-window.right {
-      right: var(--side-right-offset);
-      top: var(--side-right-top);
-      width: var(--side-right-width);
-      transform: translateX(25px);
-    }
+    @keyframes fadeInSide { to { opacity: 1; transform: translateX(0); } }
 
-    @keyframes fadeInSide {
-      to { opacity: 1; transform: translateX(0); }
-    }
+    @media (max-width: 1024px) { .side-window { display: none; } }
 
-    @media (max-width: 1024px) {
-      .side-window { display: none; }
-    }
-
-    /* ===== СЕТКА РАЗДЕЛОВ ===== */
     .sections {
       position: relative;
       z-index: 2;
@@ -282,47 +227,21 @@
       background: rgba(15, 25, 50, 0.55);
     }
 
-    .section-card h3 {
-      font-size: 1.5rem;
-      margin-bottom: 0.8rem;
-      font-weight: 700;
-    }
-
-    .section-card p {
-      color: #94a3b8;
-      margin-bottom: 1.5rem;
-    }
-
-    .section-card a {
-      color: var(--accent);
-      font-weight: 600;
-      display: inline-flex;
-      align-items: center;
-      gap: 0.3rem;
-      transition: gap 0.3s;
-    }
-
+    .section-card h3 { font-size: 1.5rem; margin-bottom: 0.8rem; font-weight: 700; }
+    .section-card p { color: #94a3b8; margin-bottom: 1.5rem; }
+    .section-card a { color: var(--accent); font-weight: 600; display: inline-flex; align-items: center; gap: 0.3rem; transition: gap 0.3s; }
     .section-card a:hover { gap: 0.6rem; }
 
-    @keyframes fadeInUp {
-      from { opacity: 0; transform: translateY(30px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
+    @keyframes fadeInUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
 
-    @media (max-width: 850px) {
-      .section-card {
-        width: 100%;
-        max-width: 450px;
-      }
-    }
-
-    @media (max-width: 640px) {
-      .hero h1 { font-size: 2.2rem; }
-      .sections { margin-top: -2rem; }
-    }
+    @media (max-width: 850px) { .section-card { width: 100%; max-width: 450px; } }
+    @media (max-width: 640px) { .hero h1 { font-size: 2.2rem; } .sections { margin-top: -2rem; } }
   </style>
 
   <link rel="stylesheet" href="assets/css/common.css" />
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
 </head>
 <body>
 
@@ -355,38 +274,18 @@
     </section>
 
     <section class="sections">
-      <div class="section-card">
-        <h3>📘 Справочник</h3>
-        <p>Все темы математики с интерактивными примерами.</p>
-        <a href="pages/spravochnik.html">Открыть →</a>
-      </div>
-      <div class="section-card">
-        <h3>🔧 Мини‑сервисы</h3>
-        <p>Калькуляторы, решатели, конвертеры и инструменты.</p>
-        <a href="pages/mini-services.html">Попробовать →</a>
-      </div>
-      <div class="section-card">
-        <h3>💬 Форум</h3>
-        <p>Обсуждайте задачи, помогайте друг другу.</p>
-        <a href="pages/forum.html">Перейти →</a>
-      </div>
-      <div class="section-card">
-        <h3>🤖 AI‑агент</h3>
-        <p>Получите объяснение или решение от ИИ‑помощника.</p>
-        <a href="pages/ai-agent.html">Задать вопрос →</a>
-      </div>
-      <div class="section-card">
-        <h3>🛠 Песочница</h3>
-        <p>Программируйте интерактивные примеры на нашем языке.</p>
-        <a href="pages/playground.html">Открыть редактор →</a>
-      </div>
+      <div class="section-card"><h3>📘 Справочник</h3><p>Все темы математики с интерактивными примерами.</p><a href="pages/spravochnik.html">Открыть →</a></div>
+      <div class="section-card"><h3>🔧 Мини‑сервисы</h3><p>Калькуляторы, решатели, конвертеры и инструменты.</p><a href="pages/mini-services.html">Попробовать →</a></div>
+      <div class="section-card"><h3>💬 Форум</h3><p>Обсуждайте задачи, помогайте друг другу.</p><a href="pages/forum.html">Перейти →</a></div>
+      <div class="section-card"><h3>🤖 AI‑агент</h3><p>Получите объяснение или решение от ИИ‑помощника.</p><a href="pages/ai-agent.html">Задать вопрос →</a></div>
+      <div class="section-card"><h3>🛠 Песочница</h3><p>Программируйте интерактивные примеры на нашем языке.</p><a href="pages/playground.html">Открыть редактор →</a></div>
     </section>
   </main>
 
   <div id="app-footer"></div>
 
   <script>var PAGE_ROOT = './';</script>
-  <script type="module" src="assets/js/auth.js"></script>
+  <script src="assets/js/auth.js"></script>
   <script src="assets/js/common.js"></script>
   <script>
     (function() {
@@ -394,7 +293,6 @@
       const sideRight = document.getElementById('sideRight');
       if (!sideLeft || !sideRight) return;
 
-      // Проверка: ширина > 1024 И соотношение сторон не уже 4:3 (ширина >= высоты * 4/3)
       function checkDisplay() {
         const ratio = window.innerWidth / window.innerHeight;
         const enabled = window.innerWidth > 1024 && ratio >= 4 / 3;
@@ -404,11 +302,8 @@
       }
 
       let parallaxEnabled = checkDisplay();
-      window.addEventListener('resize', () => {
-        parallaxEnabled = checkDisplay();
-      });
+      window.addEventListener('resize', () => { parallaxEnabled = checkDisplay(); });
 
-      // Финализация анимации появления
       function finalizeAnimation(el) {
         el.style.animation = 'none';
         el.style.opacity = '1';

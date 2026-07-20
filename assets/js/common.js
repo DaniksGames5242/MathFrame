@@ -1,134 +1,133 @@
 // common.js – шапка, подвал, тема, аутентификация и настройки
 document.addEventListener('DOMContentLoaded', () => {
-  if (typeof PAGE_ROOT === 'undefined') {
-    console.error('Задайте PAGE_ROOT перед common.js');
-  }
-  renderHeader();
-  renderFooter();
-  initTheme();
-  injectAuthModal();
-  injectSettingsModal();
-
-  // Инициализация аутентификации
-  function initAuthWhenReady() {
-    if (window.Auth) {
-      window.Auth.onAuthChange(user => updateUIForAuth(user));
-    } else {
-      document.addEventListener('authReady', () => {
-        window.Auth.onAuthChange(user => updateUIForAuth(user));
-      });
+    if (typeof PAGE_ROOT === 'undefined') {
+        console.error('Задайте PAGE_ROOT перед common.js');
     }
-  }
-  initAuthWhenReady();
+    renderHeader();
+    renderFooter();
+    initTheme();
+    injectAuthModal();
+    injectSettingsModal();
+
+    function initAuthWhenReady() {
+        if (window.Auth) {
+            window.Auth.onAuthChange(user => updateUIForAuth(user));
+        } else {
+            document.addEventListener('authReady', () => {
+                window.Auth.onAuthChange(user => updateUIForAuth(user));
+            });
+        }
+    }
+    initAuthWhenReady();
 });
 
 // ===== ТЕМА =====
 function initTheme() {
-  const saved = localStorage.getItem('theme');
-  if (saved === 'light' || saved === 'dark') {
-    applyTheme(saved, false);
-  } else {
-    applySystemTheme(false);
-    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
-      if (localStorage.getItem('theme') === 'system' || !localStorage.getItem('theme')) {
-        applySystemTheme(true);
-      }
-    });
-  }
+    const saved = localStorage.getItem('theme');
+    if (saved === 'light' || saved === 'dark') {
+        applyTheme(saved, false);
+    } else {
+        applySystemTheme(false);
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+            if (localStorage.getItem('theme') === 'system' || !localStorage.getItem('theme')) {
+                applySystemTheme(true);
+            }
+        });
+    }
 }
 
 function applyTheme(theme, save = true) {
-  const html = document.documentElement;
-  html.classList.toggle('light', theme === 'light');
-  if (save) localStorage.setItem('theme', theme);
-  updateThemeImages(theme === 'light' ? 'light' : 'dark');
-  updateHeroBackground(theme);
-  highlightThemeButtons(theme);
-  updateThemeToggleIcon(theme);
+    const html = document.documentElement;
+    html.classList.toggle('light', theme === 'light');
+    if (save) localStorage.setItem('theme', theme);
+    updateThemeImages(theme === 'light' ? 'light' : 'dark');
+    updateHeroBackground(theme);
+    highlightThemeButtons(theme);
+    updateThemeToggleIcon(theme);
 }
 
 function applySystemTheme(save = true) {
-  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-  const theme = prefersDark ? 'dark' : 'light';
-  applyTheme(theme, false);
-  if (save) localStorage.setItem('theme', 'system');
-  highlightThemeButtons('system');
-  updateThemeToggleIcon('system');
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const theme = prefersDark ? 'dark' : 'light';
+    applyTheme(theme, false);
+    if (save) localStorage.setItem('theme', 'system');
+    highlightThemeButtons('system');
+    updateThemeToggleIcon('system');
 }
 
 function updateThemeImages(mode) {
-  document.querySelectorAll('img[data-light-src][data-dark-src]').forEach(img => {
-    const src = mode === 'light' ? img.dataset.lightSrc : img.dataset.darkSrc;
-    if (src) img.src = PAGE_ROOT + src;
-  });
+    document.querySelectorAll('img[data-light-src][data-dark-src]').forEach(img => {
+        const src = mode === 'light' ? img.dataset.lightSrc : img.dataset.darkSrc;
+        if (src) img.src = PAGE_ROOT + src;
+    });
 }
 
 function updateHeroBackground(theme) {
-  const root = document.documentElement;
-  root.style.setProperty('--hero-bg', theme === 'light' ? 'var(--hero-bg-light)' : 'var(--hero-bg-dark)');
+    const root = document.documentElement;
+    root.style.setProperty('--hero-bg', theme === 'light' ? 'var(--hero-bg-light)' : 'var(--hero-bg-dark)');
 }
 
 function highlightThemeButtons(theme) {
-  document.querySelectorAll('.theme-btn').forEach(btn => {
-    btn.classList.remove('active');
-    if (btn.dataset.theme === theme) btn.classList.add('active');
-  });
+    document.querySelectorAll('.theme-btn').forEach(btn => {
+        btn.classList.remove('active');
+        if (btn.dataset.theme === theme) btn.classList.add('active');
+    });
 }
 
 function updateThemeToggleIcon(theme) {
-  const btn = document.getElementById('theme-toggle');
-  if (!btn) return;
-  const icons = { light: '☀️', dark: '🌙', system: '💻' };
-  btn.textContent = icons[theme] || '🌙';
+    const btn = document.getElementById('theme-toggle');
+    if (!btn) return;
+    const icons = { light: '☀️', dark: '🌙', system: '💻' };
+    btn.textContent = icons[theme] || '🌙';
 }
 
 // ===== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ =====
 let currentUser = null;
 
 function updateUIForAuth(user) {
-  currentUser = user;
-  updateAccountCircle(user);
-  updateHeroButtons(user);
-  if (document.getElementById('settings-modal')?.classList.contains('active')) {
-    populateSettingsModal(user);
-  }
+    currentUser = user;
+    updateAccountCircle(user);
+    updateHeroButtons(user);
+    if (document.getElementById('settings-modal')?.classList.contains('active')) {
+        populateSettingsModal(user);
+    }
 }
 
 function updateAccountCircle(user) {
-  const circle = document.getElementById('account-circle');
-  if (!circle) return;
-  if (user) {
-    const name = user.displayName || user.email || user.phoneNumber || 'User';
-    const initials = name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) || '?';
-    if (user.photoURL) {
-      circle.innerHTML = `<img src="${user.photoURL}" alt="avatar" />`;
+    const circle = document.getElementById('account-circle');
+    if (!circle) return;
+    if (user) {
+        const name = user.displayName || user.email || user.phoneNumber || 'User';
+        if (user.photoURL) {
+            circle.innerHTML = `<img src="${user.photoURL}" alt="avatar" />`;
+        } else {
+            const initials = name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) || '?';
+            circle.innerHTML = '';
+            circle.textContent = initials;
+        }
+        circle.title = name;
+        circle.onclick = () => openSettings();
     } else {
-      circle.innerHTML = '';
-      circle.textContent = initials;
+        circle.innerHTML = '';
+        circle.textContent = '?';
+        circle.title = 'Войти';
+        circle.onclick = () => openAuthModal();
     }
-    circle.title = name;
-    circle.onclick = () => openSettings();
-  } else {
-    circle.innerHTML = '';
-    circle.textContent = '?';
-    circle.title = 'Войти';
-    circle.onclick = () => openAuthModal();
-  }
 }
 
 function updateHeroButtons(user) {
-  const loginBtn = document.getElementById('loginBtn');
-  const registerBtn = document.getElementById('registerBtn');
-  if (!loginBtn || !registerBtn) return;
-  if (user) {
-    loginBtn.style.display = 'none';
-    registerBtn.style.display = 'none';
-  } else {
-    loginBtn.style.display = '';
-    registerBtn.style.display = '';
-    loginBtn.onclick = (e) => { e.preventDefault(); openAuthModal(); };
-    registerBtn.onclick = (e) => { e.preventDefault(); openAuthModal(); };
-  }
+    const loginBtn = document.getElementById('loginBtn');
+    const registerBtn = document.getElementById('registerBtn');
+    if (!loginBtn || !registerBtn) return;
+    if (user) {
+        loginBtn.style.display = 'none';
+        registerBtn.style.display = 'none';
+    } else {
+        loginBtn.style.display = '';
+        registerBtn.style.display = '';
+        loginBtn.onclick = (e) => { e.preventDefault(); openAuthModal(); };
+        registerBtn.onclick = (e) => { e.preventDefault(); openAuthModal(); };
+    }
 }
 
 // ===== МОДАЛЬНОЕ ОКНО ВХОДА =====
@@ -136,9 +135,9 @@ let recaptchaVerifier = null;
 let confirmationResult = null;
 
 function injectAuthModal() {
-  if (document.getElementById('auth-modal')) return;
+    if (document.getElementById('auth-modal')) return;
 
-  const html = `
+    const html = `
     <div class="overlay" id="auth-overlay"></div>
     <div class="modal" id="auth-modal">
       <div class="modal-header">
@@ -150,14 +149,12 @@ function injectAuthModal() {
         <button class="auth-tab" id="tab-register">Создать аккаунт</button>
       </div>
 
-      <!-- Форма входа -->
       <div class="login-form" id="login-section">
         <input type="text" id="login-email-phone" placeholder="Email или телефон" />
         <input type="password" id="login-password" placeholder="Пароль" />
         <button class="btn primary" id="login-submit">Войти</button>
       </div>
 
-      <!-- Форма регистрации -->
       <div class="login-form" id="register-section" style="display:none;">
         <input type="text" id="reg-email-phone" placeholder="Email или телефон" />
         <input type="text" id="reg-nickname" placeholder="Никнейм" />
@@ -165,7 +162,6 @@ function injectAuthModal() {
         <button class="btn primary" id="register-submit">Зарегистрироваться</button>
       </div>
 
-      <!-- Подтверждение телефона -->
       <div id="phone-verify-section">
         <input type="text" id="verification-code" placeholder="Код из SMS" />
         <button class="btn primary" id="verify-code-btn">Подтвердить</button>
@@ -175,178 +171,151 @@ function injectAuthModal() {
       <div class="divider"><span>или</span></div>
       <div class="social-icons">
         <button class="social-btn" id="google-login-btn">
-          <img src="https://logo-teka.com/google/" alt="Google" />
+          <img src="https://logo-teka.com/wp-content/uploads/2025/06/google-logo.svg" alt="Google" />
         </button>
         <button class="social-btn" id="apple-login-btn">
-          <img src="https://www.pngwing.com/ru/free-png-yvrtp" alt="Apple" />
+          <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRjJcT6KxEONebNu2KbluZB4-EX-2Qtq4I_O5j_tB7leU0YRDdsNL-j6zc&s=10" alt="Apple" />
         </button>
       </div>
       <div id="recaptcha-container"></div>
     </div>
   `;
-  document.body.insertAdjacentHTML('beforeend', html);
+    document.body.insertAdjacentHTML('beforeend', html);
 
-  // Кэшируем элементы
-  const overlay = document.getElementById('auth-overlay');
-  const modal = document.getElementById('auth-modal');
-  const closeBtn = document.getElementById('auth-close');
-  const tabLogin = document.getElementById('tab-login');
-  const tabRegister = document.getElementById('tab-register');
-  const loginSection = document.getElementById('login-section');
-  const registerSection = document.getElementById('register-section');
-  const phoneVerifySection = document.getElementById('phone-verify-section');
+    const overlay = document.getElementById('auth-overlay');
+    const modal = document.getElementById('auth-modal');
+    const closeBtn = document.getElementById('auth-close');
+    const tabLogin = document.getElementById('tab-login');
+    const tabRegister = document.getElementById('tab-register');
+    const loginSection = document.getElementById('login-section');
+    const registerSection = document.getElementById('register-section');
+    const phoneVerifySection = document.getElementById('phone-verify-section');
 
-  function showLoginTab() {
-    tabLogin.classList.add('active');
-    tabRegister.classList.remove('active');
-    loginSection.style.display = 'flex';
-    registerSection.style.display = 'none';
-    phoneVerifySection.classList.remove('active');
-  }
+    function showLoginTab() {
+        tabLogin.classList.add('active');
+        tabRegister.classList.remove('active');
+        loginSection.style.display = 'flex';
+        registerSection.style.display = 'none';
+        phoneVerifySection.classList.remove('active');
+    }
 
-  function showRegisterTab() {
-    tabRegister.classList.add('active');
-    tabLogin.classList.remove('active');
-    registerSection.style.display = 'flex';
-    loginSection.style.display = 'none';
-    phoneVerifySection.classList.remove('active');
-  }
+    function showRegisterTab() {
+        tabRegister.classList.add('active');
+        tabLogin.classList.remove('active');
+        registerSection.style.display = 'flex';
+        loginSection.style.display = 'none';
+        phoneVerifySection.classList.remove('active');
+    }
 
-  function openAuth() {
-    document.body.classList.add('no-scroll');
-    overlay.classList.add('active');
-    modal.classList.add('active');
-    showLoginTab(); // всегда начинаем с входа
-    document.getElementById('login-email-phone').value = '';
-    document.getElementById('login-password').value = '';
-    document.getElementById('reg-email-phone').value = '';
-    document.getElementById('reg-nickname').value = '';
-    document.getElementById('reg-password').value = '';
-    document.getElementById('verification-code').value = '';
-    confirmationResult = null;
-  }
+    function openAuth() {
+        document.body.classList.add('no-scroll');
+        overlay.classList.add('active');
+        modal.classList.add('active');
+        showLoginTab();
+        document.getElementById('login-email-phone').value = '';
+        document.getElementById('login-password').value = '';
+        document.getElementById('reg-email-phone').value = '';
+        document.getElementById('reg-nickname').value = '';
+        document.getElementById('reg-password').value = '';
+        document.getElementById('verification-code').value = '';
+        confirmationResult = null;
+    }
 
-  window.openAuthModal = openAuth;
+    window.openAuthModal = openAuth;
 
-  function closeAuth() {
-    overlay.classList.remove('active');
-    modal.classList.remove('active');
-    document.body.classList.remove('no-scroll');
-  }
+    function closeAuth() {
+        overlay.classList.remove('active');
+        modal.classList.remove('active');
+        document.body.classList.remove('no-scroll');
+    }
 
-  overlay.addEventListener('click', closeAuth);
-  closeBtn.addEventListener('click', closeAuth);
-  tabLogin.addEventListener('click', showLoginTab);
-  tabRegister.addEventListener('click', showRegisterTab);
+    overlay.addEventListener('click', closeAuth);
+    closeBtn.addEventListener('click', closeAuth);
+    tabLogin.addEventListener('click', showLoginTab);
+    tabRegister.addEventListener('click', showRegisterTab);
 
-  // Помощник: определить, email или телефон
-  function isEmail(str) {
-    return str.includes('@');
-  }
+    function isEmail(str) { return str.includes('@'); }
 
-  // Универсальная функция для входа/регистрации с автоопределением
-  async function handleAuth(isRegister) {
-    if (!window.Auth) { alert('Сервис аутентификации ещё загружается'); return; }
+    async function handleAuth(isRegister) {
+        if (!window.Auth) { alert('Сервис аутентификации ещё загружается'); return; }
 
-    const emailPhone = isRegister ?
-      document.getElementById('reg-email-phone').value.trim() :
-      document.getElementById('login-email-phone').value.trim();
-    const password = isRegister ?
-      document.getElementById('reg-password').value :
-      document.getElementById('login-password').value;
+        const emailPhone = isRegister ?
+            document.getElementById('reg-email-phone').value.trim() :
+            document.getElementById('login-email-phone').value.trim();
+        const password = isRegister ?
+            document.getElementById('reg-password').value :
+            document.getElementById('login-password').value;
 
-    if (!emailPhone) return alert('Введите email или телефон');
-    if (isEmail(emailPhone)) {
-      // Email логика
-      if (!password) return alert('Введите пароль');
-      try {
-        if (isRegister) {
-          const nickname = document.getElementById('reg-nickname').value.trim();
-          const result = await window.Auth.registerWithEmail(emailPhone, password);
-          if (nickname) await window.Auth.updateUserProfile(nickname);
-          closeAuth();
+        if (!emailPhone) return alert('Введите email или телефон');
+        if (isEmail(emailPhone)) {
+            if (!password) return alert('Введите пароль');
+            try {
+                if (isRegister) {
+                    const nickname = document.getElementById('reg-nickname').value.trim();
+                    const result = await window.Auth.registerWithEmail(emailPhone, password);
+                    if (nickname) await window.Auth.updateUserProfile({ displayName: nickname });
+                    closeAuth();
+                } else {
+                    await window.Auth.loginWithEmail(emailPhone, password);
+                    closeAuth();
+                }
+            } catch (error) {
+                alert('Ошибка: ' + error.message);
+            }
         } else {
-          await window.Auth.loginWithEmail(emailPhone, password);
-          closeAuth();
+            if (!recaptchaVerifier) {
+                try { recaptchaVerifier = window.Auth.createRecaptchaVerifier('recaptcha-container'); } catch (e) { console.warn(e); }
+            }
+            try {
+                confirmationResult = await window.Auth.loginWithPhoneNumber(emailPhone, recaptchaVerifier);
+                loginSection.style.display = 'none';
+                registerSection.style.display = 'none';
+                phoneVerifySection.classList.add('active');
+            } catch (error) {
+                alert('Ошибка отправки кода: ' + error.message);
+                recaptchaVerifier = null;
+            }
         }
-      } catch (error) {
-        alert('Ошибка: ' + error.message);
-      }
-    } else {
-      // Телефон логика
-      if (!recaptchaVerifier) {
+    }
+
+    document.getElementById('login-submit').addEventListener('click', () => handleAuth(false));
+    document.getElementById('register-submit').addEventListener('click', () => handleAuth(true));
+
+    document.getElementById('verify-code-btn').addEventListener('click', async () => {
+        const code = document.getElementById('verification-code').value.trim();
+        if (!code) return alert('Введите код');
+        if (!confirmationResult) return alert('Сначала отправьте код');
         try {
-          recaptchaVerifier = window.Auth.createRecaptchaVerifier('recaptcha-container');
-        } catch (e) { console.warn(e); }
-      }
-      try {
-        if (isRegister) {
-          // Регистрация по телефону: отправляем код и после подтверждения создаём аккаунт
-          confirmationResult = await window.Auth.loginWithPhoneNumber(emailPhone, recaptchaVerifier);
-          phoneVerifySection.classList.add('active');
-          loginSection.style.display = 'none';
-          registerSection.style.display = 'none';
-        } else {
-          confirmationResult = await window.Auth.loginWithPhoneNumber(emailPhone, recaptchaVerifier);
-          phoneVerifySection.classList.add('active');
-          loginSection.style.display = 'none';
-          registerSection.style.display = 'none';
+            await confirmationResult.confirm(code);
+            closeAuth();
+        } catch (error) {
+            alert('Неверный код: ' + error.message);
         }
-      } catch (error) {
-        alert('Ошибка отправки кода: ' + error.message);
-        recaptchaVerifier = null;
-      }
-    }
-  }
+    });
 
-  // Кнопка Войти
-  document.getElementById('login-submit').addEventListener('click', () => handleAuth(false));
-  // Кнопка Зарегистрироваться
-  document.getElementById('register-submit').addEventListener('click', () => handleAuth(true));
+    document.getElementById('cancel-phone-verify').addEventListener('click', () => {
+        phoneVerifySection.classList.remove('active');
+        loginSection.style.display = 'flex';
+        registerSection.style.display = 'none';
+        confirmationResult = null;
+    });
 
-  // Подтверждение кода
-  document.getElementById('verify-code-btn').addEventListener('click', async () => {
-    const code = document.getElementById('verification-code').value.trim();
-    if (!code) return alert('Введите код');
-    if (!confirmationResult) return alert('Сначала отправьте код');
-    try {
-      await confirmationResult.confirm(code);
-      closeAuth();
-    } catch (error) {
-      alert('Неверный код: ' + error.message);
-    }
-  });
+    document.getElementById('google-login-btn').addEventListener('click', async () => {
+        if (!window.Auth) return;
+        try { await window.Auth.loginWithGoogle(); closeAuth(); } catch (e) { alert('Ошибка: ' + e.message); }
+    });
 
-  document.getElementById('cancel-phone-verify').addEventListener('click', () => {
-    phoneVerifySection.classList.remove('active');
-    loginSection.style.display = 'flex';
-    registerSection.style.display = 'none';
-    confirmationResult = null;
-  });
-
-  // Google / Apple
-  document.getElementById('google-login-btn').addEventListener('click', async () => {
-    if (!window.Auth) return;
-    try {
-      await window.Auth.loginWithGoogle();
-      closeAuth();
-    } catch (e) { alert('Ошибка: ' + e.message); }
-  });
-
-  document.getElementById('apple-login-btn').addEventListener('click', async () => {
-    if (!window.Auth) return;
-    try {
-      await window.Auth.loginWithApple();
-      closeAuth();
-    } catch (e) { alert('Ошибка: ' + e.message); }
-  });
+    document.getElementById('apple-login-btn').addEventListener('click', async () => {
+        if (!window.Auth) return;
+        try { await window.Auth.loginWithApple(); closeAuth(); } catch (e) { alert('Ошибка: ' + e.message); }
+    });
 }
 
 // ===== МОДАЛЬНОЕ ОКНО НАСТРОЕК =====
 function injectSettingsModal() {
-  if (document.getElementById('settings-modal')) return;
+    if (document.getElementById('settings-modal')) return;
 
-  const html = `
+    const html = `
     <div class="overlay" id="settings-overlay"></div>
     <div class="modal" id="settings-modal">
       <div class="modal-header">
@@ -355,7 +324,12 @@ function injectSettingsModal() {
       </div>
 
       <div class="avatar-section">
-        <div class="avatar-big" id="avatar-big">
+        <div class="avatar-wrapper" id="avatar-wrapper">
+          <img id="avatar-img" src="" alt="" style="display:none" />
+          <div class="avatar-placeholder" id="avatar-placeholder">?</div>
+          <div class="avatar-overlay">
+            <span>✎</span>
+          </div>
           <input type="file" id="avatar-input" accept="image/*" />
         </div>
         <div class="username-display">
@@ -380,151 +354,151 @@ function injectSettingsModal() {
       </div>
     </div>
   `;
-  document.body.insertAdjacentHTML('beforeend', html);
+    document.body.insertAdjacentHTML('beforeend', html);
 
-  const overlay = document.getElementById('settings-overlay');
-  const modal = document.getElementById('settings-modal');
-  const closeBtn = document.getElementById('settings-close');
-  const avatarBig = document.getElementById('avatar-big');
-  const avatarInput = document.getElementById('avatar-input');
-  const usernameText = document.getElementById('username-text');
-  const emailDisplay = document.getElementById('email-display');
-  const editBtn = document.getElementById('edit-username-btn');
-  const usernameEditField = document.getElementById('username-edit-field');
-  const usernameInput = document.getElementById('username-input');
-  const saveUsernameBtn = document.getElementById('save-username-btn');
-  const cancelUsernameBtn = document.getElementById('cancel-username-btn');
-  const changePasswordBtn = document.getElementById('change-password-btn');
-  const logoutBtn = document.getElementById('logout-btn');
+    const overlay = document.getElementById('settings-overlay');
+    const modal = document.getElementById('settings-modal');
+    const closeBtn = document.getElementById('settings-close');
+    const avatarWrapper = document.getElementById('avatar-wrapper');
+    const avatarImg = document.getElementById('avatar-img');
+    const avatarPlaceholder = document.getElementById('avatar-placeholder');
+    const avatarInput = document.getElementById('avatar-input');
+    const usernameText = document.getElementById('username-text');
+    const emailDisplay = document.getElementById('email-display');
+    const editBtn = document.getElementById('edit-username-btn');
+    const usernameEditField = document.getElementById('username-edit-field');
+    const usernameInput = document.getElementById('username-input');
+    const saveUsernameBtn = document.getElementById('save-username-btn');
+    const cancelUsernameBtn = document.getElementById('cancel-username-btn');
+    const changePasswordBtn = document.getElementById('change-password-btn');
+    const logoutBtn = document.getElementById('logout-btn');
 
-  function populateSettings(user) {
-    if (!user) {
-      usernameText.textContent = 'Гость';
-      avatarBig.innerHTML = '<input type="file" id="avatar-input" accept="image/*" />';
-      avatarBig.style.background = 'var(--accent)';
-      emailDisplay.textContent = '';
-      changePasswordBtn.style.display = 'none';
-      return;
+    function populateSettings(user) {
+        if (!user) {
+            usernameText.textContent = 'Гость';
+            avatarImg.style.display = 'none';
+            avatarPlaceholder.style.display = 'flex';
+            avatarPlaceholder.textContent = '?';
+            emailDisplay.textContent = '';
+            changePasswordBtn.style.display = 'none';
+            return;
+        }
+        const name = user.displayName || user.email || user.phoneNumber || 'User';
+        usernameText.textContent = name;
+        emailDisplay.textContent = user.email || user.phoneNumber || '';
+
+        if (user.photoURL) {
+            avatarImg.src = user.photoURL;
+            avatarImg.style.display = 'block';
+            avatarPlaceholder.style.display = 'none';
+        } else {
+            avatarImg.style.display = 'none';
+            avatarPlaceholder.style.display = 'flex';
+            avatarPlaceholder.textContent = name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) || '?';
+        }
+
+        const isPasswordProvider = user.providerData.some(p => p.providerId === 'password');
+        changePasswordBtn.style.display = isPasswordProvider ? '' : 'none';
     }
-    const name = user.displayName || user.email || user.phoneNumber || 'User';
-    usernameText.textContent = name;
-    emailDisplay.textContent = user.email || user.phoneNumber || '';
 
-    // Аватар
-    if (user.photoURL) {
-      avatarBig.innerHTML = `<img src="${user.photoURL}" alt="avatar" /><input type="file" id="avatar-input" accept="image/*" />`;
-      avatarBig.style.background = 'transparent';
-    } else {
-      const initials = name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) || '?';
-      avatarBig.innerHTML = `<span>${initials}</span><input type="file" id="avatar-input" accept="image/*" />`;
-      avatarBig.style.background = 'var(--accent)';
+    async function handleAvatarUpload(file) {
+        if (!file) return;
+        if (!window.Auth) return alert('Сервис недоступен');
+        try {
+            const url = await window.Auth.uploadAvatar(file);
+            await window.Auth.updateUserProfile({ photoURL: url });
+            currentUser.photoURL = url;
+            updateAccountCircle(currentUser);
+            populateSettings(currentUser);
+        } catch (err) {
+            alert('Ошибка загрузки: ' + err.message);
+        }
     }
 
-    // Скрыть кнопку смены пароля для Google/Apple
-    const isPasswordProvider = user.providerData.some(
-      p => p.providerId === 'password'
-    );
-    changePasswordBtn.style.display = isPasswordProvider ? '' : 'none';
+    // Клик по обёртке аватара = клик по input[file]
+    avatarWrapper.addEventListener('click', () => avatarInput.click());
+    avatarInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) handleAvatarUpload(file);
+    });
 
-    // Переподключаем input
-    document.getElementById('avatar-input').addEventListener('change', handleAvatarUpload);
-  }
-
-  async function handleAvatarUpload(e) {
-    const file = e.target.files[0];
-    if (!file) return;
-    if (!window.Auth) return alert('Сервис недоступен');
-    try {
-      const url = await window.Auth.uploadAvatar(file);
-      await window.Auth.updateUserProfile(currentUser.displayName, url);
-      currentUser.photoURL = url;
-      updateAccountCircle(currentUser);
-      populateSettings(currentUser);
-    } catch (err) {
-      alert('Ошибка загрузки: ' + err.message);
-    }
-  }
-
-  function openSettings() {
-    if (!currentUser) {
-      openAuthModal();
-      return;
-    }
-    populateSettings(currentUser);
-    usernameEditField.style.display = 'none';
-    document.body.classList.add('no-scroll');
-    overlay.classList.add('active');
-    modal.classList.add('active');
-  }
-
-  function closeSettings() {
-    overlay.classList.remove('active');
-    modal.classList.remove('active');
-    document.body.classList.remove('no-scroll');
-  }
-
-  overlay.addEventListener('click', closeSettings);
-  closeBtn.addEventListener('click', closeSettings);
-
-  editBtn.addEventListener('click', () => {
-    usernameInput.value = currentUser?.displayName || '';
-    usernameEditField.style.display = 'block';
-  });
-
-  cancelUsernameBtn.addEventListener('click', () => {
-    usernameEditField.style.display = 'none';
-  });
-
-  saveUsernameBtn.addEventListener('click', async () => {
-    const newName = usernameInput.value.trim();
-    if (newName && window.Auth) {
-      try {
-        await window.Auth.updateUserProfile(newName, currentUser.photoURL);
-        currentUser.displayName = newName;
-        updateAccountCircle(currentUser);
+    function openSettings() {
+        if (!currentUser) {
+            openAuthModal();
+            return;
+        }
         populateSettings(currentUser);
-      } catch (e) { alert('Ошибка: ' + e.message); }
+        usernameEditField.style.display = 'none';
+        document.body.classList.add('no-scroll');
+        overlay.classList.add('active');
+        modal.classList.add('active');
     }
-    usernameEditField.style.display = 'none';
-  });
 
-  changePasswordBtn.addEventListener('click', async () => {
-    if (!currentUser || !currentUser.email) return alert('Email не найден');
-    try {
-      await window.Auth.resetPassword(currentUser.email);
-      alert('Письмо для сброса пароля отправлено');
-    } catch (e) { alert('Ошибка: ' + e.message); }
-  });
+    function closeSettings() {
+        overlay.classList.remove('active');
+        modal.classList.remove('active');
+        document.body.classList.remove('no-scroll');
+    }
 
-  logoutBtn.addEventListener('click', async () => {
-    if (!window.Auth) return;
-    try {
-      await window.Auth.logout();
-      closeSettings();
-    } catch (e) { alert('Ошибка: ' + e.message); }
-  });
+    overlay.addEventListener('click', closeSettings);
+    closeBtn.addEventListener('click', closeSettings);
 
-  window.openSettings = openSettings;
+    editBtn.addEventListener('click', () => {
+        usernameInput.value = currentUser?.displayName || '';
+        usernameEditField.style.display = 'block';
+    });
+
+    cancelUsernameBtn.addEventListener('click', () => {
+        usernameEditField.style.display = 'none';
+    });
+
+    saveUsernameBtn.addEventListener('click', async () => {
+        const newName = usernameInput.value.trim();
+        if (newName && window.Auth) {
+            try {
+                await window.Auth.updateUserProfile({ displayName: newName });
+                currentUser.displayName = newName;
+                updateAccountCircle(currentUser);
+                populateSettings(currentUser);
+            } catch (e) { alert('Ошибка: ' + e.message); }
+        }
+        usernameEditField.style.display = 'none';
+    });
+
+    changePasswordBtn.addEventListener('click', async () => {
+        if (!currentUser || !currentUser.email) return alert('Email не найден');
+        try {
+            await window.Auth.resetPassword(currentUser.email);
+            alert('Письмо для сброса пароля отправлено');
+        } catch (e) { alert('Ошибка: ' + e.message); }
+    });
+
+    logoutBtn.addEventListener('click', async () => {
+        if (!window.Auth) return;
+        try { await window.Auth.logout(); closeSettings(); } catch (e) { alert('Ошибка: ' + e.message); }
+    });
+
+    window.openSettings = openSettings;
 }
 
 // ===== ШАПКА =====
 function renderHeader() {
-  const header = document.getElementById('app-header');
-  if (!header) return;
+    const header = document.getElementById('app-header');
+    if (!header) return;
 
-  const navLinks = [
-    { href: 'pages/spravochnik.html', text: 'Справочник' },
-    { href: 'pages/mini-services.html', text: 'Мини‑сервисы' },
-    { href: 'pages/forum.html', text: 'Форум' },
-    { href: 'pages/ai-agent.html', text: 'AI‑агент' },
-    { href: 'pages/playground.html', text: 'Песочница' },
-  ];
+    const navLinks = [
+        { href: 'pages/spravochnik.html', text: 'Справочник' },
+        { href: 'pages/mini-services.html', text: 'Мини‑сервисы' },
+        { href: 'pages/forum.html', text: 'Форум' },
+        { href: 'pages/ai-agent.html', text: 'AI‑агент' },
+        { href: 'pages/playground.html', text: 'Песочница' },
+    ];
 
-  const navHTML = navLinks
-    .map(link => `<a href="${PAGE_ROOT}${link.href}">${link.text}</a>`)
-    .join('');
+    const navHTML = navLinks
+        .map(link => `<a href="${PAGE_ROOT}${link.href}">${link.text}</a>`)
+        .join('');
 
-  header.innerHTML = `
+    header.innerHTML = `
     <a href="${PAGE_ROOT}" class="logo-container">
       <img src="${PAGE_ROOT}assets/img/logo.png" alt="MathFrame" class="logo-icon"
            data-light-src="assets/img/logo-light.png" data-dark-src="assets/img/logo.png" />
@@ -536,31 +510,29 @@ function renderHeader() {
     </div>
   `;
 
-  // Подключаем переключатель темы
-  const themeBtn = document.getElementById('theme-toggle');
-  const savedTheme = localStorage.getItem('theme') || 'system';
-  updateThemeToggleIcon(savedTheme === 'system' ? (document.documentElement.classList.contains('light') ? 'light' : 'dark') : savedTheme);
-  themeBtn.addEventListener('click', () => {
-    const current = localStorage.getItem('theme') || 'system';
-    if (current === 'system') {
-      applyTheme(document.documentElement.classList.contains('light') ? 'dark' : 'light', true);
-    } else if (current === 'light') {
-      applyTheme('dark', true);
-    } else if (current === 'dark') {
-      applySystemTheme(true);
-    }
-  });
+    const themeBtn = document.getElementById('theme-toggle');
+    const savedTheme = localStorage.getItem('theme') || 'system';
+    updateThemeToggleIcon(savedTheme === 'system' ? (document.documentElement.classList.contains('light') ? 'light' : 'dark') : savedTheme);
+    themeBtn.addEventListener('click', () => {
+        const current = localStorage.getItem('theme') || 'system';
+        if (current === 'system') {
+            applyTheme(document.documentElement.classList.contains('light') ? 'dark' : 'light', true);
+        } else if (current === 'light') {
+            applyTheme('dark', true);
+        } else if (current === 'dark') {
+            applySystemTheme(true);
+        }
+    });
 
-  const currentTheme = document.documentElement.classList.contains('light') ? 'light' : 'dark';
-  updateThemeImages(currentTheme);
+    const currentTheme = document.documentElement.classList.contains('light') ? 'light' : 'dark';
+    updateThemeImages(currentTheme);
 }
 
 function renderFooter() {
-  const footer = document.getElementById('app-footer');
-  if (!footer) return;
-  footer.innerHTML = `<p>&copy; ${new Date().getFullYear()} MathFrame. Учись математике интерактивно.</p>`;
+    const footer = document.getElementById('app-footer');
+    if (!footer) return;
+    footer.innerHTML = `<p>&copy; ${new Date().getFullYear()} MathFrame. Учись математике интерактивно.</p>`;
 }
 
-// Глобальные функции
 window.applyTheme = applyTheme;
 window.applySystemTheme = applySystemTheme;
