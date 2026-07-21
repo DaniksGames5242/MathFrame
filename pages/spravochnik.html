@@ -36,6 +36,17 @@
       --spr-transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
+    /* Скрываем системные скроллбары */
+    .spr-sidebar-inner::-webkit-scrollbar,
+    .spr-tree::-webkit-scrollbar {
+      display: none;
+    }
+    .spr-sidebar-inner,
+    .spr-tree {
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+    }
+
     /* ===== ЗАГРУЗОЧНЫЙ ЭКРАН ===== */
     .spr-loader {
       position: fixed;
@@ -93,7 +104,7 @@
       left: 0;
       width: var(--spr-sidebar-width);
       height: calc(100vh - var(--header-height));
-      overflow-y: auto;
+      overflow: hidden;
       background: var(--bg-card);
       backdrop-filter: blur(20px);
       -webkit-backdrop-filter: blur(20px);
@@ -101,7 +112,6 @@
       transition: background var(--spr-transition), border-color var(--spr-transition),
                   transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
       z-index: 60;
-      overscroll-behavior: contain;
       display: flex;
       flex-direction: column;
     }
@@ -143,18 +153,86 @@
       flex-direction: column;
       padding: 1.25rem 1rem;
       overflow-y: auto;
-      min-height: 0;
+      overflow-x: hidden;
     }
 
+    /* ===== ВЕРХНЯЯ ЧАСТЬ: ПОИСК ===== */
+    .spr-search {
+      flex: 0 0 auto;
+      margin-bottom: 0.8rem;
+    }
+    .spr-search-input-wrap {
+      position: relative;
+      margin-bottom: 0.6rem;
+    }
+    .spr-search-input-wrap input[type="search"] {
+      width: 100%;
+      padding: 0.65rem 2.8rem 0.65rem 0.9rem;
+      border-radius: 0.6rem;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.05);
+      color: var(--text-primary);
+      font-size: 0.92rem;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .spr-search-input-wrap input[type="search"]:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(99,102,241,0.15);
+    }
+    .spr-search-input-wrap input[type="search"]::-webkit-search-cancel-button { display: none; }
+
+    .spr-search-icon {
+      position: absolute;
+      right: 0.5rem;
+      top: 50%;
+      transform: translateY(-50%);
+      pointer-events: none;
+      opacity: 0.4;
+      color: var(--text-secondary);
+    }
+    .spr-search-icon svg {
+      width: 18px;
+      height: 18px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2.5;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .spr-search-clear {
+      position: absolute;
+      right: 2.2rem;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      color: var(--text-secondary);
+      cursor: pointer;
+      font-size: 1rem;
+      display: none;
+      line-height: 1;
+      padding: 0.2rem;
+      transition: color 0.2s;
+    }
+    .spr-search-input-wrap.has-value .spr-search-clear { display: block; }
+    .spr-search-clear:hover { color: var(--text-primary); }
+
+    .spr-search-empty {
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      padding: 0.75rem 0.25rem;
+      display: none;
+      animation: fadeIn 0.3s ease;
+    }
+    .spr-search-empty.visible { display: block; }
+
     /* ===== ДЕРЕВО ТЕМ (занимает всё свободное место) ===== */
-    .spr-tree-wrap {
+    .spr-tree {
       flex: 1;
       overflow-y: auto;
-      min-height: 0;
-      margin-bottom: 0.5rem;
-    }
-    .spr-tree {
-      height: 100%;
+      overflow-x: hidden;
     }
     .spr-tree ul {
       list-style: none;
@@ -260,7 +338,7 @@
     .spr-node-children {
       overflow: hidden;
       max-height: 0;
-      transition: max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+      transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1);
     }
     .spr-node-children.expanded { max-height: 4000px; }
 
@@ -298,108 +376,55 @@
       padding: 0 0.1rem;
     }
 
-    /* ===== ПОИСК И ФИЛЬТРЫ (в нижней части сайдбара) ===== */
+    /* ===== НИЖНЯЯ ЧАСТЬ: ФИЛЬТРЫ И ПАРАМЕТРЫ ===== */
     .spr-sidebar-bottom {
       flex: 0 0 auto;
       border-top: 1px solid var(--border);
       padding-top: 0.8rem;
       margin-top: 0.5rem;
-      display: flex;
-      flex-direction: column;
-      gap: 0.5rem;
     }
-
-    .spr-search-input-wrap {
-      position: relative;
-    }
-    .spr-search-input-wrap input[type="search"] {
-      width: 100%;
-      padding: 0.55rem 2.8rem 0.55rem 0.9rem;
-      border-radius: 0.6rem;
-      border: 1px solid var(--border);
-      background: rgba(255,255,255,0.05);
-      color: var(--text-primary);
-      font-size: 0.88rem;
-      outline: none;
-      transition: border-color 0.2s, box-shadow 0.2s;
-    }
-    .spr-search-input-wrap input[type="search"]:focus {
-      border-color: var(--accent);
-      box-shadow: 0 0 0 3px rgba(99,102,241,0.15);
-    }
-    .spr-search-input-wrap input[type="search"]::-webkit-search-cancel-button { display: none; }
-
-    .spr-search-icon {
-      position: absolute;
-      right: 0.5rem;
-      top: 50%;
-      transform: translateY(-50%);
-      pointer-events: none;
-      opacity: 0.4;
-      color: var(--text-secondary);
-    }
-    .spr-search-icon svg {
-      width: 18px;
-      height: 18px;
-      fill: none;
-      stroke: currentColor;
-      stroke-width: 2.5;
-      stroke-linecap: round;
-      stroke-linejoin: round;
-    }
-
-    .spr-search-clear {
-      position: absolute;
-      right: 2.2rem;
-      top: 50%;
-      transform: translateY(-50%);
-      background: none;
-      border: none;
-      color: var(--text-secondary);
-      cursor: pointer;
-      font-size: 1rem;
-      display: none;
-      line-height: 1;
-      padding: 0.2rem;
-      transition: color 0.2s;
-    }
-    .spr-search-input-wrap.has-value .spr-search-clear { display: block; }
-    .spr-search-clear:hover { color: var(--text-primary); }
 
     .spr-filters {
       display: flex;
-      gap: 0.4rem;
+      gap: 0.5rem;
+      margin-bottom: 0.6rem;
       flex-wrap: wrap;
     }
     .spr-filters select {
       flex: 1 1 auto;
-      min-width: 80px;
-      padding: 0.35rem 0.5rem;
+      min-width: 90px;
+      padding: 0.4rem 0.6rem;
       border-radius: 0.5rem;
       border: 1px solid var(--border);
       background: rgba(255,255,255,0.05);
       color: var(--text-primary);
-      font-size: 0.78rem;
+      font-size: 0.82rem;
       outline: none;
       cursor: pointer;
-      transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+      transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
       appearance: none;
       -webkit-appearance: none;
       background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2394a3b8'/%3E%3C/svg%3E");
       background-repeat: no-repeat;
-      background-position: right 0.5rem center;
-      background-size: 10px 6px;
+      background-position: right 0.6rem center;
+      padding-right: 1.8rem;
     }
     .spr-filters select:focus {
       border-color: var(--accent);
-      box-shadow: 0 0 0 3px rgba(99,102,241,0.15);
-    }
-    .spr-filters select:hover {
-      background-color: rgba(255,255,255,0.08);
+      box-shadow: 0 0 0 2px rgba(99,102,241,0.2);
+      transform: scale(1.02);
     }
     .spr-filters select option {
       background: var(--bg-body);
       color: var(--text-primary);
+    }
+    /* Анимация для select при раскрытии — добавляем псевдо-эффект */
+    .spr-filters select:focus option {
+      animation: slideDown 0.2s ease;
+    }
+    @keyframes slideDown {
+      from { opacity: 0; transform: translateY(-4px); }
+      to { opacity: 1; transform: translateY(0); }
     }
 
     /* Параметры поиска — вкладка */
@@ -408,13 +433,13 @@
       border-radius: 0.6rem;
       background: rgba(255,255,255,0.03);
       overflow: hidden;
-      transition: border-color 0.2s, max-height 0.35s ease;
+      transition: border-color 0.2s;
     }
     .spr-search-options-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 0.35rem 0.7rem;
+      padding: 0.45rem 0.7rem;
       cursor: pointer;
       user-select: none;
       color: var(--text-secondary);
@@ -442,7 +467,7 @@
     }
     .spr-search-options-body.open {
       max-height: 200px;
-      padding: 0.5rem 0.7rem;
+      padding: 0.6rem 0.7rem;
     }
     .spr-search-options-body label {
       display: flex;
@@ -452,7 +477,7 @@
       user-select: none;
       color: var(--text-secondary);
       font-size: 0.78rem;
-      padding: 0.12rem 0;
+      padding: 0.15rem 0;
       transition: color 0.2s;
     }
     .spr-search-options-body label:hover {
@@ -470,15 +495,6 @@
       transform: scale(1.1);
       box-shadow: 0 0 0 2px rgba(99,102,241,0.2);
     }
-
-    .spr-search-empty {
-      font-size: 0.82rem;
-      color: var(--text-secondary);
-      padding: 0.3rem 0.25rem;
-      display: none;
-      animation: fadeIn 0.3s ease;
-    }
-    .spr-search-empty.visible { display: block; }
 
     /* ===== ОСНОВНОЙ КОНТЕНТ ===== */
     .spr-content {
@@ -925,24 +941,23 @@
             <aside class="spr-sidebar" id="sprSidebar">
               <div class="spr-sidebar-resizer" id="sprResizer"></div>
               <div class="spr-sidebar-inner">
-                <!-- Дерево тем (занимает всё свободное место) -->
-                <div class="spr-tree-wrap">
-                  <nav class="spr-tree" id="sprTree" aria-label="Дерево тем"></nav>
+                <!-- Верх: поиск -->
+                <div class="spr-search">
+                  <div class="spr-search-input-wrap" id="sprSearchWrap">
+                    <input type="search" id="sprSearchInput" placeholder="Поиск по темам…" autocomplete="off" />
+                    <span class="spr-search-icon">
+                      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16" y1="16" x2="22" y2="22"/></svg>
+                    </span>
+                    <button type="button" class="spr-search-clear" id="sprSearchClear">✕</button>
+                  </div>
+                  <div class="spr-search-empty" id="sprSearchEmpty">Ничего не найдено</div>
                 </div>
 
-                <!-- Нижняя часть: поиск, фильтры, параметры -->
-                <div class="spr-sidebar-bottom">
-                  <div class="spr-search">
-                    <div class="spr-search-input-wrap" id="sprSearchWrap">
-                      <input type="search" id="sprSearchInput" placeholder="Поиск по темам…" autocomplete="off" />
-                      <span class="spr-search-icon">
-                        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16" y1="16" x2="22" y2="22"/></svg>
-                      </span>
-                      <button type="button" class="spr-search-clear" id="sprSearchClear">✕</button>
-                    </div>
-                    <div class="spr-search-empty" id="sprSearchEmpty">Ничего не найдено</div>
-                  </div>
+                <!-- Дерево тем (занимает всё свободное пространство) -->
+                <nav class="spr-tree" id="sprTree" aria-label="Дерево тем"></nav>
 
+                <!-- Низ: фильтры и параметры -->
+                <div class="spr-sidebar-bottom">
                   <div class="spr-filters">
                     <select id="sprClassFilter">
                       <option value="all">Все классы</option>
@@ -1182,18 +1197,18 @@
         for (const t of list) {
           topicsById.set(t.id, t);
           if (!t.class) t.class = 'other';
+          if (t.difficulty === undefined) t.difficulty = 3; // по умолчанию средняя сложность
         }
         for (const t of list) {
           const key = t.parent || '__root__';
           if (!childrenOf.has(key)) childrenOf.set(key, []);
           childrenOf.get(key).push(t.id);
         }
-        // Собираем все уникальные классы для фильтра
+        // Обновляем select классов
         const classes = new Set();
         for (const t of list) {
           if (t.class) classes.add(t.class);
         }
-        // Обновляем select классов
         const sel = els.classFilter;
         if (sel) {
           const current = sel.value;
@@ -1254,28 +1269,23 @@
           const tb = topicsById.get(b);
           if (!ta || !tb) return 0;
 
-          let keyA, keyB;
           switch (mode) {
             case 'class-asc':
-              keyA = ta.class || 'other';
-              keyB = tb.class || 'other';
-              if (keyA === 'other') return 1;
-              if (keyB === 'other') return -1;
-              return parseInt(keyA) - parseInt(keyB);
+              if (ta.class === 'other') return 1;
+              if (tb.class === 'other') return -1;
+              return parseInt(ta.class) - parseInt(tb.class);
             case 'class-desc':
-              keyA = ta.class || 'other';
-              keyB = tb.class || 'other';
-              if (keyA === 'other') return -1;
-              if (keyB === 'other') return 1;
-              return parseInt(keyB) - parseInt(keyA);
+              if (ta.class === 'other') return -1;
+              if (tb.class === 'other') return 1;
+              return parseInt(tb.class) - parseInt(ta.class);
             case 'alpha-asc':
               return (ta.title || '').localeCompare(tb.title || '', 'ru');
             case 'alpha-desc':
               return (tb.title || '').localeCompare(ta.title || '', 'ru');
             case 'difficulty-asc':
-              return (ta.difficulty !== undefined ? ta.difficulty : 999) - (tb.difficulty !== undefined ? tb.difficulty : 999);
+              return (ta.difficulty || 3) - (tb.difficulty || 3);
             case 'difficulty-desc':
-              return (tb.difficulty !== undefined ? tb.difficulty : -999) - (ta.difficulty !== undefined ? ta.difficulty : -999);
+              return (tb.difficulty || 3) - (ta.difficulty || 3);
             default:
               return 0;
           }
@@ -1351,17 +1361,19 @@
               if (!childrenWrap) return;
 
               if (isExpanded) {
-                // Сворачивание — симметрично разворачиванию
-                const items = childrenWrap.querySelectorAll('ul > li');
-                // Сначала добавляем класс collapsing для анимации исчезновения
+                // Сворачивание: сначала исчезают дочерние элементы
                 childrenWrap.classList.add('collapsing');
                 childrenWrap.classList.remove('expanding');
                 toggleBtn.classList.remove('expanded');
-                expanded.delete(id);
-                // Ждём окончания анимации (столько же, сколько разворачивание)
-                const totalDelay = 350 + (items.length * 20);
+                // Через время исчезновения дочерних (250ms + задержки) убираем expanded, чтобы схлопнулся контейнер
+                const totalDelay = 300 + (kids.length * 15);
                 setTimeout(() => {
-                  childrenWrap.classList.remove('expanded', 'collapsing');
+                  expanded.delete(id);
+                  childrenWrap.classList.remove('expanded'); // схлопывание max-height
+                  // Ещё через время убираем collapsing
+                  setTimeout(() => {
+                    childrenWrap.classList.remove('collapsing');
+                  }, 350);
                 }, totalDelay);
               } else {
                 // Разворачивание
@@ -1491,7 +1503,6 @@
         const opts = currentSearchOptions();
         const matchedIds = new Set();
         const ancestorIds = new Set();
-        // Сначала фильтруем только видимые темы (которые прошли фильтр класса)
         const visibleIds = new Set();
         function collectVisible(parentId) {
           const children = getFilteredChildren(parentId);
