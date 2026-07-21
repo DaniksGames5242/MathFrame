@@ -148,6 +148,29 @@ img { max-width: 100%; display: block; }
     border-radius: 50%;
 }
 
+.nav-toggle {
+    display: none;
+    flex-direction: column;
+    justify-content: space-between;
+    width: 22px;
+    height: 16px;
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+}
+.nav-toggle span {
+    display: block;
+    width: 100%;
+    height: 2px;
+    border-radius: 2px;
+    background: var(--text-primary);
+    transition: var(--theme-transition), transform 0.25s, opacity 0.25s;
+}
+.nav-toggle.active span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+.nav-toggle.active span:nth-child(2) { opacity: 0; }
+.nav-toggle.active span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+
 /* ===== МОДАЛЬНЫЕ ОКНА (общие) ===== */
 .overlay {
     display: none;
@@ -202,6 +225,100 @@ img { max-width: 100%; display: block; }
     transition: color 0.2s;
 }
 .modal-close:hover { color: var(--text-primary); }
+
+/* ===== ФОРМА ВХОДА / РЕГИСТРАЦИИ ===== */
+.auth-tabs {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+    border-bottom: 1px solid var(--border);
+}
+.auth-tab {
+    flex: 1;
+    background: none;
+    border: none;
+    padding: 0.75rem 0.5rem;
+    color: var(--text-secondary);
+    font-weight: 600;
+    font-size: 0.95rem;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    transition: var(--theme-transition), border-color 0.2s;
+}
+.auth-tab:hover { color: var(--text-primary); }
+.auth-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+.login-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+}
+
+.login-form input,
+#phone-verify-section input,
+.settings-field input {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border-radius: 0.5rem;
+    border: 1px solid var(--border);
+    background: rgba(255,255,255,0.05);
+    color: var(--text-primary);
+    font-size: 1rem;
+    outline: none;
+    transition: border-color 0.2s;
+}
+.login-form input:focus,
+#phone-verify-section input:focus,
+.settings-field input:focus { border-color: var(--accent); }
+
+.login-form .btn { width: 100%; margin-top: 0.3rem; }
+
+#phone-verify-section {
+    display: none;
+    flex-direction: column;
+    gap: 0.8rem;
+}
+#phone-verify-section.active { display: flex; }
+
+.divider {
+    display: flex;
+    align-items: center;
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    margin: 1.5rem 0 1rem;
+}
+.divider::before,
+.divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+}
+.divider span { padding: 0 0.8rem; }
+
+.social-icons {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+}
+.social-btn {
+    width: 48px;
+    height: 48px;
+    padding: 0;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    background: rgba(255,255,255,0.05);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: var(--theme-transition), transform 0.2s;
+}
+.social-btn:hover { background: rgba(255,255,255,0.12); transform: translateY(-2px); }
+.social-btn img { width: 22px; height: 22px; object-fit: contain; }
+
+#recaptcha-container { display: flex; justify-content: center; margin-top: 0.8rem; }
 
 /* ===== АВАТАР В НАСТРОЙКАХ С ЭФФЕКТОМ РЕДАКТИРОВАНИЯ ===== */
 .avatar-section {
@@ -323,7 +440,42 @@ img { max-width: 100%; display: block; }
 
 @media (max-width: 768px) {
     #app-header { padding: 0 1rem; }
-    #app-header nav { gap: 1rem; }
-    #app-header nav a { font-size: 0.9rem; }
-    .header-right { margin-left: 1rem; gap: 0.5rem; }
+    .header-right { margin-left: 1rem; gap: 0.8rem; }
+    .nav-toggle { display: flex; }
+
+    #app-header nav {
+        position: fixed;
+        top: var(--header-height);
+        left: 0;
+        right: 0;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0;
+        max-height: 0;
+        overflow: hidden;
+        opacity: 0;
+        background: var(--header-bg);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border-bottom: 1px solid var(--border);
+        transition: max-height 0.3s ease, opacity 0.3s ease, var(--theme-transition);
+    }
+    #app-header nav.nav-open {
+        max-height: 80vh;
+        opacity: 1;
+        overflow-y: auto;
+    }
+    #app-header nav a {
+        padding: 1rem 1.5rem;
+        border-bottom: 1px solid var(--border);
+        font-size: 1rem;
+    }
+    #app-header nav a::after { display: none; }
+    #app-header nav a:last-child { border-bottom: none; }
+}
+
+@media (max-width: 480px) {
+    .modal { padding: 1.5rem 1.25rem; width: 94%; }
+    .social-icons { gap: 0.8rem; }
+    .avatar-wrapper { width: 72px; height: 72px; }
 }

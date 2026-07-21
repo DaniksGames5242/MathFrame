@@ -83,13 +83,14 @@ function updateThemeToggleIcon(theme) {
 
 // ===== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ =====
 let currentUser = null;
+let populateSettingsRef = null;
 
 function updateUIForAuth(user) {
     currentUser = user;
     updateAccountCircle(user);
     updateHeroButtons(user);
     if (document.getElementById('settings-modal')?.classList.contains('active')) {
-        populateSettingsModal(user);
+        populateSettingsRef?.(user);
     }
 }
 
@@ -400,6 +401,7 @@ function injectSettingsModal() {
         const isPasswordProvider = user.providerData.some(p => p.providerId === 'password');
         changePasswordBtn.style.display = isPasswordProvider ? '' : 'none';
     }
+    populateSettingsRef = populateSettings;
 
     async function handleAvatarUpload(file) {
         if (!file) return;
@@ -416,7 +418,10 @@ function injectSettingsModal() {
     }
 
     // Клик по обёртке аватара = клик по input[file]
-    avatarWrapper.addEventListener('click', () => avatarInput.click());
+    avatarWrapper.addEventListener('click', (e) => {
+        if (e.target === avatarInput) return;
+        avatarInput.click();
+    });
     avatarInput.addEventListener('change', (e) => {
         const file = e.target.files[0];
         if (file) handleAvatarUpload(file);
@@ -503,12 +508,32 @@ function renderHeader() {
       <img src="${PAGE_ROOT}assets/img/logo.png" alt="MathFrame" class="logo-icon"
            data-light-src="assets/img/logo-light.png" data-dark-src="assets/img/logo.png" />
     </a>
-    <nav>${navHTML}</nav>
+    <nav id="app-nav">${navHTML}</nav>
     <div class="header-right">
       <button class="theme-toggle-btn" id="theme-toggle" title="Сменить тему"></button>
       <div class="account-circle" id="account-circle" title="Аккаунт"></div>
+      <button class="nav-toggle" id="nav-toggle" aria-label="Меню" aria-expanded="false">
+        <span></span><span></span><span></span>
+      </button>
     </div>
   `;
+
+    const nav = document.getElementById('app-nav');
+    const navToggle = document.getElementById('nav-toggle');
+    function closeNav() {
+        nav.classList.remove('nav-open');
+        navToggle.classList.remove('active');
+        navToggle.setAttribute('aria-expanded', 'false');
+    }
+    navToggle.addEventListener('click', () => {
+        const isOpen = nav.classList.toggle('nav-open');
+        navToggle.classList.toggle('active', isOpen);
+        navToggle.setAttribute('aria-expanded', String(isOpen));
+    });
+    nav.querySelectorAll('a').forEach(a => a.addEventListener('click', closeNav));
+    window.addEventListener('resize', () => {
+        if (window.innerWidth > 768) closeNav();
+    });
 
     const themeBtn = document.getElementById('theme-toggle');
     const savedTheme = localStorage.getItem('theme') || 'system';
