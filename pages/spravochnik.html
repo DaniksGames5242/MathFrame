@@ -36,7 +36,7 @@
 
     .spr-layout {
       display: flex;
-      align-items: flex-start;
+      align-items: stretch;
       min-height: calc(100vh - var(--header-height));
       position: relative;
     }
@@ -54,6 +54,8 @@
       -webkit-backdrop-filter: blur(20px);
       transition: var(--theme-transition), transform 0.3s ease;
       z-index: 60;
+      overflow-y: auto;
+      overscroll-behavior: contain;
     }
 
     .spr-sidebar-inner {
@@ -84,9 +86,9 @@
       color: var(--text-primary);
       font-size: 0.92rem;
       outline: none;
-      transition: border-color 0.2s;
+      transition: border-color 0.2s, box-shadow 0.2s;
     }
-    .spr-search-input-wrap input[type="search"]:focus { border-color: var(--accent); }
+    .spr-search-input-wrap input[type="search"]:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(99,102,241,0.15); }
     .spr-search-input-wrap input[type="search"]::-webkit-search-cancel-button { display: none; }
 
     .spr-search-clear {
@@ -102,6 +104,7 @@
       display: none;
       line-height: 1;
       padding: 0.2rem;
+      transition: color 0.2s;
     }
     .spr-search-input-wrap.has-value .spr-search-clear { display: block; }
     .spr-search-clear:hover { color: var(--text-primary); }
@@ -138,6 +141,7 @@
       color: var(--text-secondary);
       padding: 0.75rem 0.25rem;
       display: none;
+      animation: fadeIn 0.3s ease;
     }
     .spr-search-empty.visible { display: block; }
 
@@ -145,6 +149,7 @@
     .spr-tree {
       flex: 1 1 auto;
       overflow-y: auto;
+      animation: fadeIn 0.2s ease;
     }
 
     .spr-tree ul {
@@ -162,11 +167,23 @@
       gap: 0.35rem;
       border-radius: 0.45rem;
       padding: 0.35rem 0.4rem;
-      transition: background 0.15s;
+      transition: background 0.2s, opacity 0.2s;
+      cursor: default;
     }
-    .spr-node-row:hover { background: rgba(255,255,255,0.05); }
+    .spr-node-row:hover { background: rgba(255,255,255,0.06); }
     .spr-node-row.active {
       background: rgba(99, 102, 241, 0.18);
+      position: relative;
+    }
+    .spr-node-row.active::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 3px;
+      background: var(--accent);
+      border-radius: 0 2px 2px 0;
     }
     .spr-node-row.active .spr-node-title { color: var(--accent); font-weight: 600; }
 
@@ -182,9 +199,11 @@
       color: var(--text-secondary);
       cursor: pointer;
       font-size: 0.65rem;
-      transition: transform 0.2s ease;
+      transition: transform 0.25s ease, color 0.2s;
       padding: 0;
+      border-radius: 4px;
     }
+    .spr-node-toggle:hover { color: var(--text-primary); background: rgba(255,255,255,0.05); }
     .spr-node-toggle.no-children { visibility: hidden; }
     .spr-node-toggle.expanded { transform: rotate(90deg); }
 
@@ -205,12 +224,15 @@
       padding: 0.1rem 0;
       font-family: inherit;
       line-height: 1.3;
+      transition: color 0.2s;
+      border-radius: 4px;
     }
+    .spr-node-title:hover { color: var(--accent); }
 
     .spr-node-children {
       overflow: hidden;
       max-height: 0;
-      transition: max-height 0.25s ease;
+      transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     }
     .spr-node-children.expanded { max-height: 4000px; }
 
@@ -241,7 +263,9 @@
       align-items: center;
       justify-content: center;
       box-shadow: var(--shadow);
+      transition: transform 0.2s, background 0.2s;
     }
+    .spr-menu-toggle:hover { transform: scale(1.05); background: rgba(255,255,255,0.08); }
 
     .spr-sidebar-overlay {
       display: none;
@@ -259,6 +283,7 @@
       flex: 1 1 auto;
       min-width: 0;
       padding: 2rem 2.5rem 4rem;
+      animation: fadeIn 0.35s ease;
     }
 
     .spr-empty-state {
@@ -266,6 +291,7 @@
       padding: 3rem 1rem;
       text-align: center;
       font-size: 1.05rem;
+      animation: fadeIn 0.3s ease;
     }
 
     .spr-topbar {
@@ -294,10 +320,11 @@
       padding: 0.1rem 0.2rem;
       font-family: inherit;
       border-radius: 0.3rem;
+      transition: color 0.2s, background 0.2s;
     }
-    .spr-breadcrumb button:hover { color: var(--accent); text-decoration: underline; }
+    .spr-breadcrumb button:hover { color: var(--accent); background: rgba(255,255,255,0.05); text-decoration: underline; }
     .spr-breadcrumb button.current { color: var(--text-primary); cursor: default; font-weight: 600; }
-    .spr-breadcrumb button.current:hover { text-decoration: none; }
+    .spr-breadcrumb button.current:hover { text-decoration: none; background: none; }
     .spr-breadcrumb .sep { color: var(--text-secondary); opacity: 0.6; }
 
     .spr-nav-buttons {
@@ -316,7 +343,7 @@
       color: var(--text-primary);
       font-size: 0.82rem;
       cursor: pointer;
-      transition: var(--theme-transition), transform 0.15s;
+      transition: var(--theme-transition), transform 0.15s, background 0.2s;
       white-space: nowrap;
     }
     .spr-nav-buttons button:hover { background: rgba(255,255,255,0.09); transform: translateY(-1px); }
@@ -327,6 +354,7 @@
       margin-bottom: 1.4rem;
       color: var(--text-primary);
       line-height: 1.2;
+      animation: fadeIn 0.3s ease;
     }
     .spr-title mark { background: rgba(129, 140, 248, 0.35); border-radius: 0.2rem; padding: 0 0.15rem; }
 
@@ -335,6 +363,7 @@
       display: flex;
       align-items: flex-start;
       gap: var(--spr-gap);
+      animation: fadeIn 0.4s ease;
     }
 
     .spr-description {
@@ -353,7 +382,7 @@
     .spr-description p { margin: 0 0 0.9rem; }
     .spr-description ul, .spr-description ol { margin: 0 0 0.9rem 1.3rem; }
     .spr-description li { margin-bottom: 0.3rem; }
-    .spr-description a { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
+    .spr-description a { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; transition: color 0.2s; }
     .spr-description a:hover { color: var(--accent-hover); }
     .spr-description mark {
       background: rgba(129, 140, 248, 0.35);
@@ -371,6 +400,7 @@
       position: sticky;
       top: calc(var(--header-height) + 1.5rem);
     }
+    .spr-example[hidden] { display: none; }
 
     .spr-example-frame-wrap {
       position: relative;
@@ -381,6 +411,11 @@
       border: 1px solid var(--border);
       background: var(--bg-card);
       box-shadow: var(--shadow);
+      transition: border-color 0.3s, box-shadow 0.3s;
+    }
+    .spr-example-frame-wrap:hover {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(99,102,241,0.1), var(--shadow);
     }
 
     .spr-example iframe {
@@ -407,13 +442,33 @@
     .spr-example-status[hidden] { display: none; }
 
     .spr-no-example {
-      color: var(--text-secondary);
-      font-size: 0.9rem;
-      padding: 1.2rem;
-      border: 1px dashed var(--border);
-      border-radius: 0.75rem;
-      text-align: center;
+      display: none; /* убираем полностью — блок примера скрывается для папок */
     }
+
+    /* ===== АНИМАЦИИ ===== */
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes fadeSlideIn {
+      from { opacity: 0; transform: translateX(-8px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+
+    .spr-tree li {
+      animation: fadeSlideIn 0.25s ease both;
+    }
+    .spr-tree li:nth-child(1) { animation-delay: 0.02s; }
+    .spr-tree li:nth-child(2) { animation-delay: 0.04s; }
+    .spr-tree li:nth-child(3) { animation-delay: 0.06s; }
+    .spr-tree li:nth-child(4) { animation-delay: 0.08s; }
+    .spr-tree li:nth-child(5) { animation-delay: 0.10s; }
+    .spr-tree li:nth-child(6) { animation-delay: 0.12s; }
+    .spr-tree li:nth-child(7) { animation-delay: 0.14s; }
+    .spr-tree li:nth-child(8) { animation-delay: 0.16s; }
+    .spr-tree li:nth-child(9) { animation-delay: 0.18s; }
+    .spr-tree li:nth-child(10) { animation-delay: 0.20s; }
 
     /* ===== АДАПТИВ ===== */
     @media (max-width: 1024px) {
@@ -430,12 +485,16 @@
         height: calc(100vh - var(--header-height));
         transform: translateX(-105%);
         box-shadow: var(--shadow);
+        z-index: 70;
+        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        border-right: none;
       }
       .spr-sidebar.open { transform: translateX(0); }
 
       .spr-sidebar-overlay.visible {
         display: block;
         opacity: 1;
+        pointer-events: auto;
       }
 
       .spr-content { padding: 1.5rem 1.1rem 3rem; padding-top: calc(1.5rem + 48px); }
@@ -443,7 +502,12 @@
       .spr-body {
         flex-direction: column;
       }
-      .spr-example { order: -1; width: 100%; position: static; }
+      .spr-example {
+        order: -1;
+        width: 100%;
+        position: static;
+        margin-bottom: 1.5rem;
+      }
       .spr-description { order: 0; width: 100%; }
     }
 
@@ -500,6 +564,8 @@
       let currentId = null;
       let compilerModulePromise = null;
       let lastQuery = '';
+      let katexReady = false;
+      let katexCheckInterval = null;
 
       // ---- DOM-узлы (создаются в mountLayout) ----
       let els = {};
@@ -882,10 +948,15 @@
       }
 
       // ===================================================================
-      // РЕНДЕР ФОРМУЛ (KaTeX)
+      // РЕНДЕР ФОРМУЛ (KaTeX) с ожиданием загрузки
       // ===================================================================
       function renderMathInContainer(container) {
-        if (!window.katex) return;
+        if (!container) return;
+        // Если KaTeX ещё не загружен — запланируем повтор
+        if (!window.katex) {
+          scheduleKatexRender(container);
+          return;
+        }
         walkTextNodes(container, (node) => {
           const text = node.nodeValue;
           if (!text || text.indexOf('$') === -1) return;
@@ -915,6 +986,35 @@
         if (!found) return null;
         if (lastIndex < text.length) frag.appendChild(document.createTextNode(text.slice(lastIndex)));
         return frag;
+      }
+
+      let pendingKatexContainers = new Set();
+
+      function scheduleKatexRender(container) {
+        if (pendingKatexContainers.has(container)) return;
+        pendingKatexContainers.add(container);
+        if (katexCheckInterval === null) {
+          katexCheckInterval = setInterval(() => {
+            if (window.katex) {
+              clearInterval(katexCheckInterval);
+              katexCheckInterval = null;
+              katexReady = true;
+              // Перерендерим все отложенные контейнеры
+              for (const c of pendingKatexContainers) {
+                renderMathInContainer(c);
+              }
+              pendingKatexContainers.clear();
+            }
+          }, 100);
+          // Запасной таймаут, чтобы не висело вечно
+          setTimeout(() => {
+            if (katexCheckInterval) {
+              clearInterval(katexCheckInterval);
+              katexCheckInterval = null;
+              pendingKatexContainers.clear();
+            }
+          }, 8000);
+        }
       }
 
       // ===================================================================
@@ -963,6 +1063,7 @@
         expandAncestorsOf(id);
         renderTree();
 
+        // Заголовок
         els.title.innerHTML = '';
         if (lastQuery && els.optHighlight.checked) {
           els.title.textContent = topic.title;
@@ -1041,6 +1142,7 @@
           });
         });
 
+        // Рендер формул с ожиданием загрузки KaTeX
         renderMathInContainer(els.description);
 
         if (lastQuery && els.optHighlight.checked) {
@@ -1067,11 +1169,14 @@
       }
 
       async function renderExample(topic) {
-        if (topic.type !== 'topic' || !topic.example) {
-          els.example.innerHTML = '<div class="spr-no-example">Это раздел-папка — у него нет интерактивного примера.</div>';
+        // Для папок — полностью скрываем блок примера
+        if (topic.type === 'folder' || !topic.example) {
+          els.example.hidden = true;
           return;
         }
 
+        // Показываем блок примера
+        els.example.hidden = false;
         els.example.innerHTML = `
           <div class="spr-example-frame-wrap">
             <iframe id="sprExampleFrame"
