@@ -1,0 +1,1169 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Справочник — MathFrame</title>
+
+  <style>
+    @font-face {
+      font-family: 'BodyFont';
+      src: url('../assets/fonts/body-font.otf') format('opentype');
+      font-weight: 400;
+      font-style: normal;
+    }
+    @font-face {
+      font-family: 'BodyFont';
+      src: url('../assets/fonts/body-font-bold.otf') format('opentype');
+      font-weight: 700;
+      font-style: normal;
+    }
+  </style>
+
+  <link rel="stylesheet" href="../assets/css/common.css" />
+
+  <!-- ===== INLINE СПРАВОЧНИК CSS ===== -->
+  <style>
+    /* =====================================================================
+       СПРАВОЧНИК — стили страницы
+       Использует переменные из common.css (--accent, --bg-card, --border, ...)
+       ===================================================================== */
+
+    :root {
+      --spr-sidebar-width: 320px;
+      --spr-gap: 1.75rem;
+    }
+
+    .spr-layout {
+      display: flex;
+      align-items: flex-start;
+      min-height: calc(100vh - var(--header-height));
+      position: relative;
+    }
+
+    /* ===== БОКОВАЯ ПАНЕЛЬ ===== */
+    .spr-sidebar {
+      width: var(--spr-sidebar-width);
+      flex: 0 0 var(--spr-sidebar-width);
+      position: sticky;
+      top: var(--header-height);
+      height: calc(100vh - var(--header-height));
+      border-right: 1px solid var(--border);
+      background: var(--bg-card);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      transition: var(--theme-transition), transform 0.3s ease;
+      z-index: 60;
+    }
+
+    .spr-sidebar-inner {
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      padding: 1.25rem 1rem;
+      overflow-y: auto;
+    }
+
+    /* ===== ПОИСК ===== */
+    .spr-search {
+      margin-bottom: 1rem;
+      flex: 0 0 auto;
+    }
+
+    .spr-search-input-wrap {
+      position: relative;
+      margin-bottom: 0.6rem;
+    }
+
+    .spr-search-input-wrap input[type="search"] {
+      width: 100%;
+      padding: 0.65rem 2.2rem 0.65rem 0.9rem;
+      border-radius: 0.6rem;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.05);
+      color: var(--text-primary);
+      font-size: 0.92rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .spr-search-input-wrap input[type="search"]:focus { border-color: var(--accent); }
+    .spr-search-input-wrap input[type="search"]::-webkit-search-cancel-button { display: none; }
+
+    .spr-search-clear {
+      position: absolute;
+      right: 0.5rem;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      color: var(--text-secondary);
+      cursor: pointer;
+      font-size: 1rem;
+      display: none;
+      line-height: 1;
+      padding: 0.2rem;
+    }
+    .spr-search-input-wrap.has-value .spr-search-clear { display: block; }
+    .spr-search-clear:hover { color: var(--text-primary); }
+
+    .spr-search-options {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      font-size: 0.78rem;
+      color: var(--text-secondary);
+      padding: 0.6rem 0.7rem;
+      border: 1px solid var(--border);
+      border-radius: 0.6rem;
+      background: rgba(255,255,255,0.03);
+    }
+
+    .spr-search-options label {
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+      cursor: pointer;
+      user-select: none;
+    }
+    .spr-search-options input[type="checkbox"] {
+      accent-color: var(--accent);
+      width: 14px;
+      height: 14px;
+      cursor: pointer;
+      flex: 0 0 auto;
+    }
+
+    .spr-search-empty {
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      padding: 0.75rem 0.25rem;
+      display: none;
+    }
+    .spr-search-empty.visible { display: block; }
+
+    /* ===== ДЕРЕВО ТЕМ ===== */
+    .spr-tree {
+      flex: 1 1 auto;
+      overflow-y: auto;
+    }
+
+    .spr-tree ul {
+      list-style: none;
+      margin: 0;
+      padding-left: 0.95rem;
+    }
+    .spr-tree > ul { padding-left: 0; }
+
+    .spr-tree li { margin: 0.05rem 0; }
+
+    .spr-node-row {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      border-radius: 0.45rem;
+      padding: 0.35rem 0.4rem;
+      transition: background 0.15s;
+    }
+    .spr-node-row:hover { background: rgba(255,255,255,0.05); }
+    .spr-node-row.active {
+      background: rgba(99, 102, 241, 0.18);
+    }
+    .spr-node-row.active .spr-node-title { color: var(--accent); font-weight: 600; }
+
+    .spr-node-toggle {
+      flex: 0 0 auto;
+      width: 18px;
+      height: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: none;
+      border: none;
+      color: var(--text-secondary);
+      cursor: pointer;
+      font-size: 0.65rem;
+      transition: transform 0.2s ease;
+      padding: 0;
+    }
+    .spr-node-toggle.no-children { visibility: hidden; }
+    .spr-node-toggle.expanded { transform: rotate(90deg); }
+
+    .spr-node-icon {
+      flex: 0 0 auto;
+      font-size: 0.95rem;
+      line-height: 1;
+    }
+
+    .spr-node-title {
+      flex: 1 1 auto;
+      background: none;
+      border: none;
+      text-align: left;
+      color: var(--text-primary);
+      font-size: 0.88rem;
+      cursor: pointer;
+      padding: 0.1rem 0;
+      font-family: inherit;
+      line-height: 1.3;
+    }
+
+    .spr-node-children {
+      overflow: hidden;
+      max-height: 0;
+      transition: max-height 0.25s ease;
+    }
+    .spr-node-children.expanded { max-height: 4000px; }
+
+    .spr-node-row.search-dim { opacity: 0.35; }
+    .spr-node-row.search-match .spr-node-title mark {
+      background: rgba(129, 140, 248, 0.35);
+      color: var(--text-primary);
+      border-radius: 0.2rem;
+      padding: 0 0.1rem;
+    }
+
+    /* ===== МОБИЛЬНОЕ МЕНЮ (гамбургер + оверлей) ===== */
+    .spr-menu-toggle {
+      display: none;
+      position: fixed;
+      top: calc(var(--header-height) + 0.75rem);
+      left: 0.9rem;
+      z-index: 80;
+      width: 42px;
+      height: 42px;
+      border-radius: 0.6rem;
+      border: 1px solid var(--border);
+      background: var(--bg-card);
+      backdrop-filter: blur(16px);
+      color: var(--text-primary);
+      font-size: 1.2rem;
+      cursor: pointer;
+      align-items: center;
+      justify-content: center;
+      box-shadow: var(--shadow);
+    }
+
+    .spr-sidebar-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      top: var(--header-height);
+      background: rgba(0,0,0,0.55);
+      z-index: 55;
+      opacity: 0;
+      transition: opacity 0.25s ease;
+    }
+
+    /* ===== ОСНОВНОЙ КОНТЕНТ ===== */
+    .spr-content {
+      flex: 1 1 auto;
+      min-width: 0;
+      padding: 2rem 2.5rem 4rem;
+    }
+
+    .spr-empty-state {
+      color: var(--text-secondary);
+      padding: 3rem 1rem;
+      text-align: center;
+      font-size: 1.05rem;
+    }
+
+    .spr-topbar {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 1rem;
+      flex-wrap: wrap;
+      margin-bottom: 0.9rem;
+    }
+
+    .spr-breadcrumb {
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.3rem;
+    }
+    .spr-breadcrumb button {
+      background: none;
+      border: none;
+      color: var(--text-secondary);
+      cursor: pointer;
+      font-size: 0.85rem;
+      padding: 0.1rem 0.2rem;
+      font-family: inherit;
+      border-radius: 0.3rem;
+    }
+    .spr-breadcrumb button:hover { color: var(--accent); text-decoration: underline; }
+    .spr-breadcrumb button.current { color: var(--text-primary); cursor: default; font-weight: 600; }
+    .spr-breadcrumb button.current:hover { text-decoration: none; }
+    .spr-breadcrumb .sep { color: var(--text-secondary); opacity: 0.6; }
+
+    .spr-nav-buttons {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+    .spr-nav-buttons button {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.45rem 0.9rem;
+      border-radius: 0.5rem;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.04);
+      color: var(--text-primary);
+      font-size: 0.82rem;
+      cursor: pointer;
+      transition: var(--theme-transition), transform 0.15s;
+      white-space: nowrap;
+    }
+    .spr-nav-buttons button:hover { background: rgba(255,255,255,0.09); transform: translateY(-1px); }
+    .spr-nav-buttons button[hidden] { display: none; }
+
+    .spr-title {
+      font-size: 2.1rem;
+      margin-bottom: 1.4rem;
+      color: var(--text-primary);
+      line-height: 1.2;
+    }
+    .spr-title mark { background: rgba(129, 140, 248, 0.35); border-radius: 0.2rem; padding: 0 0.15rem; }
+
+    /* ===== ТЕЛО: ОПИСАНИЕ + ПРИМЕР ===== */
+    .spr-body {
+      display: flex;
+      align-items: flex-start;
+      gap: var(--spr-gap);
+    }
+
+    .spr-description {
+      flex: 1 1 50%;
+      min-width: 0;
+      order: 1;
+      color: var(--text-primary);
+      font-size: 1rem;
+    }
+    .spr-description h1, .spr-description h2, .spr-description h3,
+    .spr-description h4, .spr-description h5, .spr-description h6 {
+      margin: 1.2rem 0 0.6rem;
+      line-height: 1.3;
+    }
+    .spr-description h2:first-child, .spr-description h1:first-child { margin-top: 0; }
+    .spr-description p { margin: 0 0 0.9rem; }
+    .spr-description ul, .spr-description ol { margin: 0 0 0.9rem 1.3rem; }
+    .spr-description li { margin-bottom: 0.3rem; }
+    .spr-description a { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
+    .spr-description a:hover { color: var(--accent-hover); }
+    .spr-description mark {
+      background: rgba(129, 140, 248, 0.35);
+      color: var(--text-primary);
+      border-radius: 0.2rem;
+      padding: 0 0.1rem;
+    }
+    .spr-description .katex { font-size: 1.05em; }
+    .spr-description .katex-display { overflow-x: auto; overflow-y: hidden; padding: 0.3rem 0; }
+
+    .spr-example {
+      flex: 1 1 50%;
+      min-width: 0;
+      order: 2;
+      position: sticky;
+      top: calc(var(--header-height) + 1.5rem);
+    }
+
+    .spr-example-frame-wrap {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 4 / 3;
+      border-radius: 0.75rem;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      background: var(--bg-card);
+      box-shadow: var(--shadow);
+    }
+
+    .spr-example iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+      display: block;
+      background: transparent;
+    }
+
+    .spr-example-status {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 1.5rem;
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+      background: var(--bg-card);
+    }
+    .spr-example-status.error { color: #ef4444; white-space: pre-wrap; }
+    .spr-example-status[hidden] { display: none; }
+
+    .spr-no-example {
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+      padding: 1.2rem;
+      border: 1px dashed var(--border);
+      border-radius: 0.75rem;
+      text-align: center;
+    }
+
+    /* ===== АДАПТИВ ===== */
+    @media (max-width: 1024px) {
+      .spr-content { padding: 1.75rem 1.5rem 3rem; }
+    }
+
+    @media (max-width: 900px) {
+      .spr-menu-toggle { display: flex; }
+
+      .spr-sidebar {
+        position: fixed;
+        top: var(--header-height);
+        left: 0;
+        height: calc(100vh - var(--header-height));
+        transform: translateX(-105%);
+        box-shadow: var(--shadow);
+      }
+      .spr-sidebar.open { transform: translateX(0); }
+
+      .spr-sidebar-overlay.visible {
+        display: block;
+        opacity: 1;
+      }
+
+      .spr-content { padding: 1.5rem 1.1rem 3rem; padding-top: calc(1.5rem + 48px); }
+
+      .spr-body {
+        flex-direction: column;
+      }
+      .spr-example { order: -1; width: 100%; position: static; }
+      .spr-description { order: 0; width: 100%; }
+    }
+
+    @media (max-width: 480px) {
+      .spr-title { font-size: 1.6rem; }
+      .spr-topbar { flex-direction: column; align-items: stretch; }
+    }
+  </style>
+
+  <!-- KaTeX (репозиторий: katex/lib) — используется для рендера формул в описаниях тем -->
+  <link rel="stylesheet" href="../katex/lib/katex.min.css" />
+  <script defer src="../katex/lib/katex.min.js"></script>
+
+  <!-- Firebase Compat SDKs (как на главной странице — для шапки/авторизации) -->
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
+</head>
+<body>
+
+  <div id="app-header"></div>
+
+  <main>
+    <div id="spravochnikRoot"><!-- содержимое строится в inline JS ниже --></div>
+  </main>
+
+  <div id="app-footer"></div>
+
+  <script>var PAGE_ROOT = '../';</script>
+  <script src="../assets/js/auth.js"></script>
+  <script src="../assets/js/common.js"></script>
+
+  <!-- ===== INLINE СПРАВОЧНИК JS ===== -->
+  <script type="module">
+    // =====================================================================
+    // СПРАВОЧНИК — логика страницы
+    // Ожидает, что common.js уже отрисовал #app-header/#app-footer и что
+    // переключение темы производится добавлением/удалением класса "light"
+    // на <html> (как это сделано в common.css / index.html).
+    // =====================================================================
+    (function () {
+      'use strict';
+
+      const PAGE_ROOT = window.PAGE_ROOT || './';
+      const CONFIG_URL = PAGE_ROOT + 'data/topics/config.json';
+      const COMPILER_URL = PAGE_ROOT + 'assets/js/GMS-script-compiler.js';
+
+      // ---- Состояние ----
+      let topics = [];
+      const topicsById = new Map();
+      const childrenOf = new Map();     // parentId ('__root__' для корня) -> [id, ...]
+      const expanded = new Set();       // раскрытые узлы дерева
+      const referrerOf = new Map();     // topicId -> id темы, с которой пришли по гиперссылке
+      let currentId = null;
+      let compilerModulePromise = null;
+      let lastQuery = '';
+
+      // ---- DOM-узлы (создаются в mountLayout) ----
+      let els = {};
+
+      function qs(sel, root) { return (root || document).querySelector(sel); }
+
+      // ===================================================================
+      // РАЗМЕТКА СТРАНИЦЫ
+      // ===================================================================
+      function mountLayout() {
+        const container = document.getElementById('spravochnikRoot');
+        if (!container) {
+          console.error('Не найден контейнер #spravochnikRoot на странице');
+          return false;
+        }
+
+        container.innerHTML = `
+          <button class="spr-menu-toggle" id="sprMenuToggle" aria-label="Открыть меню тем">☰</button>
+          <div class="spr-layout">
+            <div class="spr-sidebar-overlay" id="sprOverlay"></div>
+            <aside class="spr-sidebar" id="sprSidebar">
+              <div class="spr-sidebar-inner">
+                <div class="spr-search">
+                  <div class="spr-search-input-wrap" id="sprSearchWrap">
+                    <input type="search" id="sprSearchInput" placeholder="Поиск по темам…" autocomplete="off" />
+                    <button type="button" class="spr-search-clear" id="sprSearchClear" aria-label="Очистить поиск">✕</button>
+                  </div>
+                  <div class="spr-search-options">
+                    <label><input type="checkbox" id="sprOptKeywords" checked /> Поиск по ключевым словам</label>
+                    <label><input type="checkbox" id="sprOptDescription" checked /> Поиск в описании</label>
+                    <label><input type="checkbox" id="sprOptFuzzy" /> Исправление грамматических ошибок</label>
+                    <label><input type="checkbox" id="sprOptHighlight" checked /> Выделять найденный текст</label>
+                  </div>
+                  <div class="spr-search-empty" id="sprSearchEmpty">Ничего не найдено</div>
+                </div>
+                <nav class="spr-tree" id="sprTree" aria-label="Дерево тем"></nav>
+              </div>
+            </aside>
+
+            <main class="spr-content" id="sprContent">
+              <div id="sprTopicView" hidden>
+                <div class="spr-topbar">
+                  <div class="spr-breadcrumb" id="sprBreadcrumb"></div>
+                  <div class="spr-nav-buttons">
+                    <button type="button" id="sprBackReferrer" hidden></button>
+                    <button type="button" id="sprBackParent" hidden>↑ К родительской теме</button>
+                  </div>
+                </div>
+                <h1 class="spr-title" id="sprTitle"></h1>
+                <div class="spr-body" id="sprBody">
+                  <div class="spr-description" id="sprDescription"></div>
+                  <div class="spr-example" id="sprExample"></div>
+                </div>
+              </div>
+              <div class="spr-empty-state" id="sprEmptyState" hidden></div>
+            </main>
+          </div>
+        `;
+
+        els = {
+          menuToggle: document.getElementById('sprMenuToggle'),
+          overlay: document.getElementById('sprOverlay'),
+          sidebar: document.getElementById('sprSidebar'),
+          searchWrap: document.getElementById('sprSearchWrap'),
+          searchInput: document.getElementById('sprSearchInput'),
+          searchClear: document.getElementById('sprSearchClear'),
+          optKeywords: document.getElementById('sprOptKeywords'),
+          optDescription: document.getElementById('sprOptDescription'),
+          optFuzzy: document.getElementById('sprOptFuzzy'),
+          optHighlight: document.getElementById('sprOptHighlight'),
+          searchEmpty: document.getElementById('sprSearchEmpty'),
+          tree: document.getElementById('sprTree'),
+          content: document.getElementById('sprContent'),
+          topicView: document.getElementById('sprTopicView'),
+          emptyState: document.getElementById('sprEmptyState'),
+          breadcrumb: document.getElementById('sprBreadcrumb'),
+          backReferrer: document.getElementById('sprBackReferrer'),
+          backParent: document.getElementById('sprBackParent'),
+          title: document.getElementById('sprTitle'),
+          description: document.getElementById('sprDescription'),
+          example: document.getElementById('sprExample'),
+        };
+
+        return true;
+      }
+
+      function setupUiHandlers() {
+        els.menuToggle.addEventListener('click', () => toggleSidebar());
+        els.overlay.addEventListener('click', () => toggleSidebar(false));
+
+        let searchTimer = null;
+        els.searchInput.addEventListener('input', () => {
+          els.searchWrap.classList.toggle('has-value', els.searchInput.value.length > 0);
+          clearTimeout(searchTimer);
+          searchTimer = setTimeout(runSearch, 150);
+        });
+        els.searchClear.addEventListener('click', () => {
+          els.searchInput.value = '';
+          els.searchWrap.classList.remove('has-value');
+          runSearch();
+        });
+        [els.optKeywords, els.optDescription, els.optFuzzy].forEach((cb) => {
+          cb.addEventListener('change', runSearch);
+        });
+        els.optHighlight.addEventListener('change', () => {
+          if (currentId) renderTopic(currentId, { skipScroll: true });
+        });
+      }
+
+      function toggleSidebar(force) {
+        const open = force !== undefined ? force : !els.sidebar.classList.contains('open');
+        els.sidebar.classList.toggle('open', open);
+        els.overlay.classList.toggle('visible', open);
+      }
+
+      function closeMobileSidebar() {
+        if (window.innerWidth <= 900) toggleSidebar(false);
+      }
+
+      // ===================================================================
+      // ЗАГРУЗКА КОНФИГА
+      // ===================================================================
+      async function loadConfig() {
+        const res = await fetch(CONFIG_URL, { cache: 'no-cache' });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+        if (!Array.isArray(data)) throw new Error('config.json должен содержать массив тем');
+        return data;
+      }
+
+      function buildIndexes(list) {
+        topics = list;
+        topicsById.clear();
+        childrenOf.clear();
+        for (const t of list) topicsById.set(t.id, t);
+        for (const t of list) {
+          const key = t.parent || '__root__';
+          if (!childrenOf.has(key)) childrenOf.set(key, []);
+          childrenOf.get(key).push(t.id);
+        }
+      }
+
+      function getChildren(id) {
+        return childrenOf.get(id || '__root__') || [];
+      }
+
+      // ===================================================================
+      // ДЕРЕВО ТЕМ
+      // ===================================================================
+      function renderTree() {
+        els.tree.innerHTML = '';
+        const rootIds = getChildren(null);
+        if (rootIds.length === 0) {
+          els.tree.innerHTML = '<p class="spr-search-empty visible">Темы не найдены</p>';
+          return;
+        }
+        els.tree.appendChild(buildList(rootIds));
+        applySearchFilterToDom();
+      }
+
+      function buildList(ids) {
+        const ul = document.createElement('ul');
+        for (const id of ids) {
+          const topic = topicsById.get(id);
+          if (!topic) continue;
+          const kids = getChildren(id);
+          const li = document.createElement('li');
+          li.dataset.id = id;
+
+          const row = document.createElement('div');
+          row.className = 'spr-node-row';
+          if (id === currentId) row.classList.add('active');
+
+          const toggleBtn = document.createElement('button');
+          toggleBtn.type = 'button';
+          toggleBtn.className = 'spr-node-toggle' + (kids.length ? '' : ' no-children');
+          toggleBtn.setAttribute('aria-label', 'Развернуть/свернуть');
+          toggleBtn.textContent = '▶';
+          if (expanded.has(id)) toggleBtn.classList.add('expanded');
+          if (kids.length) {
+            toggleBtn.addEventListener('click', (e) => {
+              e.stopPropagation();
+              if (expanded.has(id)) expanded.delete(id); else expanded.add(id);
+              renderTree();
+            });
+          }
+
+          const icon = document.createElement('span');
+          icon.className = 'spr-node-icon';
+          icon.textContent = topic.type === 'folder' ? '📁' : '📄';
+
+          const titleBtn = document.createElement('button');
+          titleBtn.type = 'button';
+          titleBtn.className = 'spr-node-title';
+          titleBtn.textContent = topic.title;
+          titleBtn.addEventListener('click', () => navigate(id));
+
+          row.append(toggleBtn, icon, titleBtn);
+          li.appendChild(row);
+
+          if (kids.length) {
+            const childrenWrap = document.createElement('div');
+            childrenWrap.className = 'spr-node-children' + (expanded.has(id) ? ' expanded' : '');
+            childrenWrap.appendChild(buildList(kids));
+            li.appendChild(childrenWrap);
+          }
+
+          ul.appendChild(li);
+        }
+        return ul;
+      }
+
+      function expandAncestorsOf(id) {
+        let t = topicsById.get(id);
+        while (t && t.parent) {
+          expanded.add(t.parent);
+          t = topicsById.get(t.parent);
+        }
+      }
+
+      // ===================================================================
+      // ПОИСК
+      // ===================================================================
+      function normalize(s) { return (s || '').toString().toLowerCase(); }
+
+      function stripHtml(html) {
+        const div = document.createElement('div');
+        div.innerHTML = html || '';
+        return div.textContent || '';
+      }
+
+      function levenshtein(a, b) {
+        const m = a.length, n = b.length;
+        if (m === 0) return n;
+        if (n === 0) return m;
+        const dp = new Array(n + 1);
+        for (let j = 0; j <= n; j++) dp[j] = j;
+        for (let i = 1; i <= m; i++) {
+          let prev = dp[0];
+          dp[0] = i;
+          for (let j = 1; j <= n; j++) {
+            const tmp = dp[j];
+            dp[j] = Math.min(
+              dp[j] + 1,
+              dp[j - 1] + 1,
+              prev + (a[i - 1] === b[j - 1] ? 0 : 1)
+            );
+            prev = tmp;
+          }
+        }
+        return dp[n];
+      }
+
+      function fuzzyIncludes(haystack, needle) {
+        const h = normalize(haystack);
+        const n = normalize(needle);
+        if (!n) return true;
+        if (h.includes(n)) return true;
+        const maxDist = n.length <= 4 ? 1 : Math.floor(n.length / 4) + 1;
+        const words = h.split(/[^a-zа-яё0-9ё]+/i).filter(Boolean);
+        for (const w of words) {
+          if (Math.abs(w.length - n.length) <= maxDist && levenshtein(w, n) <= maxDist) return true;
+        }
+        return false;
+      }
+
+      function simpleIncludes(haystack, needle) {
+        return normalize(haystack).includes(normalize(needle));
+      }
+
+      function matchesTopic(topic, query, opts) {
+        const test = opts.fuzzy ? fuzzyIncludes : simpleIncludes;
+        if (test(topic.title, query)) return true;
+        if (opts.keywords && topic.keywords && test(topic.keywords, query)) return true;
+        if (opts.description && topic.description) {
+          if (test(stripHtml(topic.description), query)) return true;
+        }
+        return false;
+      }
+
+      function currentSearchOptions() {
+        return {
+          keywords: els.optKeywords.checked,
+          description: els.optDescription.checked,
+          fuzzy: els.optFuzzy.checked,
+          highlight: els.optHighlight.checked,
+        };
+      }
+
+      function runSearch() {
+        lastQuery = els.searchInput.value.trim();
+        renderTree();
+        if (currentId) renderTopic(currentId, { skipScroll: true });
+      }
+
+      function applySearchFilterToDom() {
+        const query = lastQuery;
+        els.searchEmpty.classList.remove('visible');
+        if (!query) {
+          els.tree.querySelectorAll('.spr-node-row').forEach((row) => {
+            row.classList.remove('search-dim', 'search-match');
+          });
+          return;
+        }
+
+        const opts = currentSearchOptions();
+        const matchedIds = new Set();
+        const ancestorIds = new Set();
+        for (const t of topics) {
+          if (matchesTopic(t, query, opts)) {
+            matchedIds.add(t.id);
+            let p = t.parent;
+            while (p) { ancestorIds.add(p); p = topicsById.get(p) ? topicsById.get(p).parent : null; }
+          }
+        }
+
+        if (matchedIds.size === 0) {
+          els.searchEmpty.classList.add('visible');
+        }
+
+        ancestorIds.forEach((id) => expanded.add(id));
+        els.tree.querySelectorAll('li[data-id]').forEach((li) => {
+          const id = li.dataset.id;
+          const row = li.querySelector(':scope > .spr-node-row');
+          if (!row) return;
+          const toggle = row.querySelector('.spr-node-toggle');
+          const childrenWrap = li.querySelector(':scope > .spr-node-children');
+          if (ancestorIds.has(id) && childrenWrap) {
+            childrenWrap.classList.add('expanded');
+            if (toggle) toggle.classList.add('expanded');
+          }
+          if (matchedIds.has(id)) {
+            row.classList.add('search-match');
+            row.classList.remove('search-dim');
+            if (opts.highlight) {
+              const titleBtn = row.querySelector('.spr-node-title');
+              highlightTextInElement(titleBtn, query);
+            }
+          } else if (ancestorIds.has(id)) {
+            row.classList.remove('search-dim', 'search-match');
+          } else {
+            row.classList.add('search-dim');
+            row.classList.remove('search-match');
+          }
+        });
+      }
+
+      function escapeRegex(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+
+      function walkTextNodes(root, cb) {
+        const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null);
+        const nodes = [];
+        let n;
+        while ((n = walker.nextNode())) nodes.push(n);
+        nodes.forEach(cb);
+      }
+
+      function highlightTextInElement(el, query) {
+        if (!el || !query) return;
+        const regex = new RegExp('(' + escapeRegex(query) + ')', 'gi');
+        walkTextNodes(el, (node) => {
+          if (node.parentElement && node.parentElement.closest('.katex')) return;
+          const text = node.nodeValue;
+          regex.lastIndex = 0;
+          if (!regex.test(text)) return;
+          regex.lastIndex = 0;
+          const frag = document.createDocumentFragment();
+          let lastIndex = 0, m;
+          while ((m = regex.exec(text))) {
+            if (m.index > lastIndex) frag.appendChild(document.createTextNode(text.slice(lastIndex, m.index)));
+            const mark = document.createElement('mark');
+            mark.textContent = m[0];
+            frag.appendChild(mark);
+            lastIndex = m.index + m[0].length;
+            if (m[0].length === 0) regex.lastIndex++;
+          }
+          if (lastIndex < text.length) frag.appendChild(document.createTextNode(text.slice(lastIndex)));
+          node.replaceWith(frag);
+        });
+      }
+
+      // ===================================================================
+      // РЕНДЕР ФОРМУЛ (KaTeX)
+      // ===================================================================
+      function renderMathInContainer(container) {
+        if (!window.katex) return;
+        walkTextNodes(container, (node) => {
+          const text = node.nodeValue;
+          if (!text || text.indexOf('$') === -1) return;
+          const frag = renderMathInText(text);
+          if (frag) node.replaceWith(frag);
+        });
+      }
+
+      function renderMathInText(text) {
+        const regex = /\$\$([\s\S]+?)\$\$|\$([^\$\n]+?)\$/g;
+        let lastIndex = 0, match, found = false;
+        const frag = document.createDocumentFragment();
+        while ((match = regex.exec(text))) {
+          found = true;
+          if (match.index > lastIndex) frag.appendChild(document.createTextNode(text.slice(lastIndex, match.index)));
+          const isBlock = match[1] !== undefined;
+          const expr = isBlock ? match[1] : match[2];
+          const span = document.createElement('span');
+          try {
+            window.katex.render(expr, span, { throwOnError: false, displayMode: isBlock });
+          } catch (e) {
+            span.textContent = (isBlock ? '$$' : '$') + expr + (isBlock ? '$$' : '$');
+          }
+          frag.appendChild(span);
+          lastIndex = regex.lastIndex;
+        }
+        if (!found) return null;
+        if (lastIndex < text.length) frag.appendChild(document.createTextNode(text.slice(lastIndex)));
+        return frag;
+      }
+
+      // ===================================================================
+      // НАВИГАЦИЯ
+      // ===================================================================
+      function navigate(id, opts) {
+        opts = opts || {};
+        if (!topicsById.has(id)) return;
+        if (opts.fromHyperlink && currentId && currentId !== id) referrerOf.set(id, currentId);
+        if (location.hash.slice(1) === id) {
+          renderTopic(id);
+        } else {
+          location.hash = id;
+        }
+      }
+
+      function onHashChange() {
+        const id = decodeURIComponent(location.hash.replace(/^#/, ''));
+        if (id && topicsById.has(id)) {
+          renderTopic(id);
+        } else {
+          const roots = getChildren(null);
+          if (roots.length) {
+            location.hash = roots[0];
+          } else {
+            showEmptyState('Темы ещё не добавлены в справочник.');
+          }
+        }
+      }
+
+      function showEmptyState(message) {
+        els.topicView.hidden = true;
+        els.emptyState.hidden = false;
+        els.emptyState.textContent = message;
+      }
+
+      function renderTopic(id, opts) {
+        opts = opts || {};
+        const topic = topicsById.get(id);
+        if (!topic) return;
+        currentId = id;
+
+        els.emptyState.hidden = true;
+        els.topicView.hidden = false;
+
+        expandAncestorsOf(id);
+        renderTree();
+
+        els.title.innerHTML = '';
+        if (lastQuery && els.optHighlight.checked) {
+          els.title.textContent = topic.title;
+          highlightTextInElement(els.title, lastQuery);
+        } else {
+          els.title.textContent = topic.title;
+        }
+
+        renderBreadcrumb(id);
+        renderNavButtons(id);
+        renderDescription(topic);
+        renderExample(topic);
+
+        closeMobileSidebar();
+        if (!opts.skipScroll) {
+          els.content.scrollTo({ top: 0, behavior: 'smooth' });
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+      }
+
+      function renderBreadcrumb(id) {
+        const chain = [];
+        let t = topicsById.get(id);
+        while (t) {
+          chain.unshift(t);
+          t = t.parent ? topicsById.get(t.parent) : null;
+        }
+        els.breadcrumb.innerHTML = '';
+        chain.forEach((node, i) => {
+          if (i > 0) {
+            const sep = document.createElement('span');
+            sep.className = 'sep';
+            sep.textContent = '›';
+            els.breadcrumb.appendChild(sep);
+          }
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.textContent = node.title;
+          if (i === chain.length - 1) {
+            btn.className = 'current';
+          } else {
+            btn.addEventListener('click', () => navigate(node.id));
+          }
+          els.breadcrumb.appendChild(btn);
+        });
+      }
+
+      function renderNavButtons(id) {
+        const topic = topicsById.get(id);
+
+        if (topic.parent && topicsById.has(topic.parent)) {
+          els.backParent.hidden = false;
+          els.backParent.onclick = () => navigate(topic.parent);
+        } else {
+          els.backParent.hidden = true;
+        }
+
+        const refId = referrerOf.get(id);
+        if (refId && topicsById.has(refId)) {
+          els.backReferrer.hidden = false;
+          els.backReferrer.textContent = '← Вернуться к «' + topicsById.get(refId).title + '»';
+          els.backReferrer.onclick = () => navigate(refId);
+        } else {
+          els.backReferrer.hidden = true;
+        }
+      }
+
+      function renderDescription(topic) {
+        els.description.innerHTML = topic.description || '';
+
+        els.description.querySelectorAll('a[href^="topic:"]').forEach((a) => {
+          const targetId = a.getAttribute('href').slice('topic:'.length);
+          a.addEventListener('click', (e) => {
+            e.preventDefault();
+            navigate(targetId, { fromHyperlink: true });
+          });
+        });
+
+        renderMathInContainer(els.description);
+
+        if (lastQuery && els.optHighlight.checked) {
+          highlightTextInElement(els.description, lastQuery);
+        }
+      }
+
+      // ===================================================================
+      // ИНТЕРАКТИВНЫЙ ПРИМЕР (.gms -> компилятор -> iframe)
+      // ===================================================================
+      function loadCompiler() {
+        if (!compilerModulePromise) compilerModulePromise = import(COMPILER_URL);
+        return compilerModulePromise;
+      }
+
+      function currentTheme() {
+        return document.documentElement.classList.contains('light') ? 'light' : 'dark';
+      }
+
+      function sendThemeToFrame(frame) {
+        try {
+          frame.contentWindow.postMessage({ type: 'geocompiler-set-theme', theme: currentTheme() }, '*');
+        } catch (e) { /* игнорируем — iframe мог ещё не быть готов */ }
+      }
+
+      async function renderExample(topic) {
+        if (topic.type !== 'topic' || !topic.example) {
+          els.example.innerHTML = '<div class="spr-no-example">Это раздел-папка — у него нет интерактивного примера.</div>';
+          return;
+        }
+
+        els.example.innerHTML = `
+          <div class="spr-example-frame-wrap">
+            <iframe id="sprExampleFrame"
+                    title="${escapeHtml(topic.title)}"
+                    sandbox="allow-scripts allow-same-origin allow-pointer-lock allow-popups"></iframe>
+            <div class="spr-example-status" id="sprExampleStatus">Компиляция примера…</div>
+          </div>
+        `;
+        const frame = document.getElementById('sprExampleFrame');
+        const status = document.getElementById('sprExampleStatus');
+
+        try {
+          const [source, mod] = await Promise.all([
+            fetch(PAGE_ROOT + topic.example, { cache: 'no-cache' }).then((r) => {
+              if (!r.ok) throw new Error('Не удалось загрузить файл примера (' + r.status + ')');
+              return r.text();
+            }),
+            loadCompiler(),
+          ]);
+
+          if (!document.body.contains(frame)) return;
+
+          const result = mod.compile(source);
+          if (!result.success) {
+            status.textContent = 'Ошибка компиляции примера:\n' + result.errors.join('\n');
+            status.classList.add('error');
+            return;
+          }
+
+          frame.addEventListener('load', () => {
+            status.hidden = true;
+            sendThemeToFrame(frame);
+          }, { once: true });
+          frame.srcdoc = result.html;
+        } catch (e) {
+          status.textContent = 'Не удалось загрузить пример: ' + e.message;
+          status.classList.add('error');
+        }
+      }
+
+      function escapeHtml(text) {
+        return (text || '').replace(/[&<>"']/g, (c) => ({
+          '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+        }[c]));
+      }
+
+      function setupThemeSync() {
+        const observer = new MutationObserver(() => {
+          const frame = document.getElementById('sprExampleFrame');
+          if (frame) sendThemeToFrame(frame);
+        });
+        observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+      }
+
+      // ===================================================================
+      // ИНИЦИАЛИЗАЦИЯ
+      // ===================================================================
+      async function init() {
+        if (!mountLayout()) return;
+        setupUiHandlers();
+        setupThemeSync();
+
+        try {
+          const data = await loadConfig();
+          buildIndexes(data);
+        } catch (e) {
+          showEmptyState('Не удалось загрузить справочник тем: ' + e.message);
+          console.error(e);
+          return;
+        }
+
+        if (topics.length === 0) {
+          showEmptyState('В справочнике пока нет ни одной темы.');
+          return;
+        }
+
+        getChildren(null).forEach((id) => {
+          const t = topicsById.get(id);
+          if (t && t.type === 'folder') expanded.add(id);
+        });
+
+        renderTree();
+        window.addEventListener('hashchange', onHashChange);
+        onHashChange();
+      }
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+      } else {
+        init();
+      }
+    })();
+  </script>
+</body>
+</html>
