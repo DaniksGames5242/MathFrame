@@ -1,4 +1,5 @@
 [
+space = 2D
 title = "y = kx + b"
 undertitle = "Линейная функция"
 description = "Двигайте ползунки k и b и смотрите, как меняется график"
