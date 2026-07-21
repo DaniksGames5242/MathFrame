@@ -36,25 +36,25 @@
 
     .spr-layout {
       display: flex;
-      align-items: stretch;
+      align-items: flex-start;
       min-height: calc(100vh - var(--header-height));
       position: relative;
     }
 
     /* ===== БОКОВАЯ ПАНЕЛЬ ===== */
     .spr-sidebar {
-      width: var(--spr-sidebar-width);
-      flex: 0 0 var(--spr-sidebar-width);
-      position: sticky;
+      position: fixed;
       top: var(--header-height);
+      left: 0;
+      width: var(--spr-sidebar-width);
       height: calc(100vh - var(--header-height));
-      border-right: 1px solid var(--border);
+      overflow-y: auto;
       background: var(--bg-card);
       backdrop-filter: blur(20px);
       -webkit-backdrop-filter: blur(20px);
-      transition: var(--theme-transition), transform 0.3s ease;
+      border-right: 1px solid var(--border);
+      transition: var(--theme-transition), transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
       z-index: 60;
-      overflow-y: auto;
       overscroll-behavior: contain;
     }
 
@@ -244,42 +244,9 @@
       padding: 0 0.1rem;
     }
 
-    /* ===== МОБИЛЬНОЕ МЕНЮ (гамбургер + оверлей) ===== */
-    .spr-menu-toggle {
-      display: none;
-      position: fixed;
-      top: calc(var(--header-height) + 0.75rem);
-      left: 0.9rem;
-      z-index: 80;
-      width: 42px;
-      height: 42px;
-      border-radius: 0.6rem;
-      border: 1px solid var(--border);
-      background: var(--bg-card);
-      backdrop-filter: blur(16px);
-      color: var(--text-primary);
-      font-size: 1.2rem;
-      cursor: pointer;
-      align-items: center;
-      justify-content: center;
-      box-shadow: var(--shadow);
-      transition: transform 0.2s, background 0.2s;
-    }
-    .spr-menu-toggle:hover { transform: scale(1.05); background: rgba(255,255,255,0.08); }
-
-    .spr-sidebar-overlay {
-      display: none;
-      position: fixed;
-      inset: 0;
-      top: var(--header-height);
-      background: rgba(0,0,0,0.55);
-      z-index: 55;
-      opacity: 0;
-      transition: opacity 0.25s ease;
-    }
-
     /* ===== ОСНОВНОЙ КОНТЕНТ ===== */
     .spr-content {
+      margin-left: var(--spr-sidebar-width);
       flex: 1 1 auto;
       min-width: 0;
       padding: 2rem 2.5rem 4rem;
@@ -470,6 +437,41 @@
     .spr-tree li:nth-child(9) { animation-delay: 0.18s; }
     .spr-tree li:nth-child(10) { animation-delay: 0.20s; }
 
+    /* ===== МОБИЛЬНОЕ МЕНЮ (гамбургер + оверлей) ===== */
+    .spr-menu-toggle {
+      display: none;
+      position: fixed;
+      top: calc(var(--header-height) + 0.75rem);
+      left: 0.9rem;
+      z-index: 80;
+      width: 42px;
+      height: 42px;
+      border-radius: 0.6rem;
+      border: 1px solid var(--border);
+      background: var(--bg-card);
+      backdrop-filter: blur(16px);
+      color: var(--text-primary);
+      font-size: 1.2rem;
+      cursor: pointer;
+      align-items: center;
+      justify-content: center;
+      box-shadow: var(--shadow);
+      transition: transform 0.2s, background 0.2s;
+    }
+    .spr-menu-toggle:hover { transform: scale(1.05); background: rgba(255,255,255,0.08); }
+
+    .spr-sidebar-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      top: var(--header-height);
+      background: rgba(0,0,0,0.55);
+      z-index: 55;
+      opacity: 0;
+      transition: opacity 0.25s ease;
+      pointer-events: none;
+    }
+
     /* ===== АДАПТИВ ===== */
     @media (max-width: 1024px) {
       .spr-content { padding: 1.75rem 1.5rem 3rem; }
@@ -482,12 +484,13 @@
         position: fixed;
         top: var(--header-height);
         left: 0;
+        width: var(--spr-sidebar-width);
         height: calc(100vh - var(--header-height));
         transform: translateX(-105%);
         box-shadow: var(--shadow);
-        z-index: 70;
-        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         border-right: none;
+        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        z-index: 70;
       }
       .spr-sidebar.open { transform: translateX(0); }
 
@@ -497,7 +500,11 @@
         pointer-events: auto;
       }
 
-      .spr-content { padding: 1.5rem 1.1rem 3rem; padding-top: calc(1.5rem + 48px); }
+      .spr-content {
+        margin-left: 0;
+        padding: 1.5rem 1.1rem 3rem;
+        padding-top: calc(1.5rem + 48px);
+      }
 
       .spr-body {
         flex-direction: column;
@@ -517,9 +524,9 @@
     }
   </style>
 
-  <!-- KaTeX (репозиторий: katex/lib) — используется для рендера формул в описаниях тем -->
-  <link rel="stylesheet" href="../katex/lib/katex.min.css" />
-  <script defer src="../katex/lib/katex.min.js"></script>
+  <!-- KaTeX (исправлен путь) -->
+  <link rel="stylesheet" href="../assets/lib/katex/katex.min.css" />
+  <script defer src="../assets/lib/katex/katex.min.js"></script>
 
   <!-- Firebase Compat SDKs (как на главной странице — для шапки/авторизации) -->
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
