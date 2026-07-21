@@ -11,7 +11,7 @@
       src: url('../assets/fonts/body-font.otf') format('opentype');
       font-weight: 400;
       font-style: normal;
-    } 
+    }
     @font-face {
       font-family: 'BodyFont';
       src: url('../assets/fonts/body-font-bold.otf') format('opentype');
@@ -56,21 +56,15 @@
     .spr-loader-logo {
       width: 80px;
       height: 80px;
-      margin-bottom: 1.5rem;
-      animation: loaderSpin 1.2s cubic-bezier(0.5, 0, 0.5, 1) infinite;
+      animation: spinLogo 1.2s cubic-bezier(0.5, 0, 0.5, 1) infinite;
     }
-    .spr-loader-logo svg {
+    .spr-loader-logo img {
       width: 100%;
       height: 100%;
-      fill: var(--accent);
+      object-fit: contain;
     }
-    .spr-loader-ring {
-      width: 60px;
-      height: 60px;
-      border-radius: 50%;
-      border: 4px solid var(--border);
-      border-top-color: var(--accent);
-      animation: loaderSpin 0.8s linear infinite;
+    @keyframes spinLogo {
+      to { transform: rotate(360deg); }
     }
     .spr-loader-text {
       margin-top: 1.5rem;
@@ -78,10 +72,6 @@
       font-size: 0.9rem;
       letter-spacing: 0.1em;
       animation: pulseText 1.5s ease-in-out infinite;
-    }
-
-    @keyframes loaderSpin {
-      to { transform: rotate(360deg); }
     }
     @keyframes pulseText {
       0%, 100% { opacity: 0.5; }
@@ -112,7 +102,6 @@
                   transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
       z-index: 60;
       overscroll-behavior: contain;
-      resize: none;
     }
     .spr-sidebar-resizer {
       position: absolute;
@@ -165,7 +154,7 @@
     }
     .spr-search-input-wrap input[type="search"] {
       width: 100%;
-      padding: 0.65rem 2.2rem 0.65rem 0.9rem;
+      padding: 0.65rem 2.8rem 0.65rem 0.9rem;
       border-radius: 0.6rem;
       border: 1px solid var(--border);
       background: rgba(255,255,255,0.05);
@@ -180,9 +169,28 @@
     }
     .spr-search-input-wrap input[type="search"]::-webkit-search-cancel-button { display: none; }
 
-    .spr-search-clear {
+    .spr-search-icon {
       position: absolute;
       right: 0.5rem;
+      top: 50%;
+      transform: translateY(-50%);
+      pointer-events: none;
+      opacity: 0.4;
+      color: var(--text-secondary);
+    }
+    .spr-search-icon svg {
+      width: 18px;
+      height: 18px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2.5;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .spr-search-clear {
+      position: absolute;
+      right: 2.2rem;
       top: 50%;
       transform: translateY(-50%);
       background: none;
@@ -198,31 +206,75 @@
     .spr-search-input-wrap.has-value .spr-search-clear { display: block; }
     .spr-search-clear:hover { color: var(--text-primary); }
 
-    .spr-search-options {
-      display: flex;
-      flex-direction: column;
-      gap: 0.35rem;
-      font-size: 0.78rem;
-      color: var(--text-secondary);
-      padding: 0.6rem 0.7rem;
+    /* ===== ПАРАМЕТРЫ ПОИСКА (вкладка) ===== */
+    .spr-search-options-wrap {
       border: 1px solid var(--border);
       border-radius: 0.6rem;
       background: rgba(255,255,255,0.03);
+      overflow: hidden;
+      transition: border-color 0.2s;
     }
-    .spr-search-options label {
+    .spr-search-options-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.45rem 0.7rem;
+      cursor: pointer;
+      user-select: none;
+      color: var(--text-secondary);
+      font-size: 0.78rem;
+      transition: color 0.2s, background 0.2s;
+      border-radius: 0.6rem;
+    }
+    .spr-search-options-header:hover {
+      background: rgba(255,255,255,0.04);
+      color: var(--text-primary);
+    }
+    .spr-search-options-header .arrow {
+      transition: transform 0.3s ease;
+      font-size: 0.6rem;
+    }
+    .spr-search-options-header .arrow.open {
+      transform: rotate(180deg);
+    }
+
+    .spr-search-options-body {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1), padding 0.35s ease;
+      padding: 0 0.7rem;
+    }
+    .spr-search-options-body.open {
+      max-height: 200px;
+      padding: 0.6rem 0.7rem;
+    }
+    .spr-search-options-body label {
       display: flex;
       align-items: center;
       gap: 0.45rem;
       cursor: pointer;
       user-select: none;
+      color: var(--text-secondary);
+      font-size: 0.78rem;
+      padding: 0.15rem 0;
+      transition: color 0.2s;
     }
-    .spr-search-options input[type="checkbox"] {
+    .spr-search-options-body label:hover {
+      color: var(--text-primary);
+    }
+    .spr-search-options-body input[type="checkbox"] {
       accent-color: var(--accent);
       width: 14px;
       height: 14px;
       cursor: pointer;
       flex: 0 0 auto;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
     }
+    .spr-search-options-body input[type="checkbox"]:checked {
+      transform: scale(1.1);
+      box-shadow: 0 0 0 2px rgba(99,102,241,0.2);
+    }
+
     .spr-search-empty {
       font-size: 0.85rem;
       color: var(--text-secondary);
@@ -248,7 +300,6 @@
       opacity: 0;
       animation: fadeSlideIn 0.25s ease forwards;
     }
-    /* анимация только при первом рендере — управляется через JS */
     .spr-tree li.spr-no-anim {
       animation: none;
       opacity: 1;
@@ -362,7 +413,6 @@
       opacity: 1;
       transform: translateX(0);
     }
-    /* поочередное появление */
     .spr-node-children.expanded > ul > li:nth-child(1) { transition-delay: 0.02s; }
     .spr-node-children.expanded > ul > li:nth-child(2) { transition-delay: 0.04s; }
     .spr-node-children.expanded > ul > li:nth-child(3) { transition-delay: 0.06s; }
@@ -572,6 +622,11 @@
       border: none;
       display: block;
       background: transparent;
+      opacity: 0;
+      transition: opacity 0.5s ease;
+    }
+    .spr-example iframe.loaded {
+      opacity: 1;
     }
 
     .spr-example-status {
@@ -587,6 +642,7 @@
       font-size: 0.9rem;
       background: var(--bg-card);
       gap: 0.8rem;
+      transition: opacity 0.5s ease;
     }
     .spr-example-status .loader-ring {
       width: 40px;
@@ -594,11 +650,14 @@
       border-radius: 50%;
       border: 3px solid var(--border);
       border-top-color: var(--accent);
-      animation: loaderSpin 0.8s linear infinite;
+      animation: spinLogo 0.8s linear infinite;
     }
-    .spr-example-status.error { color: #ef4444; }
     .spr-example-status.error .loader-ring { display: none; }
-    .spr-example-status[hidden] { display: none; }
+    .spr-example-status.error { color: #ef4444; }
+    .spr-example-status[hidden] {
+      opacity: 0;
+      pointer-events: none;
+    }
 
     .spr-no-example { display: none; }
 
@@ -659,7 +718,7 @@
       from { opacity: 0; transform: translateX(-8px); }
       to { opacity: 1; transform: translateX(0); }
     }
-    @keyframes loaderSpin {
+    @keyframes spinLogo {
       to { transform: rotate(360deg); }
     }
 
@@ -729,9 +788,10 @@
   <!-- Загрузочный экран -->
   <div class="spr-loader" id="sprLoader">
     <div class="spr-loader-logo">
-      <svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="45" stroke="none" fill="var(--accent)" opacity="0.2"/><path d="M50 10 L70 40 L60 40 L50 25 L40 40 L30 40 Z" fill="var(--accent)"/></svg>
+      <img src="../assets/img/logo.png" alt="MathFrame"
+           data-light-src="../assets/img/logo-light.png"
+           data-dark-src="../assets/img/logo.png" />
     </div>
-    <div class="spr-loader-ring"></div>
     <div class="spr-loader-text">Загрузка справочника…</div>
   </div>
 
@@ -767,8 +827,8 @@
       let lastQuery = '';
       let katexReady = false;
       let katexCheckInterval = null;
-      let isFirstRender = true; // для анимации дерева
-      let historyStack = []; // для анимации переходов (вперёд/назад)
+      let isFirstRender = true;
+      let historyStack = [];
       let historyIndex = -1;
       let isNavigating = false;
 
@@ -785,6 +845,21 @@
           setTimeout(() => { loaderEl.style.display = 'none'; }, 800);
         }
       }
+
+      // Применяем тему к логотипу загрузчика
+      function applyThemeToLoader() {
+        const isLight = document.documentElement.classList.contains('light');
+        const img = loaderEl?.querySelector('.spr-loader-logo img');
+        if (img) {
+          const src = isLight ? img.dataset.lightSrc : img.dataset.darkSrc;
+          if (src) img.src = src;
+        }
+      }
+      // Следим за сменой темы, чтобы логотип в загрузчике тоже менялся (если он ещё виден)
+      const themeObserver = new MutationObserver(() => {
+        applyThemeToLoader();
+      });
+      themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
 
       // ===================================================================
       // РАЗМЕТКА
@@ -805,14 +880,25 @@
                 <div class="spr-search">
                   <div class="spr-search-input-wrap" id="sprSearchWrap">
                     <input type="search" id="sprSearchInput" placeholder="Поиск по темам…" autocomplete="off" />
+                    <span class="spr-search-icon">
+                      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16" y1="16" x2="22" y2="22"/></svg>
+                    </span>
                     <button type="button" class="spr-search-clear" id="sprSearchClear">✕</button>
                   </div>
-                  <div class="spr-search-options">
-                    <label><input type="checkbox" id="sprOptKeywords" checked /> По ключевым словам</label>
-                    <label><input type="checkbox" id="sprOptDescription" checked /> В описании</label>
-                    <label><input type="checkbox" id="sprOptFuzzy" /> Исправлять ошибки</label>
-                    <label><input type="checkbox" id="sprOptHighlight" checked /> Выделять</label>
+
+                  <div class="spr-search-options-wrap">
+                    <div class="spr-search-options-header" id="sprSearchOptionsHeader">
+                      <span>Параметры поиска</span>
+                      <span class="arrow" id="sprSearchOptionsArrow">▾</span>
+                    </div>
+                    <div class="spr-search-options-body" id="sprSearchOptionsBody">
+                      <label><input type="checkbox" id="sprOptKeywords" checked /> По ключевым словам</label>
+                      <label><input type="checkbox" id="sprOptDescription" /> В описании</label>
+                      <label><input type="checkbox" id="sprOptFuzzy" checked /> Исправлять ошибки</label>
+                      <label><input type="checkbox" id="sprOptHighlight" checked /> Выделять</label>
+                    </div>
                   </div>
+
                   <div class="spr-search-empty" id="sprSearchEmpty">Ничего не найдено</div>
                 </div>
                 <nav class="spr-tree" id="sprTree" aria-label="Дерево тем"></nav>
@@ -849,6 +935,9 @@
           searchWrap: document.getElementById('sprSearchWrap'),
           searchInput: document.getElementById('sprSearchInput'),
           searchClear: document.getElementById('sprSearchClear'),
+          searchOptionsHeader: document.getElementById('sprSearchOptionsHeader'),
+          searchOptionsBody: document.getElementById('sprSearchOptionsBody'),
+          searchOptionsArrow: document.getElementById('sprSearchOptionsArrow'),
           optKeywords: document.getElementById('sprOptKeywords'),
           optDescription: document.getElementById('sprOptDescription'),
           optFuzzy: document.getElementById('sprOptFuzzy'),
@@ -915,8 +1004,6 @@
         resizer.addEventListener('mousedown', onStart);
         window.addEventListener('mousemove', onMove);
         window.addEventListener('mouseup', onEnd);
-
-        // Для тач-устройств (планшеты) — но на мобильных ресайз скрыт, но оставим на всякий
         resizer.addEventListener('touchstart', onStart);
         window.addEventListener('touchmove', onMove);
         window.addEventListener('touchend', onEnd);
@@ -950,6 +1037,14 @@
           els.overlay.classList.remove('visible');
         });
 
+        // Параметры поиска — сворачиваемая вкладка
+        let optionsOpen = false;
+        els.searchOptionsHeader.addEventListener('click', () => {
+          optionsOpen = !optionsOpen;
+          els.searchOptionsBody.classList.toggle('open', optionsOpen);
+          els.searchOptionsArrow.classList.toggle('open', optionsOpen);
+        });
+
         // Поиск
         let searchTimer = null;
         els.searchInput.addEventListener('input', () => {
@@ -966,6 +1061,12 @@
         els.optHighlight.addEventListener('change', () => {
           if (currentId) renderTopic(currentId, { skipScroll: true, noHistory: true });
         });
+
+        // При изменении темы обновляем логотип в загрузчике (если он ещё виден)
+        const themeObserver2 = new MutationObserver(() => {
+          applyThemeToLoader();
+        });
+        themeObserver2.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
       }
 
       function closeMobileSidebar() {
@@ -1014,30 +1115,17 @@
         const ul = buildList(rootIds);
         els.tree.appendChild(ul);
 
-        // После рендера применяем анимацию, если это первый рендер
         if (isFirstRender) {
           isFirstRender = false;
-          // добавляем класс для анимации
           els.tree.querySelectorAll('li').forEach((li, i) => {
             li.style.animationDelay = (i * 0.02) + 's';
           });
         } else {
-          // убираем анимацию у всех элементов
           els.tree.querySelectorAll('li').forEach(li => li.classList.add('spr-no-anim'));
         }
 
         applySearchFilterToDom();
-        // Подсветка активной темы
-        if (currentId) {
-          const activeRow = els.tree.querySelector(`li[data-id="${currentId}"] > .spr-node-row`);
-          if (activeRow) {
-            activeRow.classList.add('active');
-            // анимация "дёрганья"
-            activeRow.classList.remove('spr-active-transition');
-            void activeRow.offsetWidth;
-            activeRow.classList.add('spr-active-transition');
-          }
-        }
+        highlightActive();
       }
 
       function buildList(ids) {
@@ -1059,39 +1147,6 @@
           toggleBtn.setAttribute('aria-label', 'Развернуть/свернуть');
           toggleBtn.textContent = '▶';
           if (expanded.has(id)) toggleBtn.classList.add('expanded');
-          if (kids.length) {
-            toggleBtn.addEventListener('click', (e) => {
-              e.stopPropagation();
-              if (expanded.has(id)) {
-                // сворачивание с анимацией
-                const childrenWrap = li.querySelector(':scope > .spr-node-children');
-                if (childrenWrap) {
-                  childrenWrap.classList.add('collapsing');
-                  childrenWrap.classList.remove('expanding');
-                  setTimeout(() => {
-                    expanded.delete(id);
-                    renderTree();
-                  }, 350);
-                } else {
-                  expanded.delete(id);
-                  renderTree();
-                }
-              } else {
-                expanded.add(id);
-                // разворачивание с анимацией
-                renderTree();
-                // после рендера добавим класс expanding для анимации
-                const childrenWrap = li.querySelector(':scope > .spr-node-children');
-                if (childrenWrap) {
-                  childrenWrap.classList.add('expanding');
-                  childrenWrap.classList.remove('collapsing');
-                  setTimeout(() => {
-                    childrenWrap.classList.remove('expanding');
-                  }, 400);
-                }
-              }
-            });
-          }
 
           const icon = document.createElement('span');
           icon.className = 'spr-node-icon';
@@ -1101,12 +1156,44 @@
           titleBtn.type = 'button';
           titleBtn.className = 'spr-node-title';
           titleBtn.textContent = topic.title;
+
           // Клик по всей строке
           row.addEventListener('click', (e) => {
-            // если клик на кнопку-тоггл — она уже обработана
             if (e.target.closest('.spr-node-toggle')) return;
             navigate(id);
           });
+
+          // Обработчик тогла — разворачивание/сворачивание с анимацией
+          if (kids.length) {
+            toggleBtn.addEventListener('click', (e) => {
+              e.stopPropagation();
+              const isExpanded = expanded.has(id);
+              const childrenWrap = li.querySelector(':scope > .spr-node-children');
+              if (!childrenWrap) return;
+
+              if (isExpanded) {
+                // сворачиваем
+                childrenWrap.classList.add('collapsing');
+                childrenWrap.classList.remove('expanding');
+                toggleBtn.classList.remove('expanded');
+                expanded.delete(id);
+                setTimeout(() => {
+                  childrenWrap.classList.remove('expanded', 'collapsing');
+                }, 400);
+              } else {
+                // разворачиваем
+                childrenWrap.classList.add('expanding');
+                childrenWrap.classList.remove('collapsing');
+                toggleBtn.classList.add('expanded');
+                expanded.add(id);
+                // добавляем класс expanded для max-height
+                childrenWrap.classList.add('expanded');
+                setTimeout(() => {
+                  childrenWrap.classList.remove('expanding');
+                }, 400);
+              }
+            });
+          }
 
           row.append(toggleBtn, icon, titleBtn);
           li.appendChild(row);
@@ -1121,6 +1208,25 @@
           ul.appendChild(li);
         }
         return ul;
+      }
+
+      function highlightActive() {
+        if (currentId) {
+          const activeRow = els.tree.querySelector(`li[data-id="${currentId}"] > .spr-node-row`);
+          if (activeRow) {
+            // Убираем старые активные классы
+            els.tree.querySelectorAll('.spr-node-row.active').forEach(r => r.classList.remove('active'));
+            activeRow.classList.add('active');
+            // анимация "дёрганья"
+            activeRow.classList.remove('spr-active-transition');
+            void activeRow.offsetWidth;
+            activeRow.classList.add('spr-active-transition');
+            // Прокручиваем к активному элементу
+            setTimeout(() => {
+              activeRow.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+            }, 100);
+          }
+        }
       }
 
       function expandAncestorsOf(id) {
@@ -1172,6 +1278,7 @@
       function simpleIncludes(haystack, needle) { return normalize(haystack).includes(normalize(needle)); }
 
       function matchesTopic(topic, query, opts) {
+        // Порядок: сначала заголовок, потом ключевые слова, потом описание
         const test = opts.fuzzy ? fuzzyIncludes : simpleIncludes;
         if (test(topic.title, query)) return true;
         if (opts.keywords && topic.keywords && test(topic.keywords, query)) return true;
@@ -1214,6 +1321,7 @@
           }
         }
         if (matchedIds.size === 0) els.searchEmpty.classList.add('visible');
+        // Раскрываем родительские узлы для найденных тем
         ancestorIds.forEach(id => expanded.add(id));
         els.tree.querySelectorAll('li[data-id]').forEach(li => {
           const id = li.dataset.id;
@@ -1333,7 +1441,7 @@
       }
 
       // ===================================================================
-      // НАВИГАЦИЯ С АНИМАЦИЕЙ
+      // НАВИГАЦИЯ
       // ===================================================================
       function navigate(id, opts) {
         opts = opts || {};
@@ -1343,12 +1451,10 @@
           referrerOf.set(id, currentId);
         }
 
-        const direction = opts.direction || 'forward'; // 'forward' или 'back'
+        const direction = opts.direction || 'forward';
         const slideClass = direction === 'forward' ? 'slide-left' : 'slide-right';
 
-        // Добавляем в историю, если не было перехода по истории
         if (!opts.noHistory) {
-          // Если мы не в конце истории, обрезаем
           if (historyIndex < historyStack.length - 1) {
             historyStack = historyStack.slice(0, historyIndex + 1);
           }
@@ -1356,21 +1462,16 @@
           historyIndex = historyStack.length - 1;
         }
 
-        // Анимируем смену контента
         const inner = els.contentInner;
         inner.classList.remove('slide-left', 'slide-right', 'slide-none');
 
-        // Сначала уходим
         requestAnimationFrame(() => {
           inner.classList.add(slideClass);
         });
 
         setTimeout(() => {
-          // Меняем контент
           renderTopic(id, { skipScroll: true, noHistory: true, isTransition: true });
-          // Возвращаем с другой стороны
           inner.classList.remove(slideClass);
-          // Небольшая задержка для перерисовки
           requestAnimationFrame(() => {
             inner.classList.add('slide-none');
             setTimeout(() => {
@@ -1385,11 +1486,9 @@
         }
       }
 
-      // Обработчик истории браузера
       function onHashChange() {
         const id = decodeURIComponent(location.hash.replace(/^#/, ''));
         if (id && topicsById.has(id)) {
-          // Определяем направление: если это переход назад/вперёд, берём из истории
           const currentIdx = historyStack.indexOf(id);
           let direction = 'forward';
           if (currentIdx !== -1 && currentIdx < historyIndex) direction = 'back';
@@ -1422,7 +1521,7 @@
         els.topicView.hidden = false;
 
         expandAncestorsOf(id);
-        renderTree(); // обновляет дерево с выделением
+        renderTree();
 
         // Заголовок
         els.title.innerHTML = '';
@@ -1543,8 +1642,10 @@
             status.classList.add('error');
             return;
           }
+          // После загрузки iframe — плавно показываем его
           frame.addEventListener('load', () => {
-            status.hidden = true;
+            status.hidden = true; // скрываем статус
+            frame.classList.add('loaded'); // включаем плавное появление
             sendThemeToFrame(frame);
           }, { once: true });
           frame.srcdoc = result.html;
@@ -1597,7 +1698,6 @@
           if (t && t.type === 'folder') expanded.add(id);
         });
 
-        // Инициализация истории
         const hashId = decodeURIComponent(location.hash.replace(/^#/, ''));
         let startId = hashId && topicsById.has(hashId) ? hashId : getChildren(null)[0];
         if (startId) {
@@ -1608,7 +1708,6 @@
 
         renderTree();
         window.addEventListener('hashchange', onHashChange);
-        // Первый рендер
         if (startId) renderTopic(startId);
       }
 
