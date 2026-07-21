@@ -631,8 +631,19 @@ function renderHeader() {
         { href: 'pages/playground.html', text: 'Песочница' },
     ];
 
+    // Определяем текущую страницу
+    const currentPath = window.location.pathname;
+    const currentFile = currentPath.split('/').pop() || 'index.html';
+
     const navHTML = navLinks
-        .map(link => `<a href="${PAGE_ROOT}${link.href}">${link.text}</a>`)
+        .map(link => {
+            // Проверяем, является ли ссылка активной
+            const isActive = link.href === currentFile || 
+                            (currentFile === '' && link.href === 'index.html') ||
+                            currentPath.endsWith(link.href);
+            const activeClass = isActive ? ' active' : '';
+            return `<a href="${PAGE_ROOT}${link.href}" class="nav-link${activeClass}">${link.text}</a>`;
+        })
         .join('');
 
     header.innerHTML = `

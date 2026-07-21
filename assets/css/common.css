@@ -110,6 +110,15 @@ img { max-width: 100%; display: block; }
 #app-header nav a:hover { color: var(--text-primary); }
 #app-header nav a:hover::after { width: 100%; }
 
+/* ===== АКТИВНАЯ ССЫЛКА В ШАПКЕ ===== */
+#app-header nav a.active {
+    color: var(--accent);
+}
+#app-header nav a.active::after {
+    width: 100%;
+    background: var(--accent);
+}
+
 .header-right {
     display: flex;
     align-items: center;
