@@ -1,4 +1,12 @@
 // common.js – шапка, подвал, тема, аутентификация и настройки
+
+// ===== КОНФИГУРАЦИЯ АНИМАЦИИ ТЕМЫ =====
+const THEME_ANIMATION_CONFIG = {
+    expandDuration: 700,   // длительность раскрытия маски (мс)
+    pauseBeforeFade: 400,  // пауза после раскрытия перед исчезновением (мс)
+    fadeDuration: 1000,     // длительность исчезновения маски (мс)
+};
+
 document.addEventListener('DOMContentLoaded', () => {
     if (typeof PAGE_ROOT === 'undefined') {
         console.error('Задайте PAGE_ROOT перед common.js');
@@ -21,11 +29,14 @@ document.addEventListener('DOMContentLoaded', () => {
     initAuthWhenReady();
 });
 
+// ===== ГЛОБАЛЬНЫЕ ФЛАГИ =====
+let isThemeAnimating = false;
+
 // ===== ТЕМА =====
 function initTheme() {
     const saved = localStorage.getItem('theme');
     if (saved === 'light' || saved === 'dark') {
-        applyTheme(saved, false);
+        applyTheme(saved, false, false); // без анимации при загрузке
     } else {
         applySystemTheme(false);
         window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
@@ -36,11 +47,27 @@ function initTheme() {
     }
 }
 
-function applyTheme(theme, save = true) {
+function applyTheme(theme, save = true, animated = true) {
+    if (isThemeAnimating) return; // предотвращаем повторные анимации
+
+    if (animated) {
+        isThemeAnimating = true;
+        animateThemeChange(theme, () => {
+            // После завершения анимации применяем тему (если не была применена ранее)
+            applyThemeImmediate(theme, save);
+            isThemeAnimating = false;
+        });
+    } else {
+        applyThemeImmediate(theme, save);
+    }
+}
+
+function applyThemeImmediate(theme, save = true) {
+    const isLight = theme === 'light';
     const html = document.documentElement;
-    html.classList.toggle('light', theme === 'light');
+    html.classList.toggle('light', isLight);
     if (save) localStorage.setItem('theme', theme);
-    updateThemeImages(theme === 'light' ? 'light' : 'dark');
+    updateThemeImages(isLight ? 'light' : 'dark');
     updateHeroBackground(theme);
     highlightThemeButtons(theme);
     updateThemeToggleIcon(theme);
@@ -49,10 +76,86 @@ function applyTheme(theme, save = true) {
 function applySystemTheme(save = true) {
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
     const theme = prefersDark ? 'dark' : 'light';
-    applyTheme(theme, false);
+    // При автоматической смене системы – без анимации
+    applyTheme(theme, false, false);
     if (save) localStorage.setItem('theme', 'system');
     highlightThemeButtons('system');
     updateThemeToggleIcon('system');
+}
+
+function animateThemeChange(theme, callback) {
+    const { expandDuration, pauseBeforeFade, fadeDuration } = THEME_ANIMATION_CONFIG;
+
+    // Определяем цвет фона новой темы
+    const isLight = theme === 'light';
+    const bgColor = isLight ? '#ffffff' : '#020408';
+
+    // Создаём маску
+    const mask = document.createElement('div');
+    mask.style.position = 'fixed';
+    mask.style.top = '0';
+    mask.style.left = '0';
+    mask.style.width = '100%';
+    mask.style.height = '100%';
+    mask.style.zIndex = '9999';
+    mask.style.pointerEvents = 'none';
+    mask.style.backgroundColor = bgColor;
+    mask.style.opacity = '1';
+    mask.style.transition = `clip-path ${expandDuration}ms cubic-bezier(0.4, 0, 0.2, 1), opacity ${fadeDuration}ms ease`;
+    // Начальное состояние – диагональная линия (почти невидима)
+    mask.style.clipPath = 'polygon(0 0, 0 0, 100% 100%, 100% 100%)';
+    document.body.appendChild(mask);
+
+    // Принудительный reflow для запуска анимации
+    mask.offsetHeight;
+
+    // 1) Раскрываем маску на весь экран
+    mask.style.clipPath = 'polygon(0 0, 100% 0, 100% 100%, 0 100%)';
+
+    // Обработчик окончания раскрытия
+    const onExpandEnd = () => {
+        mask.removeEventListener('transitionend', onExpandEnd);
+
+        // Применяем тему сразу после раскрытия маски (чтобы фон уже был новой темы)
+        applyThemeImmediate(theme, true);
+
+        // 2) Ждём паузу, чтобы картинки подгрузились
+        setTimeout(() => {
+            // 3) Плавно убираем маску (opacity -> 0)
+            mask.style.opacity = '0';
+            // По окончании исчезновения удаляем маску и вызываем callback
+            const onFadeOutEnd = () => {
+                mask.removeEventListener('transitionend', onFadeOutEnd);
+                if (callback) callback();
+                mask.remove();
+            };
+            mask.addEventListener('transitionend', onFadeOutEnd);
+            // Запасной таймер
+            setTimeout(() => {
+                if (mask.parentNode) {
+                    mask.removeEventListener('transitionend', onFadeOutEnd);
+                    if (callback) callback();
+                    mask.remove();
+                }
+            }, fadeDuration + 100); // небольшой запас
+        }, pauseBeforeFade);
+    };
+    mask.addEventListener('transitionend', onExpandEnd);
+
+    // Запасной таймер на случай, если transitionend не сработает
+    setTimeout(() => {
+        if (mask.parentNode) {
+            mask.removeEventListener('transitionend', onExpandEnd);
+            applyThemeImmediate(theme, true);
+            mask.style.opacity = '0';
+            setTimeout(() => {
+                if (mask.parentNode) {
+                    if (callback) callback();
+                    mask.remove();
+                }
+            }, fadeDuration + 100);
+        }
+    }, expandDuration + 300); // запас
 }
 
 function updateThemeImages(mode) {
@@ -64,7 +167,8 @@ function updateThemeImages(mode) {
 
 function updateHeroBackground(theme) {
     const root = document.documentElement;
-    root.style.setProperty('--hero-bg', theme === 'light' ? 'var(--hero-bg-light)' : 'var(--hero-bg-dark)');
+    const isLight = theme === 'light';
+    root.style.setProperty('--hero-bg', isLight ? 'var(--hero-bg-light)' : 'var(--hero-bg-dark)');
 }
 
 function highlightThemeButtons(theme) {
@@ -81,7 +185,7 @@ function updateThemeToggleIcon(theme) {
     btn.textContent = icons[theme] || '🌙';
 }
 
-// ===== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ =====
+// ===== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ДЛЯ АУТЕНТИФИКАЦИИ =====
 let currentUser = null;
 let populateSettingsRef = null;
 
@@ -175,7 +279,7 @@ function injectAuthModal() {
           <img src="https://logo-teka.com/wp-content/uploads/2025/06/google-logo.svg" alt="Google" />
         </button>
         <button class="social-btn" id="apple-login-btn">
-          <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRjJcT6KxEONebNu2KbluZB4-EX-2Qtq4I_O5j_tB7leU0YRDdsNL-j6zc&s=10" alt="Apple" />
+          <img src="https://upload.wikimedia.org/wikipedia/commons/f/fa/Apple_logo_black.svg" alt="Apple" />
         </button>
       </div>
       <div id="recaptcha-container"></div>
@@ -210,8 +314,12 @@ function injectAuthModal() {
 
     function openAuth() {
         document.body.classList.add('no-scroll');
-        overlay.classList.add('active');
-        modal.classList.add('active');
+        overlay.style.visibility = 'visible';
+        modal.style.visibility = 'visible';
+        requestAnimationFrame(() => {
+            overlay.classList.add('active');
+            modal.classList.add('active');
+        });
         showLoginTab();
         document.getElementById('login-email-phone').value = '';
         document.getElementById('login-password').value = '';
@@ -227,7 +335,11 @@ function injectAuthModal() {
     function closeAuth() {
         overlay.classList.remove('active');
         modal.classList.remove('active');
-        document.body.classList.remove('no-scroll');
+        setTimeout(() => {
+            overlay.style.visibility = 'hidden';
+            modal.style.visibility = 'hidden';
+            document.body.classList.remove('no-scroll');
+        }, 300);
     }
 
     overlay.addEventListener('click', closeAuth);
@@ -405,19 +517,27 @@ function injectSettingsModal() {
 
     async function handleAvatarUpload(file) {
         if (!file) return;
-        if (!window.Auth) return alert('Сервис недоступен');
+        if (!window.Auth) {
+            alert('Сервис аутентификации недоступен');
+            return;
+        }
         try {
+            console.log('Загрузка аватара...', file.name);
             const url = await window.Auth.uploadAvatar(file);
+            console.log('Аватар загружен, URL:', url);
             await window.Auth.updateUserProfile({ photoURL: url });
-            currentUser.photoURL = url;
-            updateAccountCircle(currentUser);
-            populateSettings(currentUser);
+            const user = window.Auth.getCurrentUser();
+            if (user) {
+                currentUser = user;
+                updateAccountCircle(currentUser);
+                populateSettings(currentUser);
+            }
         } catch (err) {
+            console.error('Ошибка загрузки аватара:', err);
             alert('Ошибка загрузки: ' + err.message);
         }
     }
 
-    // Клик по обёртке аватара = клик по input[file]
     avatarWrapper.addEventListener('click', (e) => {
         if (e.target === avatarInput) return;
         avatarInput.click();
@@ -425,6 +545,7 @@ function injectSettingsModal() {
     avatarInput.addEventListener('change', (e) => {
         const file = e.target.files[0];
         if (file) handleAvatarUpload(file);
+        avatarInput.value = '';
     });
 
     function openSettings() {
@@ -435,14 +556,22 @@ function injectSettingsModal() {
         populateSettings(currentUser);
         usernameEditField.style.display = 'none';
         document.body.classList.add('no-scroll');
-        overlay.classList.add('active');
-        modal.classList.add('active');
+        overlay.style.visibility = 'visible';
+        modal.style.visibility = 'visible';
+        requestAnimationFrame(() => {
+            overlay.classList.add('active');
+            modal.classList.add('active');
+        });
     }
 
     function closeSettings() {
         overlay.classList.remove('active');
         modal.classList.remove('active');
-        document.body.classList.remove('no-scroll');
+        setTimeout(() => {
+            overlay.style.visibility = 'hidden';
+            modal.style.visibility = 'hidden';
+            document.body.classList.remove('no-scroll');
+        }, 300);
     }
 
     overlay.addEventListener('click', closeSettings);
@@ -462,9 +591,12 @@ function injectSettingsModal() {
         if (newName && window.Auth) {
             try {
                 await window.Auth.updateUserProfile({ displayName: newName });
-                currentUser.displayName = newName;
-                updateAccountCircle(currentUser);
-                populateSettings(currentUser);
+                const user = window.Auth.getCurrentUser();
+                if (user) {
+                    currentUser = user;
+                    updateAccountCircle(currentUser);
+                    populateSettings(currentUser);
+                }
             } catch (e) { alert('Ошибка: ' + e.message); }
         }
         usernameEditField.style.display = 'none';
@@ -539,6 +671,7 @@ function renderHeader() {
     const savedTheme = localStorage.getItem('theme') || 'system';
     updateThemeToggleIcon(savedTheme === 'system' ? (document.documentElement.classList.contains('light') ? 'light' : 'dark') : savedTheme);
     themeBtn.addEventListener('click', () => {
+        if (isThemeAnimating) return;
         const current = localStorage.getItem('theme') || 'system';
         if (current === 'system') {
             applyTheme(document.documentElement.classList.contains('light') ? 'dark' : 'light', true);

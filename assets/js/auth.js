@@ -46,8 +46,13 @@ const AuthAPI = {
     uploadAvatar: (file) => {
         const user = auth.currentUser;
         if (!user) return Promise.reject('Не авторизован');
-        const storageRef = storage.ref(`avatars/${user.uid}/${file.name}`);
-        return storageRef.put(file).then(() => storageRef.getDownloadURL());
+        // Генерируем уникальное имя, чтобы избежать конфликтов
+        const ext = file.name.split('.').pop();
+        const fileName = `avatar_${Date.now()}.${ext}`;
+        const storageRef = storage.ref(`avatars/${user.uid}/${fileName}`);
+        return storageRef.put(file).then((snapshot) => {
+            return storageRef.getDownloadURL();
+        });
     }
 };
 
