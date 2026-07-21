@@ -1316,92 +1316,85 @@
         highlightActive();
       }
 
-      function buildList(ids) {
-        const ul = document.createElement('ul');
-        for (const id of ids) {
-          const topic = topicsById.get(id);
-          if (!topic) continue;
-          const kids = getFilteredChildren(id);
-          const li = document.createElement('li');
-          li.dataset.id = id;
+function buildList(ids) {
+  const ul = document.createElement('ul');
+  for (const id of ids) {
+    const topic = topicsById.get(id);
+    if (!topic) continue;
+    const kids = getFilteredChildren(id);
+    const li = document.createElement('li');
+    li.dataset.id = id;
 
-          const row = document.createElement('div');
-          row.className = 'spr-node-row';
-          if (id === currentId) row.classList.add('active');
+    const row = document.createElement('div');
+    row.className = 'spr-node-row';
+    if (id === currentId) row.classList.add('active');
 
-          const toggleBtn = document.createElement('button');
-          toggleBtn.type = 'button';
-          toggleBtn.className = 'spr-node-toggle' + (kids.length ? '' : ' no-children');
-          toggleBtn.setAttribute('aria-label', 'Развернуть/свернуть');
-          toggleBtn.textContent = '▶';
-          if (expanded.has(id)) toggleBtn.classList.add('expanded');
+    const toggleBtn = document.createElement('button');
+    toggleBtn.type = 'button';
+    toggleBtn.className = 'spr-node-toggle' + (kids.length ? '' : ' no-children');
+    toggleBtn.setAttribute('aria-label', 'Развернуть/свернуть');
+    toggleBtn.textContent = '▶';
+    if (expanded.has(id)) toggleBtn.classList.add('expanded');
 
-          const icon = document.createElement('span');
-          icon.className = 'spr-node-icon';
-          icon.textContent = topic.type === 'folder' ? '📁' : '📄';
+    const icon = document.createElement('span');
+    icon.className = 'spr-node-icon';
+    icon.textContent = topic.type === 'folder' ? '📁' : '📄';
 
-          const titleBtn = document.createElement('button');
-          titleBtn.type = 'button';
-          titleBtn.className = 'spr-node-title';
-          titleBtn.textContent = topic.title;
+    const titleBtn = document.createElement('button');
+    titleBtn.type = 'button';
+    titleBtn.className = 'spr-node-title';
+    titleBtn.textContent = topic.title;
 
-          row.addEventListener('click', (e) => {
-            if (e.target.closest('.spr-node-toggle')) return;
-            navigate(id);
-          });
+    row.addEventListener('click', (e) => {
+      if (e.target.closest('.spr-node-toggle')) return;
+      navigate(id);
+    });
 
-          if (kids.length) {
-            toggleBtn.addEventListener('click', (e) => {
-              e.stopPropagation();
-              const isExpanded = expanded.has(id);
-              const childrenWrap = li.querySelector(':scope > .spr-node-children');
-              if (!childrenWrap) return;
+    if (kids.length) {
+      toggleBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const isExpanded = expanded.has(id);
+        const childrenWrap = li.querySelector(':scope > .spr-node-children');
+        if (!childrenWrap) return;
 
-              if (isExpanded) {
-                // ===== СВОРАЧИВАНИЕ =====
-                childrenWrap.classList.add('collapsing');
-                childrenWrap.classList.remove('expanding');
-                toggleBtn.classList.remove('expanded');
-                // Принудительный reflow для запуска анимации
-                void childrenWrap.offsetHeight;
-
-                const disappearDelay = 350 + kids.length * 10;
-                setTimeout(() => {
-                  expanded.delete(id);
-                  childrenWrap.classList.remove('expanded');
-                  setTimeout(() => {
-                    childrenWrap.classList.remove('collapsing');
-                  }, 400);
-                }, disappearDelay);
-              } else {
-                // ===== РАЗВОРАЧИВАНИЕ =====
-                childrenWrap.classList.add('expanding');
-                childrenWrap.classList.remove('collapsing');
-                toggleBtn.classList.add('expanded');
-                expanded.add(id);
-                childrenWrap.classList.add('expanded');
-                setTimeout(() => {
-                  childrenWrap.classList.remove('expanding');
-                }, 400);
-              }
-            });
-          }
-
-          row.append(toggleBtn, icon, titleBtn);
-          li.appendChild(row);
-
-          if (kids.length) {
-            const childrenWrap = document.createElement('div');
-            childrenWrap.className = 'spr-node-children' + (expanded.has(id) ? ' expanded' : '');
-            childrenWrap.appendChild(buildList(kids));
-            li.appendChild(childrenWrap);
-          }
-
-          ul.appendChild(li);
+        if (isExpanded) {
+          // === УПРОЩЁННОЕ СВОРАЧИВАНИЕ ===
+          childrenWrap.classList.add('collapsing');
+          childrenWrap.classList.remove('expanding');
+          toggleBtn.classList.remove('expanded');
+          expanded.delete(id);
+          childrenWrap.classList.remove('expanded');
+          setTimeout(() => {
+            childrenWrap.classList.remove('collapsing');
+          }, 300);
+        } else {
+          // Разворачивание
+          childrenWrap.classList.add('expanding');
+          childrenWrap.classList.remove('collapsing');
+          toggleBtn.classList.add('expanded');
+          expanded.add(id);
+          childrenWrap.classList.add('expanded');
+          setTimeout(() => {
+            childrenWrap.classList.remove('expanding');
+          }, 400);
         }
-        return ul;
-      }
+      });
+    }
 
+    row.append(toggleBtn, icon, titleBtn);
+    li.appendChild(row);
+
+    if (kids.length) {
+      const childrenWrap = document.createElement('div');
+      childrenWrap.className = 'spr-node-children' + (expanded.has(id) ? ' expanded' : '');
+      childrenWrap.appendChild(buildList(kids));
+      li.appendChild(childrenWrap);
+    }
+
+    ul.appendChild(li);
+  }
+  return ul;
+}
       function highlightActive() {
         if (currentId) {
           const activeRow = els.tree.querySelector(`li[data-id="${currentId}"] > .spr-node-row`);
