@@ -418,7 +418,6 @@
       background: var(--bg-body);
       color: var(--text-primary);
     }
-    /* Анимация для select при раскрытии — добавляем псевдо-эффект */
     .spr-filters select:focus option {
       animation: slideDown 0.2s ease;
     }
@@ -427,7 +426,6 @@
       to { opacity: 1; transform: translateY(0); }
     }
 
-    /* Параметры поиска — вкладка */
     .spr-search-options-wrap {
       border: 1px solid var(--border);
       border-radius: 0.6rem;
@@ -1197,14 +1195,13 @@
         for (const t of list) {
           topicsById.set(t.id, t);
           if (!t.class) t.class = 'other';
-          if (t.difficulty === undefined) t.difficulty = 3; // по умолчанию средняя сложность
+          if (t.difficulty === undefined) t.difficulty = 3;
         }
         for (const t of list) {
           const key = t.parent || '__root__';
           if (!childrenOf.has(key)) childrenOf.set(key, []);
           childrenOf.get(key).push(t.id);
         }
-        // Обновляем select классов
         const classes = new Set();
         for (const t of list) {
           if (t.class) classes.add(t.class);
@@ -1361,22 +1358,23 @@
               if (!childrenWrap) return;
 
               if (isExpanded) {
-                // Сворачивание: сначала исчезают дочерние элементы
+                // ===== СВОРАЧИВАНИЕ =====
                 childrenWrap.classList.add('collapsing');
                 childrenWrap.classList.remove('expanding');
                 toggleBtn.classList.remove('expanded');
-                // Через время исчезновения дочерних (250ms + задержки) убираем expanded, чтобы схлопнулся контейнер
-                const totalDelay = 300 + (kids.length * 15);
+                // Принудительный reflow для запуска анимации
+                void childrenWrap.offsetHeight;
+
+                const disappearDelay = 350 + kids.length * 10;
                 setTimeout(() => {
                   expanded.delete(id);
-                  childrenWrap.classList.remove('expanded'); // схлопывание max-height
-                  // Ещё через время убираем collapsing
+                  childrenWrap.classList.remove('expanded');
                   setTimeout(() => {
                     childrenWrap.classList.remove('collapsing');
-                  }, 350);
-                }, totalDelay);
+                  }, 400);
+                }, disappearDelay);
               } else {
-                // Разворачивание
+                // ===== РАЗВОРАЧИВАНИЕ =====
                 childrenWrap.classList.add('expanding');
                 childrenWrap.classList.remove('collapsing');
                 toggleBtn.classList.add('expanded');
