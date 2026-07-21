@@ -143,7 +143,7 @@
       overflow-y: auto;
     }
 
-    /* ===== ПОИСК ===== */
+    /* ===== ПОИСК И ФИЛЬТРЫ ===== */
     .spr-search {
       margin-bottom: 1rem;
       flex: 0 0 auto;
@@ -206,7 +206,35 @@
     .spr-search-input-wrap.has-value .spr-search-clear { display: block; }
     .spr-search-clear:hover { color: var(--text-primary); }
 
-    /* ===== ПАРАМЕТРЫ ПОИСКА (вкладка) ===== */
+    /* Фильтры: класс и сортировка */
+    .spr-filters {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 0.6rem;
+      flex-wrap: wrap;
+    }
+    .spr-filters select {
+      flex: 1 1 auto;
+      min-width: 100px;
+      padding: 0.4rem 0.6rem;
+      border-radius: 0.5rem;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.05);
+      color: var(--text-primary);
+      font-size: 0.82rem;
+      outline: none;
+      cursor: pointer;
+      transition: border-color 0.2s;
+    }
+    .spr-filters select:focus {
+      border-color: var(--accent);
+    }
+    .spr-filters select option {
+      background: var(--bg-body);
+      color: var(--text-primary);
+    }
+
+    /* Параметры поиска — вкладка */
     .spr-search-options-wrap {
       border: 1px solid var(--border);
       border-radius: 0.6rem;
@@ -393,12 +421,11 @@
     .spr-node-children {
       overflow: hidden;
       max-height: 0;
-      transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      transition: max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1);
     }
     .spr-node-children.expanded { max-height: 4000px; }
+
     .spr-node-children > ul > li {
-      animation: none;
-      opacity: 1;
       transition: opacity 0.25s ease, transform 0.25s ease;
     }
     .spr-node-children.collapsing > ul > li {
@@ -832,6 +859,10 @@
       let historyIndex = -1;
       let isNavigating = false;
 
+      // Фильтр и сортировка
+      let classFilter = 'all'; // 'all', '7', '8', '9', '10', '11', 'other'
+      let sortMode = 'default'; // 'default', 'class-asc', 'class-desc', 'alpha-asc', 'alpha-desc', 'difficulty-asc', 'difficulty-desc'
+
       // ---- DOM ----
       let els = {};
       let loaderEl = document.getElementById('sprLoader');
@@ -846,7 +877,6 @@
         }
       }
 
-      // Применяем тему к логотипу загрузчика
       function applyThemeToLoader() {
         const isLight = document.documentElement.classList.contains('light');
         const img = loaderEl?.querySelector('.spr-loader-logo img');
@@ -855,10 +885,7 @@
           if (src) img.src = src;
         }
       }
-      // Следим за сменой темы, чтобы логотип в загрузчике тоже менялся (если он ещё виден)
-      const themeObserver = new MutationObserver(() => {
-        applyThemeToLoader();
-      });
+      const themeObserver = new MutationObserver(() => applyThemeToLoader());
       themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
 
       // ===================================================================
@@ -884,6 +911,27 @@
                       <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16" y1="16" x2="22" y2="22"/></svg>
                     </span>
                     <button type="button" class="spr-search-clear" id="sprSearchClear">✕</button>
+                  </div>
+
+                  <div class="spr-filters">
+                    <select id="sprClassFilter">
+                      <option value="all">Все классы</option>
+                      <option value="7">7 класс</option>
+                      <option value="8">8 класс</option>
+                      <option value="9">9 класс</option>
+                      <option value="10">10 класс</option>
+                      <option value="11">11 класс</option>
+                      <option value="other">Не проходят в школе</option>
+                    </select>
+                    <select id="sprSortMode">
+                      <option value="default">По умолчанию</option>
+                      <option value="class-asc">По классу (возр.)</option>
+                      <option value="class-desc">По классу (убыв.)</option>
+                      <option value="alpha-asc">По алфавиту А→Я</option>
+                      <option value="alpha-desc">По алфавиту Я→А</option>
+                      <option value="difficulty-asc">По сложности (возр.)</option>
+                      <option value="difficulty-desc">По сложности (убыв.)</option>
+                    </select>
                   </div>
 
                   <div class="spr-search-options-wrap">
@@ -954,6 +1002,8 @@
           title: document.getElementById('sprTitle'),
           description: document.getElementById('sprDescription'),
           example: document.getElementById('sprExample'),
+          classFilter: document.getElementById('sprClassFilter'),
+          sortMode: document.getElementById('sprSortMode'),
         };
         return true;
       }
@@ -1037,7 +1087,7 @@
           els.overlay.classList.remove('visible');
         });
 
-        // Параметры поиска — сворачиваемая вкладка
+        // Параметры поиска — вкладка
         let optionsOpen = false;
         els.searchOptionsHeader.addEventListener('click', () => {
           optionsOpen = !optionsOpen;
@@ -1062,10 +1112,20 @@
           if (currentId) renderTopic(currentId, { skipScroll: true, noHistory: true });
         });
 
-        // При изменении темы обновляем логотип в загрузчике (если он ещё виден)
-        const themeObserver2 = new MutationObserver(() => {
-          applyThemeToLoader();
+        // Фильтр и сортировка
+        els.classFilter.addEventListener('change', () => {
+          classFilter = els.classFilter.value;
+          renderTree();
+          if (currentId) renderTopic(currentId, { skipScroll: true, noHistory: true });
         });
+        els.sortMode.addEventListener('change', () => {
+          sortMode = els.sortMode.value;
+          renderTree();
+          if (currentId) renderTopic(currentId, { skipScroll: true, noHistory: true });
+        });
+
+        // Следим за темой для логотипа загрузчика
+        const themeObserver2 = new MutationObserver(() => applyThemeToLoader());
         themeObserver2.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
       }
 
@@ -1092,24 +1152,137 @@
         topics = list;
         topicsById.clear();
         childrenOf.clear();
-        for (const t of list) topicsById.set(t.id, t);
+        for (const t of list) {
+          topicsById.set(t.id, t);
+          // Если нет поля class, ставим 'other' по умолчанию
+          if (!t.class) t.class = 'other';
+        }
         for (const t of list) {
           const key = t.parent || '__root__';
           if (!childrenOf.has(key)) childrenOf.set(key, []);
           childrenOf.get(key).push(t.id);
         }
+        // Собираем все уникальные классы для фильтра
+        const classes = new Set();
+        for (const t of list) {
+          if (t.class) classes.add(t.class);
+        }
+        // Обновляем select классов
+        const sel = els.classFilter;
+        if (sel) {
+          // Сохраняем выбранное значение, если оно есть
+          const current = sel.value;
+          sel.innerHTML = '<option value="all">Все классы</option>';
+          const sorted = Array.from(classes).sort((a, b) => {
+            if (a === 'other') return 1;
+            if (b === 'other') return -1;
+            return parseInt(a) - parseInt(b);
+          });
+          for (const cls of sorted) {
+            const opt = document.createElement('option');
+            opt.value = cls;
+            opt.textContent = cls === 'other' ? 'Не проходят в школе' : cls + ' класс';
+            sel.appendChild(opt);
+          }
+          if (current && sel.querySelector(`option[value="${current}"]`)) {
+            sel.value = current;
+            classFilter = current;
+          } else {
+            sel.value = 'all';
+            classFilter = 'all';
+          }
+        }
       }
 
-      function getChildren(id) { return childrenOf.get(id || '__root__') || []; }
+      function getChildren(parentId) {
+        return childrenOf.get(parentId || '__root__') || [];
+      }
+
+      // ===================================================================
+      // ФИЛЬТРАЦИЯ И СОРТИРОВКА
+      // ===================================================================
+      function filterTopic(id) {
+        const topic = topicsById.get(id);
+        if (!topic) return false;
+        if (classFilter === 'all') return true;
+        // Если тема соответствует классу — показываем
+        if (topic.class === classFilter) return true;
+        // Если тема папка и у неё есть дочерние, которые проходят фильтр — показываем
+        const children = getChildren(id);
+        for (const childId of children) {
+          if (filterTopic(childId)) return true;
+        }
+        return false;
+      }
+
+      function getFilteredChildren(parentId) {
+        const children = getChildren(parentId);
+        const filtered = children.filter(id => filterTopic(id));
+        // Сортировка
+        return sortChildren(filtered);
+      }
+
+      function sortChildren(ids) {
+        const mode = sortMode;
+        if (mode === 'default') return ids;
+
+        const getSortKey = (id) => {
+          const topic = topicsById.get(id);
+          if (!topic) return '';
+          switch (mode) {
+            case 'class-asc': return topic.class || 'other';
+            case 'class-desc': return topic.class || 'other';
+            case 'alpha-asc': return topic.title || '';
+            case 'alpha-desc': return topic.title || '';
+            case 'difficulty-asc': return topic.difficulty !== undefined ? topic.difficulty : 999;
+            case 'difficulty-desc': return topic.difficulty !== undefined ? topic.difficulty : -999;
+            default: return '';
+          }
+        };
+
+        const sorted = [...ids];
+        sorted.sort((a, b) => {
+          const ta = topicsById.get(a);
+          const tb = topicsById.get(b);
+          if (!ta || !tb) return 0;
+
+          let keyA, keyB;
+          switch (mode) {
+            case 'class-asc':
+              keyA = ta.class || 'other';
+              keyB = tb.class || 'other';
+              if (keyA === 'other') return 1;
+              if (keyB === 'other') return -1;
+              return parseInt(keyA) - parseInt(keyB);
+            case 'class-desc':
+              keyA = ta.class || 'other';
+              keyB = tb.class || 'other';
+              if (keyA === 'other') return -1;
+              if (keyB === 'other') return 1;
+              return parseInt(keyB) - parseInt(keyA);
+            case 'alpha-asc':
+              return (ta.title || '').localeCompare(tb.title || '', 'ru');
+            case 'alpha-desc':
+              return (tb.title || '').localeCompare(ta.title || '', 'ru');
+            case 'difficulty-asc':
+              return (ta.difficulty !== undefined ? ta.difficulty : 999) - (tb.difficulty !== undefined ? tb.difficulty : 999);
+            case 'difficulty-desc':
+              return (tb.difficulty !== undefined ? tb.difficulty : -999) - (ta.difficulty !== undefined ? ta.difficulty : -999);
+            default:
+              return 0;
+          }
+        });
+        return sorted;
+      }
 
       // ===================================================================
       // ДЕРЕВО
       // ===================================================================
       function renderTree() {
         els.tree.innerHTML = '';
-        const rootIds = getChildren(null);
+        const rootIds = getFilteredChildren(null);
         if (rootIds.length === 0) {
-          els.tree.innerHTML = '<p class="spr-search-empty visible">Темы не найдены</p>';
+          els.tree.innerHTML = '<p class="spr-search-empty visible">Нет тем, соответствующих фильтру</p>';
           return;
         }
         const ul = buildList(rootIds);
@@ -1133,7 +1306,7 @@
         for (const id of ids) {
           const topic = topicsById.get(id);
           if (!topic) continue;
-          const kids = getChildren(id);
+          const kids = getFilteredChildren(id);
           const li = document.createElement('li');
           li.dataset.id = id;
 
@@ -1157,13 +1330,11 @@
           titleBtn.className = 'spr-node-title';
           titleBtn.textContent = topic.title;
 
-          // Клик по всей строке
           row.addEventListener('click', (e) => {
             if (e.target.closest('.spr-node-toggle')) return;
             navigate(id);
           });
 
-          // Обработчик тогла — разворачивание/сворачивание с анимацией
           if (kids.length) {
             toggleBtn.addEventListener('click', (e) => {
               e.stopPropagation();
@@ -1172,21 +1343,22 @@
               if (!childrenWrap) return;
 
               if (isExpanded) {
-                // сворачиваем
+                // Сворачивание с анимацией
                 childrenWrap.classList.add('collapsing');
                 childrenWrap.classList.remove('expanding');
                 toggleBtn.classList.remove('expanded');
                 expanded.delete(id);
+                // Ждём окончания анимации (350ms + задержка на последний элемент)
+                const totalDelay = 350 + (kids.length * 20);
                 setTimeout(() => {
                   childrenWrap.classList.remove('expanded', 'collapsing');
-                }, 400);
+                }, totalDelay);
               } else {
-                // разворачиваем
+                // Разворачивание
                 childrenWrap.classList.add('expanding');
                 childrenWrap.classList.remove('collapsing');
                 toggleBtn.classList.add('expanded');
                 expanded.add(id);
-                // добавляем класс expanded для max-height
                 childrenWrap.classList.add('expanded');
                 setTimeout(() => {
                   childrenWrap.classList.remove('expanding');
@@ -1214,14 +1386,11 @@
         if (currentId) {
           const activeRow = els.tree.querySelector(`li[data-id="${currentId}"] > .spr-node-row`);
           if (activeRow) {
-            // Убираем старые активные классы
             els.tree.querySelectorAll('.spr-node-row.active').forEach(r => r.classList.remove('active'));
             activeRow.classList.add('active');
-            // анимация "дёрганья"
             activeRow.classList.remove('spr-active-transition');
             void activeRow.offsetWidth;
             activeRow.classList.add('spr-active-transition');
-            // Прокручиваем к активному элементу
             setTimeout(() => {
               activeRow.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
             }, 100);
@@ -1278,7 +1447,6 @@
       function simpleIncludes(haystack, needle) { return normalize(haystack).includes(normalize(needle)); }
 
       function matchesTopic(topic, query, opts) {
-        // Порядок: сначала заголовок, потом ключевые слова, потом описание
         const test = opts.fuzzy ? fuzzyIncludes : simpleIncludes;
         if (test(topic.title, query)) return true;
         if (opts.keywords && topic.keywords && test(topic.keywords, query)) return true;
@@ -1313,15 +1481,26 @@
         const opts = currentSearchOptions();
         const matchedIds = new Set();
         const ancestorIds = new Set();
-        for (const t of topics) {
-          if (matchesTopic(t, query, opts)) {
-            matchedIds.add(t.id);
+        // Сначала фильтруем только видимые темы (которые прошли фильтр класса)
+        const visibleIds = new Set();
+        function collectVisible(parentId) {
+          const children = getFilteredChildren(parentId);
+          for (const id of children) {
+            visibleIds.add(id);
+            collectVisible(id);
+          }
+        }
+        collectVisible(null);
+
+        for (const id of visibleIds) {
+          const t = topicsById.get(id);
+          if (t && matchesTopic(t, query, opts)) {
+            matchedIds.add(id);
             let p = t.parent;
             while (p) { ancestorIds.add(p); p = topicsById.get(p) ? topicsById.get(p).parent : null; }
           }
         }
         if (matchedIds.size === 0) els.searchEmpty.classList.add('visible');
-        // Раскрываем родительские узлы для найденных тем
         ancestorIds.forEach(id => expanded.add(id));
         els.tree.querySelectorAll('li[data-id]').forEach(li => {
           const id = li.dataset.id;
@@ -1497,11 +1676,11 @@
           historyIndex = currentIdx !== -1 ? currentIdx : historyStack.length;
           navigate(id, { direction, noHistory: true });
         } else {
-          const roots = getChildren(null);
+          const roots = getFilteredChildren(null);
           if (roots.length) {
             location.hash = roots[0];
           } else {
-            showEmptyState('Темы ещё не добавлены.');
+            showEmptyState('Нет тем, соответствующих фильтру.');
           }
         }
       }
@@ -1523,7 +1702,6 @@
         expandAncestorsOf(id);
         renderTree();
 
-        // Заголовок
         els.title.innerHTML = '';
         if (lastQuery && els.optHighlight.checked) {
           els.title.textContent = topic.title;
@@ -1642,10 +1820,9 @@
             status.classList.add('error');
             return;
           }
-          // После загрузки iframe — плавно показываем его
           frame.addEventListener('load', () => {
-            status.hidden = true; // скрываем статус
-            frame.classList.add('loaded'); // включаем плавное появление
+            status.hidden = true;
+            frame.classList.add('loaded');
             sendThemeToFrame(frame);
           }, { once: true });
           frame.srcdoc = result.html;
@@ -1699,7 +1876,7 @@
         });
 
         const hashId = decodeURIComponent(location.hash.replace(/^#/, ''));
-        let startId = hashId && topicsById.has(hashId) ? hashId : getChildren(null)[0];
+        let startId = hashId && topicsById.has(hashId) ? hashId : getFilteredChildren(null)[0];
         if (startId) {
           historyStack = [startId];
           historyIndex = 0;
