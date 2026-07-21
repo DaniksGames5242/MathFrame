@@ -26,14 +26,69 @@
   <style>
     /* =====================================================================
        СПРАВОЧНИК — стили страницы
-       Использует переменные из common.css (--accent, --bg-card, --border, ...)
        ===================================================================== */
 
     :root {
       --spr-sidebar-width: 320px;
+      --spr-sidebar-min-width: 200px;
+      --spr-sidebar-max-width: 500px;
       --spr-gap: 1.75rem;
+      --spr-transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
+    /* ===== ЗАГРУЗОЧНЫЙ ЭКРАН ===== */
+    .spr-loader {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg-body);
+      transition: opacity 0.8s ease, visibility 0.8s ease;
+    }
+    .spr-loader.hidden {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+    .spr-loader-logo {
+      width: 80px;
+      height: 80px;
+      margin-bottom: 1.5rem;
+      animation: loaderSpin 1.2s cubic-bezier(0.5, 0, 0.5, 1) infinite;
+    }
+    .spr-loader-logo svg {
+      width: 100%;
+      height: 100%;
+      fill: var(--accent);
+    }
+    .spr-loader-ring {
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      border: 4px solid var(--border);
+      border-top-color: var(--accent);
+      animation: loaderSpin 0.8s linear infinite;
+    }
+    .spr-loader-text {
+      margin-top: 1.5rem;
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+      letter-spacing: 0.1em;
+      animation: pulseText 1.5s ease-in-out infinite;
+    }
+
+    @keyframes loaderSpin {
+      to { transform: rotate(360deg); }
+    }
+    @keyframes pulseText {
+      0%, 100% { opacity: 0.5; }
+      50% { opacity: 1; }
+    }
+
+    /* ===== ЛЕЙАУТ ===== */
     .spr-layout {
       display: flex;
       align-items: flex-start;
@@ -41,7 +96,7 @@
       position: relative;
     }
 
-    /* ===== БОКОВАЯ ПАНЕЛЬ ===== */
+    /* ===== САЙДБАР ===== */
     .spr-sidebar {
       position: fixed;
       top: var(--header-height);
@@ -53,9 +108,42 @@
       backdrop-filter: blur(20px);
       -webkit-backdrop-filter: blur(20px);
       border-right: 1px solid var(--border);
-      transition: var(--theme-transition), transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      transition: background var(--spr-transition), border-color var(--spr-transition),
+                  transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
       z-index: 60;
       overscroll-behavior: contain;
+      resize: none;
+    }
+    .spr-sidebar-resizer {
+      position: absolute;
+      right: -6px;
+      top: 0;
+      height: 100%;
+      width: 12px;
+      cursor: col-resize;
+      z-index: 65;
+      background: transparent;
+      transition: background 0.2s;
+    }
+    .spr-sidebar-resizer:hover,
+    .spr-sidebar-resizer.active {
+      background: rgba(99, 102, 241, 0.15);
+    }
+    .spr-sidebar-resizer::after {
+      content: '';
+      position: absolute;
+      right: 4px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 2px;
+      height: 40px;
+      background: var(--border);
+      border-radius: 2px;
+      transition: background 0.2s;
+    }
+    .spr-sidebar-resizer:hover::after,
+    .spr-sidebar-resizer.active::after {
+      background: var(--accent);
     }
 
     .spr-sidebar-inner {
@@ -71,12 +159,10 @@
       margin-bottom: 1rem;
       flex: 0 0 auto;
     }
-
     .spr-search-input-wrap {
       position: relative;
       margin-bottom: 0.6rem;
     }
-
     .spr-search-input-wrap input[type="search"] {
       width: 100%;
       padding: 0.65rem 2.2rem 0.65rem 0.9rem;
@@ -88,7 +174,10 @@
       outline: none;
       transition: border-color 0.2s, box-shadow 0.2s;
     }
-    .spr-search-input-wrap input[type="search"]:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(99,102,241,0.15); }
+    .spr-search-input-wrap input[type="search"]:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(99,102,241,0.15);
+    }
     .spr-search-input-wrap input[type="search"]::-webkit-search-cancel-button { display: none; }
 
     .spr-search-clear {
@@ -120,7 +209,6 @@
       border-radius: 0.6rem;
       background: rgba(255,255,255,0.03);
     }
-
     .spr-search-options label {
       display: flex;
       align-items: center;
@@ -135,7 +223,6 @@
       cursor: pointer;
       flex: 0 0 auto;
     }
-
     .spr-search-empty {
       font-size: 0.85rem;
       color: var(--text-secondary);
@@ -149,17 +236,23 @@
     .spr-tree {
       flex: 1 1 auto;
       overflow-y: auto;
-      animation: fadeIn 0.2s ease;
     }
-
     .spr-tree ul {
       list-style: none;
       margin: 0;
       padding-left: 0.95rem;
     }
     .spr-tree > ul { padding-left: 0; }
-
-    .spr-tree li { margin: 0.05rem 0; }
+    .spr-tree li {
+      margin: 0.05rem 0;
+      opacity: 0;
+      animation: fadeSlideIn 0.25s ease forwards;
+    }
+    /* анимация только при первом рендере — управляется через JS */
+    .spr-tree li.spr-no-anim {
+      animation: none;
+      opacity: 1;
+    }
 
     .spr-node-row {
       display: flex;
@@ -167,10 +260,14 @@
       gap: 0.35rem;
       border-radius: 0.45rem;
       padding: 0.35rem 0.4rem;
-      transition: background 0.2s, opacity 0.2s;
-      cursor: default;
+      transition: background 0.2s, opacity 0.2s, transform 0.2s;
+      cursor: pointer;
+      position: relative;
     }
-    .spr-node-row:hover { background: rgba(255,255,255,0.06); }
+    .spr-node-row:hover {
+      background: rgba(255,255,255,0.06);
+      transform: translateX(2px);
+    }
     .spr-node-row.active {
       background: rgba(99, 102, 241, 0.18);
       position: relative;
@@ -185,7 +282,18 @@
       background: var(--accent);
       border-radius: 0 2px 2px 0;
     }
-    .spr-node-row.active .spr-node-title { color: var(--accent); font-weight: 600; }
+    .spr-node-row.active .spr-node-title {
+      color: var(--accent);
+      font-weight: 600;
+    }
+    .spr-node-row.spr-active-transition {
+      animation: nodePop 0.4s ease;
+    }
+    @keyframes nodePop {
+      0% { transform: scale(1); }
+      40% { transform: scale(1.04); background: rgba(99,102,241,0.25); }
+      100% { transform: scale(1); }
+    }
 
     .spr-node-toggle {
       flex: 0 0 auto;
@@ -203,7 +311,10 @@
       padding: 0;
       border-radius: 4px;
     }
-    .spr-node-toggle:hover { color: var(--text-primary); background: rgba(255,255,255,0.05); }
+    .spr-node-toggle:hover {
+      color: var(--text-primary);
+      background: rgba(255,255,255,0.05);
+    }
     .spr-node-toggle.no-children { visibility: hidden; }
     .spr-node-toggle.expanded { transform: rotate(90deg); }
 
@@ -212,7 +323,6 @@
       font-size: 0.95rem;
       line-height: 1;
     }
-
     .spr-node-title {
       flex: 1 1 auto;
       background: none;
@@ -232,9 +342,37 @@
     .spr-node-children {
       overflow: hidden;
       max-height: 0;
-      transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1);
     }
     .spr-node-children.expanded { max-height: 4000px; }
+    .spr-node-children > ul > li {
+      animation: none;
+      opacity: 1;
+      transition: opacity 0.25s ease, transform 0.25s ease;
+    }
+    .spr-node-children.collapsing > ul > li {
+      opacity: 0;
+      transform: translateX(-8px);
+    }
+    .spr-node-children.expanding > ul > li {
+      opacity: 0;
+      transform: translateX(-8px);
+    }
+    .spr-node-children.expanded > ul > li {
+      opacity: 1;
+      transform: translateX(0);
+    }
+    /* поочередное появление */
+    .spr-node-children.expanded > ul > li:nth-child(1) { transition-delay: 0.02s; }
+    .spr-node-children.expanded > ul > li:nth-child(2) { transition-delay: 0.04s; }
+    .spr-node-children.expanded > ul > li:nth-child(3) { transition-delay: 0.06s; }
+    .spr-node-children.expanded > ul > li:nth-child(4) { transition-delay: 0.08s; }
+    .spr-node-children.expanded > ul > li:nth-child(5) { transition-delay: 0.10s; }
+    .spr-node-children.expanded > ul > li:nth-child(6) { transition-delay: 0.12s; }
+    .spr-node-children.expanded > ul > li:nth-child(7) { transition-delay: 0.14s; }
+    .spr-node-children.expanded > ul > li:nth-child(8) { transition-delay: 0.16s; }
+    .spr-node-children.expanded > ul > li:nth-child(9) { transition-delay: 0.18s; }
+    .spr-node-children.expanded > ul > li:nth-child(10) { transition-delay: 0.20s; }
 
     .spr-node-row.search-dim { opacity: 0.35; }
     .spr-node-row.search-match .spr-node-title mark {
@@ -250,7 +388,23 @@
       flex: 1 1 auto;
       min-width: 0;
       padding: 2rem 2.5rem 4rem;
-      animation: fadeIn 0.35s ease;
+      overflow: hidden;
+    }
+    .spr-content-inner {
+      position: relative;
+      transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.4s ease;
+    }
+    .spr-content-inner.slide-left {
+      transform: translateX(-40px);
+      opacity: 0;
+    }
+    .spr-content-inner.slide-right {
+      transform: translateX(40px);
+      opacity: 0;
+    }
+    .spr-content-inner.slide-none {
+      transform: none;
+      opacity: 1;
     }
 
     .spr-empty-state {
@@ -269,7 +423,6 @@
       flex-wrap: wrap;
       margin-bottom: 0.9rem;
     }
-
     .spr-breadcrumb {
       font-size: 0.85rem;
       color: var(--text-secondary);
@@ -289,10 +442,24 @@
       border-radius: 0.3rem;
       transition: color 0.2s, background 0.2s;
     }
-    .spr-breadcrumb button:hover { color: var(--accent); background: rgba(255,255,255,0.05); text-decoration: underline; }
-    .spr-breadcrumb button.current { color: var(--text-primary); cursor: default; font-weight: 600; }
-    .spr-breadcrumb button.current:hover { text-decoration: none; background: none; }
-    .spr-breadcrumb .sep { color: var(--text-secondary); opacity: 0.6; }
+    .spr-breadcrumb button:hover {
+      color: var(--accent);
+      background: rgba(255,255,255,0.05);
+      text-decoration: underline;
+    }
+    .spr-breadcrumb button.current {
+      color: var(--text-primary);
+      cursor: default;
+      font-weight: 600;
+    }
+    .spr-breadcrumb button.current:hover {
+      text-decoration: none;
+      background: none;
+    }
+    .spr-breadcrumb .sep {
+      color: var(--text-secondary);
+      opacity: 0.6;
+    }
 
     .spr-nav-buttons {
       display: flex;
@@ -313,7 +480,10 @@
       transition: var(--theme-transition), transform 0.15s, background 0.2s;
       white-space: nowrap;
     }
-    .spr-nav-buttons button:hover { background: rgba(255,255,255,0.09); transform: translateY(-1px); }
+    .spr-nav-buttons button:hover {
+      background: rgba(255,255,255,0.09);
+      transform: translateY(-1px);
+    }
     .spr-nav-buttons button[hidden] { display: none; }
 
     .spr-title {
@@ -323,16 +493,18 @@
       line-height: 1.2;
       animation: fadeIn 0.3s ease;
     }
-    .spr-title mark { background: rgba(129, 140, 248, 0.35); border-radius: 0.2rem; padding: 0 0.15rem; }
+    .spr-title mark {
+      background: rgba(129, 140, 248, 0.35);
+      border-radius: 0.2rem;
+      padding: 0 0.15rem;
+    }
 
-    /* ===== ТЕЛО: ОПИСАНИЕ + ПРИМЕР ===== */
+    /* ===== ТЕЛО ===== */
     .spr-body {
       display: flex;
       align-items: flex-start;
       gap: var(--spr-gap);
-      animation: fadeIn 0.4s ease;
     }
-
     .spr-description {
       flex: 1 1 50%;
       min-width: 0;
@@ -349,7 +521,12 @@
     .spr-description p { margin: 0 0 0.9rem; }
     .spr-description ul, .spr-description ol { margin: 0 0 0.9rem 1.3rem; }
     .spr-description li { margin-bottom: 0.3rem; }
-    .spr-description a { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; transition: color 0.2s; }
+    .spr-description a {
+      color: var(--accent);
+      text-decoration: underline;
+      text-underline-offset: 2px;
+      transition: color 0.2s;
+    }
     .spr-description a:hover { color: var(--accent-hover); }
     .spr-description mark {
       background: rgba(129, 140, 248, 0.35);
@@ -358,7 +535,11 @@
       padding: 0 0.1rem;
     }
     .spr-description .katex { font-size: 1.05em; }
-    .spr-description .katex-display { overflow-x: auto; overflow-y: hidden; padding: 0.3rem 0; }
+    .spr-description .katex-display {
+      overflow-x: auto;
+      overflow-y: hidden;
+      padding: 0.3rem 0;
+    }
 
     .spr-example {
       flex: 1 1 50%;
@@ -397,6 +578,7 @@
       position: absolute;
       inset: 0;
       display: flex;
+      flex-direction: column;
       align-items: center;
       justify-content: center;
       text-align: center;
@@ -404,40 +586,23 @@
       color: var(--text-secondary);
       font-size: 0.9rem;
       background: var(--bg-card);
+      gap: 0.8rem;
     }
-    .spr-example-status.error { color: #ef4444; white-space: pre-wrap; }
+    .spr-example-status .loader-ring {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      animation: loaderSpin 0.8s linear infinite;
+    }
+    .spr-example-status.error { color: #ef4444; }
+    .spr-example-status.error .loader-ring { display: none; }
     .spr-example-status[hidden] { display: none; }
 
-    .spr-no-example {
-      display: none; /* убираем полностью — блок примера скрывается для папок */
-    }
+    .spr-no-example { display: none; }
 
-    /* ===== АНИМАЦИИ ===== */
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(6px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-
-    @keyframes fadeSlideIn {
-      from { opacity: 0; transform: translateX(-8px); }
-      to { opacity: 1; transform: translateX(0); }
-    }
-
-    .spr-tree li {
-      animation: fadeSlideIn 0.25s ease both;
-    }
-    .spr-tree li:nth-child(1) { animation-delay: 0.02s; }
-    .spr-tree li:nth-child(2) { animation-delay: 0.04s; }
-    .spr-tree li:nth-child(3) { animation-delay: 0.06s; }
-    .spr-tree li:nth-child(4) { animation-delay: 0.08s; }
-    .spr-tree li:nth-child(5) { animation-delay: 0.10s; }
-    .spr-tree li:nth-child(6) { animation-delay: 0.12s; }
-    .spr-tree li:nth-child(7) { animation-delay: 0.14s; }
-    .spr-tree li:nth-child(8) { animation-delay: 0.16s; }
-    .spr-tree li:nth-child(9) { animation-delay: 0.18s; }
-    .spr-tree li:nth-child(10) { animation-delay: 0.20s; }
-
-    /* ===== МОБИЛЬНОЕ МЕНЮ (гамбургер + оверлей) ===== */
+    /* ===== МОБИЛЬНОЕ МЕНЮ ===== */
     .spr-menu-toggle {
       display: none;
       position: fixed;
@@ -451,14 +616,27 @@
       background: var(--bg-card);
       backdrop-filter: blur(16px);
       color: var(--text-primary);
-      font-size: 1.2rem;
       cursor: pointer;
       align-items: center;
       justify-content: center;
       box-shadow: var(--shadow);
       transition: transform 0.2s, background 0.2s;
+      flex-direction: column;
+      justify-content: space-around;
+      padding: 10px 8px;
     }
     .spr-menu-toggle:hover { transform: scale(1.05); background: rgba(255,255,255,0.08); }
+    .spr-menu-toggle span {
+      display: block;
+      width: 100%;
+      height: 2px;
+      border-radius: 2px;
+      background: var(--text-primary);
+      transition: transform 0.25s, opacity 0.25s, background 0.25s;
+    }
+    .spr-menu-toggle.open span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+    .spr-menu-toggle.open span:nth-child(2) { opacity: 0; }
+    .spr-menu-toggle.open span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
 
     .spr-sidebar-overlay {
       display: none;
@@ -472,11 +650,23 @@
       pointer-events: none;
     }
 
+    /* ===== АНИМАЦИИ ===== */
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes fadeSlideIn {
+      from { opacity: 0; transform: translateX(-8px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+    @keyframes loaderSpin {
+      to { transform: rotate(360deg); }
+    }
+
     /* ===== АДАПТИВ ===== */
     @media (max-width: 1024px) {
       .spr-content { padding: 1.75rem 1.5rem 3rem; }
     }
-
     @media (max-width: 900px) {
       .spr-menu-toggle { display: flex; }
 
@@ -493,6 +683,7 @@
         z-index: 70;
       }
       .spr-sidebar.open { transform: translateX(0); }
+      .spr-sidebar-resizer { display: none; }
 
       .spr-sidebar-overlay.visible {
         display: block;
@@ -505,7 +696,6 @@
         padding: 1.5rem 1.1rem 3rem;
         padding-top: calc(1.5rem + 48px);
       }
-
       .spr-body {
         flex-direction: column;
       }
@@ -517,18 +707,17 @@
       }
       .spr-description { order: 0; width: 100%; }
     }
-
     @media (max-width: 480px) {
       .spr-title { font-size: 1.6rem; }
       .spr-topbar { flex-direction: column; align-items: stretch; }
     }
   </style>
 
-  <!-- KaTeX (исправлен путь) -->
+  <!-- KaTeX -->
   <link rel="stylesheet" href="../assets/lib/katex/katex.min.css" />
   <script defer src="../assets/lib/katex/katex.min.js"></script>
 
-  <!-- Firebase Compat SDKs (как на главной странице — для шапки/авторизации) -->
+  <!-- Firebase -->
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
@@ -537,8 +726,17 @@
 
   <div id="app-header"></div>
 
+  <!-- Загрузочный экран -->
+  <div class="spr-loader" id="sprLoader">
+    <div class="spr-loader-logo">
+      <svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="45" stroke="none" fill="var(--accent)" opacity="0.2"/><path d="M50 10 L70 40 L60 40 L50 25 L40 40 L30 40 Z" fill="var(--accent)"/></svg>
+    </div>
+    <div class="spr-loader-ring"></div>
+    <div class="spr-loader-text">Загрузка справочника…</div>
+  </div>
+
   <main>
-    <div id="spravochnikRoot"><!-- содержимое строится в inline JS ниже --></div>
+    <div id="spravochnikRoot"><!-- содержимое --></div>
   </main>
 
   <div id="app-footer"></div>
@@ -547,13 +745,9 @@
   <script src="../assets/js/auth.js"></script>
   <script src="../assets/js/common.js"></script>
 
-  <!-- ===== INLINE СПРАВОЧНИК JS ===== -->
   <script type="module">
     // =====================================================================
     // СПРАВОЧНИК — логика страницы
-    // Ожидает, что common.js уже отрисовал #app-header/#app-footer и что
-    // переключение темы производится добавлением/удалением класса "light"
-    // на <html> (как это сделано в common.css / index.html).
     // =====================================================================
     (function () {
       'use strict';
@@ -565,46 +759,59 @@
       // ---- Состояние ----
       let topics = [];
       const topicsById = new Map();
-      const childrenOf = new Map();     // parentId ('__root__' для корня) -> [id, ...]
-      const expanded = new Set();       // раскрытые узлы дерева
-      const referrerOf = new Map();     // topicId -> id темы, с которой пришли по гиперссылке
+      const childrenOf = new Map();
+      const expanded = new Set();
+      const referrerOf = new Map();
       let currentId = null;
       let compilerModulePromise = null;
       let lastQuery = '';
       let katexReady = false;
       let katexCheckInterval = null;
+      let isFirstRender = true; // для анимации дерева
+      let historyStack = []; // для анимации переходов (вперёд/назад)
+      let historyIndex = -1;
+      let isNavigating = false;
 
-      // ---- DOM-узлы (создаются в mountLayout) ----
+      // ---- DOM ----
       let els = {};
-
-      function qs(sel, root) { return (root || document).querySelector(sel); }
+      let loaderEl = document.getElementById('sprLoader');
 
       // ===================================================================
-      // РАЗМЕТКА СТРАНИЦЫ
+      // ЗАГРУЗКА
+      // ===================================================================
+      function hideLoader() {
+        if (loaderEl) {
+          loaderEl.classList.add('hidden');
+          setTimeout(() => { loaderEl.style.display = 'none'; }, 800);
+        }
+      }
+
+      // ===================================================================
+      // РАЗМЕТКА
       // ===================================================================
       function mountLayout() {
         const container = document.getElementById('spravochnikRoot');
-        if (!container) {
-          console.error('Не найден контейнер #spravochnikRoot на странице');
-          return false;
-        }
+        if (!container) { console.error('Нет #spravochnikRoot'); return false; }
 
         container.innerHTML = `
-          <button class="spr-menu-toggle" id="sprMenuToggle" aria-label="Открыть меню тем">☰</button>
+          <button class="spr-menu-toggle" id="sprMenuToggle" aria-label="Открыть меню">
+            <span></span><span></span><span></span>
+          </button>
           <div class="spr-layout">
             <div class="spr-sidebar-overlay" id="sprOverlay"></div>
             <aside class="spr-sidebar" id="sprSidebar">
+              <div class="spr-sidebar-resizer" id="sprResizer"></div>
               <div class="spr-sidebar-inner">
                 <div class="spr-search">
                   <div class="spr-search-input-wrap" id="sprSearchWrap">
                     <input type="search" id="sprSearchInput" placeholder="Поиск по темам…" autocomplete="off" />
-                    <button type="button" class="spr-search-clear" id="sprSearchClear" aria-label="Очистить поиск">✕</button>
+                    <button type="button" class="spr-search-clear" id="sprSearchClear">✕</button>
                   </div>
                   <div class="spr-search-options">
-                    <label><input type="checkbox" id="sprOptKeywords" checked /> Поиск по ключевым словам</label>
-                    <label><input type="checkbox" id="sprOptDescription" checked /> Поиск в описании</label>
-                    <label><input type="checkbox" id="sprOptFuzzy" /> Исправление грамматических ошибок</label>
-                    <label><input type="checkbox" id="sprOptHighlight" checked /> Выделять найденный текст</label>
+                    <label><input type="checkbox" id="sprOptKeywords" checked /> По ключевым словам</label>
+                    <label><input type="checkbox" id="sprOptDescription" checked /> В описании</label>
+                    <label><input type="checkbox" id="sprOptFuzzy" /> Исправлять ошибки</label>
+                    <label><input type="checkbox" id="sprOptHighlight" checked /> Выделять</label>
                   </div>
                   <div class="spr-search-empty" id="sprSearchEmpty">Ничего не найдено</div>
                 </div>
@@ -613,21 +820,23 @@
             </aside>
 
             <main class="spr-content" id="sprContent">
-              <div id="sprTopicView" hidden>
-                <div class="spr-topbar">
-                  <div class="spr-breadcrumb" id="sprBreadcrumb"></div>
-                  <div class="spr-nav-buttons">
-                    <button type="button" id="sprBackReferrer" hidden></button>
-                    <button type="button" id="sprBackParent" hidden>↑ К родительской теме</button>
+              <div class="spr-content-inner" id="sprContentInner">
+                <div id="sprTopicView" hidden>
+                  <div class="spr-topbar">
+                    <div class="spr-breadcrumb" id="sprBreadcrumb"></div>
+                    <div class="spr-nav-buttons">
+                      <button type="button" id="sprBackReferrer" hidden></button>
+                      <button type="button" id="sprBackParent" hidden>↑ К родительской</button>
+                    </div>
+                  </div>
+                  <h1 class="spr-title" id="sprTitle"></h1>
+                  <div class="spr-body" id="sprBody">
+                    <div class="spr-description" id="sprDescription"></div>
+                    <div class="spr-example" id="sprExample"></div>
                   </div>
                 </div>
-                <h1 class="spr-title" id="sprTitle"></h1>
-                <div class="spr-body" id="sprBody">
-                  <div class="spr-description" id="sprDescription"></div>
-                  <div class="spr-example" id="sprExample"></div>
-                </div>
+                <div class="spr-empty-state" id="sprEmptyState" hidden></div>
               </div>
-              <div class="spr-empty-state" id="sprEmptyState" hidden></div>
             </main>
           </div>
         `;
@@ -636,6 +845,7 @@
           menuToggle: document.getElementById('sprMenuToggle'),
           overlay: document.getElementById('sprOverlay'),
           sidebar: document.getElementById('sprSidebar'),
+          resizer: document.getElementById('sprResizer'),
           searchWrap: document.getElementById('sprSearchWrap'),
           searchInput: document.getElementById('sprSearchInput'),
           searchClear: document.getElementById('sprSearchClear'),
@@ -646,6 +856,7 @@
           searchEmpty: document.getElementById('sprSearchEmpty'),
           tree: document.getElementById('sprTree'),
           content: document.getElementById('sprContent'),
+          contentInner: document.getElementById('sprContentInner'),
           topicView: document.getElementById('sprTopicView'),
           emptyState: document.getElementById('sprEmptyState'),
           breadcrumb: document.getElementById('sprBreadcrumb'),
@@ -655,14 +866,91 @@
           description: document.getElementById('sprDescription'),
           example: document.getElementById('sprExample'),
         };
-
         return true;
       }
 
-      function setupUiHandlers() {
-        els.menuToggle.addEventListener('click', () => toggleSidebar());
-        els.overlay.addEventListener('click', () => toggleSidebar(false));
+      // ===================================================================
+      // РЕСАЙЗ САЙДБАРА
+      // ===================================================================
+      function initResizer() {
+        let isResizing = false;
+        let startX, startWidth;
 
+        const resizer = els.resizer;
+        const sidebar = els.sidebar;
+
+        function onStart(e) {
+          const ev = e.touches ? e.touches[0] : e;
+          isResizing = true;
+          startX = ev.clientX;
+          startWidth = sidebar.getBoundingClientRect().width;
+          resizer.classList.add('active');
+          document.body.style.cursor = 'col-resize';
+          document.body.style.userSelect = 'none';
+          e.preventDefault();
+        }
+
+        function onMove(e) {
+          if (!isResizing) return;
+          const ev = e.touches ? e.touches[0] : e;
+          const delta = ev.clientX - startX;
+          let newWidth = Math.min(
+            Math.max(startWidth + delta, parseInt(getComputedStyle(document.documentElement).getPropertyValue('--spr-sidebar-min-width'))),
+            parseInt(getComputedStyle(document.documentElement).getPropertyValue('--spr-sidebar-max-width'))
+          );
+          document.documentElement.style.setProperty('--spr-sidebar-width', newWidth + 'px');
+          localStorage.setItem('spr-sidebar-width', String(newWidth));
+          e.preventDefault();
+        }
+
+        function onEnd() {
+          if (isResizing) {
+            isResizing = false;
+            resizer.classList.remove('active');
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+          }
+        }
+
+        resizer.addEventListener('mousedown', onStart);
+        window.addEventListener('mousemove', onMove);
+        window.addEventListener('mouseup', onEnd);
+
+        // Для тач-устройств (планшеты) — но на мобильных ресайз скрыт, но оставим на всякий
+        resizer.addEventListener('touchstart', onStart);
+        window.addEventListener('touchmove', onMove);
+        window.addEventListener('touchend', onEnd);
+      }
+
+      function restoreSidebarWidth() {
+        const saved = localStorage.getItem('spr-sidebar-width');
+        if (saved) {
+          const w = parseInt(saved);
+          const min = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--spr-sidebar-min-width'));
+          const max = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--spr-sidebar-max-width'));
+          if (w >= min && w <= max) {
+            document.documentElement.style.setProperty('--spr-sidebar-width', w + 'px');
+          }
+        }
+      }
+
+      // ===================================================================
+      // UI-обработчики
+      // ===================================================================
+      function setupUiHandlers() {
+        // Гамбургер
+        els.menuToggle.addEventListener('click', () => {
+          const isOpen = els.sidebar.classList.toggle('open');
+          els.menuToggle.classList.toggle('open', isOpen);
+          els.overlay.classList.toggle('visible', isOpen);
+        });
+        els.overlay.addEventListener('click', () => {
+          els.sidebar.classList.remove('open');
+          els.menuToggle.classList.remove('open');
+          els.overlay.classList.remove('visible');
+        });
+
+        // Поиск
         let searchTimer = null;
         els.searchInput.addEventListener('input', () => {
           els.searchWrap.classList.toggle('has-value', els.searchInput.value.length > 0);
@@ -674,26 +962,22 @@
           els.searchWrap.classList.remove('has-value');
           runSearch();
         });
-        [els.optKeywords, els.optDescription, els.optFuzzy].forEach((cb) => {
-          cb.addEventListener('change', runSearch);
-        });
+        [els.optKeywords, els.optDescription, els.optFuzzy].forEach(cb => cb.addEventListener('change', runSearch));
         els.optHighlight.addEventListener('change', () => {
-          if (currentId) renderTopic(currentId, { skipScroll: true });
+          if (currentId) renderTopic(currentId, { skipScroll: true, noHistory: true });
         });
-      }
-
-      function toggleSidebar(force) {
-        const open = force !== undefined ? force : !els.sidebar.classList.contains('open');
-        els.sidebar.classList.toggle('open', open);
-        els.overlay.classList.toggle('visible', open);
       }
 
       function closeMobileSidebar() {
-        if (window.innerWidth <= 900) toggleSidebar(false);
+        if (window.innerWidth <= 900) {
+          els.sidebar.classList.remove('open');
+          els.menuToggle.classList.remove('open');
+          els.overlay.classList.remove('visible');
+        }
       }
 
       // ===================================================================
-      // ЗАГРУЗКА КОНФИГА
+      // КОНФИГ
       // ===================================================================
       async function loadConfig() {
         const res = await fetch(CONFIG_URL, { cache: 'no-cache' });
@@ -715,12 +999,10 @@
         }
       }
 
-      function getChildren(id) {
-        return childrenOf.get(id || '__root__') || [];
-      }
+      function getChildren(id) { return childrenOf.get(id || '__root__') || []; }
 
       // ===================================================================
-      // ДЕРЕВО ТЕМ
+      // ДЕРЕВО
       // ===================================================================
       function renderTree() {
         els.tree.innerHTML = '';
@@ -729,8 +1011,33 @@
           els.tree.innerHTML = '<p class="spr-search-empty visible">Темы не найдены</p>';
           return;
         }
-        els.tree.appendChild(buildList(rootIds));
+        const ul = buildList(rootIds);
+        els.tree.appendChild(ul);
+
+        // После рендера применяем анимацию, если это первый рендер
+        if (isFirstRender) {
+          isFirstRender = false;
+          // добавляем класс для анимации
+          els.tree.querySelectorAll('li').forEach((li, i) => {
+            li.style.animationDelay = (i * 0.02) + 's';
+          });
+        } else {
+          // убираем анимацию у всех элементов
+          els.tree.querySelectorAll('li').forEach(li => li.classList.add('spr-no-anim'));
+        }
+
         applySearchFilterToDom();
+        // Подсветка активной темы
+        if (currentId) {
+          const activeRow = els.tree.querySelector(`li[data-id="${currentId}"] > .spr-node-row`);
+          if (activeRow) {
+            activeRow.classList.add('active');
+            // анимация "дёрганья"
+            activeRow.classList.remove('spr-active-transition');
+            void activeRow.offsetWidth;
+            activeRow.classList.add('spr-active-transition');
+          }
+        }
       }
 
       function buildList(ids) {
@@ -755,8 +1062,34 @@
           if (kids.length) {
             toggleBtn.addEventListener('click', (e) => {
               e.stopPropagation();
-              if (expanded.has(id)) expanded.delete(id); else expanded.add(id);
-              renderTree();
+              if (expanded.has(id)) {
+                // сворачивание с анимацией
+                const childrenWrap = li.querySelector(':scope > .spr-node-children');
+                if (childrenWrap) {
+                  childrenWrap.classList.add('collapsing');
+                  childrenWrap.classList.remove('expanding');
+                  setTimeout(() => {
+                    expanded.delete(id);
+                    renderTree();
+                  }, 350);
+                } else {
+                  expanded.delete(id);
+                  renderTree();
+                }
+              } else {
+                expanded.add(id);
+                // разворачивание с анимацией
+                renderTree();
+                // после рендера добавим класс expanding для анимации
+                const childrenWrap = li.querySelector(':scope > .spr-node-children');
+                if (childrenWrap) {
+                  childrenWrap.classList.add('expanding');
+                  childrenWrap.classList.remove('collapsing');
+                  setTimeout(() => {
+                    childrenWrap.classList.remove('expanding');
+                  }, 400);
+                }
+              }
             });
           }
 
@@ -768,7 +1101,12 @@
           titleBtn.type = 'button';
           titleBtn.className = 'spr-node-title';
           titleBtn.textContent = topic.title;
-          titleBtn.addEventListener('click', () => navigate(id));
+          // Клик по всей строке
+          row.addEventListener('click', (e) => {
+            // если клик на кнопку-тоггл — она уже обработана
+            if (e.target.closest('.spr-node-toggle')) return;
+            navigate(id);
+          });
 
           row.append(toggleBtn, icon, titleBtn);
           li.appendChild(row);
@@ -797,13 +1135,11 @@
       // ПОИСК
       // ===================================================================
       function normalize(s) { return (s || '').toString().toLowerCase(); }
-
       function stripHtml(html) {
         const div = document.createElement('div');
         div.innerHTML = html || '';
         return div.textContent || '';
       }
-
       function levenshtein(a, b) {
         const m = a.length, n = b.length;
         if (m === 0) return n;
@@ -815,17 +1151,12 @@
           dp[0] = i;
           for (let j = 1; j <= n; j++) {
             const tmp = dp[j];
-            dp[j] = Math.min(
-              dp[j] + 1,
-              dp[j - 1] + 1,
-              prev + (a[i - 1] === b[j - 1] ? 0 : 1)
-            );
+            dp[j] = Math.min(dp[j] + 1, dp[j - 1] + 1, prev + (a[i - 1] === b[j - 1] ? 0 : 1));
             prev = tmp;
           }
         }
         return dp[n];
       }
-
       function fuzzyIncludes(haystack, needle) {
         const h = normalize(haystack);
         const n = normalize(needle);
@@ -838,10 +1169,7 @@
         }
         return false;
       }
-
-      function simpleIncludes(haystack, needle) {
-        return normalize(haystack).includes(normalize(needle));
-      }
+      function simpleIncludes(haystack, needle) { return normalize(haystack).includes(normalize(needle)); }
 
       function matchesTopic(topic, query, opts) {
         const test = opts.fuzzy ? fuzzyIncludes : simpleIncludes;
@@ -865,19 +1193,16 @@
       function runSearch() {
         lastQuery = els.searchInput.value.trim();
         renderTree();
-        if (currentId) renderTopic(currentId, { skipScroll: true });
+        if (currentId) renderTopic(currentId, { skipScroll: true, noHistory: true });
       }
 
       function applySearchFilterToDom() {
         const query = lastQuery;
         els.searchEmpty.classList.remove('visible');
         if (!query) {
-          els.tree.querySelectorAll('.spr-node-row').forEach((row) => {
-            row.classList.remove('search-dim', 'search-match');
-          });
+          els.tree.querySelectorAll('.spr-node-row').forEach(row => row.classList.remove('search-dim', 'search-match'));
           return;
         }
-
         const opts = currentSearchOptions();
         const matchedIds = new Set();
         const ancestorIds = new Set();
@@ -888,13 +1213,9 @@
             while (p) { ancestorIds.add(p); p = topicsById.get(p) ? topicsById.get(p).parent : null; }
           }
         }
-
-        if (matchedIds.size === 0) {
-          els.searchEmpty.classList.add('visible');
-        }
-
-        ancestorIds.forEach((id) => expanded.add(id));
-        els.tree.querySelectorAll('li[data-id]').forEach((li) => {
+        if (matchedIds.size === 0) els.searchEmpty.classList.add('visible');
+        ancestorIds.forEach(id => expanded.add(id));
+        els.tree.querySelectorAll('li[data-id]').forEach(li => {
           const id = li.dataset.id;
           const row = li.querySelector(':scope > .spr-node-row');
           if (!row) return;
@@ -921,7 +1242,6 @@
       }
 
       function escapeRegex(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
-
       function walkTextNodes(root, cb) {
         const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null);
         const nodes = [];
@@ -929,7 +1249,6 @@
         while ((n = walker.nextNode())) nodes.push(n);
         nodes.forEach(cb);
       }
-
       function highlightTextInElement(el, query) {
         if (!el || !query) return;
         const regex = new RegExp('(' + escapeRegex(query) + ')', 'gi');
@@ -955,15 +1274,11 @@
       }
 
       // ===================================================================
-      // РЕНДЕР ФОРМУЛ (KaTeX) с ожиданием загрузки
+      // KATEX
       // ===================================================================
       function renderMathInContainer(container) {
         if (!container) return;
-        // Если KaTeX ещё не загружен — запланируем повтор
-        if (!window.katex) {
-          scheduleKatexRender(container);
-          return;
-        }
+        if (!window.katex) { scheduleKatexRender(container); return; }
         walkTextNodes(container, (node) => {
           const text = node.nodeValue;
           if (!text || text.indexOf('$') === -1) return;
@@ -971,7 +1286,6 @@
           if (frag) node.replaceWith(frag);
         });
       }
-
       function renderMathInText(text) {
         const regex = /\$\$([\s\S]+?)\$\$|\$([^\$\n]+?)\$/g;
         let lastIndex = 0, match, found = false;
@@ -996,7 +1310,6 @@
       }
 
       let pendingKatexContainers = new Set();
-
       function scheduleKatexRender(container) {
         if (pendingKatexContainers.has(container)) return;
         pendingKatexContainers.add(container);
@@ -1005,15 +1318,10 @@
             if (window.katex) {
               clearInterval(katexCheckInterval);
               katexCheckInterval = null;
-              katexReady = true;
-              // Перерендерим все отложенные контейнеры
-              for (const c of pendingKatexContainers) {
-                renderMathInContainer(c);
-              }
+              for (const c of pendingKatexContainers) renderMathInContainer(c);
               pendingKatexContainers.clear();
             }
           }, 100);
-          // Запасной таймаут, чтобы не висело вечно
           setTimeout(() => {
             if (katexCheckInterval) {
               clearInterval(katexCheckInterval);
@@ -1025,37 +1333,84 @@
       }
 
       // ===================================================================
-      // НАВИГАЦИЯ
+      // НАВИГАЦИЯ С АНИМАЦИЕЙ
       // ===================================================================
       function navigate(id, opts) {
         opts = opts || {};
         if (!topicsById.has(id)) return;
-        if (opts.fromHyperlink && currentId && currentId !== id) referrerOf.set(id, currentId);
-        if (location.hash.slice(1) === id) {
-          renderTopic(id);
-        } else {
-          location.hash = id;
+        if (isNavigating) return;
+        if (opts.fromHyperlink && currentId && currentId !== id) {
+          referrerOf.set(id, currentId);
+        }
+
+        const direction = opts.direction || 'forward'; // 'forward' или 'back'
+        const slideClass = direction === 'forward' ? 'slide-left' : 'slide-right';
+
+        // Добавляем в историю, если не было перехода по истории
+        if (!opts.noHistory) {
+          // Если мы не в конце истории, обрезаем
+          if (historyIndex < historyStack.length - 1) {
+            historyStack = historyStack.slice(0, historyIndex + 1);
+          }
+          historyStack.push(id);
+          historyIndex = historyStack.length - 1;
+        }
+
+        // Анимируем смену контента
+        const inner = els.contentInner;
+        inner.classList.remove('slide-left', 'slide-right', 'slide-none');
+
+        // Сначала уходим
+        requestAnimationFrame(() => {
+          inner.classList.add(slideClass);
+        });
+
+        setTimeout(() => {
+          // Меняем контент
+          renderTopic(id, { skipScroll: true, noHistory: true, isTransition: true });
+          // Возвращаем с другой стороны
+          inner.classList.remove(slideClass);
+          // Небольшая задержка для перерисовки
+          requestAnimationFrame(() => {
+            inner.classList.add('slide-none');
+            setTimeout(() => {
+              inner.classList.remove('slide-none');
+            }, 50);
+          });
+        }, 300);
+
+        closeMobileSidebar();
+        if (!opts.skipScroll) {
+          window.scrollTo({ top: 0, behavior: 'smooth' });
         }
       }
 
+      // Обработчик истории браузера
       function onHashChange() {
         const id = decodeURIComponent(location.hash.replace(/^#/, ''));
         if (id && topicsById.has(id)) {
-          renderTopic(id);
+          // Определяем направление: если это переход назад/вперёд, берём из истории
+          const currentIdx = historyStack.indexOf(id);
+          let direction = 'forward';
+          if (currentIdx !== -1 && currentIdx < historyIndex) direction = 'back';
+          else if (currentIdx !== -1 && currentIdx > historyIndex) direction = 'forward';
+          else direction = 'forward';
+          historyIndex = currentIdx !== -1 ? currentIdx : historyStack.length;
+          navigate(id, { direction, noHistory: true });
         } else {
           const roots = getChildren(null);
           if (roots.length) {
             location.hash = roots[0];
           } else {
-            showEmptyState('Темы ещё не добавлены в справочник.');
+            showEmptyState('Темы ещё не добавлены.');
           }
         }
       }
 
-      function showEmptyState(message) {
+      function showEmptyState(msg) {
         els.topicView.hidden = true;
         els.emptyState.hidden = false;
-        els.emptyState.textContent = message;
+        els.emptyState.textContent = msg;
       }
 
       function renderTopic(id, opts) {
@@ -1063,12 +1418,11 @@
         const topic = topicsById.get(id);
         if (!topic) return;
         currentId = id;
-
         els.emptyState.hidden = true;
         els.topicView.hidden = false;
 
         expandAncestorsOf(id);
-        renderTree();
+        renderTree(); // обновляет дерево с выделением
 
         // Заголовок
         els.title.innerHTML = '';
@@ -1084,9 +1438,7 @@
         renderDescription(topic);
         renderExample(topic);
 
-        closeMobileSidebar();
         if (!opts.skipScroll) {
-          els.content.scrollTo({ top: 0, behavior: 'smooth' });
           window.scrollTo({ top: 0, behavior: 'smooth' });
         }
       }
@@ -1094,45 +1446,32 @@
       function renderBreadcrumb(id) {
         const chain = [];
         let t = topicsById.get(id);
-        while (t) {
-          chain.unshift(t);
-          t = t.parent ? topicsById.get(t.parent) : null;
-        }
+        while (t) { chain.unshift(t); t = t.parent ? topicsById.get(t.parent) : null; }
         els.breadcrumb.innerHTML = '';
         chain.forEach((node, i) => {
-          if (i > 0) {
-            const sep = document.createElement('span');
-            sep.className = 'sep';
-            sep.textContent = '›';
-            els.breadcrumb.appendChild(sep);
-          }
+          if (i > 0) { const sep = document.createElement('span'); sep.className = 'sep'; sep.textContent = '›'; els.breadcrumb.appendChild(sep); }
           const btn = document.createElement('button');
           btn.type = 'button';
           btn.textContent = node.title;
-          if (i === chain.length - 1) {
-            btn.className = 'current';
-          } else {
-            btn.addEventListener('click', () => navigate(node.id));
-          }
+          if (i === chain.length - 1) btn.className = 'current';
+          else btn.addEventListener('click', () => navigate(node.id, { direction: 'back' }));
           els.breadcrumb.appendChild(btn);
         });
       }
 
       function renderNavButtons(id) {
         const topic = topicsById.get(id);
-
         if (topic.parent && topicsById.has(topic.parent)) {
           els.backParent.hidden = false;
-          els.backParent.onclick = () => navigate(topic.parent);
+          els.backParent.onclick = () => navigate(topic.parent, { direction: 'back' });
         } else {
           els.backParent.hidden = true;
         }
-
         const refId = referrerOf.get(id);
         if (refId && topicsById.has(refId)) {
           els.backReferrer.hidden = false;
           els.backReferrer.textContent = '← Вернуться к «' + topicsById.get(refId).title + '»';
-          els.backReferrer.onclick = () => navigate(refId);
+          els.backReferrer.onclick = () => navigate(refId, { direction: 'back' });
         } else {
           els.backReferrer.hidden = true;
         }
@@ -1140,25 +1479,21 @@
 
       function renderDescription(topic) {
         els.description.innerHTML = topic.description || '';
-
-        els.description.querySelectorAll('a[href^="topic:"]').forEach((a) => {
+        els.description.querySelectorAll('a[href^="topic:"]').forEach(a => {
           const targetId = a.getAttribute('href').slice('topic:'.length);
           a.addEventListener('click', (e) => {
             e.preventDefault();
-            navigate(targetId, { fromHyperlink: true });
+            navigate(targetId, { fromHyperlink: true, direction: 'forward' });
           });
         });
-
-        // Рендер формул с ожиданием загрузки KaTeX
         renderMathInContainer(els.description);
-
         if (lastQuery && els.optHighlight.checked) {
           highlightTextInElement(els.description, lastQuery);
         }
       }
 
       // ===================================================================
-      // ИНТЕРАКТИВНЫЙ ПРИМЕР (.gms -> компилятор -> iframe)
+      // ИНТЕРАКТИВНЫЙ ПРИМЕР
       // ===================================================================
       function loadCompiler() {
         if (!compilerModulePromise) compilerModulePromise = import(COMPILER_URL);
@@ -1170,26 +1505,24 @@
       }
 
       function sendThemeToFrame(frame) {
-        try {
-          frame.contentWindow.postMessage({ type: 'geocompiler-set-theme', theme: currentTheme() }, '*');
-        } catch (e) { /* игнорируем — iframe мог ещё не быть готов */ }
+        try { frame.contentWindow.postMessage({ type: 'geocompiler-set-theme', theme: currentTheme() }, '*'); } catch (e) {}
       }
 
       async function renderExample(topic) {
-        // Для папок — полностью скрываем блок примера
         if (topic.type === 'folder' || !topic.example) {
           els.example.hidden = true;
           return;
         }
-
-        // Показываем блок примера
         els.example.hidden = false;
         els.example.innerHTML = `
           <div class="spr-example-frame-wrap">
             <iframe id="sprExampleFrame"
                     title="${escapeHtml(topic.title)}"
                     sandbox="allow-scripts allow-same-origin allow-pointer-lock allow-popups"></iframe>
-            <div class="spr-example-status" id="sprExampleStatus">Компиляция примера…</div>
+            <div class="spr-example-status" id="sprExampleStatus">
+              <div class="loader-ring"></div>
+              <span>Компиляция примера…</span>
+            </div>
           </div>
         `;
         const frame = document.getElementById('sprExampleFrame');
@@ -1197,37 +1530,32 @@
 
         try {
           const [source, mod] = await Promise.all([
-            fetch(PAGE_ROOT + topic.example, { cache: 'no-cache' }).then((r) => {
-              if (!r.ok) throw new Error('Не удалось загрузить файл примера (' + r.status + ')');
+            fetch(PAGE_ROOT + topic.example, { cache: 'no-cache' }).then(r => {
+              if (!r.ok) throw new Error('Не удалось загрузить файл (' + r.status + ')');
               return r.text();
             }),
             loadCompiler(),
           ]);
-
           if (!document.body.contains(frame)) return;
-
           const result = mod.compile(source);
           if (!result.success) {
-            status.textContent = 'Ошибка компиляции примера:\n' + result.errors.join('\n');
+            status.innerHTML = 'Ошибка компиляции:<br>' + result.errors.join('<br>');
             status.classList.add('error');
             return;
           }
-
           frame.addEventListener('load', () => {
             status.hidden = true;
             sendThemeToFrame(frame);
           }, { once: true });
           frame.srcdoc = result.html;
         } catch (e) {
-          status.textContent = 'Не удалось загрузить пример: ' + e.message;
+          status.innerHTML = 'Не удалось загрузить пример: ' + e.message;
           status.classList.add('error');
         }
       }
 
       function escapeHtml(text) {
-        return (text || '').replace(/[&<>"']/g, (c) => ({
-          '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
-        }[c]));
+        return (text || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
       }
 
       function setupThemeSync() {
@@ -1245,12 +1573,16 @@
         if (!mountLayout()) return;
         setupUiHandlers();
         setupThemeSync();
+        restoreSidebarWidth();
+        initResizer();
 
         try {
           const data = await loadConfig();
           buildIndexes(data);
+          hideLoader();
         } catch (e) {
-          showEmptyState('Не удалось загрузить справочник тем: ' + e.message);
+          hideLoader();
+          showEmptyState('Не удалось загрузить справочник: ' + e.message);
           console.error(e);
           return;
         }
@@ -1260,14 +1592,24 @@
           return;
         }
 
-        getChildren(null).forEach((id) => {
+        getChildren(null).forEach(id => {
           const t = topicsById.get(id);
           if (t && t.type === 'folder') expanded.add(id);
         });
 
+        // Инициализация истории
+        const hashId = decodeURIComponent(location.hash.replace(/^#/, ''));
+        let startId = hashId && topicsById.has(hashId) ? hashId : getChildren(null)[0];
+        if (startId) {
+          historyStack = [startId];
+          historyIndex = 0;
+          location.hash = startId;
+        }
+
         renderTree();
         window.addEventListener('hashchange', onHashChange);
-        onHashChange();
+        // Первый рендер
+        if (startId) renderTopic(startId);
       }
 
       if (document.readyState === 'loading') {
