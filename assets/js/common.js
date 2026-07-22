@@ -9,7 +9,7 @@ const THEME_ANIMATION_CONFIG = {
 
 document.addEventListener('DOMContentLoaded', () => {
     if (typeof PAGE_ROOT === 'undefined') {
-        console.error('Задайте PAGE_ROOT перед common.js');
+        console.error('Задайте PAGE_ROOT перед common.js'); 
     }
     renderHeader();
     renderFooter();
