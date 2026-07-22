@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>GMS IDE</title>
+<style>
+  :root{
+    --bg:#1b1b2a; --panel:#20202f; --gutter:#181824; --border:#3a3a52;
+    --text:#e8e8f0; --muted:#9494ac; --accent:#7c7cff; --err:#ff6b6b; --ok:#5ad48a;
+    --kwPrefix:#7c9cff; --kwType:#e0a84f; --str:#8fd18a; --num:#d18ad1; --com:#6a6a86; --punct:#e8e8f0;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0;background:var(--bg);color:var(--text);font-family:'Segoe UI',Arial,sans-serif}
+  #toolbar{display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--panel);border-bottom:1px solid var(--border);flex-wrap:wrap}
+  button{background:#2a2a40;color:var(--text);border:1px solid var(--border);border-radius:6px;padding:7px 12px;cursor:pointer;font-size:13px}
+  button:hover{border-color:var(--accent)}
+  button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+  #filename{color:var(--muted);font-size:13px;margin-left:auto;white-space:nowrap}
+  #main{display:flex;height:calc(100% - 46px)}
+  #editorCol{display:flex;flex-direction:column;flex:1;min-width:0;border-right:1px solid var(--border)}
+  #editorWrap{position:relative;flex:1;display:flex;overflow:hidden}
+  #gutter{width:46px;flex:none;background:var(--gutter);color:var(--muted);font:13px/1.5 monospace;text-align:right;padding:10px 6px 10px 0;overflow:hidden;user-select:none}
+  #codeArea{position:relative;flex:1;overflow:hidden}
+  #highlight,#code{position:absolute;top:0;left:0;right:0;bottom:0;margin:0;padding:10px;font:13px/1.5 monospace;white-space:pre;overflow:auto;box-sizing:border-box}
+  #highlight{color:var(--text);pointer-events:none;background:transparent}
+  #code{background:transparent;color:transparent;caret-color:var(--text);border:none;resize:none;z-index:2}
+  #code::selection{background:#3a3a6a}
+  .kwp{color:var(--kwPrefix);font-weight:600}
+  .kwt{color:var(--kwType);font-weight:600}
+  .str{color:var(--str)}
+  .num{color:var(--num)}
+  .com{color:var(--com);font-style:italic}
+  #errors{height:120px;background:#160f14;border-top:1px solid var(--border);overflow:auto;font:12px/1.5 monospace;padding:6px 10px}
+  #errors .ok{color:var(--ok)}
+  #errors .e{color:var(--err);cursor:default;padding:1px 0}
+  #preview{flex:1;min-width:0;display:none;background:#fff}
+  #preview.show{display:block}
+  #preview iframe{width:100%;height:100%;border:none}
+  #findBar{position:absolute;top:8px;right:24px;background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:6px;display:none;gap:6px;align-items:center;z-index:5}
+  #findBar.show{display:flex}
+  #findBar input{background:#12121c;border:1px solid var(--border);color:var(--text);border-radius:4px;padding:4px 6px;font:12px monospace}
+  #findCount{color:var(--muted);font-size:12px;min-width:50px}
+  #suggest{position:absolute;background:var(--panel);border:1px solid var(--accent);border-radius:6px;z-index:10;max-height:160px;overflow:auto;display:none;font:13px monospace;min-width:120px}
+  #suggest div{padding:4px 10px;cursor:pointer}
+  #suggest div.sel,#suggest div:hover{background:var(--accent);color:#fff}
+</style>
+</head>
+<body>
+<div id="toolbar">
+  <button id="btnNew">Новый файл</button>
+  <button id="btnOpen">Открыть файл</button>
+  <button id="btnCompileSave">Скомпилировать и сохранить</button>
+  <button id="btnCompileRun" class="primary">Скомпилировать и запустить</button>
+  <span id="filename">файл не выбран</span>
+</div>
+<div id="main">
+  <div id="editorCol">
+    <div id="editorWrap">
+      <div id="gutter">1</div>
+      <div id="codeArea">
+        <pre id="highlight"><code id="hlCode"></code></pre>
+        <textarea id="code" spellcheck="false" wrap="off" placeholder="Создайте или откройте .gms файл..."></textarea>
+        <div id="findBar">
+          <input id="findInput" placeholder="Поиск...">
+          <span id="findCount"></span>
+          <button id="findPrev">&uarr;</button>
+          <button id="findNext">&darr;</button>
+          <button id="findClose">✕</button>
+        </div>
+        <div id="suggest"></div>
+      </div>
+    </div>
+    <div id="errors"><span class="ok">Готово. Ошибок пока не найдено.</span></div>
+  </div>
+  <div id="preview"><iframe id="previewFrame" sandbox="allow-scripts allow-same-origin"></iframe></div>
+</div>
+
+<script type="module">
+import { compile } from '../../assets/js/GMS-script-compiler.js';
+
+const code = document.getElementById('code');
+const hlCode = document.getElementById('hlCode');
+const gutter = document.getElementById('gutter');
+const errorsEl = document.getElementById('errors');
+const filenameEl = document.getElementById('filename');
+const preview = document.getElementById('preview');
+const previewFrame = document.getElementById('previewFrame');
+
+const TEMPLATE =
+`[
+\tspace = 2D;
+\tdescription = "";
+\ttitle = "";
+]
+
+Start {
+}
+
+Update {
+}
+`;
+
+// ===== Ключевые слова языка (взято из компилятора) =====
+const PREFIX_WORDS = ['new','draw','func','Void','Function','Start','Update'];
+const TYPE_WORDS = ['Point2D','Point3D','Point','Line2D','Line3D','Line','Figure2D','Figure3D','Figure',
+ 'Primitive','Section','Boolean','Angle3D','Claster2D','Claster3D','Claster','Angle','Vector2D','Vector3D','Vector',
+ 'InfLine','InfPlane','Filling2D','Filling3D','Filling','Punctir','Text2D','Text3D','Text','UI','Circle','Arc','Ellipse',
+ 'Curve2D','Curve3D','Curve','Surface2D','Surface3D','Surface','Image','Histogram','Field2D','Field3D','Field',
+ 'Trajectory2D','Trajectory3D','Trajectory','Graph','Fractal','Formula','Locus','Trace','Region','Chart','Tree','Table',
+ 'Complex','Hyperbolic','Bifurcation','Cobweb','IFS','Automaton','Voronoi','Fourier','Diagram'];
+
+// Поля для автозаполнения "следующий параметр =" по типу блока
+const FIELD_ORDER = {
+  Point:['name','pos','color'], Point2D:['name','pos','color'], Point3D:['name','pos','color'],
+  Line:['name','pointA','pointB','color'], Line2D:['name','pointA','pointB','color'], Line3D:['name','pointA','pointB','color'],
+  Circle:['name','center','radius','color'], Ellipse:['name','center','a','b','color'],
+  Figure:['name','elements','color'], Curve:['name','points','color'],
+  Vector:['name','edge','color'], Text:['name','pos','text','color'],
+  UI:['type','label','variable','default','min','max','step'],
+  Angle:['name','lines','color']
+};
+
+const punctRe = /([{}\[\]\(\),;])/g;
+function escapeHtml(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+function highlight(src){
+  let out = escapeHtml(src);
+  // строки
+  out = out.replace(/"([^"\\]|\\.)*"/g, m => `<span class="str">${m}</span>`);
+  // комментарии
+  out = out.replace(/\/\/.*$/gm, m => `<span class="com">${m}</span>`);
+  out = out.replace(/\/\*[\s\S]*?\*\//g, m => `<span class="com">${m}</span>`);
+  // числа
+  out = out.replace(/\b\d+(\.\d+)?\b/g, m => `<span class="num">${m}</span>`);
+  // типы (сортируем по длине, чтобы Point3D не резался как Point)
+  const typeRe = new RegExp('\\b(' + TYPE_WORDS.slice().sort((a,b)=>b.length-a.length).join('|') + ')\\b','g');
+  out = out.replace(typeRe, m => `<span class="kwt">${m}</span>`);
+  const prefixRe = new RegExp('\\b(' + PREFIX_WORDS.join('|') + ')\\b','g');
+  out = out.replace(prefixRe, m => `<span class="kwp">${m}</span>`);
+  return out;
+}
+
+function renderGutter(){
+  const n = code.value.split('\n').length;
+  let s = '';
+  for(let i=1;i<=n;i++) s += i + '\n';
+  gutter.textContent = s;
+}
+
+function render(){
+  hlCode.innerHTML = highlight(code.value) + '\n';
+  renderGutter();
+}
+
+// синхронизация скролла
+code.addEventListener('scroll', () => {
+  document.getElementById('highlight').scrollTop = code.scrollTop;
+  document.getElementById('highlight').scrollLeft = code.scrollLeft;
+  gutter.scrollTop = code.scrollTop;
+});
+
+// ===== Отступы / Tab =====
+function currentLineStart(pos){
+  return code.value.lastIndexOf('\n', pos - 1) + 1;
+}
+function lineIndent(lineText){
+  const m = lineText.match(/^[ \t]*/);
+  return m ? m[0] : '';
+}
+
+code.addEventListener('keydown', (e) => {
+  if (suggestVisible() && handleSuggestKeys(e)) return;
+
+  if (e.key === 'Tab') {
+    e.preventDefault();
+    const start = code.selectionStart, end = code.selectionEnd;
+    if (start === end) {
+      document.execCommand('insertText', false, '\t');
+    } else {
+      const val = code.value;
+      const lsStart = currentLineStart(start);
+      const before = val.slice(0, lsStart);
+      const sel = val.slice(lsStart, end);
+      const after = val.slice(end);
+      let lines = sel.split('\n');
+      if (e.shiftKey) lines = lines.map(l => l.replace(/^\t| {1,4}/, ''));
+      else lines = lines.map(l => '\t' + l);
+      code.value = before + lines.join('\n') + after;
+      code.selectionStart = lsStart;
+      code.selectionEnd = before.length + lines.join('\n').length;
+      onEdit();
+    }
+    return;
+  }
+
+  if (e.key === 'f' && (e.ctrlKey || e.metaKey)) {
+    e.preventDefault();
+    openFind();
+    return;
+  }
+
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    insertNewline();
+    return;
+  }
+
+  if ('({['.includes(e.key)) {
+    e.preventDefault();
+    const pairs = {'(':')','{':'}','[':']'};
+    insertAtCursor(e.key + pairs[e.key], 1);
+    afterAutoPunct(e.key);
+    return;
+  }
+  if ('"' === e.key) {
+    e.preventDefault();
+    insertAtCursor('""', 1);
+    return;
+  }
+  if (')' === e.key || '}' === e.key || ']' === e.key) {
+    const pos = code.selectionStart;
+    if (code.value[pos] === e.key && code.selectionStart === code.selectionEnd) {
+      e.preventDefault();
+      code.selectionStart = code.selectionEnd = pos + 1;
+      onEdit();
+      return;
+    }
+  }
+});
+
+code.addEventListener('keyup', (e) => {
+  if (e.key === ' ') afterAutoPunct(' ');
+  updateSuggest();
+});
+
+function insertAtCursor(text, caretOffset){
+  const start = code.selectionStart, end = code.selectionEnd;
+  code.value = code.value.slice(0,start) + text + code.value.slice(end);
+  code.selectionStart = code.selectionEnd = start + caretOffset;
+  onEdit();
+}
+
+function insertNewline(){
+  const pos = code.selectionStart;
+  const lsStart = currentLineStart(pos);
+  const lineBefore = code.value.slice(lsStart, pos);
+  let indent = lineIndent(lineBefore);
+  const trimmed = lineBefore.trim();
+  const nextChar = code.value[pos];
+  let extra = '';
+  if (/[{\[]\s*$/.test(trimmed)) extra = '\t';
+  let insertText = '\n' + indent + extra;
+  // авто-закрытие: если следующий символ - закрывающая скобка своей же пары - добавим строку с меньшим отступом
+  if (extra && nextChar && '}]'.includes(nextChar)) {
+    insertText += '\n' + indent;
+    const start = code.selectionStart;
+    code.value = code.value.slice(0,start) + insertText + code.value.slice(start);
+    code.selectionStart = code.selectionEnd = start + 1 + indent.length + extra.length;
+    onEdit();
+    afterAutoPunct('enter');
+    return;
+  }
+  insertAtCursor(insertText, insertText.length);
+  afterAutoPunct('enter');
+}
+
+// ===== Автопостановка ; и , и следующего поля =20
+function afterAutoPunct(trigger){
+  const pos = code.selectionStart;
+  const lsStart = currentLineStart(pos);
+  // строка, где сейчас курсор (до курсора)
+  let head = code.value.slice(lsStart, pos);
+  const beforeCaretTrim = head.replace(/[ \t]+$/,'');
+  if (!beforeCaretTrim) { render(); scheduleCheck(); return; }
+  const alreadyEnds = /[;,{}\[\]]$/.test(beforeCaretTrim);
+  if (alreadyEnds) { render(); scheduleCheck(); return; }
+
+  // внутри {} блока?
+  const braceInfo = findEnclosingBrace(lsStart);
+  const lastWord = beforeCaretTrim.match(/[A-Za-z_][A-Za-z0-9_]*$/);
+  const isComment = /\/\/|\/\*/.test(beforeCaretTrim);
+  if (isComment) { render(); scheduleCheck(); return; }
+
+  if (braceInfo) {
+    // похоже на завершённое поле "key = value" -> ставим запятую и предлагаем следующее поле
+    if (/=\s*("([^"\\]|\\.)*"|[-\w.\(\)+*/ ]+)$/.test(beforeCaretTrim)) {
+      const type = braceInfo.type;
+      const usedFields = collectUsedFields(braceInfo.start, pos);
+      const order = FIELD_ORDER[type];
+      let insertion = ',';
+      if (order) {
+        const next = order.find(f => !usedFields.includes(f));
+        if (next) insertion = ', ' + next + ' = ';
+      }
+      code.value = code.value.slice(0,pos) + insertion + code.value.slice(pos);
+      code.selectionStart = code.selectionEnd = pos + insertion.length;
+    }
+  } else {
+    // верхнеуровневая строка (в [] или Start/Update) — завершённая строка получает ;
+    if (/=\s*("([^"\\]|\\.)*"|[-\w.\(\)+*/ ]+)$/.test(beforeCaretTrim) || /\)\s*$/.test(beforeCaretTrim)) {
+      code.value = code.value.slice(0,pos) + ';' + code.value.slice(pos);
+      code.selectionStart = code.selectionEnd = pos + 1;
+    }
+  }
+  onEdit();
+}
+
+function findEnclosingBrace(uptoPos){
+  const s = code.value.slice(0, uptoPos);
+  let depth = 0, idx = -1;
+  for (let i = s.length-1; i>=0; i--){
+    const c = s[i];
+    if (c === '}') depth++;
+    else if (c === '{') { if (depth===0){ idx=i; break;} depth--; }
+  }
+  if (idx === -1) return null;
+  const head = s.slice(0, idx);
+  const m = head.match(/\b(new|draw)\s+([A-Za-z0-9_]+)\s*$/);
+  return { start: idx+1, type: m ? m[2] : null };
+}
+
+function collectUsedFields(braceStart, uptoPos){
+  const seg = code.value.slice(braceStart, uptoPos);
+  const fields = [];
+  const re = /\b([A-Za-z_][A-Za-z0-9_]*)\s*=/g;
+  let m;
+  while ((m = re.exec(seg))) fields.push(m[1]);
+  return fields;
+}
+
+// ===== Автозаполнение шаблона нового файла =====
+document.getElementById('btnNew').addEventListener('click', async () => {
+  try {
+    if (window.showSaveFilePicker) {
+      currentHandle = await window.showSaveFilePicker({
+        suggestedName: 'script.gms',
+        types: [{ description: 'GMS файл', accept: {'text/plain': ['.gms']} }]
+      });
+      code.value = TEMPLATE;
+      await writeCurrentFile();
+      filenameEl.textContent = currentHandle.name;
+    } else {
+      code.value = TEMPLATE;
+      filenameEl.textContent = 'script.gms (не сохранён — File System Access API недоступен)';
+    }
+  } catch(err) { if (err.name !== 'AbortError') console.error(err); }
+  onEdit();
+});
+
+document.getElementById('btnOpen').addEventListener('click', async () => {
+  try {
+    if (window.showOpenFilePicker) {
+      [currentHandle] = await window.showOpenFilePicker({
+        types: [{ description: 'GMS файл', accept: {'text/plain': ['.gms']} }]
+      });
+      const file = await currentHandle.getFile();
+      code.value = await file.text();
+      filenameEl.textContent = currentHandle.name;
+    } else {
+      const input = document.createElement('input');
+      input.type = 'file'; input.accept = '.gms';
+      input.onchange = async () => {
+        const file = input.files[0];
+        code.value = await file.text();
+        filenameEl.textContent = file.name + ' (сохранение через скачивание)';
+      };
+      input.click();
+    }
+  } catch(err) { if (err.name !== 'AbortError') console.error(err); }
+  onEdit();
+});
+
+let currentHandle = null;
+async function writeCurrentFile(){
+  if (!currentHandle) return;
+  const w = await currentHandle.createWritable();
+  await w.write(code.value);
+  await w.close();
+}
+
+async function saveHtmlOutput(html){
+  if (window.showSaveFilePicker) {
+    const base = currentHandle ? currentHandle.name.replace(/\.gms$/,'') : 'script';
+    const handle = await window.showSaveFilePicker({
+      suggestedName: base + '.html',
+      types: [{ description: 'HTML файл', accept: {'text/html': ['.html']} }]
+    });
+    const w = await handle.createWritable();
+    await w.write(html);
+    await w.close();
+  } else {
+    const blob = new Blob([html], {type:'text/html'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = (currentHandle ? currentHandle.name.replace(/\.gms$/,'') : 'script') + '.html';
+    a.click();
+  }
+}
+
+async function doCompile(run){
+  const res = compile(code.value);
+  if (!res.success) {
+    errorsEl.innerHTML = res.errors.map(e => `<div class="e">✕ ${escapeHtml(e)}</div>`).join('');
+    return;
+  }
+  errorsEl.innerHTML = '<span class="ok">Компиляция успешна.</span>';
+  await writeCurrentFile();
+  await saveHtmlOutput(res.html);
+  if (run) {
+    preview.classList.add('show');
+    previewFrame.srcdoc = res.html;
+  }
+}
+
+document.getElementById('btnCompileSave').addEventListener('click', () => doCompile(false));
+document.getElementById('btnCompileRun').addEventListener('click', () => doCompile(true));
+
+// ===== Проверка ошибок с задержкой 2с =====
+let checkTimer = null;
+function scheduleCheck(){
+  clearTimeout(checkTimer);
+  checkTimer = setTimeout(runCheck, 2000);
+}
+function runCheck(){
+  try {
+    const res = compile(code.value);
+    if (res.success) {
+      errorsEl.innerHTML = '<span class="ok">Ошибок не найдено.</span>';
+    } else {
+      errorsEl.innerHTML = res.errors.map(e => `<div class="e">✕ ${escapeHtml(e)}</div>`).join('');
+    }
+  } catch(e) {
+    errorsEl.innerHTML = `<div class="e">✕ Внутренняя ошибка компилятора: ${escapeHtml(e.message)}</div>`;
+  }
+}
+
+function onEdit(){
+  render();
+  scheduleCheck();
+}
+code.addEventListener('input', onEdit);
+
+// ===== Поиск (Ctrl+F) =====
+const findBar = document.getElementById('findBar');
+const findInput = document.getElementById('findInput');
+const findCount = document.getElementById('findCount');
+let matches = [], matchIdx = -1;
+
+function openFind(){
+  findBar.classList.add('show');
+  findInput.focus();
+  findInput.select();
+  runFind();
+}
+function closeFind(){
+  findBar.classList.remove('show');
+  code.focus();
+}
+function runFind(){
+  const q = findInput.value;
+  matches = [];
+  if (q) {
+    const val = code.value.toLowerCase(); const ql = q.toLowerCase();
+    let i = 0;
+    while ((i = val.indexOf(ql, i)) !== -1) { matches.push(i); i += Math.max(ql.length,1); }
+  }
+  matchIdx = matches.length ? 0 : -1;
+  gotoMatch();
+}
+function gotoMatch(){
+  if (matchIdx === -1) { findCount.textContent = '0/0'; return; }
+  findCount.textContent = (matchIdx+1) + '/' + matches.length;
+  const pos = matches[matchIdx];
+  code.focus();
+  code.selectionStart = pos;
+  code.selectionEnd = pos + findInput.value.length;
+  const lineNum = code.value.slice(0,pos).split('\n').length;
+  const lineHeight = 19.5;
+  code.scrollTop = Math.max(0, (lineNum-1)*lineHeight - code.clientHeight/2);
+}
+findInput.addEventListener('input', runFind);
+findInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') { e.shiftKey ? prevMatch() : nextMatch(); e.preventDefault(); }
+  if (e.key === 'Escape') closeFind();
+});
+function nextMatch(){ if (!matches.length) return; matchIdx = (matchIdx+1)%matches.length; gotoMatch(); }
+function prevMatch(){ if (!matches.length) return; matchIdx = (matchIdx-1+matches.length)%matches.length; gotoMatch(); }
+document.getElementById('findNext').onclick = nextMatch;
+document.getElementById('findPrev').onclick = prevMatch;
+document.getElementById('findClose').onclick = closeFind;
+
+// ===== Предложение переменных (автодополнение имён) =====
+const suggestEl = document.getElementById('suggest');
+let suggestItems = [], suggestSel = 0, suggestRange = null;
+
+function collectNames(){
+  const names = new Set();
+  let m;
+  const reName = /\bname\s*=\s*([A-Za-z_][A-Za-z0-9_]*)/g;
+  while ((m = reName.exec(code.value))) names.add(m[1]);
+  const reFunc = /\bfunc\s+([A-Za-z_][A-Za-z0-9_]*)/g;
+  while ((m = reFunc.exec(code.value))) names.add(m[1]);
+  const reVar = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=(?!=)/gm;
+  while ((m = reVar.exec(code.value))) if (m[1] !== 'name') names.add(m[1]);
+  return [...names];
+}
+
+function suggestVisible(){ return suggestEl.style.display === 'block'; }
+
+function updateSuggest(){
+  const pos = code.selectionStart;
+  const head = code.value.slice(0, pos);
+  const m = head.match(/=\s*([A-Za-z_][A-Za-z0-9_]*)$/);
+  if (!m) { hideSuggest(); return; }
+  const partial = m[1];
+  const startPos = pos - partial.length;
+  const inString = isInsideString(pos);
+  if (inString) { hideSuggest(); return; }
+  const names = collectNames().filter(n => n.toLowerCase().startsWith(partial.toLowerCase()) && n !== partial);
+  if (!names.length) { hideSuggest(); return; }
+  suggestItems = names;
+  suggestSel = 0;
+  suggestRange = { start: startPos, end: pos };
+  renderSuggest();
+}
+function isInsideString(pos){
+  const head = code.value.slice(0,pos);
+  const quotes = (head.match(/"/g) || []).length;
+  return quotes % 2 === 1;
+}
+function renderSuggest(){
+  suggestEl.innerHTML = suggestItems.map((n,i) => `<div class="${i===suggestSel?'sel':''}" data-i="${i}">${escapeHtml(n)}</div>`).join('');
+  const coords = getCaretCoords();
+  suggestEl.style.left = coords.left + 'px';
+  suggestEl.style.top = coords.top + 'px';
+  suggestEl.style.display = 'block';
+  [...suggestEl.children].forEach(ch => ch.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    suggestSel = +ch.dataset.i;
+    acceptSuggest();
+  }));
+}
+function hideSuggest(){ suggestEl.style.display = 'none'; suggestItems = []; }
+function acceptSuggest(){
+  const name = suggestItems[suggestSel];
+  code.value = code.value.slice(0, suggestRange.start) + name + code.value.slice(suggestRange.end);
+  code.selectionStart = code.selectionEnd = suggestRange.start + name.length;
+  hideSuggest();
+  onEdit();
+}
+function handleSuggestKeys(e){
+  if (e.key === 'ArrowDown') { suggestSel = (suggestSel+1)%suggestItems.length; renderSuggest(); e.preventDefault(); return true; }
+  if (e.key === 'ArrowUp') { suggestSel = (suggestSel-1+suggestItems.length)%suggestItems.length; renderSuggest(); e.preventDefault(); return true; }
+  if (e.key === 'Enter' || e.key === 'Tab') { acceptSuggest(); e.preventDefault(); return true; }
+  if (e.key === 'Escape') { hideSuggest(); e.preventDefault(); return true; }
+  return false;
+}
+function getCaretCoords(){
+  // упрощённый расчёт позиции каретки через зеркальный div
+  const mirror = document.createElement('div');
+  const style = getComputedStyle(code);
+  ['fontFamily','fontSize','lineHeight','padding','border','boxSizing','whiteSpace','wordWrap'].forEach(p => mirror.style[p] = style[p]);
+  mirror.style.position = 'absolute'; mirror.style.visibility = 'hidden'; mirror.style.width = code.clientWidth + 'px';
+  mirror.style.top = '0'; mirror.style.left = '-9999px';
+  const before = code.value.slice(0, code.selectionStart);
+  mirror.textContent = before;
+  const span = document.createElement('span'); span.textContent = '.';
+  mirror.appendChild(span);
+  document.body.appendChild(mirror);
+  const rect = span.getBoundingClientRect();
+  const editorRect = code.getBoundingClientRect();
+  const left = 46 + (rect.left - mirror.getBoundingClientRect().left);
+  const top = (rect.top - mirror.getBoundingClientRect().top) - code.scrollTop + 20;
+  document.body.removeChild(mirror);
+  return { left: Math.min(left, code.clientWidth-40), top };
+}
+
+// старт
+code.value = TEMPLATE;
+render();
+</script>
+</body>
+</html>
