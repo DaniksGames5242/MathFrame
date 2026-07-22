@@ -1,5 +1,64 @@
 // common.js – шапка, подвал, тема, аутентификация и настройки
 
+// ===== АДМИН / FIRESTORE (пользователи, посещения, доступ к панели) =====
+const SUPER_ADMIN_EMAIL = 'mathframe.ru@gmail.com';
+let _firestoreLoadingPromise = null;
+function ensureFirestore() {
+    if (window.firebase && firebase.firestore) return Promise.resolve();
+    if (_firestoreLoadingPromise) return _firestoreLoadingPromise;
+    _firestoreLoadingPromise = new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js';
+        s.onload = resolve;
+        s.onerror = reject;
+        document.head.appendChild(s);
+    });
+    return _firestoreLoadingPromise;
+}
+
+function trackVisit() {
+    if (sessionStorage.getItem('mf_visit_tracked')) return;
+    ensureFirestore().then(() => {
+        const db = firebase.firestore();
+        const today = new Date().toISOString().slice(0, 10);
+        return db.collection('stats').doc('visits').set({
+            total: firebase.firestore.FieldValue.increment(1),
+            days: { [today]: firebase.firestore.FieldValue.increment(1) }
+        }, { merge: true });
+    }).then(() => sessionStorage.setItem('mf_visit_tracked', '1')).catch(() => {});
+}
+
+function syncUserProfile(user) {
+    if (!user) return;
+    ensureFirestore().then(() => {
+        const db = firebase.firestore();
+        const ref = db.collection('users').doc(user.uid);
+        const payload = {
+            email: user.email || null,
+            displayName: user.displayName || null,
+            photoURL: user.photoURL || null,
+            provider: (user.providerData[0] && user.providerData[0].providerId) || 'password',
+            lastLogin: firebase.firestore.FieldValue.serverTimestamp()
+        };
+        return ref.get().then(doc => {
+            if (!doc.exists) payload.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+            return ref.set(payload, { merge: true });
+        });
+    }).catch(() => {});
+}
+
+function updateAdminNavLink(user) {
+    const link = document.getElementById('admin-nav-link');
+    if (!link) return;
+    if (!user) { link.style.display = 'none'; return; }
+    if (user.email === SUPER_ADMIN_EMAIL) { link.style.display = ''; return; }
+    ensureFirestore().then(() => {
+        return firebase.firestore().collection('admins').doc(user.uid).get();
+    }).then(doc => {
+        link.style.display = (doc.exists && doc.data().granted) ? '' : 'none';
+    }).catch(() => { link.style.display = 'none'; });
+}
+
 // ===== КОНФИГУРАЦИЯ АНИМАЦИИ ТЕМЫ =====
 const THEME_ANIMATION_CONFIG = {
     expandDuration: 700,
@@ -51,6 +110,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initTheme();
     injectAuthModal();
     injectSettingsModal();
+    trackVisit();
 
     function initAuthWhenReady() {
         if (window.Auth) {
@@ -236,6 +296,8 @@ function updateUIForAuth(user) {
     currentUser = user;
     updateAccountCircle(user);
     updateHeroButtons(user);
+    updateAdminNavLink(user);
+    if (user) syncUserProfile(user);
     if (document.getElementById('settings-modal')?.classList.contains('active')) {
         populateSettingsRef?.(user);
     }
@@ -716,7 +778,7 @@ function renderHeader() {
       <img src="${PAGE_ROOT}assets/img/logo.png" alt="MathFrame" class="logo-icon"
            data-light-src="assets/img/logo-light.png" data-dark-src="assets/img/logo.png" />
     </a>
-    <nav id="app-nav">${navHTML}</nav>
+    <nav id="app-nav">${navHTML}<a href="${PAGE_ROOT}pages/admin/admin.html" id="admin-nav-link" class="nav-link" style="display:none;">Админ панель</a></nav>
     <div class="header-right">
       <div class="account-circle" id="account-circle" title="Аккаунт"></div>
       <button class="nav-toggle" id="nav-toggle" aria-label="Меню" aria-expanded="false">
