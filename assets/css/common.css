@@ -110,7 +110,6 @@ img { max-width: 100%; display: block; }
 #app-header nav a:hover { color: var(--text-primary); }
 #app-header nav a:hover::after { width: 100%; }
 
-/* ===== АКТИВНАЯ ССЫЛКА В ШАПКЕ ===== */
 #app-header nav a.active {
     color: var(--accent);
 }
@@ -125,19 +124,6 @@ img { max-width: 100%; display: block; }
     gap: 1rem;
     margin-left: 2rem;
 }
-
-.theme-toggle-btn {
-    background: none;
-    border: 1px solid var(--border);
-    border-radius: 0.5rem;
-    padding: 0.4rem 0.6rem;
-    font-size: 1.2rem;
-    cursor: pointer;
-    transition: var(--theme-transition);
-    line-height: 1;
-    color: var(--text-primary);
-}
-.theme-toggle-btn:hover { background: rgba(255,255,255,0.05); }
 
 .account-circle {
     width: 40px;
@@ -346,7 +332,7 @@ img { max-width: 100%; display: block; }
 
 #recaptcha-container { display: flex; justify-content: center; margin-top: 0.8rem; }
 
-/* ===== АВАТАР В НАСТРОЙКАХ С ЭФФЕКТОМ РЕДАКТИРОВАНИЯ ===== */
+/* ===== АВАТАР В НАСТРОЙКАХ ===== */
 .avatar-section {
     display: flex;
     flex-direction: column;
@@ -359,7 +345,6 @@ img { max-width: 100%; display: block; }
     height: 80px;
     border-radius: 50%;
     overflow: hidden;
-    cursor: pointer;
     margin-bottom: 0.8rem;
 }
 .avatar-wrapper img,
@@ -378,31 +363,6 @@ img { max-width: 100%; display: block; }
     font-weight: 700;
     color: #fff;
 }
-.avatar-overlay {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0,0,0,0.4);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    opacity: 0;
-    transition: opacity 0.2s;
-    border-radius: 50%;
-}
-.avatar-overlay span {
-    font-size: 1.5rem;
-    color: #fff;
-}
-.avatar-wrapper:hover .avatar-overlay {
-    opacity: 1;
-}
-.avatar-wrapper input[type="file"] {
-    display: none;
-}
-
 .username-display {
     display: flex;
     align-items: center;
@@ -427,6 +387,31 @@ img { max-width: 100%; display: block; }
     margin-bottom: 0.8rem;
 }
 .settings-field input:focus { border-color: var(--accent); }
+
+/* ===== ВЫБОР ТЕМЫ В НАСТРОЙКАХ ===== */
+.theme-option {
+    border: 2px solid transparent !important;
+    border-radius: 1rem !important;
+    background: rgba(255,255,255,0.05) !important;
+    cursor: pointer;
+    padding: 0.3rem !important;
+    transition: all 0.2s !important;
+    width: 70px;
+    height: 70px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.3rem;
+}
+.theme-option:hover {
+    background: rgba(255,255,255,0.1) !important;
+}
+.theme-option.active {
+    border-color: var(--accent) !important;
+    background: rgba(99,102,241,0.15) !important;
+    transform: scale(1.05);
+}
 
 .btn {
     display: inline-flex;
@@ -509,7 +494,6 @@ html.light .btn:hover {
     box-shadow: 0 8px 20px rgba(0,0,0,0.1);
 }
 
-/* ===== СВЕТЛАЯ ТЕМА: СЕКЦИИ (карточки) ===== */
 html.light .section-card {
     background: rgba(255, 255, 255, 0.7);
     backdrop-filter: blur(24px);

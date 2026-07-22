@@ -2,9 +2,9 @@
 
 // ===== КОНФИГУРАЦИЯ АНИМАЦИИ ТЕМЫ =====
 const THEME_ANIMATION_CONFIG = {
-    expandDuration: 700,   // длительность раскрытия маски (мс)
-    pauseBeforeFade: 400,  // пауза после раскрытия перед исчезновением (мс)
-    fadeDuration: 1000,     // длительность исчезновения маски (мс)
+    expandDuration: 700,
+    pauseBeforeFade: 400,
+    fadeDuration: 1000,
 };
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -36,7 +36,7 @@ let isThemeAnimating = false;
 function initTheme() {
     const saved = localStorage.getItem('theme');
     if (saved === 'light' || saved === 'dark') {
-        applyTheme(saved, false, false); // без анимации при загрузке
+        applyTheme(saved, false, false);
     } else {
         applySystemTheme(false);
         window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
@@ -48,12 +48,10 @@ function initTheme() {
 }
 
 function applyTheme(theme, save = true, animated = true) {
-    if (isThemeAnimating) return; // предотвращаем повторные анимации
-
+    if (isThemeAnimating) return;
     if (animated) {
         isThemeAnimating = true;
         animateThemeChange(theme, () => {
-            // После завершения анимации применяем тему (если не была применена ранее)
             applyThemeImmediate(theme, save);
             isThemeAnimating = false;
         });
@@ -69,28 +67,22 @@ function applyThemeImmediate(theme, save = true) {
     if (save) localStorage.setItem('theme', theme);
     updateThemeImages(isLight ? 'light' : 'dark');
     updateHeroBackground(theme);
-    highlightThemeButtons(theme);
     updateThemeToggleIcon(theme);
 }
 
 function applySystemTheme(save = true) {
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
     const theme = prefersDark ? 'dark' : 'light';
-    // При автоматической смене системы – без анимации
     applyTheme(theme, false, false);
     if (save) localStorage.setItem('theme', 'system');
-    highlightThemeButtons('system');
     updateThemeToggleIcon('system');
 }
 
 function animateThemeChange(theme, callback) {
     const { expandDuration, pauseBeforeFade, fadeDuration } = THEME_ANIMATION_CONFIG;
-
-    // Определяем цвет фона новой темы
     const isLight = theme === 'light';
     const bgColor = isLight ? '#ffffff' : '#020408';
 
-    // Создаём маску
     const mask = document.createElement('div');
     mask.style.position = 'fixed';
     mask.style.top = '0';
@@ -102,47 +94,33 @@ function animateThemeChange(theme, callback) {
     mask.style.backgroundColor = bgColor;
     mask.style.opacity = '1';
     mask.style.transition = `clip-path ${expandDuration}ms cubic-bezier(0.4, 0, 0.2, 1), opacity ${fadeDuration}ms ease`;
-    // Начальное состояние – диагональная линия (почти невидима)
     mask.style.clipPath = 'polygon(0 0, 0 0, 100% 100%, 100% 100%)';
     document.body.appendChild(mask);
-
-    // Принудительный reflow для запуска анимации
     mask.offsetHeight;
-
-    // 1) Раскрываем маску на весь экран
     mask.style.clipPath = 'polygon(0 0, 100% 0, 100% 100%, 0 100%)';
 
-    // Обработчик окончания раскрытия
     const onExpandEnd = () => {
         mask.removeEventListener('transitionend', onExpandEnd);
-
-        // Применяем тему сразу после раскрытия маски (чтобы фон уже был новой темы)
         applyThemeImmediate(theme, true);
-
-        // 2) Ждём паузу, чтобы картинки подгрузились
         setTimeout(() => {
-            // 3) Плавно убираем маску (opacity -> 0)
             mask.style.opacity = '0';
-            // По окончании исчезновения удаляем маску и вызываем callback
             const onFadeOutEnd = () => {
                 mask.removeEventListener('transitionend', onFadeOutEnd);
                 if (callback) callback();
                 mask.remove();
             };
             mask.addEventListener('transitionend', onFadeOutEnd);
-            // Запасной таймер
             setTimeout(() => {
                 if (mask.parentNode) {
                     mask.removeEventListener('transitionend', onFadeOutEnd);
                     if (callback) callback();
                     mask.remove();
                 }
-            }, fadeDuration + 100); // небольшой запас
+            }, fadeDuration + 100);
         }, pauseBeforeFade);
     };
     mask.addEventListener('transitionend', onExpandEnd);
 
-    // Запасной таймер на случай, если transitionend не сработает
     setTimeout(() => {
         if (mask.parentNode) {
             mask.removeEventListener('transitionend', onExpandEnd);
@@ -155,7 +133,7 @@ function animateThemeChange(theme, callback) {
                 }
             }, fadeDuration + 100);
         }
-    }, expandDuration + 300); // запас
+    }, expandDuration + 300);
 }
 
 function updateThemeImages(mode) {
@@ -171,14 +149,8 @@ function updateHeroBackground(theme) {
     root.style.setProperty('--hero-bg', isLight ? 'var(--hero-bg-light)' : 'var(--hero-bg-dark)');
 }
 
-function highlightThemeButtons(theme) {
-    document.querySelectorAll('.theme-btn').forEach(btn => {
-        btn.classList.remove('active');
-        if (btn.dataset.theme === theme) btn.classList.add('active');
-    });
-}
-
 function updateThemeToggleIcon(theme) {
+    // Убрали кнопку из шапки, но функция может использоваться в настройках
     const btn = document.getElementById('theme-toggle');
     if (!btn) return;
     const icons = { light: '☀️', dark: '🌙', system: '💻' };
@@ -213,8 +185,8 @@ function updateAccountCircle(user) {
         circle.title = name;
         circle.onclick = () => openSettings();
     } else {
-        circle.innerHTML = '';
-        circle.textContent = '?';
+        // Заменяем ? на картинку
+        circle.innerHTML = `<img src="https://cdn-icons-png.flaticon.com/512/8188/8188349.png" alt="Гость" style="width:100%;height:100%;object-fit:cover;" />`;
         circle.title = 'Войти';
         circle.onclick = () => openAuthModal();
     }
@@ -440,10 +412,7 @@ function injectSettingsModal() {
         <div class="avatar-wrapper" id="avatar-wrapper">
           <img id="avatar-img" src="" alt="" style="display:none" />
           <div class="avatar-placeholder" id="avatar-placeholder">?</div>
-          <div class="avatar-overlay">
-            <span>✎</span>
-          </div>
-          <input type="file" id="avatar-input" accept="image/*" />
+          <!-- overlay и input удалены -->
         </div>
         <div class="username-display">
           <span id="username-text"></span>
@@ -460,9 +429,28 @@ function injectSettingsModal() {
         </div>
       </div>
 
-      <button class="btn small" id="change-password-btn" style="width:100%; margin-bottom:0.8rem;">Сменить пароль</button>
+      <!-- Тема -->
+      <div style="margin: 1.2rem 0 0.8rem; border-top:1px solid var(--border); padding-top:1rem;">
+        <div style="font-weight:600; font-size:0.9rem; margin-bottom:0.7rem; color:var(--text-secondary);">Тема оформления</div>
+        <div style="display:flex; gap:0.8rem; justify-content:center;" id="theme-selector">
+          <button class="theme-option" data-theme="light" style="border:2px solid transparent; border-radius:1rem; background:transparent; cursor:pointer; padding:0.3rem; transition: all 0.2s; width:70px; height:70px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:0.3rem; background: rgba(255,255,255,0.05); border-radius:1rem;">
+            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 24 24' fill='none' stroke='%23fbbf24' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='5'/%3E%3Cline x1='12' y1='1' x2='12' y2='3'/%3E%3Cline x1='12' y1='21' x2='12' y2='23'/%3E%3Cline x1='4.22' y1='4.22' x2='5.64' y2='5.64'/%3E%3Cline x1='18.36' y1='18.36' x2='19.78' y2='19.78'/%3E%3Cline x1='1' y1='12' x2='3' y2='12'/%3E%3Cline x1='21' y1='12' x2='23' y2='12'/%3E%3Cline x1='4.22' y1='19.78' x2='5.64' y2='18.36'/%3E%3Cline x1='18.36' y1='5.64' x2='19.78' y2='4.22'/%3E%3C/svg%3E" alt="Светлая" style="width:32px;height:32px;" />
+            <span style="font-size:0.7rem;color:var(--text-secondary);">Светлая</span>
+          </button>
+          <button class="theme-option" data-theme="dark" style="border:2px solid transparent; border-radius:1rem; background:transparent; cursor:pointer; padding:0.3rem; transition: all 0.2s; width:70px; height:70px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:0.3rem; background: rgba(255,255,255,0.05); border-radius:1rem;">
+            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 24 24' fill='none' stroke='%23818cf8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z'/%3E%3C/svg%3E" alt="Тёмная" style="width:32px;height:32px;" />
+            <span style="font-size:0.7rem;color:var(--text-secondary);">Тёмная</span>
+          </button>
+          <button class="theme-option" data-theme="system" style="border:2px solid transparent; border-radius:1rem; background:transparent; cursor:pointer; padding:0.3rem; transition: all 0.2s; width:70px; height:70px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:0.3rem; background: rgba(255,255,255,0.05); border-radius:1rem;">
+            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='2' y='3' width='20' height='14' rx='2' ry='2'/%3E%3Cline x1='8' y1='21' x2='16' y2='21'/%3E%3Cline x1='12' y1='17' x2='12' y2='21'/%3E%3C/svg%3E" alt="Системная" style="width:32px;height:32px;" />
+            <span style="font-size:0.7rem;color:var(--text-secondary);">Системная</span>
+          </button>
+        </div>
+      </div>
 
-      <div style="display:flex; justify-content:center; margin-top:1.5rem;">
+      <button class="btn small" id="change-password-btn" style="width:100%; margin:0.8rem 0;">Сменить пароль</button>
+
+      <div style="display:flex; justify-content:center; margin-top:0.5rem;">
         <button class="btn danger" id="logout-btn">Выйти из аккаунта</button>
       </div>
     </div>
@@ -472,10 +460,8 @@ function injectSettingsModal() {
     const overlay = document.getElementById('settings-overlay');
     const modal = document.getElementById('settings-modal');
     const closeBtn = document.getElementById('settings-close');
-    const avatarWrapper = document.getElementById('avatar-wrapper');
     const avatarImg = document.getElementById('avatar-img');
     const avatarPlaceholder = document.getElementById('avatar-placeholder');
-    const avatarInput = document.getElementById('avatar-input');
     const usernameText = document.getElementById('username-text');
     const emailDisplay = document.getElementById('email-display');
     const editBtn = document.getElementById('edit-username-btn');
@@ -485,6 +471,31 @@ function injectSettingsModal() {
     const cancelUsernameBtn = document.getElementById('cancel-username-btn');
     const changePasswordBtn = document.getElementById('change-password-btn');
     const logoutBtn = document.getElementById('logout-btn');
+
+    // Выбор темы
+    const themeOptions = modal.querySelectorAll('.theme-option');
+    function updateThemeSelection(theme) {
+        themeOptions.forEach(btn => {
+            const isActive = btn.dataset.theme === theme;
+            btn.style.borderColor = isActive ? 'var(--accent)' : 'transparent';
+            btn.style.background = isActive ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.05)';
+            btn.style.transform = isActive ? 'scale(1.05)' : 'scale(1)';
+        });
+    }
+    themeOptions.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const theme = btn.dataset.theme;
+            // Применяем тему без анимации (или с анимацией, но без зацикливания)
+            if (theme === 'system') {
+                applySystemTheme(true);
+            } else {
+                applyTheme(theme, true, true);
+            }
+            updateThemeSelection(theme);
+            // Обновляем currentUser при необходимости
+            if (currentUser) populateSettings(currentUser);
+        });
+    });
 
     function populateSettings(user) {
         if (!user) {
@@ -512,41 +523,12 @@ function injectSettingsModal() {
 
         const isPasswordProvider = user.providerData.some(p => p.providerId === 'password');
         changePasswordBtn.style.display = isPasswordProvider ? '' : 'none';
+
+        // Обновляем выбор темы
+        const currentTheme = localStorage.getItem('theme') || 'system';
+        updateThemeSelection(currentTheme);
     }
     populateSettingsRef = populateSettings;
-
-    async function handleAvatarUpload(file) {
-        if (!file) return;
-        if (!window.Auth) {
-            alert('Сервис аутентификации недоступен');
-            return;
-        }
-        try {
-            console.log('Загрузка аватара...', file.name);
-            const url = await window.Auth.uploadAvatar(file);
-            console.log('Аватар загружен, URL:', url);
-            await window.Auth.updateUserProfile({ photoURL: url });
-            const user = window.Auth.getCurrentUser();
-            if (user) {
-                currentUser = user;
-                updateAccountCircle(currentUser);
-                populateSettings(currentUser);
-            }
-        } catch (err) {
-            console.error('Ошибка загрузки аватара:', err);
-            alert('Ошибка загрузки: ' + err.message);
-        }
-    }
-
-    avatarWrapper.addEventListener('click', (e) => {
-        if (e.target === avatarInput) return;
-        avatarInput.click();
-    });
-    avatarInput.addEventListener('change', (e) => {
-        const file = e.target.files[0];
-        if (file) handleAvatarUpload(file);
-        avatarInput.value = '';
-    });
 
     function openSettings() {
         if (!currentUser) {
@@ -631,13 +613,11 @@ function renderHeader() {
         { href: 'pages/playground.html', text: 'Песочница' },
     ];
 
-    // Определяем текущую страницу
     const currentPath = window.location.pathname;
     const currentFile = currentPath.split('/').pop() || 'index.html';
 
     const navHTML = navLinks
         .map(link => {
-            // Проверяем, является ли ссылка активной
             const isActive = link.href === currentFile || 
                             (currentFile === '' && link.href === 'index.html') ||
                             currentPath.endsWith(link.href);
@@ -653,7 +633,6 @@ function renderHeader() {
     </a>
     <nav id="app-nav">${navHTML}</nav>
     <div class="header-right">
-      <button class="theme-toggle-btn" id="theme-toggle" title="Сменить тему"></button>
       <div class="account-circle" id="account-circle" title="Аккаунт"></div>
       <button class="nav-toggle" id="nav-toggle" aria-label="Меню" aria-expanded="false">
         <span></span><span></span><span></span>
@@ -678,21 +657,8 @@ function renderHeader() {
         if (window.innerWidth > 768) closeNav();
     });
 
-    const themeBtn = document.getElementById('theme-toggle');
-    const savedTheme = localStorage.getItem('theme') || 'system';
-    updateThemeToggleIcon(savedTheme === 'system' ? (document.documentElement.classList.contains('light') ? 'light' : 'dark') : savedTheme);
-    themeBtn.addEventListener('click', () => {
-        if (isThemeAnimating) return;
-        const current = localStorage.getItem('theme') || 'system';
-        if (current === 'system') {
-            applyTheme(document.documentElement.classList.contains('light') ? 'dark' : 'light', true);
-        } else if (current === 'light') {
-            applyTheme('dark', true);
-        } else if (current === 'dark') {
-            applySystemTheme(true);
-        }
-    });
-
+    // Убрана кнопка темы
+    // Обновляем изображения для текущей темы
     const currentTheme = document.documentElement.classList.contains('light') ? 'light' : 'dark';
     updateThemeImages(currentTheme);
 }

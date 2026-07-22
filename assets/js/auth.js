@@ -41,19 +41,6 @@ const AuthAPI = {
     },
     onAuthChange: (callback) => auth.onAuthStateChanged(callback),
     getCurrentUser: () => auth.currentUser,
-
-    // Загрузка аватара в Firebase Storage и получение URL
-    uploadAvatar: (file) => {
-        const user = auth.currentUser;
-        if (!user) return Promise.reject('Не авторизован');
-        // Генерируем уникальное имя, чтобы избежать конфликтов
-        const ext = file.name.split('.').pop();
-        const fileName = `avatar_${Date.now()}.${ext}`;
-        const storageRef = storage.ref(`avatars/${user.uid}/${fileName}`);
-        return storageRef.put(file).then((snapshot) => {
-            return storageRef.getDownloadURL();
-        });
-    }
 };
 
 window.Auth = AuthAPI;
