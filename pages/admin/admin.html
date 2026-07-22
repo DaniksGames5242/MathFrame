@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Админ‑панель — MathFrame</title>
+<link rel="stylesheet" href="../../assets/css/common.css" />
+
+<style>
+  #admin-gate { position: fixed; inset: 0; background: var(--bg-body); z-index: 500;
+    display: flex; align-items: center; justify-content: center; color: var(--text-secondary); font-size: 1.1rem; }
+  #admin-root { display: none; max-width: 1200px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
+
+  .admin-title { font-size: 1.9rem; font-weight: 800; margin-bottom: 0.3rem; }
+  .admin-sub { color: var(--text-secondary); margin-bottom: 2rem; }
+
+  .cards-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
+  .stat-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 1rem; padding: 1.2rem 1.4rem;
+    backdrop-filter: blur(20px); box-shadow: var(--shadow); }
+  .stat-card .num { font-size: 2rem; font-weight: 800; color: var(--accent); }
+  .stat-card .label { color: var(--text-secondary); font-size: 0.9rem; margin-top: 0.2rem; }
+
+  .section { background: var(--bg-card); border: 1px solid var(--border); border-radius: 1rem; padding: 1.5rem;
+    margin-bottom: 2rem; backdrop-filter: blur(20px); box-shadow: var(--shadow); }
+  .section h2 { font-size: 1.25rem; margin-bottom: 1rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+  .section h2 small { font-weight: 400; font-size: 0.8rem; color: var(--text-secondary); }
+
+  .charts-grid { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 1.2rem; }
+  .chart-box { min-height: 220px; position: relative; }
+  .chart-box canvas { max-height: 220px; }
+  @media (max-width: 900px) { .charts-grid { grid-template-columns: 1fr; } }
+
+  table.admin-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+  .admin-table th, .admin-table td { text-align: left; padding: 0.6rem 0.7rem; border-bottom: 1px solid var(--border); }
+  .admin-table th { color: var(--text-secondary); font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.03em; }
+  .admin-table tr:last-child td { border-bottom: none; }
+  .badge { display: inline-block; padding: 0.15rem 0.6rem; border-radius: 1rem; font-size: 0.75rem; font-weight: 600; }
+  .badge.yes { background: rgba(34,197,94,0.15); color: #22c55e; }
+  .badge.no { background: rgba(239,68,68,0.12); color: #ef4444; }
+  .badge.admin { background: rgba(129,140,248,0.18); color: var(--accent); }
+
+  .toolbar { display: flex; gap: 0.6rem; flex-wrap: wrap; margin-bottom: 1rem; }
+  .toolbar input[type="text"] { flex: 1; min-width: 180px; padding: 0.55rem 0.9rem; border-radius: 0.5rem;
+    border: 1px solid var(--border); background: rgba(255,255,255,0.05); color: var(--text-primary); outline: none; }
+  .chip { padding: 0.4rem 0.9rem; border-radius: 1rem; border: 1px solid var(--border); background: transparent;
+    color: var(--text-secondary); cursor: pointer; font-size: 0.85rem; transition: var(--transition-smooth); }
+  .chip.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+  .empty-hint { color: var(--text-secondary); font-size: 0.9rem; padding: 1rem 0; text-align: center; }
+  .table-wrap { max-height: 420px; overflow: auto; }
+
+  .actions-row { display: flex; gap: 0.6rem; flex-wrap: wrap; }
+</style>
+</head>
+<body>
+
+<div id="admin-gate">Проверка доступа…</div>
+
+<div id="app-header"></div>
+
+<div id="admin-root">
+  <div class="admin-title">Админ‑панель</div>
+  <div class="admin-sub">Пользователи, статистика сайта и содержимое справочника</div>
+
+  <div class="cards-grid" id="cardsGrid"></div>
+
+  <div class="section">
+    <h2>Статистика <small id="visitsRangeLabel"></small></h2>
+    <div class="charts-grid">
+      <div class="chart-box"><canvas id="visitsChart"></canvas></div>
+      <div class="chart-box"><canvas id="descChart"></canvas></div>
+      <div class="chart-box"><canvas id="exampleChart"></canvas></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Темы справочника
+      <button class="btn primary small" id="goEditorBtn">Перейти в редактор тем</button>
+    </h2>
+    <div class="toolbar">
+      <input type="text" id="topicSearch" placeholder="Поиск по названию…" />
+      <button class="chip active" data-filter="all">Все</button>
+      <button class="chip" data-filter="no-desc">Без описания</button>
+      <button class="chip" data-filter="no-example">Без примера</button>
+      <button class="chip" data-filter="folder">Только папки</button>
+    </div>
+    <div class="table-wrap">
+      <table class="admin-table">
+        <thead><tr><th>Название</th><th>Тип</th><th>Описание</th><th>Пример</th></tr></thead>
+        <tbody id="topicsTbody"></tbody>
+      </table>
+    </div>
+    <div class="empty-hint" id="topicsEmpty" style="display:none;">Ничего не найдено</div>
+  </div>
+
+  <div class="section">
+    <h2>Пользователи (<span id="usersCount">0</span>)
+      <div class="actions-row">
+        <button class="btn small" id="exportUsersBtn">Экспорт CSV</button>
+        <button class="btn small" id="exportStatsBtn">Экспорт статистики JSON</button>
+      </div>
+    </h2>
+    <div class="table-wrap">
+      <table class="admin-table">
+        <thead><tr><th>Пользователь</th><th>Email</th><th>Регистрация</th><th>Последний вход</th><th>Доступ к панели</th></tr></thead>
+        <tbody id="usersTbody"></tbody>
+      </table>
+    </div>
+    <div class="empty-hint" id="usersEmpty" style="display:none;">Пользователи не найдены</div>
+  </div>
+</div>
+
+<div id="app-footer"></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+
+<script>var PAGE_ROOT = '../../';</script>
+<script src="../../assets/js/auth.js"></script>
+<script src="../../assets/js/common.js"></script>
+
+<script>
+(function () {
+  const SUPER_ADMIN_EMAIL = 'mathframe.ru@gmail.com';
+  const db = firebase.firestore();
+  let isSuperAdmin = false;
+  let allTopics = [];
+
+  function css(varName) {
+    return getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+  }
+
+  document.addEventListener('authReady', () => {
+    window.Auth.onAuthChange(user => checkAccess(user));
+  });
+
+  function checkAccess(user) {
+    if (!user) return denyAccess();
+    if (user.email === SUPER_ADMIN_EMAIL) {
+      isSuperAdmin = true;
+      return grantAccess(user);
+    }
+    db.collection('admins').doc(user.uid).get().then(doc => {
+      if (doc.exists && doc.data().granted) grantAccess(user);
+      else denyAccess();
+    }).catch(() => denyAccess());
+  }
+
+  function denyAccess() {
+    window.location.replace(PAGE_ROOT);
+  }
+
+  function grantAccess(user) {
+    document.getElementById('admin-gate').style.display = 'none';
+    document.getElementById('admin-root').style.display = 'block';
+    initPanel(user);
+  }
+
+  async function initPanel(user) {
+    document.getElementById('goEditorBtn').onclick = () => { window.location.href = 'config-editor.html'; };
+
+    const [topics, visits, users] = await Promise.all([loadTopics(), loadVisits(), loadUsers(user)]);
+    allTopics = topics;
+
+    renderCards(topics, visits, users.length);
+    renderVisitsChart(visits);
+    renderTopicsCharts(topics);
+    renderTopicsTable(topics);
+    renderUsersTable(users, user);
+
+    document.getElementById('topicSearch').addEventListener('input', () => renderTopicsTable(allTopics));
+    document.querySelectorAll('.chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+        chip.classList.add('active');
+        renderTopicsTable(allTopics);
+      });
+    });
+
+    document.getElementById('exportUsersBtn').onclick = () => exportUsersCsv(users);
+    document.getElementById('exportStatsBtn').onclick = () => exportStatsJson(topics, visits, users.length);
+  }
+
+  // ===== ТЕМЫ (data/topics/config.json) =====
+  async function loadTopics() {
+    try {
+      const res = await fetch(PAGE_ROOT + 'data/topics/config.json', { cache: 'no-cache' });
+      const data = await res.json();
+      return Array.isArray(data) ? data : [];
+    } catch (e) {
+      console.error('Не удалось загрузить config.json', e);
+      return [];
+    }
+  }
+
+  // ===== ПОСЕЩЕНИЯ (Firestore stats/visits) =====
+  async function loadVisits() {
+    try {
+      const doc = await db.collection('stats').doc('visits').get();
+      if (!doc.exists) return { total: 0, days: {} };
+      const d = doc.data();
+      return { total: d.total || 0, days: d.days || {} };
+    } catch (e) {
+      console.error('Не удалось загрузить статистику посещений', e);
+      return { total: 0, days: {} };
+    }
+  }
+
+  // ===== ПОЛЬЗОВАТЕЛИ (Firestore users + admins) =====
+  async function loadUsers(currentUser) {
+    try {
+      const [usersSnap, adminsSnap] = await Promise.all([
+        db.collection('users').get(),
+        db.collection('admins').get()
+      ]);
+      const adminMap = new Map();
+      adminsSnap.forEach(d => adminMap.set(d.id, d.data().granted === true));
+      return usersSnap.docs.map(d => {
+        const data = d.data();
+        return {
+          uid: d.id,
+          email: data.email || '—',
+          displayName: data.displayName || '',
+          createdAt: data.createdAt && data.createdAt.toDate ? data.createdAt.toDate() : null,
+          lastLogin: data.lastLogin && data.lastLogin.toDate ? data.lastLogin.toDate() : null,
+          isAdmin: data.email === SUPER_ADMIN_EMAIL ? true : !!adminMap.get(d.id)
+        };
+      });
+    } catch (e) {
+      console.error('Не удалось загрузить пользователей', e);
+      return [];
+    }
+  }
+
+  // ===== КАРТОЧКИ =====
+  function renderCards(topics, visits, usersCount) {
+    const nonFolder = topics.filter(t => t.type !== 'folder');
+    const folders = topics.filter(t => t.type === 'folder');
+    const withDesc = nonFolder.filter(t => t.description && String(t.description).trim().length > 0);
+    const withExample = nonFolder.filter(t => !!t.example);
+    const today = new Date().toISOString().slice(0, 10);
+
+    const cards = [
+      { num: usersCount, label: 'Пользователей' },
+      { num: visits.total || 0, label: 'Посещений всего' },
+      { num: visits.days[today] || 0, label: 'Посещений сегодня' },
+      { num: nonFolder.length, label: 'Тем' },
+      { num: folders.length, label: 'Папок' },
+      { num: `${withDesc.length}/${nonFolder.length}`, label: 'С описанием' },
+      { num: `${withExample.length}/${nonFolder.length}`, label: 'С интерактивным примером' },
+    ];
+    document.getElementById('cardsGrid').innerHTML = cards.map(c =>
+      `<div class="stat-card"><div class="num">${c.num}</div><div class="label">${c.label}</div></div>`
+    ).join('');
+  }
+
+  // ===== ГРАФИК ПОСЕЩЕНИЙ =====
+  function renderVisitsChart(visits) {
+    const days = [];
+    for (let i = 13; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      days.push(d.toISOString().slice(0, 10));
+    }
+    document.getElementById('visitsRangeLabel').textContent = '— последние 14 дней';
+    new Chart(document.getElementById('visitsChart'), {
+      type: 'line',
+      data: {
+        labels: days.map(d => d.slice(5)),
+        datasets: [{
+          label: 'Посещения',
+          data: days.map(d => visits.days[d] || 0),
+          borderColor: css('--accent'),
+          backgroundColor: 'rgba(129,140,248,0.15)',
+          fill: true, tension: 0.35, pointRadius: 2
+        }]
+      },
+      options: {
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: css('--text-secondary') }, grid: { display: false } },
+          y: { beginAtZero: true, ticks: { color: css('--text-secondary'), precision: 0 }, grid: { color: css('--border') } }
+        }
+      }
+    });
+  }
+
+  function renderTopicsCharts(topics) {
+    const nonFolder = topics.filter(t => t.type !== 'folder');
+    const withDesc = nonFolder.filter(t => t.description && String(t.description).trim().length > 0).length;
+    const withExample = nonFolder.filter(t => !!t.example).length;
+    const commonOpts = {
+      maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom', labels: { color: css('--text-secondary'), boxWidth: 12 } } }
+    };
+    new Chart(document.getElementById('descChart'), {
+      type: 'doughnut',
+      data: { labels: ['С описанием', 'Без описания'], datasets: [{ data: [withDesc, nonFolder.length - withDesc], backgroundColor: [css('--accent'), 'rgba(148,163,184,0.35)'] }] },
+      options: commonOpts
+    });
+    new Chart(document.getElementById('exampleChart'), {
+      type: 'doughnut',
+      data: { labels: ['С примером', 'Без примера'], datasets: [{ data: [withExample, nonFolder.length - withExample], backgroundColor: ['#22c55e', 'rgba(148,163,184,0.35)'] }] },
+      options: commonOpts
+    });
+  }
+
+  // ===== ТАБЛИЦА ТЕМ =====
+  function renderTopicsTable(topics) {
+    const query = document.getElementById('topicSearch').value.trim().toLowerCase();
+    const filter = document.querySelector('.chip.active')?.dataset.filter || 'all';
+    const rows = topics.filter(t => {
+      if (query && !String(t.title || '').toLowerCase().includes(query)) return false;
+      if (filter === 'no-desc') return t.type !== 'folder' && !(t.description && String(t.description).trim());
+      if (filter === 'no-example') return t.type !== 'folder' && !t.example;
+      if (filter === 'folder') return t.type === 'folder';
+      return true;
+    });
+    const tbody = document.getElementById('topicsTbody');
+    document.getElementById('topicsEmpty').style.display = rows.length ? 'none' : 'block';
+    tbody.innerHTML = rows.slice(0, 300).map(t => {
+      const isFolder = t.type === 'folder';
+      const hasDesc = t.description && String(t.description).trim();
+      return `<tr>
+        <td>${escapeHtml(t.title || t.id || '—')}</td>
+        <td>${isFolder ? 'Папка' : 'Тема'}</td>
+        <td>${isFolder ? '—' : `<span class="badge ${hasDesc ? 'yes' : 'no'}">${hasDesc ? 'есть' : 'нет'}</span>`}</td>
+        <td>${isFolder ? '—' : `<span class="badge ${t.example ? 'yes' : 'no'}">${t.example ? 'есть' : 'нет'}</span>`}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  // ===== ТАБЛИЦА ПОЛЬЗОВАТЕЛЕЙ =====
+  function renderUsersTable(users, currentUser) {
+    document.getElementById('usersCount').textContent = users.length;
+    const tbody = document.getElementById('usersTbody');
+    document.getElementById('usersEmpty').style.display = users.length ? 'none' : 'block';
+    users.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    tbody.innerHTML = users.map(u => {
+      const isSelfSuper = u.email === SUPER_ADMIN_EMAIL;
+      let accessCell = u.isAdmin
+        ? `<span class="badge admin">админ</span>`
+        : `<span class="badge no">нет доступа</span>`;
+      if (isSuperAdmin && !isSelfSuper) {
+        accessCell += ` <button class="btn small" data-uid="${u.uid}" data-grant="${u.isAdmin ? '0' : '1'}" style="margin-left:0.5rem;">${u.isAdmin ? 'Отозвать' : 'Выдать'}</button>`;
+      }
+      return `<tr>
+        <td>${escapeHtml(u.displayName || '—')}</td>
+        <td>${escapeHtml(u.email)}</td>
+        <td>${formatDate(u.createdAt)}</td>
+        <td>${formatDate(u.lastLogin)}</td>
+        <td>${accessCell}</td>
+      </tr>`;
+    }).join('');
+
+    tbody.querySelectorAll('button[data-uid]').forEach(btn => {
+      btn.addEventListener('click', () => toggleAdminAccess(btn, currentUser));
+    });
+  }
+
+  function toggleAdminAccess(btn, currentUser) {
+    const uid = btn.dataset.uid;
+    const grant = btn.dataset.grant === '1';
+    btn.disabled = true;
+    db.collection('admins').doc(uid).set({
+      granted: grant,
+      grantedBy: currentUser.email,
+      grantedAt: firebase.firestore.FieldValue.serverTimestamp()
+    }, { merge: true }).then(() => location.reload()).catch(err => {
+      alert('Ошибка: ' + err.message);
+      btn.disabled = false;
+    });
+  }
+
+  // ===== ЭКСПОРТ =====
+  function exportUsersCsv(users) {
+    const header = 'Имя,Email,Регистрация,Последний вход,Админ\n';
+    const rows = users.map(u => [u.displayName, u.email, formatDate(u.createdAt), formatDate(u.lastLogin), u.isAdmin ? 'да' : 'нет']
+      .map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+    downloadFile('users.csv', header + rows, 'text/csv;charset=utf-8;');
+  }
+
+  function exportStatsJson(topics, visits, usersCount) {
+    const nonFolder = topics.filter(t => t.type !== 'folder');
+    const stats = {
+      exportedAt: new Date().toISOString(),
+      users: usersCount,
+      visitsTotal: visits.total || 0,
+      visitsByDay: visits.days || {},
+      topics: nonFolder.length,
+      folders: topics.length - nonFolder.length,
+      withDescription: nonFolder.filter(t => t.description && String(t.description).trim()).length,
+      withExample: nonFolder.filter(t => !!t.example).length
+    };
+    downloadFile('stats.json', JSON.stringify(stats, null, 2), 'application/json');
+  }
+
+  function downloadFile(name, content, mime) {
+    const blob = new Blob([content], { type: mime });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  function formatDate(d) {
+    if (!d) return '—';
+    return d.toLocaleDateString('ru-RU') + ' ' + d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+})();
+</script>
+</body>
+</html>
