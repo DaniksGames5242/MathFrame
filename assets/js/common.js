@@ -7,6 +7,41 @@ const THEME_ANIMATION_CONFIG = {
     fadeDuration: 1000,
 };
 
+// ===== ДОБАВЛЯЕМ СТИЛИ ДЛЯ ГОРИЗОНТАЛЬНОГО ОТОБРАЖЕНИЯ ТЕМ =====
+(function addThemeSelectorStyles() {
+    const style = document.createElement('style');
+    style.textContent = `
+        #theme-selector-auth, #theme-selector-settings {
+            display: flex;
+            justify-content: center;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+        .theme-option {
+            cursor: pointer;
+            border: 2px solid transparent;
+            border-radius: 50%;
+            padding: 4px;
+            transition: border-color 0.2s;
+            background: none;
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .theme-option.active {
+            border-color: var(--accent, #007bff);
+        }
+        .theme-option img {
+            width: 24px;
+            height: 24px;
+            display: block;
+        }
+    `;
+    document.head.appendChild(style);
+})();
+
 document.addEventListener('DOMContentLoaded', () => {
     if (typeof PAGE_ROOT === 'undefined') {
         console.error('Задайте PAGE_ROOT перед common.js');
@@ -37,8 +72,10 @@ function initTheme() {
     const saved = localStorage.getItem('theme');
     if (saved === 'light' || saved === 'dark') {
         applyTheme(saved, false, false);
+        updateAllThemeSelections(saved);
     } else {
         applySystemTheme(false, false);
+        updateAllThemeSelections('system');
         window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
             if (localStorage.getItem('theme') === 'system' || !localStorage.getItem('theme')) {
                 applySystemTheme(true, false);
@@ -49,18 +86,23 @@ function initTheme() {
 
 function applyTheme(theme, save = true, animated = true) {
     if (isThemeAnimating) return;
-    // Проверяем, не совпадает ли уже фактическая тема
     const currentActual = document.documentElement.classList.contains('light') ? 'light' : 'dark';
-    if (theme === currentActual && (localStorage.getItem('theme') === theme || localStorage.getItem('theme') === 'system')) {
-        // Если тема уже активна, просто обновляем выделение
-        updateAllThemeSelections(localStorage.getItem('theme') || 'system');
+
+    // Если запрошенная тема уже активна – просто сохраняем и обновляем выделение (без анимации)
+    if (theme === currentActual) {
+        if (save) localStorage.setItem('theme', theme);
+        updateAllThemeSelections(theme);
         return;
     }
+
     if (animated) {
         isThemeAnimating = true;
+        // Мгновенно обновляем выделение до начала анимации
+        updateAllThemeSelections(theme);
         animateThemeChange(theme, () => {
             applyThemeImmediate(theme, save);
             isThemeAnimating = false;
+            // Дополнительная синхронизация после анимации
             updateAllThemeSelections(theme);
         });
     } else {
@@ -82,24 +124,18 @@ function applySystemTheme(save = true, animated = true) {
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
     const targetTheme = prefersDark ? 'dark' : 'light';
     const currentActual = document.documentElement.classList.contains('light') ? 'light' : 'dark';
-    const currentStored = localStorage.getItem('theme') || 'system';
 
-    // Если системная тема совпадает с фактической и уже стоит system в localStorage — ничего не делаем
-    if (targetTheme === currentActual && currentStored === 'system') {
-        updateAllThemeSelections('system');
-        return;
-    }
-
-    // Если системная тема совпадает с фактической, но в localStorage другое — меняем сохранённое
+    // Если системная тема совпадает с фактической – просто сохраняем и обновляем выделение
     if (targetTheme === currentActual) {
         if (save) localStorage.setItem('theme', 'system');
         updateAllThemeSelections('system');
         return;
     }
 
-    // Иначе применяем системную тему с анимацией (если нужно)
     if (animated) {
         isThemeAnimating = true;
+        // Мгновенно обновляем выделение до начала анимации
+        updateAllThemeSelections('system');
         animateThemeChange(targetTheme, () => {
             applyThemeImmediate(targetTheme, false);
             if (save) localStorage.setItem('theme', 'system');
@@ -220,7 +256,6 @@ function updateAccountCircle(user) {
         circle.title = name;
         circle.onclick = () => openSettings();
     } else {
-        // Иконка гостя
         circle.innerHTML = `<img src="https://cdn-icons-png.flaticon.com/512/8188/8188349.png" alt="Гость" style="width:100%;height:100%;object-fit:cover;" />`;
         circle.title = 'Войти';
         circle.onclick = () => window.openAuthModal();
@@ -365,7 +400,6 @@ function injectAuthModal() {
         document.getElementById('verification-code').value = '';
         confirmationResult = null;
 
-        // Обновляем выделение темы в модалке
         const currentTheme = localStorage.getItem('theme') || 'system';
         updateAllThemeSelections(currentTheme);
     }
@@ -576,7 +610,6 @@ function injectSettingsModal() {
         const isPasswordProvider = user.providerData.some(p => p.providerId === 'password');
         changePasswordBtn.style.display = isPasswordProvider ? '' : 'none';
 
-        // Обновляем выделение темы
         const currentTheme = localStorage.getItem('theme') || 'system';
         updateAllThemeSelections(currentTheme);
     }
@@ -709,7 +742,6 @@ function renderHeader() {
         if (window.innerWidth > 768) closeNav();
     });
 
-    // Обновляем изображения для текущей темы
     const currentTheme = document.documentElement.classList.contains('light') ? 'light' : 'dark';
     updateThemeImages(currentTheme);
 }
