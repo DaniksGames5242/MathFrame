@@ -1,4 +1,4 @@
-        function escapeHtml(text) {
+function escapeHtml(text) {
             if (!text) return '';
             return text.replace(/&/g, '&amp;')
                        .replace(/</g, '&lt;')
@@ -183,7 +183,7 @@
         // 1) '};' внутри строки (например, action кнопки с мини-языком) обрывал блок раньше времени;
         // 2) вложенные { } внутри значений полей ломали нежадные regex-экстракторы.
         function findHeaderedBlocks(code, headerRegexSrc) {
-            const re = new RegExp(headerRegexSrc, 'g');
+            const re = new RegExp(headerRegexSrc, 'gi');
             const found = [];
             let m;
             while ((m = re.exec(code)) !== null) {
@@ -217,7 +217,7 @@
                 let end = j;
                 while (end < code.length && /\s/.test(code[end])) end++;
                 if (code[end] === ';') end++;
-                found.push({ start: m.index, end: end, body: code.slice(bodyStart, bodyEnd) });
+                found.push({ start: m.index, end: end, body: code.slice(bodyStart, bodyEnd), header: m[0], groups: m });
                 re.lastIndex = end;
             }
             return found;
@@ -396,13 +396,13 @@
         }
 
 const OBJECT_BLOCK_HEADERS = [
-    '\\bnew\\s+Point\\b', '\\bnew\\s+Line\\b', '\\bnew\\s+Figure\\b', '\\bnew\\s+Primitive\\b',
-    '\\bnew\\s+Section\\b', '\\bnew\\s+Boolean\\b', '\\bnew\\s+Angle3D\\b', '\\bnew\\s+Claster\\b',
-    '\\bnew\\s+Angle\\b', '\\bdraw\\s+Angle\\b', '\\bdraw\\s+EquallySing\\b', '\\bdraw\\s+Vector\\b',
-    '\\bdraw\\s+InfLine\\b', '\\bdraw\\s+InfPlane\\b', '\\bdraw\\s+Filling\\b', '\\bdraw\\s+Punctir\\b', '\\bdraw\\s+Text\\b',
+    '\\bnew\\s+Point(2D|3D)?\\b', '\\bnew\\s+Line(2D|3D)?\\b', '\\bnew\\s+Figure(2D|3D)?\\b', '\\bnew\\s+Primitive\\b',
+    '\\bnew\\s+Section\\b', '\\bnew\\s+Boolean\\b', '\\bnew\\s+Angle3D\\b', '\\bnew\\s+Claster(2D|3D)?\\b',
+    '\\bnew\\s+Angle\\b', '\\bdraw\\s+Angle\\b', '\\bdraw\\s+EquallySing\\b', '\\bdraw\\s+Vector(2D|3D)?\\b',
+    '\\bdraw\\s+InfLine\\b', '\\bdraw\\s+InfPlane\\b', '\\bdraw\\s+Filling(2D|3D)?\\b', '\\bdraw\\s+Punctir\\b', '\\bdraw\\s+Text(2D|3D)?\\b',
     '\\bnew\\s+UI\\b', '\\bnew\\s+Circle\\b', '\\bdraw\\s+Arc\\b', '\\bnew\\s+Ellipse\\b',
-    '\\bnew\\s+Curve\\b', '\\bdraw\\s+Function\\b', '\\bdraw\\s+Surface\\b', '\\bdraw\\s+Image\\b',
-    '\\bdraw\\s+Histogram\\b', '\\bdraw\\s+Field\\b', '\\bdraw\\s+Trajectory\\b', '\\bdraw\\s+Graph\\b',
+    '\\bnew\\s+Curve(2D|3D)?\\b', '\\bdraw\\s+Function\\b', '\\bdraw\\s+Surface(2D|3D)?\\b', '\\bdraw\\s+Image\\b',
+    '\\bdraw\\s+Histogram\\b', '\\bdraw\\s+Field(2D|3D)?\\b', '\\bdraw\\s+Trajectory(2D|3D)?\\b', '\\bdraw\\s+Graph\\b',
     '\\bdraw\\s+Fractal\\b', '\\bdraw\\s+Formula\\b', '\\bdraw\\s+Locus\\b',
     '\\bdraw\\s+Trace\\b', '\\bdraw\\s+Region\\b', '\\bdraw\\s+Chart\\b',
     '\\bdraw\\s+Tree\\b', '\\bdraw\\s+Table\\b', '\\bdraw\\s+Complex\\b',
@@ -580,19 +580,22 @@ function removeObjectBlocks(code) {
         }
         // Цвет: #hex, ключевое слово default (-> def), либо имя переменной-строки с #hex
         function parseColorField(block, vars, field, def) {
-            const m = block.match(new RegExp('(?:^|[^A-Za-z0-9_])' + field + '\\s*=\\s*(#[0-9A-Fa-f]+|default|[a-zA-Z_][a-zA-Z0-9_]*)'));
+            const m = block.match(new RegExp('(?:^|[^A-Za-z0-9_])' + field + '\\s*=\\s*(?:"([^"]*)"|\'([^\']*)\'|(#[0-9A-Fa-f]+|default|[a-zA-Z_][a-zA-Z0-9_]*))', 'i'));
             if (!m) return def;
-            const c = m[1];
-            if (c === 'default') return def;
+            const c = m[1] !== undefined ? m[1] : (m[2] !== undefined ? m[2] : m[3]);
+            if (!c) return def;
+            if (c.toLowerCase() === 'default') return def;
             if (c.startsWith('#')) return c;
-            if (vars[c] !== undefined && typeof vars[c] === 'string' && vars[c].startsWith('#')) return vars[c];
-            return def;
+            if (vars[c] !== undefined && typeof vars[c] === 'string') return vars[c];
+            // Не переменная и не hex — считаем это именем цвета (CSS-совместимо, например "red"),
+            // и передаём как есть: Canvas2D/Three.js понимают именованные цвета нативно.
+            return c;
         }
         // Булево: true/false, либо имя переменной типа boolean
         function parseBoolField(block, vars, field, def) {
-            const m = block.match(new RegExp('(?:^|[^A-Za-z0-9_])' + field + '\\s*=\\s*(true|false|[a-zA-Z_][a-zA-Z0-9_]*)'));
+            const m = block.match(new RegExp('(?:^|[^A-Za-z0-9_])' + field + '\\s*=\\s*(?:"([^"]*)"|\'([^\']*)\'|(true|false|[a-zA-Z_][a-zA-Z0-9_]*))', 'i'));
             if (!m) return def;
-            const v = m[1];
+            const v = (m[1] !== undefined ? m[1] : (m[2] !== undefined ? m[2] : m[3])).toLowerCase();
             if (v === 'true') return true;
             if (v === 'false') return false;
             if (vars[v] !== undefined && typeof vars[v] === 'boolean') return vars[v];
@@ -641,7 +644,7 @@ function removeObjectBlocks(code) {
                     construct: null, vertex: null, base: null,
                     color: '#000000', textEnabled: false, textValue: null, textColor: '#000000',
                     dynamic: false, active: true, size: 1, shape: 'circle', textSize: 1,
-                    pauseOnDrag: true, layer: 40, hidden: true,
+                    pauseOnDrag: true, layer: 40, hidden: true, dim: '2D',
                 });
                 return nm;
             }
@@ -819,18 +822,9 @@ function removeObjectBlocks(code) {
                 const labelMatch = block.match(/label\s*=\s*"([^"]*)"/);
                 const label = labelMatch ? labelMatch[1] : '';
 
-                let defaultColor, defaultTextcolor;
-                if (type === 'button') {
-                    defaultColor = '#000000';
-                    defaultTextcolor = '#ffffff';
-                } else {
-                    defaultColor = '#000000';
-                    defaultTextcolor = '#000000';
-                }
+                const color = parseColorField(block, vars, 'color', null);
 
-                const color = parseColorField(block, vars, 'color', defaultColor);
-
-                const textcolor = parseColorField(block, vars, 'textcolor', defaultTextcolor);
+                const textcolor = parseColorField(block, vars, 'textcolor', null);
 
                 const active = parseBoolField(block, vars, 'active', true);
 
@@ -1298,7 +1292,7 @@ function parsePunctirBlock(block, vars) {
             }
 
             const textColor = parseColorField(block, vars, 'textColor', null);
-            const dynamic = parseBoolField(block, vars, 'dynamic', false);
+            const dynamic = parseBoolField(block, vars, 'dynamic', true);
             const active = parseBoolField(block, vars, 'active', true);
             const activeExpr = parseActiveExpr(block);
             const size = parseNumberField(block, vars, 'size', 1, false);
@@ -1513,7 +1507,7 @@ function parsePunctirBlock(block, vars) {
                         transformOver: over, transformAround: around, transformCenter: center, transformExpr, transformExprY, transformDx, transformDy,
                         color: '#000000', textEnabled: false, textValue: null, textColor: '#000000',
                         dynamic: false, active: true, size: 1, shape: 'circle', textSize: 1,
-                        pauseOnDrag: true, layer: 40, hidden: true,
+                        pauseOnDrag: true, layer: 40, hidden: true, dim: '2D',
                     });
                     if (end === 'A') pointA = nm; else pointB = nm;
                 }
@@ -1536,7 +1530,7 @@ function parsePunctirBlock(block, vars) {
             const color = parseColorField(block, vars, 'color', null);
             const thickness = parseNumberField(block, vars, 'thickness', 2.5, true);
 
-            const interact = parseBoolField(block, vars, 'interact', false);
+            const interact = parseBoolField(block, vars, 'interact', true);
 
             const active = parseBoolField(block, vars, 'active', true);
             const layer = parseNumberField(block, vars, 'layer', 10, false);
@@ -2003,7 +1997,7 @@ function parseEllipseBlock(block, vars) {
     const color = parseColorField(block, vars, 'color', null);
     const thickness = parseNumberField(block, vars, 'thickness', 2, false);
     const active = parseBoolField(block, vars, 'active', true);
-    const dynamic = parseBoolField(block, vars, 'dynamic', false);
+    const dynamic = parseBoolField(block, vars, 'dynamic', true);
     const layer = parseNumberField(block, vars, 'layer', 20, false);
     const common = { name, type, color, thickness, active, dynamic, layer, ...parseGeneralCollisionFields(block, vars, false) };
 
@@ -2088,6 +2082,8 @@ function parseFunctionGraphBlock(block, vars) {
     if (!fMatch) return null;
     const funcName = fMatch[1];
 
+    const xminGiven = /(?:^|[^A-Za-z0-9_])xmin\s*=/.test(block);
+    const xmaxGiven = /(?:^|[^A-Za-z0-9_])xmax\s*=/.test(block);
     const xmin = parseNumberField(block, vars, 'xmin', -10, false);
     const xmax = parseNumberField(block, vars, 'xmax', 10, false);
     const segments = parseNumberField(block, vars, 'segments', 100, false);
@@ -2097,8 +2093,14 @@ function parseFunctionGraphBlock(block, vars) {
     const layer = parseNumberField(block, vars, 'layer', 20, false);
     const grid = parseBoolField(block, vars, 'grid', false);
     const gridStep = parseNumberField(block, vars, 'gridStep', 1, false);
+    // Продление за пределы видимой камеры (Задача 8): по умолчанию включено, если xmin/xmax
+    // не заданы явно — тогда график тянется до края текущего видимого поля (с запасом
+    // extendDistance), а не обрывается на жёстко заданных ±10. Задать extend = false, чтобы
+    // вернуть старое поведение с фиксированным диапазоном.
+    const extend = parseBoolField(block, vars, 'extend', !xminGiven && !xmaxGiven);
+    const extendDistance = parseNumberField(block, vars, 'extendDistance', null, false);
 
-    return { name, funcName, xmin, xmax, segments, color, thickness, active, layer, grid, gridStep };
+    return { name, funcName, xmin, xmax, segments, color, thickness, active, layer, grid, gridStep, extend, extendDistance };
 }
 
 // draw Surface — график функции двух переменных: contour (изолинии) или псевдо-3D (в 2D);
@@ -2169,14 +2171,32 @@ function parseChartBlock(block, vars) {
     const dataExpr = captureExprField(block, 'data');
     if (dataExpr === null) return null;
     const labelsExpr = captureExprField(block, 'labels');
-    let posXExpr = null, posYExpr = null;
+    // 3D-альтернатива (билборд-панель): pos = (x, y, z) — три ЛИТЕРАЛЬНЫХ числа (в отличие
+    // от прежнего 2D pos = (exprX, exprY), где выражения пересчитываются каждый кадр — см.
+    // parseImageBlock/parseHistogramBlock, та же конвенция статичной позиции для 3D-объектов).
+    let dim = '2D', posXExpr = null, posYExpr = null, pos3D = null, rotate3D = null, billboard = true;
     const posMatch = block.match(/(?:^|[^A-Za-z0-9_])pos\s*=\s*\(([^)]*)\)/);
     if (posMatch) {
         const parts = splitTopLevelList(posMatch[1]);
-        if (parts.length === 2) { posXExpr = parts[0].trim(); posYExpr = parts[1].trim(); }
+        if (parts.length === 3) {
+            try {
+                pos3D = {
+                    x: evaluateNumericExpression(parts[0].trim(), vars),
+                    y: evaluateNumericExpression(parts[1].trim(), vars),
+                    z: evaluateNumericExpression(parts[2].trim(), vars),
+                };
+                dim = '3D';
+            } catch (e) { pos3D = null; }
+        } else if (parts.length === 2) {
+            posXExpr = parts[0].trim(); posYExpr = parts[1].trim();
+        }
+    }
+    if (dim === '3D') {
+        rotate3D = parseXYZField(block, vars, 'rotate', { x: 0, y: 0, z: 0 });
+        billboard = parseBoolField(block, vars, 'billboard', true);
     }
     return {
-        name, type, dataExpr, labelsExpr, posXExpr, posYExpr,
+        name, type, dataExpr, labelsExpr, posXExpr, posYExpr, dim, pos3D, rotate3D, billboard,
         width: parseNumberField(block, vars, 'width', 10, false),
         height: parseNumberField(block, vars, 'height', 6, false),
         radius: parseNumberField(block, vars, 'radius', 4, false),
@@ -2188,6 +2208,7 @@ function parseChartBlock(block, vars) {
         markers: parseBoolField(block, vars, 'markers', false),
         horizontal: parseBoolField(block, vars, 'horizontal', false),
         active: parseBoolField(block, vars, 'active', true),
+        activeExpr: parseActiveExpr(block),
         layer: parseNumberField(block, vars, 'layer', 22, false)
     };
 }
@@ -2200,13 +2221,29 @@ function parseTreeBlock(block, vars) {
     const dataExpr = captureExprField(block, 'data');
     if (dataExpr === null) return null;
     let posXExpr = '0', posYExpr = '0';
+    let dim = '2D', pos3D = null, rotate3D = null, billboard = true;
     const posMatch = block.match(/(?:^|[^A-Za-z0-9_])pos\s*=\s*\(([^)]*)\)/);
     if (posMatch) {
         const parts = splitTopLevelList(posMatch[1]);
-        if (parts.length === 2) { posXExpr = parts[0].trim(); posYExpr = parts[1].trim(); }
+        if (parts.length === 3) {
+            try {
+                pos3D = {
+                    x: evaluateNumericExpression(parts[0].trim(), vars),
+                    y: evaluateNumericExpression(parts[1].trim(), vars),
+                    z: evaluateNumericExpression(parts[2].trim(), vars),
+                };
+                dim = '3D';
+            } catch (e) { pos3D = null; }
+        } else if (parts.length === 2) {
+            posXExpr = parts[0].trim(); posYExpr = parts[1].trim();
+        }
+    }
+    if (dim === '3D') {
+        rotate3D = parseXYZField(block, vars, 'rotate', { x: 0, y: 0, z: 0 });
+        billboard = parseBoolField(block, vars, 'billboard', true);
     }
     return {
-        name, dataExpr, posXExpr, posYExpr,
+        name, dataExpr, posXExpr, posYExpr, dim, pos3D, rotate3D, billboard,
         spacing: parseNumberField(block, vars, 'spacing', 2.2, false),
         levelGap: parseNumberField(block, vars, 'levelGap', 2.2, false),
         nodeRadius: parseNumberField(block, vars, 'nodeRadius', 11, false),
@@ -2214,7 +2251,10 @@ function parseTreeBlock(block, vars) {
         edgeColor: parseColorField(block, vars, 'edgeColor', '#90a4ae'),
         labelColor: parseColorField(block, vars, 'labelColor', '#ffffff'),
         boxed: parseBoolField(block, vars, 'boxed', false),
+        panelWidth: parseNumberField(block, vars, 'panelWidth', 8, false),
+        panelHeight: parseNumberField(block, vars, 'panelHeight', 6, false),
         active: parseBoolField(block, vars, 'active', true),
+        activeExpr: parseActiveExpr(block),
         layer: parseNumberField(block, vars, 'layer', 22, false)
     };
 }
@@ -2226,14 +2266,30 @@ function parseTableBlock(block, vars) {
     const dataExpr = captureExprField(block, 'data');
     if (dataExpr === null) return null;
     let posXExpr = '0', posYExpr = '0';
+    let dim = '2D', pos3D = null, rotate3D = null, billboard = true;
     const posMatch = block.match(/(?:^|[^A-Za-z0-9_])pos\s*=\s*\(([^)]*)\)/);
     if (posMatch) {
         const parts = splitTopLevelList(posMatch[1]);
-        if (parts.length === 2) { posXExpr = parts[0].trim(); posYExpr = parts[1].trim(); }
+        if (parts.length === 3) {
+            try {
+                pos3D = {
+                    x: evaluateNumericExpression(parts[0].trim(), vars),
+                    y: evaluateNumericExpression(parts[1].trim(), vars),
+                    z: evaluateNumericExpression(parts[2].trim(), vars),
+                };
+                dim = '3D';
+            } catch (e) { pos3D = null; }
+        } else if (parts.length === 2) {
+            posXExpr = parts[0].trim(); posYExpr = parts[1].trim();
+        }
+    }
+    if (dim === '3D') {
+        rotate3D = parseXYZField(block, vars, 'rotate', { x: 0, y: 0, z: 0 });
+        billboard = parseBoolField(block, vars, 'billboard', true);
     }
     const alignM = block.match(/(?:^|[^A-Za-z0-9_])align\s*=\s*"?(left|center|right)"?/);
     return {
-        name, dataExpr, posXExpr, posYExpr,
+        name, dataExpr, posXExpr, posYExpr, dim, pos3D, rotate3D, billboard,
         cellWidth: parseNumberField(block, vars, 'cellWidth', 3, false),
         cellHeight: parseNumberField(block, vars, 'cellHeight', 1.4, false),
         header: parseBoolField(block, vars, 'header', true),
@@ -2243,7 +2299,10 @@ function parseTableBlock(block, vars) {
         headerBg: parseColorField(block, vars, 'headerBg', '#eceff1'),
         borderColor: parseColorField(block, vars, 'borderColor', '#90a4ae'),
         fontSize: parseNumberField(block, vars, 'fontSize', 1, false),
+        panelWidth: parseNumberField(block, vars, 'panelWidth', 8, false),
+        panelHeight: parseNumberField(block, vars, 'panelHeight', 5, false),
         active: parseBoolField(block, vars, 'active', true),
+        activeExpr: parseActiveExpr(block),
         layer: parseNumberField(block, vars, 'layer', 22, false)
     };
 }
@@ -2350,6 +2409,25 @@ function parseBifurcationBlock(block, vars) {
     if (!name) return null;
     const fM = block.match(/(?:^|[^A-Za-z0-9_])f\s*=\s*"([^"]*)"/);
     if (!fM) return null;
+    let dim = '2D', pos3D = null, rotate3D = null, billboard = true;
+    const posMatch = block.match(/(?:^|[^A-Za-z0-9_])pos\s*=\s*\(([^)]*)\)/);
+    if (posMatch) {
+        const parts = posMatch[1].split(',').map(s => s.trim());
+        if (parts.length === 3) {
+            try {
+                pos3D = {
+                    x: evaluateNumericExpression(parts[0], vars),
+                    y: evaluateNumericExpression(parts[1], vars),
+                    z: evaluateNumericExpression(parts[2], vars),
+                };
+                dim = '3D';
+            } catch (e) { pos3D = null; }
+        }
+    }
+    if (dim === '3D') {
+        rotate3D = parseXYZField(block, vars, 'rotate', { x: 0, y: 0, z: 0 });
+        billboard = parseBoolField(block, vars, 'billboard', true);
+    }
     return {
         name, funcName: fM[1],
         rmin: parseNumberField(block, vars, 'rmin', 2.4, false),
@@ -2362,7 +2440,11 @@ function parseBifurcationBlock(block, vars) {
         quality: parseNumberField(block, vars, 'quality', 2, false),
         color: parseColorField(block, vars, 'color', '#1a237e'),
         active: parseBoolField(block, vars, 'active', true),
-        layer: parseNumberField(block, vars, 'layer', 15, false)
+        activeExpr: parseActiveExpr(block),
+        layer: parseNumberField(block, vars, 'layer', 15, false),
+        dim, pos3D, rotate3D, billboard,
+        panelWidth: parseNumberField(block, vars, 'panelWidth', 8, false),
+        panelHeight: parseNumberField(block, vars, 'panelHeight', 5, false),
     };
 }
 
@@ -2372,6 +2454,25 @@ function parseCobwebBlock(block, vars) {
     if (!name) return null;
     const fM = block.match(/(?:^|[^A-Za-z0-9_])f\s*=\s*"([^"]*)"/);
     if (!fM) return null;
+    let dim = '2D', pos3D = null, rotate3D = null, billboard = true;
+    const posMatch = block.match(/(?:^|[^A-Za-z0-9_])pos\s*=\s*\(([^)]*)\)/);
+    if (posMatch) {
+        const parts = posMatch[1].split(',').map(s => s.trim());
+        if (parts.length === 3) {
+            try {
+                pos3D = {
+                    x: evaluateNumericExpression(parts[0], vars),
+                    y: evaluateNumericExpression(parts[1], vars),
+                    z: evaluateNumericExpression(parts[2], vars),
+                };
+                dim = '3D';
+            } catch (e) { pos3D = null; }
+        }
+    }
+    if (dim === '3D') {
+        rotate3D = parseXYZField(block, vars, 'rotate', { x: 0, y: 0, z: 0 });
+        billboard = parseBoolField(block, vars, 'billboard', true);
+    }
     return {
         name, funcName: fM[1],
         x0Expr: captureExprField(block, 'x0'),
@@ -2382,7 +2483,11 @@ function parseCobwebBlock(block, vars) {
         curveColor: parseColorField(block, vars, 'curveColor', '#1565c0'),
         showDiagonal: parseBoolField(block, vars, 'showDiagonal', true),
         active: parseBoolField(block, vars, 'active', true),
-        layer: parseNumberField(block, vars, 'layer', 16, false)
+        activeExpr: parseActiveExpr(block),
+        layer: parseNumberField(block, vars, 'layer', 16, false),
+        dim, pos3D, rotate3D, billboard,
+        panelWidth: parseNumberField(block, vars, 'panelWidth', 6, false),
+        panelHeight: parseNumberField(block, vars, 'panelHeight', 6, false),
     };
 }
 
@@ -2557,16 +2662,45 @@ function parseImageBlock(block, vars) {
     if (!srcMatch) return null;
     const src = srcMatch[1];
 
-    const posName = parsePointRefField(block, vars, 'pos');
-    if (!posName) return null;
+    // 3D-вариант: pos = (x, y, z) — три литеральных числа/выражения (как в new Primitive),
+    // а не имя точки. 2D-вариант (как раньше) остаётся без изменений: pos = ИмяТочки.
+    let dim = null, posName = null, pos3D = null, rotate3D = null, billboard = true;
+    const posTupleMatch = block.match(/(?:^|[^A-Za-z0-9_])pos\s*=\s*\(([^)]*)\)/);
+    if (posTupleMatch) {
+        const parts = posTupleMatch[1].split(',').map(s => s.trim());
+        if (parts.length === 3) {
+            try {
+                pos3D = {
+                    x: evaluateNumericExpression(parts[0], vars),
+                    y: evaluateNumericExpression(parts[1], vars),
+                    z: evaluateNumericExpression(parts[2], vars),
+                };
+                dim = '3D';
+            } catch (e) { pos3D = null; }
+        }
+    }
+    if (!pos3D) {
+        posName = parsePointRefField(block, vars, 'pos');
+        if (!posName) return null;
+        dim = '2D';
+    } else {
+        // rotate — фиксированная ориентация плоскости (градусы по осям X/Y/Z). Если не задан —
+        // billboard = true (по умолчанию): плоскость сама разворачивается к камере каждый кадр
+        // (как THREE.Sprite), удобно для меток/картинок, которые должны быть видны при повороте
+        // камеры. billboard = false — плоскость держит заданную ориентацию (полезно для текстур,
+        // "приклеенных" к грани тела, плаката на стене и т.п.).
+        rotate3D = parseXYZField(block, vars, 'rotate', { x: 0, y: 0, z: 0 });
+        billboard = parseBoolField(block, vars, 'billboard', true);
+    }
 
     const width = parseNumberField(block, vars, 'width', 5, false);
     const height = parseNumberField(block, vars, 'height', 5, false);
     const opacity = parseNumberField(block, vars, 'opacity', 1, false);
     const active = parseBoolField(block, vars, 'active', true);
+    const activeExpr = parseActiveExpr(block);
     const layer = parseNumberField(block, vars, 'layer', 15, false);
 
-    return { name, src, posName, width, height, opacity, active, layer };
+    return { name, src, dim, posName, pos3D, rotate3D, billboard, width, height, opacity, active, activeExpr, layer };
 }
 
 // draw Histogram — гистограмма по данным (Задача 3), data — выражение (обычно имя переменной-вектора)
@@ -2580,7 +2714,33 @@ function parseHistogramBlock(block, vars) {
     const color = parseColorField(block, vars, 'color', '#4a90d9');
     const active = parseBoolField(block, vars, 'active', true);
     const layer = parseNumberField(block, vars, 'layer', 20, false);
-    return { name, dataExpr, bins, color, active, layer };
+    // 3D-альтернатива (билборд-панель, Задача: 3D-аналоги для всех объектов): если задан
+    // pos = (x, y, z), та же самая гистограмма (одинаковый dataExpr/bins/color) рисуется не на
+    // основном canvas сцены, а на отдельном offscreen-canvas, который натягивается как текстура
+    // на плоскость в 3D-пространстве (см. gcMakeCanvasPanel в generate3D). Без pos поведение
+    // остаётся прежним — 2D-гистограмма в фиксированном углу основного canvas.
+    let dim = '2D', pos3D = null, rotate3D = null, billboard = true;
+    const posTupleMatch = block.match(/(?:^|[^A-Za-z0-9_])pos\s*=\s*\(([^)]*)\)/);
+    if (posTupleMatch) {
+        const parts = posTupleMatch[1].split(',').map(s => s.trim());
+        if (parts.length === 3) {
+            try {
+                pos3D = {
+                    x: evaluateNumericExpression(parts[0], vars),
+                    y: evaluateNumericExpression(parts[1], vars),
+                    z: evaluateNumericExpression(parts[2], vars),
+                };
+                dim = '3D';
+            } catch (e) { pos3D = null; }
+        }
+    }
+    if (pos3D) {
+        rotate3D = parseXYZField(block, vars, 'rotate', { x: 0, y: 0, z: 0 });
+        billboard = parseBoolField(block, vars, 'billboard', true);
+    }
+    const panelWidth = parseNumberField(block, vars, 'panelWidth', 6, false);
+    const panelHeight = parseNumberField(block, vars, 'panelHeight', 4, false);
+    return { name, dataExpr, bins, color, active, activeExpr: parseActiveExpr(block), layer, dim, pos3D, rotate3D, billboard, panelWidth, panelHeight };
 }
 
 // draw Field — векторное поле (Задача 4): P(x,y), Q(x,y)
@@ -2663,9 +2823,35 @@ function parseGraphDrawBlock(block, vars) {
     const highlightColor = parseColorField(block, vars, 'highlightColor', '#e8590c');
     const active = parseBoolField(block, vars, 'active', true);
     const layer = parseNumberField(block, vars, 'layer', 20, false);
+    // 3D-альтернатива (билборд-панель): раньше у draw Graph не было поля pos вообще — граф
+    // рисовался прямо в координатах поля 2D-сцены. pos = (x, y, z) — новое, чисто аддитивное
+    // поле: если задано, тот же граф (те же узлы/рёбра из переменной graph) рисуется на
+    // отдельной панели в 3D, а не на основном canvas.
+    let dim = '2D', pos3D = null, rotate3D = null, billboard = true;
+    const posMatch = block.match(/(?:^|[^A-Za-z0-9_])pos\s*=\s*\(([^)]*)\)/);
+    if (posMatch) {
+        const parts = posMatch[1].split(',').map(s => s.trim());
+        if (parts.length === 3) {
+            try {
+                pos3D = {
+                    x: evaluateNumericExpression(parts[0], vars),
+                    y: evaluateNumericExpression(parts[1], vars),
+                    z: evaluateNumericExpression(parts[2], vars),
+                };
+                dim = '3D';
+            } catch (e) { pos3D = null; }
+        }
+    }
+    if (dim === '3D') {
+        rotate3D = parseXYZField(block, vars, 'rotate', { x: 0, y: 0, z: 0 });
+        billboard = parseBoolField(block, vars, 'billboard', true);
+    }
     return {
         name, graphVar: graphMatch[1], color, nodeColor, edgeColor, labelColor, nodeRadius,
-        directed, showWeights, labels, highlightExpr, highlightEdgesExpr, highlightColor, active, layer
+        directed, showWeights, labels, highlightExpr, highlightEdgesExpr, highlightColor, active,
+        activeExpr: parseActiveExpr(block), layer, dim, pos3D, rotate3D, billboard,
+        panelWidth: parseNumberField(block, vars, 'panelWidth', 8, false),
+        panelHeight: parseNumberField(block, vars, 'panelHeight', 6, false),
     };
 }
 
@@ -2674,7 +2860,7 @@ function parseDrawTextBlock(block, vars) {
     if (!name) return null;
 
     // Сохраняем ВСЕ поля как сырые строки выражений
-    let posXExpr = null, posYExpr = null, posZExpr = null;
+    let posXExpr = null, posYExpr = null, posZExpr = null, zGiven = false;
     const posMatch = block.match(/pos\s*=\s*\(([^)]*)\)/);
     if (posMatch) {
         const coordsStr = posMatch[1].trim();
@@ -2687,6 +2873,7 @@ function parseDrawTextBlock(block, vars) {
             posXExpr = parts[0];
             posYExpr = parts[1];
             posZExpr = parts[2];
+            zGiven = true;
         }
     } else {
         const varNameMatch = block.match(/pos\s*=\s*([a-zA-Z_][a-zA-Z0-9_]*)/);
@@ -2733,7 +2920,7 @@ function parseDrawTextBlock(block, vars) {
     }
 
     const layer = parseNumberField(block, vars, 'layer', 45, false);
-    return { name, posXExpr, posYExpr, posZExpr, textExpr, colorExpr, sizeExpr, activeExpr, layer };
+    return { name, posXExpr, posYExpr, posZExpr, zGiven, textExpr, colorExpr, sizeExpr, activeExpr, layer };
 }
 
         function parseClasterBlock(block, vars) {
@@ -2825,58 +3012,82 @@ function parseCommands(codeBlock, vars) {
 
     // Все объектные блоки извлекаются балансным сканером (findHeaderedBlocks):
     // вложенные { } и '};' внутри строковых значений больше не обрывают блок.
+    // dual: true                — тип существует и в 2D, и в 3D; конкретное измерение задаётся
+    //               суффиксом в самом ключевом слове (Point2D → dim='2D', Point3D → dim='3D').
+    //               Без суффикса у Point измерение сразу берётся '2D' (у самой точки нет ничего,
+    //               из чего можно было бы его вывести — она базовый примитив).
+    // dual + infer: true — тоже 2D/3D-тип, суффикс работает так же, НО без суффикса измерение
+    //               НЕ фиксируется сразу, а откладывается (dim=null) до отдельного прохода
+    //               автоопределения сразу после parseCommands (ищет его по фактическим ссылкам —
+    //               на какие точки/линии/фигуры указывает объект, или по собственным полям вроде
+    //               z(t)/R/mode/start, которые и так уже различают 2D/3D-варианты).
+    // fixedDim     — тип однозначно принадлежит одному измерению (историческая причина —
+    //               либо возможности только 3D-сцены (Primitive/Section/Boolean/Angle3D/InfPlane),
+    //               либо чисто плоские алгоритмические визуализации (фракталы, автоматы, Вороной,
+    //               гистограммы и т.п.); суффикс тут не нужен и не добавляется.
+    // Примечание: у Angle/draw Angle сознательно нет 3D-варианта — ключевое слово "Angle3D" уже
+    // занято отдельным, самостоятельным типом объекта (угол между линиями/плоскостями в 3D,
+    // с полями type/refs), и добавление суффикса 3D к обычному Angle пересеклось бы с ним.
     const blockDefs = [
-        { header: '\\bnew\\s+Point\\b',        label: 'Point',           parse: parsePointBlock,        target: points,          err: 'пропущены обязательные поля (name, pos или line/circle/graph/...)' },
-        { header: '\\bnew\\s+Line\\b',         label: 'Line',            parse: parseLineBlock,         target: lines,           err: 'пропущены обязательные поля (name, pos)' },
-        { header: '\\bnew\\s+Figure\\b',       label: 'Figure',          parse: parseFigureBlock,       target: figures,         err: 'пропущены обязательные поля (name, elements)' },
-        { header: '\\bnew\\s+Primitive\\b',    label: 'Primitive',       parse: parsePrimitiveBlock,    target: primitives,      err: 'пропущены обязательные поля (name, type — один из: ' + PRIMITIVE_TYPES.join(', ') + ')' },
-        { header: '\\bnew\\s+Section\\b',      label: 'Section',         parse: parseSectionBlock,      target: sections,        err: 'пропущены обязательные поля (name, source)', trackPos: true },
-        { header: '\\bnew\\s+Boolean\\b',      label: 'Boolean',         parse: parseBooleanBlock,      target: booleans,        err: 'пропущены обязательные поля (name, op — union/intersect/subtract, parts — минимум 2 элемента)', trackPos: true },
-        { header: '\\bnew\\s+Angle3D\\b',      label: 'Angle3D',         parse: parseAngle3DBlock,      target: angles3D,        err: 'пропущены обязательные поля (name, type — один из: ' + ANGLE3D_TYPES.join(', ') + ', и соответствующие точки/линии/плоскости)' },
-        { header: '\\bnew\\s+Claster\\b',      label: 'Claster',         parse: parseClasterBlock,      target: clusters,        err: 'пропущены обязательные поля (name, elements)' },
-        { header: '\\bnew\\s+Angle\\b',        label: 'Angle',           parse: parseAngleBlock,        target: angles,          err: 'пропущены обязательные поля (name, lines)' },
-        { header: '\\bdraw\\s+Angle\\b',       label: 'draw Angle',      parse: parseDrawAngleBlock,    target: drawAngles,      err: 'пропущено обязательное поле (angle)' },
+        { header: '\\bnew\\s+Point(2D|3D)?\\b',        label: 'Point',           parse: parsePointBlock,        target: points,          dual: true, err: 'пропущены обязательные поля (name, pos или line/circle/graph/...)' },
+        { header: '\\bnew\\s+Line(2D|3D)?\\b',         label: 'Line',            parse: parseLineBlock,         target: lines,           dual: true, infer: true, err: 'пропущены обязательные поля (name, pos)' },
+        { header: '\\bnew\\s+Figure(2D|3D)?\\b',       label: 'Figure',          parse: parseFigureBlock,       target: figures,         dual: true, infer: true, err: 'пропущены обязательные поля (name, elements)' },
+        { header: '\\bnew\\s+Primitive\\b',    label: 'Primitive',       parse: parsePrimitiveBlock,    target: primitives,      fixedDim: '3D', err: 'пропущены обязательные поля (name, type — один из: ' + PRIMITIVE_TYPES.join(', ') + ')' },
+        { header: '\\bnew\\s+Section\\b',      label: 'Section',         parse: parseSectionBlock,      target: sections,        fixedDim: '3D', err: 'пропущены обязательные поля (name, source)', trackPos: true },
+        { header: '\\bnew\\s+Boolean\\b',      label: 'Boolean',         parse: parseBooleanBlock,      target: booleans,        fixedDim: '3D', err: 'пропущены обязательные поля (name, op — union/intersect/subtract, parts — минимум 2 элемента)', trackPos: true },
+        { header: '\\bnew\\s+Angle3D\\b',      label: 'Angle3D',         parse: parseAngle3DBlock,      target: angles3D,        fixedDim: '3D', err: 'пропущены обязательные поля (name, type — один из: ' + ANGLE3D_TYPES.join(', ') + ', и соответствующие точки/линии/плоскости)' },
+        { header: '\\bnew\\s+Claster(2D|3D)?\\b',      label: 'Claster',         parse: parseClasterBlock,      target: clusters,        dual: true, infer: true, err: 'пропущены обязательные поля (name, elements)' },
+        { header: '\\bnew\\s+Angle\\b',        label: 'Angle',           parse: parseAngleBlock,        target: angles,          fixedDim: '2D', err: 'пропущены обязательные поля (name, lines)' },
+        { header: '\\bdraw\\s+Angle\\b',       label: 'draw Angle',      parse: parseDrawAngleBlock,    target: drawAngles,      fixedDim: '2D', err: 'пропущено обязательное поле (angle)' },
         { header: '\\bdraw\\s+EquallySing\\b', label: 'draw EquallySing',parse: parseEquallySingBlock,  target: drawEqually,     err: 'пропущены обязательные поля (edges)' },
-        { header: '\\bdraw\\s+Vector\\b',      label: 'draw Vector',     parse: parseVectorBlock,       target: drawVectors,     err: 'пропущены обязательные поля (edge)' },
+        { header: '\\bdraw\\s+Vector(2D|3D)?\\b',      label: 'draw Vector',     parse: parseVectorBlock,       target: drawVectors,     dual: true, infer: true, err: 'пропущены обязательные поля (edge)' },
         { header: '\\bdraw\\s+InfLine\\b',     label: 'draw InfLine',    parse: parseInfLineBlock,      target: drawInfLines,    err: 'пропущены обязательные поля (line)' },
-        { header: '\\bdraw\\s+InfPlane\\b',    label: 'draw InfPlane',   parse: parseInfPlaneBlock,     target: drawInfPlanes,   err: 'пропущены обязательные поля (name и figure/points)' },
-        { header: '\\bdraw\\s+Filling\\b',     label: 'draw Filling',    parse: parseFillingBlock,      target: drawFillings,    err: 'пропущены обязательные поля (figure или line+side или circle+from+to)' },
+        { header: '\\bdraw\\s+InfPlane\\b',    label: 'draw InfPlane',   parse: parseInfPlaneBlock,     target: drawInfPlanes,   fixedDim: '3D', err: 'пропущены обязательные поля (name и figure/points)' },
+        { header: '\\bdraw\\s+Filling(2D|3D)?\\b',     label: 'draw Filling',    parse: parseFillingBlock,      target: drawFillings,    dual: true, infer: true, err: 'пропущены обязательные поля (figure или line+side или circle+from+to)' },
         { header: '\\bdraw\\s+Punctir\\b',     label: 'draw Punctir',    parse: parsePunctirBlock,      target: drawPunctirs,    err: 'пропущены обязательные поля (line)' },
-        { header: '\\bdraw\\s+Text\\b',        label: 'draw Text',       parse: parseDrawTextBlock,     target: drawTexts,       err: 'пропущены обязательные поля (name, pos)' },
+        { header: '\\bdraw\\s+Text(2D|3D)?\\b',        label: 'draw Text',       parse: parseDrawTextBlock,     target: drawTexts,       dual: true, infer: true, err: 'пропущены обязательные поля (name, pos)' },
         { header: '\\bnew\\s+UI\\b',           label: 'UI',              parse: parseUIBlock,           target: uiElements,      err: 'пропущены обязательные поля (type и его параметры)' },
-        { header: '\\bnew\\s+Circle\\b',       label: 'Circle',          parse: parseCircleBlock,       target: circles,         err: 'пропущены обязательные поля (name, center, radius)' },
-        { header: '\\bdraw\\s+Arc\\b',         label: 'draw Arc',        parse: parseArcBlock,          target: arcs,            err: 'пропущены обязательные поля (name и center+from+to или points)' },
-        { header: '\\bnew\\s+Ellipse\\b',      label: 'Ellipse',         parse: parseEllipseBlock,      target: ellipses,        err: 'пропущены обязательные поля (name, center, a, b или points/foci)' },
-        { header: '\\bnew\\s+Curve\\b',        label: 'Curve',           parse: parseCurveBlock,        target: curves,          err: 'пропущены обязательные поля (name и points или x+y)' },
-        { header: '\\bdraw\\s+Function\\b',    label: 'draw Function',   parse: parseFunctionGraphBlock,target: drawFunctions,   err: 'пропущены обязательные поля (name, f)' },
-        { header: '\\bdraw\\s+Surface\\b',     label: 'draw Surface',    parse: parseSurfaceBlock,      target: drawSurfaces,    err: 'пропущены обязательные поля (name, f)' },
+        { header: '\\bnew\\s+Circle\\b',       label: 'Circle',          parse: parseCircleBlock,       target: circles,         fixedDim: '2D', err: 'пропущены обязательные поля (name, center, radius)' },
+        { header: '\\bdraw\\s+Arc\\b',         label: 'draw Arc',        parse: parseArcBlock,          target: arcs,            fixedDim: '2D', err: 'пропущены обязательные поля (name и center+from+to или points)' },
+        { header: '\\bnew\\s+Ellipse\\b',      label: 'Ellipse',         parse: parseEllipseBlock,      target: ellipses,        fixedDim: '2D', err: 'пропущены обязательные поля (name, center, a, b или points/foci)' },
+        { header: '\\bnew\\s+Curve(2D|3D)?\\b',        label: 'Curve',           parse: parseCurveBlock,        target: curves,          dual: true, infer: true, err: 'пропущены обязательные поля (name и points или x+y)' },
+        { header: '\\bdraw\\s+Function\\b',    label: 'draw Function',   parse: parseFunctionGraphBlock,target: drawFunctions,   fixedDim: '2D', err: 'пропущены обязательные поля (name, f)' },
+        { header: '\\bdraw\\s+Surface(2D|3D)?\\b',     label: 'draw Surface',    parse: parseSurfaceBlock,      target: drawSurfaces,    dual: true, infer: true, err: 'пропущены обязательные поля (name, f)' },
         { header: '\\bdraw\\s+Image\\b',       label: 'draw Image',      parse: parseImageBlock,        target: drawImages,      err: 'пропущены обязательные поля (name, src, pos)' },
         { header: '\\bdraw\\s+Histogram\\b',   label: 'draw Histogram',  parse: parseHistogramBlock,    target: drawHistograms,  err: 'пропущены обязательные поля (name, data)' },
-        { header: '\\bdraw\\s+Field\\b',       label: 'draw Field',      parse: parseFieldBlock,        target: drawFields,      err: 'пропущены обязательные поля (name, P, Q)' },
-        { header: '\\bdraw\\s+Trajectory\\b',  label: 'draw Trajectory', parse: parseTrajectoryBlock,   target: drawTrajectories,err: 'пропущены обязательные поля (name, start, и один из: system / field / P+Q)' },
+        { header: '\\bdraw\\s+Field(2D|3D)?\\b',       label: 'draw Field',      parse: parseFieldBlock,        target: drawFields,      dual: true, infer: true, err: 'пропущены обязательные поля (name, P, Q)' },
+        { header: '\\bdraw\\s+Trajectory(2D|3D)?\\b',  label: 'draw Trajectory', parse: parseTrajectoryBlock,   target: drawTrajectories,dual: true, infer: true, err: 'пропущены обязательные поля (name, start, и один из: system / field / P+Q)' },
         { header: '\\bdraw\\s+Graph\\b',       label: 'draw Graph',      parse: parseGraphDrawBlock,    target: drawGraphs,      err: 'пропущены обязательные поля (name, graph)' },
-        { header: '\\bdraw\\s+Fractal\\b',     label: 'draw Fractal',    parse: parseFractalBlock,      target: drawFractals,    err: 'пропущены обязательные поля (name; для julia — cRe и cIm)' },
-        { header: '\\bdraw\\s+Formula\\b',     label: 'draw Formula',    parse: parseFormulaBlock,      target: drawFormulas,    err: 'пропущены обязательные поля (name, pos, latex)' },
-        { header: '\\bdraw\\s+Locus\\b',       label: 'draw Locus',      parse: parseLocusBlock,        target: drawLoci,        err: 'пропущены обязательные поля (name, point, driver)' },
-        { header: '\\bdraw\\s+Trace\\b',       label: 'draw Trace',      parse: parseTraceBlock,        target: drawTraces,      err: 'пропущены обязательные поля (name, point)' },
-        { header: '\\bdraw\\s+Region\\b',      label: 'draw Region',     parse: parseRegionBlock,       target: drawRegions,     err: 'пропущены обязательные поля (name, f)' },
+        { header: '\\bdraw\\s+Fractal\\b',     label: 'draw Fractal',    parse: parseFractalBlock,      target: drawFractals,    fixedDim: '2D', err: 'пропущены обязательные поля (name; для julia — cRe и cIm)' },
+        { header: '\\bdraw\\s+Formula\\b',     label: 'draw Formula',    parse: parseFormulaBlock,      target: drawFormulas,    fixedDim: '2D', err: 'пропущены обязательные поля (name, pos, latex)' },
+        { header: '\\bdraw\\s+Locus\\b',       label: 'draw Locus',      parse: parseLocusBlock,        target: drawLoci,        fixedDim: '2D', err: 'пропущены обязательные поля (name, point, driver)' },
+        { header: '\\bdraw\\s+Trace\\b',       label: 'draw Trace',      parse: parseTraceBlock,        target: drawTraces,      fixedDim: '2D', err: 'пропущены обязательные поля (name, point)' },
+        { header: '\\bdraw\\s+Region\\b',      label: 'draw Region',     parse: parseRegionBlock,       target: drawRegions,     fixedDim: '2D', err: 'пропущены обязательные поля (name, f)' },
         { header: '\\bdraw\\s+Chart\\b',       label: 'draw Chart',      parse: parseChartBlock,        target: drawCharts,      err: 'пропущены обязательные поля (name, data)' },
         { header: '\\bdraw\\s+Tree\\b',        label: 'draw Tree',       parse: parseTreeBlock,         target: drawTrees,       err: 'пропущены обязательные поля (name, data)' },
         { header: '\\bdraw\\s+Table\\b',       label: 'draw Table',      parse: parseTableBlock,        target: drawTables,      err: 'пропущены обязательные поля (name, data)' },
-        { header: '\\bdraw\\s+Complex\\b',     label: 'draw Complex',    parse: parseComplexBlock,      target: drawComplexes,   err: 'пропущены обязательные поля (name, f)' },
-        { header: '\\bdraw\\s+Hyperbolic\\b',  label: 'draw Hyperbolic', parse: parseHyperbolicBlock,   target: drawHyperbolics,  err: 'пропущено обязательное поле (name)' },
+        { header: '\\bdraw\\s+Complex\\b',     label: 'draw Complex',    parse: parseComplexBlock,      target: drawComplexes,   fixedDim: '2D', err: 'пропущены обязательные поля (name, f)' },
+        { header: '\\bdraw\\s+Hyperbolic\\b',  label: 'draw Hyperbolic', parse: parseHyperbolicBlock,   target: drawHyperbolics,  fixedDim: '2D', err: 'пропущено обязательное поле (name)' },
         { header: '\\bdraw\\s+Bifurcation\\b', label: 'draw Bifurcation', parse: parseBifurcationBlock, target: drawBifurcations, err: 'пропущены обязательные поля (name, f)' },
         { header: '\\bdraw\\s+Cobweb\\b', label: 'draw Cobweb', parse: parseCobwebBlock, target: drawCobwebs, err: 'пропущены обязательные поля (name, f)' },
-        { header: '\\bdraw\\s+IFS\\b', label: 'draw IFS', parse: parseIFSBlock, target: drawIFSs, err: 'пропущены обязательные поля (name, maps)' },
-        { header: '\\bdraw\\s+Automaton\\b', label: 'draw Automaton', parse: parseAutomatonBlock, target: drawAutomata, err: 'пропущено обязательное поле (name)' },
-        { header: '\\bdraw\\s+Voronoi\\b', label: 'draw Voronoi', parse: parseVoronoiBlock, target: drawVoronois, err: 'пропущено обязательное поле (name)' },
-        { header: '\\bdraw\\s+Fourier\\b', label: 'draw Fourier', parse: parseFourierBlock, target: drawFouriers, err: 'пропущены обязательные поля (name, path)' },
-        { header: '\\bdraw\\s+Diagram\\b', label: 'draw Diagram', parse: parseDiagramBlock, target: drawDiagrams, err: 'пропущены обязательные поля (name, nodes)' }
+        { header: '\\bdraw\\s+IFS\\b', label: 'draw IFS', parse: parseIFSBlock, target: drawIFSs, fixedDim: '2D', err: 'пропущены обязательные поля (name, maps)' },
+        { header: '\\bdraw\\s+Automaton\\b', label: 'draw Automaton', parse: parseAutomatonBlock, target: drawAutomata, fixedDim: '2D', err: 'пропущено обязательное поле (name)' },
+        { header: '\\bdraw\\s+Voronoi\\b', label: 'draw Voronoi', parse: parseVoronoiBlock, target: drawVoronois, fixedDim: '2D', err: 'пропущено обязательное поле (name)' },
+        { header: '\\bdraw\\s+Fourier\\b', label: 'draw Fourier', parse: parseFourierBlock, target: drawFouriers, fixedDim: '2D', err: 'пропущены обязательные поля (name, path)' },
+        { header: '\\bdraw\\s+Diagram\\b', label: 'draw Diagram', parse: parseDiagramBlock, target: drawDiagrams, fixedDim: '2D', err: 'пропущены обязательные поля (name, nodes)' }
     ];
     for (const def of blockDefs) {
         for (const b of findHeaderedBlocks(codeBlock, def.header)) {
             const parsed = def.parse(b.body, vars);
-            if (parsed) { if (def.trackPos) parsed.__pos = b.start; def.target.push(parsed); }
+            if (parsed) {
+                if (def.dual) {
+                    if (b.groups && b.groups[1]) parsed.dim = b.groups[1].toUpperCase();
+                    else parsed.dim = def.infer ? null : '2D';
+                }
+                else if (def.fixedDim) parsed.dim = def.fixedDim;
+                if (def.trackPos) parsed.__pos = b.start;
+                def.target.push(parsed);
+            }
             else errors.push({ line: '--', message: `Ошибка в блоке ${def.label}: ${def.err}` });
         }
     }
@@ -2884,11 +3095,111 @@ function parseCommands(codeBlock, vars) {
     // Скрытые точки, порождённые буквальными координатами (x, y) вместо имени точки — везде, где ожидалась точка
     points.push(...syntheticPoints);
 
+    // ----- Автоопределение измерения (2D/3D) для типов, написанных БЕЗ явного суффикса -----
+    // Явный Line2D/Line3D (и т.п.) уже выставлен выше и сюда не попадает (dim уже не null).
+    // Для голого "Line"/"Figure"/... измерение выводится из того, на что объект реально
+    // ссылается — какого измерения точки/линии/фигуры, либо (если ссылок на точки нет,
+    // как у draw Surface/Field/Trajectory) из собственных полей объекта (z(t)/R/mode/start),
+    // которые и так уже различают 2D/3D-варианты. Порядок ниже важен: каждый следующий шаг
+    // опирается на то, что предыдущий уже разрешил свои dim.
+    for (let l of lines) {
+        if (l.dim) continue;
+        const pA = points.find(p => p.name === l.pointA);
+        const pB = points.find(p => p.name === l.pointB);
+        l.dim = (pA && pA.dim) || (pB && pB.dim) || '2D';
+    }
+    for (let cv of curves) {
+        if (cv.dim) continue;
+        if (cv.type === 'bezier') {
+            const p0 = points.find(p => p.name === (cv.controlPoints || [])[0]);
+            cv.dim = (p0 && p0.dim) || '2D';
+        } else if (cv.type === 'spiral' || cv.type === 'cycloid' || cv.type === 'involute') {
+            const p0 = points.find(p => p.name === cv.centerName);
+            cv.dim = (p0 && p0.dim) || '2D';
+        } else {
+            // parametric: x(t)/y(t) всегда заданы, z(t) — опциональна и есть только у 3D-кривых.
+            cv.dim = cv.zExpr ? '3D' : '2D';
+        }
+    }
+    for (let f of figures) {
+        if (f.dim) continue;
+        let found = null;
+        for (const elem of f.elements) {
+            found = points.find(p => p.name === elem) || lines.find(ln => ln.name === elem);
+            if (found) break;
+        }
+        f.dim = (found && found.dim) || '2D';
+    }
+    for (let d of drawFillings) {
+        if (d.dim) continue;
+        if (d.circle || d.arc) { d.dim = '2D'; continue; } // Circle/Arc всегда 2D
+        if (d.figure) { const fg = figures.find(f => f.name === d.figure); d.dim = (fg && fg.dim) || '2D'; continue; }
+        if (d.line) { const ln = lines.find(l => l.name === d.line); d.dim = (ln && ln.dim) || '2D'; continue; }
+        d.dim = '2D';
+    }
+    for (let d of drawVectors) {
+        if (d.dim) continue;
+        const ln = lines.find(l => l.name === d.edge);
+        d.dim = (ln && ln.dim) || '2D';
+    }
+    // draw InfLine: раньше был жёстко только 2D. Теперь измерение выводится из линии-edge —
+    // если edge ссылается на Line3D, InfLine продолжает её бесконечно в 3D-пространстве
+    // (аналогично тому, как draw InfPlane продолжает плоскость по трём точкам).
+    for (let d of drawInfLines) {
+        if (d.dim) continue;
+        const ln = lines.find(l => l.name === d.edge);
+        d.dim = (ln && ln.dim) || '2D';
+    }
+    // draw Punctir: тоже раньше был жёстко только 2D; теперь наследует dim линии-edge.
+    for (let d of drawPunctirs) {
+        if (d.dim) continue;
+        const ln = lines.find(l => l.name === d.edge);
+        d.dim = (ln && ln.dim) || '2D';
+    }
+    // draw EquallySing: тоже был жёстко только 2D; теперь наследует dim от первого
+    // разрешимого edge (обычно все рёбра группы в одном измерении).
+    for (let d of drawEqually) {
+        if (d.dim) continue;
+        let dim = null;
+        for (const en of d.edges) {
+            const ln = lines.find(l => l.name === en);
+            if (ln && ln.dim) { dim = ln.dim; break; }
+        }
+        d.dim = dim || '2D';
+    }
+    for (let d of drawTexts) {
+        if (d.dim) continue;
+        d.dim = d.zGiven ? '3D' : '2D';
+    }
+    for (let d of drawSurfaces) {
+        if (d.dim) continue;
+        // parametric всегда требует x(u,v)/y(u,v)/z(u,v) — по построению это 3D-поверхность.
+        // heightfield различает 2D/3D через существующее поле mode ("contour" | "3d").
+        d.dim = (d.type === 'parametric') ? '3D' : ((d.mode === '3d') ? '3D' : '2D');
+    }
+    for (let d of drawFields) {
+        if (d.dim) continue;
+        // R — третья (вертикальная) компонента поля; задана только у 3D-полей.
+        d.dim = d.rExpr ? '3D' : '2D';
+    }
+    for (let d of drawTrajectories) {
+        if (d.dim) continue;
+        if (d.fieldName) {
+            const fld = drawFields.find(f => f.name === d.fieldName);
+            d.dim = (fld && fld.dim) || ((d.start && d.start.length === 3) ? '3D' : '2D');
+        } else {
+            d.dim = (d.rExpr || (d.start && d.start.length === 3)) ? '3D' : '2D';
+        }
+    }
+
     // ----- Валидации -----
     for (let l of lines) {
         const pA = points.find(p => p.name === l.pointA);
         const pB = points.find(p => p.name === l.pointB);
-        if (!pA || !pB) errors.push({ line: '--', message: `Линия "${l.name}" ссылается на несуществующую точку.` });
+        if (!pA || !pB) { errors.push({ line: '--', message: `Линия "${l.name}" ссылается на несуществующую точку.` }); continue; }
+        if (pA.dim !== l.dim || pB.dim !== l.dim) {
+            errors.push({ line: '--', message: `Line${l.dim} "${l.name}" ссылается на точку другого измерения — обе точки должны быть Point${l.dim}` });
+        }
     }
 
     for (let p of points) {
@@ -2949,7 +3260,9 @@ function parseCommands(codeBlock, vars) {
         }
         f.pointNames = allPointNames;
         for (let pn of allPointNames) {
-            if (!points.find(p => p.name === pn)) errors.push({ line: '--', message: `Фигура "${f.name}" ссылается на несуществующую точку "${pn}"` });
+            const pt = points.find(p => p.name === pn);
+            if (!pt) errors.push({ line: '--', message: `Фигура "${f.name}" ссылается на несуществующую точку "${pn}"` });
+            else if (pt.dim !== f.dim) errors.push({ line: '--', message: `Figure${f.dim} "${f.name}" ссылается на точку "${pn}" другого измерения — ожидается Point${f.dim}` });
         }
     }
 
@@ -2994,8 +3307,7 @@ function parseCommands(codeBlock, vars) {
     // Валидация кластеров – теперь с учётом всех draw-элементов
     for (let c of clusters) {
         const allElements = [];
-        for (let elem of c.elements) {
-            const found = points.find(p => p.name === elem) ||
+        const findElem = (elem) => points.find(p => p.name === elem) ||
                           lines.find(l => l.name === elem) ||
                           figures.find(f => f.name === elem) ||
                           primitives.find(pr => pr.name === elem) ||
@@ -3012,8 +3324,21 @@ function parseCommands(codeBlock, vars) {
                           drawFillings.find(d => d.name === elem) ||
                           drawPunctirs.find(d => d.name === elem) ||
                           drawTexts.find(d => d.name === elem);
-            if (found) allElements.push(elem);
-            else errors.push({ line: '--', message: `Кластер "${c.name}" содержит неизвестный элемент "${elem}"` });
+        if (!c.dim) {
+            for (const elem of c.elements) {
+                const found = findElem(elem);
+                if (found && found.dim) { c.dim = found.dim; break; }
+            }
+            if (!c.dim) c.dim = '2D';
+        }
+        for (let elem of c.elements) {
+            const found = findElem(elem);
+            if (!found) { errors.push({ line: '--', message: `Кластер "${c.name}" содержит неизвестный элемент "${elem}"` }); continue; }
+            if (found.dim && found.dim !== c.dim) {
+                errors.push({ line: '--', message: `Claster${c.dim} "${c.name}" содержит элемент "${elem}" другого измерения (${found.dim}) — кластер и его элементы должны быть в одном пространстве` });
+                continue;
+            }
+            allElements.push(elem);
         }
         c.elements = allElements;
     }
@@ -3038,6 +3363,10 @@ function parseCommands(codeBlock, vars) {
         const l2 = lines.find(l => l.name === a.lineNames[1]);
         if (!l1 || !l2) {
             errors.push({ line: '--', message: `Угол "${a.name}" ссылается на несуществующую линию.` });
+            continue;
+        }
+        if (l1.dim !== '2D' || l2.dim !== '2D') {
+            errors.push({ line: '--', message: `Угол "${a.name}" — Angle работает только с Line2D (3D-линии сюда передавать нельзя)` });
             continue;
         }
         const p1 = points.find(p => p.name === l1.pointA);
@@ -3099,14 +3428,19 @@ function parseCommands(codeBlock, vars) {
     for (let cv of curves) {
         if (cv.type === 'bezier') {
             for (let pn of cv.controlPoints) {
-                if (!points.find(p => p.name === pn)) errors.push({ line: '--', message: `Кривая "${cv.name}" ссылается на несуществующую контрольную точку "${pn}"` });
+                const pt = points.find(p => p.name === pn);
+                if (!pt) errors.push({ line: '--', message: `Кривая "${cv.name}" ссылается на несуществующую контрольную точку "${pn}"` });
+                else if (pt.dim !== cv.dim) errors.push({ line: '--', message: `Curve${cv.dim} "${cv.name}" ссылается на контрольную точку "${pn}" другого измерения — ожидается Point${cv.dim}` });
             }
         } else if (cv.type === 'spiral' || cv.type === 'cycloid' || cv.type === 'involute') {
-            if (!points.find(p => p.name === cv.centerName)) errors.push({ line: '--', message: `Кривая "${cv.name}" ссылается на несуществующую опорную точку "${cv.centerName}"` });
+            const pt = points.find(p => p.name === cv.centerName);
+            if (!pt) errors.push({ line: '--', message: `Кривая "${cv.name}" ссылается на несуществующую опорную точку "${cv.centerName}"` });
+            else if (pt.dim !== cv.dim) errors.push({ line: '--', message: `Curve${cv.dim} "${cv.name}" ссылается на опорную точку "${cv.centerName}" другого измерения — ожидается Point${cv.dim}` });
         }
     }
 
     for (let im of drawImages) {
+        if (im.dim === '3D') continue; // 3D-вариант: pos = (x, y, z), ссылки на точку нет
         if (!points.find(p => p.name === im.posName)) errors.push({ line: '--', message: `Изображение "${im.name}" ссылается на несуществующую точку "${im.posName}"` });
     }
 
@@ -3181,11 +3515,25 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
         // ---- Привязка (snap) при перетаскивании: к другим точкам, к их осям (умные
         // направляющие) и к сетке. snap — общий переключатель, остальные два — тонкая
         // настройка шага сетки и радиуса "магнита" в пикселях экрана. ----
-        const snapEnabled = params.snap !== false;
+        const snapEnabled = params.snap === true;
         const snapGridStep = (typeof params['snap grid'] === 'number' && params['snap grid'] > 0) ? params['snap grid'] : 1;
         const snapDistancePx = (typeof params['snap distance'] === 'number' && params['snap distance'] >= 0) ? params['snap distance'] : 10;
 
-        const footer = params.footer ? escapeHtml(params.footer) : `Поле ${fieldWidth}×${fieldHeight} · Перетаскивайте точки, линии и окружности · камера: ${params.space}`;
+        // ---- Сетка и оси всей сцены (Задача 6/9) — раньше это работало только у
+        // draw Function { grid = true }; теперь это общесценовая настройка, как и в 3D. ----
+        const showAxesMaster2D = params['show axes'] === true;
+        const showAxisX2D = (params['show axis x'] !== undefined) ? (params['show axis x'] !== false) : showAxesMaster2D;
+        const showAxisY2D = (params['show axis y'] !== undefined) ? (params['show axis y'] !== false) : showAxesMaster2D;
+        const showGridMaster2D = params['show grid'] === true;
+        const showGridX2D = (params['show grid x'] !== undefined) ? (params['show grid x'] !== false) : showGridMaster2D;
+        const showGridY2D = (params['show grid y'] !== undefined) ? (params['show grid y'] !== false) : showGridMaster2D;
+        const gridStep2D = (typeof params['grid size'] === 'number' && params['grid size'] > 0) ? params['grid size'] : 1;
+        const gridAdaptive2D = params['grid adaptive'] !== false;
+        const cameraType2D = (params['camera type'] === 'fixed') ? 'fixed' : 'pan';
+        const gridColor2D = params['grid color'] || 'rgba(128,128,128,0.25)';
+        const axesColor2D = params['axes color'] || 'rgba(128,128,128,0.7)';
+
+        const footer = params.footer ? escapeHtml(params.footer) : `Поле ${fieldWidth}×${fieldHeight} · Перетаскивайте точки, линии и окружности`;
 
         const pointsJson = jsonForScript(pointsData);
         const linesJson = jsonForScript(linesData);
@@ -3455,10 +3803,18 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '\n',
             '    const FIELD_WIDTH = ', String(fieldWidth), ';\n',
             '    const FIELD_HEIGHT = ', String(fieldHeight), ';\n',
+            '    const SHOW_AXIS_X = ', String(showAxisX2D), ', SHOW_AXIS_Y = ', String(showAxisY2D), ';\n',
+            '    const SHOW_GRID_X = ', String(showGridX2D), ', SHOW_GRID_Y = ', String(showGridY2D), ';\n',
+            '    const GRID_STEP_BASE = ', String(gridStep2D), ';\n',
+            '    const GRID_ADAPTIVE = ', String(gridAdaptive2D), ';\n',
+            '    const GRID_COLOR = \'', gridColor2D, '\';\n',
+            '    const AXES_COLOR = \'', axesColor2D, '\';\n',
+            '    const CAMERA_TYPE_2D = \'', cameraType2D, '\';\n',
             '    const EDGE_MARGIN = 0;\n',
             '    const VERTEX_RADIUS = 7;\n',
-            '    const HIT_THRESHOLD = 22;\n',
-            '    const EDGE_HIT_THRESHOLD = 16;\n',
+            '    const IS_TOUCH_DEVICE = (\'ontouchstart\' in window) || (navigator.maxTouchPoints > 0);\n',
+            '    const HIT_THRESHOLD = IS_TOUCH_DEVICE ? 38 : 22;\n',
+            '    const EDGE_HIT_THRESHOLD = IS_TOUCH_DEVICE ? 28 : 16;\n',
             '    const MIN_DIST = 1.0;\n',
             '    const FIGURE_HIT_PADDING = 30;\n',
             '\n',
@@ -5030,6 +5386,62 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '      ctx.stroke();\n',
             '    }\n',
             '\n',
+            '    function niceGridStep(targetFieldStep) {\n',
+            '      if (!(targetFieldStep > 0)) return GRID_STEP_BASE;\n',
+            '      const mag = Math.pow(10, Math.floor(Math.log10(targetFieldStep)));\n',
+            '      const residual = targetFieldStep / mag;\n',
+            '      let niceMult;\n',
+            '      if (residual < 1.5) niceMult = 1; else if (residual < 3.5) niceMult = 2; else if (residual < 7.5) niceMult = 5; else niceMult = 10;\n',
+            '      return niceMult * mag;\n',
+            '    }\n',
+            '    // Шаг сетки/осей подстраивается так, чтобы между линиями было ~48px, а не\n',
+            '    // жёстко фиксированное число единиц поля — иначе при отдалении линии сливаются\n',
+            '    // в кашу, а при приближении почти пропадают. Отключается через grid adaptive = false.\n',
+            '    function currentGridStep() {\n',
+            '      if (!GRID_ADAPTIVE) return GRID_STEP_BASE;\n',
+            '      const scale = fieldScale();\n',
+            '      if (!(scale > 0)) return GRID_STEP_BASE;\n',
+            '      return niceGridStep(48 / scale);\n',
+            '    }\n',
+            '    function drawSceneGridAxes() {\n',
+            '      const tl = pixelToField(0, 0), br = pixelToField(width, height);\n',
+            '      const xMin = Math.min(tl.x, br.x), xMax = Math.max(tl.x, br.x);\n',
+            '      const yMin = Math.min(tl.y, br.y), yMax = Math.max(tl.y, br.y);\n',
+            '      const step = currentGridStep();\n',
+            '      if (!(step > 0)) return;\n',
+            '      ctx.save();\n',
+            '      if (SHOW_GRID_X || SHOW_GRID_Y) {\n',
+            '        ctx.strokeStyle = GRID_COLOR; ctx.lineWidth = 1;\n',
+            '        ctx.beginPath();\n',
+            '        if (SHOW_GRID_X) for (let x = Math.ceil(xMin / step) * step; x <= xMax; x += step) { const p1 = fieldToPixel(x, yMin), p2 = fieldToPixel(x, yMax); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); }\n',
+            '        if (SHOW_GRID_Y) for (let y = Math.ceil(yMin / step) * step; y <= yMax; y += step) { const p1 = fieldToPixel(xMin, y), p2 = fieldToPixel(xMax, y); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); }\n',
+            '        ctx.stroke();\n',
+            '      }\n',
+            '      if (SHOW_AXIS_X || SHOW_AXIS_Y) {\n',
+            '        ctx.strokeStyle = AXES_COLOR; ctx.lineWidth = 1.5;\n',
+            '        ctx.beginPath();\n',
+            '        if (SHOW_AXIS_X) { const a1 = fieldToPixel(xMin, 0), a2 = fieldToPixel(xMax, 0); ctx.moveTo(a1.x, a1.y); ctx.lineTo(a2.x, a2.y); }\n',
+            '        if (SHOW_AXIS_Y) { const a1 = fieldToPixel(0, yMin), a2 = fieldToPixel(0, yMax); ctx.moveTo(a1.x, a1.y); ctx.lineTo(a2.x, a2.y); }\n',
+            '        ctx.stroke();\n',
+            '        ctx.fillStyle = AXES_COLOR; ctx.font = \'10px sans-serif\';\n',
+            '        const decimals = Math.max(0, -Math.floor(Math.log10(step)) + 1);\n',
+            '        if (SHOW_AXIS_X) {\n',
+            '          ctx.textAlign = \'center\'; ctx.textBaseline = \'top\';\n',
+            '          for (let x = Math.ceil(xMin / step) * step; x <= xMax; x += step) {\n',
+            '            if (Math.abs(x) < step / 1000) continue;\n',
+            '            const p = fieldToPixel(x, 0); ctx.fillText(String(parseFloat(x.toFixed(decimals))), p.x, p.y + 4);\n',
+            '          }\n',
+            '        }\n',
+            '        if (SHOW_AXIS_Y) {\n',
+            '          ctx.textAlign = \'left\'; ctx.textBaseline = \'middle\';\n',
+            '          for (let y = Math.ceil(yMin / step) * step; y <= yMax; y += step) {\n',
+            '            if (Math.abs(y) < step / 1000) continue;\n',
+            '            const p = fieldToPixel(0, y); ctx.fillText(String(parseFloat(y.toFixed(decimals))), p.x + 4, p.y);\n',
+            '          }\n',
+            '        }\n',
+            '      }\n',
+            '      ctx.restore();\n',
+            '    }\n',
             '    function drawAxesGrid(step) {\n',
             '      if (window.coordinateSystem === \'polar\') drawPolarGrid(step); else drawCartesianGrid(step);\n',
             '    }\n',
@@ -5119,9 +5531,16 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '    function drawFunctionGraph(d) {\n',
             '      if (!GL_USER_FUNCS[d.funcName]) return;\n',
             '      if (d.grid) drawAxesGrid(d.gridStep || 1);\n',
+            '      let gxmin = d.xmin, gxmax = d.xmax;\n',
+            '      if (d.extend) {\n',
+            '        const tl = pixelToField(0, 0), br = pixelToField(width, height);\n',
+            '        const vxmin = Math.min(tl.x, br.x), vxmax = Math.max(tl.x, br.x);\n',
+            '        const margin = (typeof d.extendDistance === \'number\') ? d.extendDistance : (vxmax - vxmin) * 0.2;\n',
+            '        gxmin = vxmin - margin; gxmax = vxmax + margin;\n',
+            '      }\n',
             '      const pts = [];\n',
             '      for (let i = 0; i <= d.segments; i++) {\n',
-            '        const x = d.xmin + (d.xmax - d.xmin) * i / d.segments;\n',
+            '        const x = gxmin + (gxmax - gxmin) * i / d.segments;\n',
             '        let y;\n',
             '        try { y = glCallUserFunc(d.funcName, [x]); } catch (e) { y = NaN; }\n',
             '        pts.push((typeof y === \'number\' && isFinite(y)) ? { x, y } : null);\n',
@@ -7168,6 +7587,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '    function drawFull() {\n',
             '      try { updateFormulas(); } catch (e) { glLog(\'warn\', \'draw Formula: \' + e.message); }\n',
             '      ctx.clearRect(0, 0, width, height);\n',
+              '      if (SHOW_GRID_X || SHOW_GRID_Y || SHOW_AXIS_X || SHOW_AXIS_Y) drawSceneGridAxes();\n',
             '      updateCircles();\n',
             '      updateEllipses();\n',
             '      updateArcs();\n',
@@ -7469,6 +7889,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '    function markDirty(obj) { if (obj) obj.dirty = true; }\n',
             '    function markSceneChanged() { sceneChangedThisFrame = true; }\n',
             '    function draw() {\n',
+              '    try {\n',
             '      const stale = !sceneSnapshot || sceneSnapshot.width !== width || sceneSnapshot.height !== height;\n',
             '      const needsFull = isDragging || sceneChangedThisFrame || stale;\n',
             '      if (!needsFull) {\n',
@@ -7486,6 +7907,10 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '      snapCtx.drawImage(canvas, 0, 0);\n',
             '      drawSnapGuides();\n',
             '      sceneChangedThisFrame = false;\n',
+              '    } catch (err) {\n',
+              '      console.error(\'Ошибка при отрисовке:\', err);\n',
+              '      try { ctx.clearRect(0, 0, width, height); } catch (e2) {}\n',
+              '    }\n',
             '    }\n',
             '\n',
             '    // ===== DRAG & DROP =====\n',
@@ -7540,6 +7965,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '    }\n',
             '\n',
             '    function onPointerDown(e) {\n',
+              '      try {\n',
             '        const pos = getPointerPos(e);\n',
             '        for (let i = 0; i < points.length; i++) {\n',
             '            const p = points[i];\n',
@@ -7796,6 +8222,17 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '                return;\n',
             '            }\n',
             '        }\n',
+            '        // Ни одна точка/линия/фигура/кластер не задета — на телефоне одним пальцем\n',
+            '        // по пустому месту панорамируем камеру (второй рукой такого модификатора нет).\n',
+            '        if (e.touches && e.touches.length === 1 && CAMERA_TYPE_2D !== \'fixed\') {\n',
+            '            isPanning = true;\n',
+            '            panStartPixel = pos;\n',
+            '            panStartOffset = { x: camera.offsetX, y: camera.offsetY };\n',
+            '        }\n',
+              '      } catch (err) {\n',
+              '        console.error(\'Ошибка при начале перетаскивания:\', err);\n',
+              '        dragMode = null; dragTarget = null; draggedPointIndex = -1; isDragging = false;\n',
+              '      }\n',
             '    }\n',
             '\n',
             '    function clampFieldPoint(pos) {\n',
@@ -8030,6 +8467,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '    }\n',
             '\n',
             '    function onPointerMove(e) {\n',
+              '      try {\n',
             '        if (dragMode === null) return;\n',
             '        const pos = getPointerPos(e);\n',
             '        if (dragMode === \'pointOnLine\') {\n',
@@ -8173,9 +8611,20 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '        } else if (dragMode === \'cluster\') {\n',
             '            if (moveCluster(dragTarget, pos)) { draw(); }\n',
             '        }\n',
+              '      } catch (err) {\n',
+              '        console.error(\'Ошибка при перетаскивании:\', err);\n',
+              '        dragMode = null; dragTarget = null; draggedPointIndex = -1; isDragging = false;\n',
+              '        lockedAngleDrag = null; lockedAngleDragLine = null; lockedPointTarget = null;\n',
+              '        pointOnLinePoint = null; pointOnLineLine = null; pointOnCirclePoint = null; pointOnCircleCircle = null;\n',
+              '        pointOnEllipsePoint = null; pointOnEllipseEllipse = null; ellipseAxisPoint = null; ellipseAxisEllipse = null;\n',
+              '        pointOnCurvePoint = null; pointOnCurveCurve = null; pointOnArcPoint = null; pointOnArcArc = null;\n',
+              '        pointOnGraphPoint = null; pointOnGraphGraph = null;\n',
+              '        activeSnapGuides = [];\n',
+              '      }\n',
             '    }\n',
             '\n',
             '    function onPointerUp(e) {\n',
+              '      try {\n',
             '        dragMode = null; dragTarget = null; lockedAngleDrag = null; lockedAngleDragLine = null; lockedPointTarget = null;\n',
             '        pointOnLinePoint = null; pointOnLineLine = null; pointOnCirclePoint = null; pointOnCircleCircle = null;\n',
             '        pointOnEllipsePoint = null; pointOnEllipseEllipse = null; ellipseAxisPoint = null; ellipseAxisEllipse = null;\n',
@@ -8184,6 +8633,9 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '        isDragging = false; draggedPointIndex = -1;\n',
             '        activeSnapGuides = [];\n',
             '        markSceneChanged();\n',
+              '      } catch (err) {\n',
+              '        console.error(\'Ошибка в onPointerUp:\', err);\n',
+              '      }\n',
             '    }\n',
             '\n',
             '    canvas.addEventListener(\'mousedown\', onPointerDown);\n',
@@ -8199,14 +8651,14 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '    let panStartOffset = { x: 0, y: 0 };\n',
             '    function isPanTrigger(e) { return e.button === 1 || (e.button === 0 && e.ctrlKey); }\n',
             '    canvas.addEventListener(\'mousedown\', function(e) {\n',
-            '        if (!isPanTrigger(e)) return;\n',
+            '        if (CAMERA_TYPE_2D === \'fixed\' || !isPanTrigger(e)) return;\n',
             '        e.preventDefault();\n',
             '        isPanning = true;\n',
             '        panStartPixel = getPointerPos(e);\n',
             '        panStartOffset = { x: camera.offsetX, y: camera.offsetY };\n',
             '        e.stopImmediatePropagation();\n',
             '    }, true);\n',
-            '    window.addEventListener(\'mousemove\', function(e) {\n',
+            '    function onPanMove(e) {\n',
             '        if (!isPanning) return;\n',
             '        const cur = getPointerPos(e);\n',
             '        const scale = fieldScale();\n',
@@ -8214,9 +8666,14 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '        camera.offsetX = panStartOffset.x - (cur.x - panStartPixel.x) / scale;\n',
             '        camera.offsetY = panStartOffset.y + (cur.y - panStartPixel.y) / scale;\n',
             '        markSceneChanged(); draw();\n',
-            '    }, true);\n',
+            '    }\n',
+            '    window.addEventListener(\'mousemove\', onPanMove, true);\n',
+            '    window.addEventListener(\'touchmove\', onPanMove, { passive: true, capture: true });\n',
             '    window.addEventListener(\'mouseup\', function() { isPanning = false; }, true);\n',
+            '    window.addEventListener(\'touchend\', function() { isPanning = false; }, true);\n',
+            '    window.addEventListener(\'touchcancel\', function() { isPanning = false; }, true);\n',
             '    canvas.addEventListener(\'wheel\', function(e) {\n',
+            '        if (CAMERA_TYPE_2D === \'fixed\') return;\n',
             '        e.preventDefault();\n',
             '        const factor = e.deltaY > 0 ? 0.9 : 1.1;\n',
             '        const mousePixel = getPointerPos(e);\n',
@@ -8227,6 +8684,37 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '        camera.offsetY += before.y - after.y;\n',
             '        markSceneChanged(); draw();\n',
             '    }, { passive: false });\n',
+            '\n',
+            '    // Щипок двумя пальцами — зум камеры на телефоне/планшете (мобильная адаптивность).\n',
+            '    let touchPinchDist = null;\n',
+            '    canvas.addEventListener(\'touchstart\', function(e) {\n',
+            '        if (e.touches.length === 2) {\n',
+            '            const dx = e.touches[0].clientX - e.touches[1].clientX, dy = e.touches[0].clientY - e.touches[1].clientY;\n',
+            '            touchPinchDist = Math.hypot(dx, dy);\n',
+            '            isPanning = false;\n',
+            '        }\n',
+            '    }, { passive: true });\n',
+            '    canvas.addEventListener(\'touchmove\', function(e) {\n',
+            '        if (CAMERA_TYPE_2D === \'fixed\' || !e.touches || e.touches.length !== 2) { touchPinchDist = null; return; }\n',
+            '        e.preventDefault();\n',
+            '        const t0 = e.touches[0], t1 = e.touches[1];\n',
+            '        const dx = t0.clientX - t1.clientX, dy = t0.clientY - t1.clientY;\n',
+            '        const dist = Math.hypot(dx, dy);\n',
+            '        if (touchPinchDist) {\n',
+            '            const factor = dist / touchPinchDist;\n',
+            '            const rect = canvas.getBoundingClientRect();\n',
+            '            const scaleX = canvas.width / rect.width, scaleY = canvas.height / rect.height;\n',
+            '            const midPixel = { x: ((t0.clientX + t1.clientX) / 2 - rect.left) * scaleX, y: ((t0.clientY + t1.clientY) / 2 - rect.top) * scaleY };\n',
+            '            const before = pixelToField(midPixel.x, midPixel.y);\n',
+            '            camera.zoom = Math.max(camera.zoomMin, Math.min(camera.zoomMax, camera.zoom * factor));\n',
+            '            const after = pixelToField(midPixel.x, midPixel.y);\n',
+            '            camera.offsetX += before.x - after.x;\n',
+            '            camera.offsetY += before.y - after.y;\n',
+            '            markSceneChanged(); draw();\n',
+            '        }\n',
+            '        touchPinchDist = dist;\n',
+            '    }, { passive: false });\n',
+            '    canvas.addEventListener(\'touchend\', function(e) { if (e.touches.length < 2) touchPinchDist = null; }, { passive: true });\n',
             '\n',
             '    function resizeCanvas() {\n',
             '        const wrapper = canvas.parentElement;\n',
@@ -12642,7 +13130,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '                const btn = document.createElement(\'button\');\n',
             '                btn.textContent = ui.label || \'Button\';\n',
             '                btn.style.backgroundColor = ui.color || __gcDefaultColor();\n',
-            '                btn.style.color = ui.textcolor || \'#ffffff\';\n',
+            '                btn.style.color = ui.textcolor || __gcDefaultColor();\n',
             '                btn.style.borderRadius = (ui.radius !== null && ui.radius !== undefined ? ui.radius : 4) + \'px\';\n',
             '                if (positioned) { btn.style.width = \'100%\'; btn.style.height = \'100%\'; }\n',
             '                btn.addEventListener(\'click\', async function() {\n',
@@ -12761,7 +13249,15 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '\n',
             '    for (let f of figures) { if (window[f.name] !== undefined) glLog(\'warn\', "Фигура "+f.name+" уже существует в window"); window[f.name] = f; }\n',
             '    let Start = async function() { await glRun(startCode); };\n',
-            '    let Update = async function() { elapsedTime = (performance.now() - glStartTime) / 1000; await glRun(updateCode); };\n',
+            // "Часы" 2D-слоя — единственный источник времени в совмещённой (2D+3D) сцене:
+            // 2D выполняет Start/Update один раз за кадр (см. combineHtml2D3D — 3D-копия
+            // того же кода в комбинированном режиме не запускается, во избежание двойного
+            // применения побочных эффектов вроде t += dt). Чтобы выражения в 3D-слое,
+            // использующие переменную time, не расходились с 2D по фазе (иначе у каждого
+            // слоя был бы свой независимый requestAnimationFrame-таймер), публикуем текущее
+            // elapsedTime в window.__gcElapsedTime — 3D-слой в комбинированном режиме
+            // читает его оттуда вместо собственных часов.
+            '    let Update = async function() { elapsedTime = (performance.now() - glStartTime) / 1000; window.__gcElapsedTime = elapsedTime; await glRun(updateCode); };\n',
             '\n',
             '    initUserFuncs(); initPoints(); initLines(); initCircles(); initArcs(); initEllipses(); initCurves(); initDrawFunctions(); initDrawSurfaces(); initDrawImages(); initDrawHistograms(); initDrawFields(); initDrawTrajectories(); initDrawGraphs(); initDrawFractals(); initDrawLoci(); initDrawFormulas(); initFigures(); initClusters(); initAngles();\n',
             '    initDrawAngles(); initDrawEqually(); initDrawVectors(); initDrawInfLines(); initDrawFillings(); initDrawPunctirs();\n',
@@ -12851,6 +13347,23 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
     '        infoText.innerHTML = renderKaTeX(infoText.innerHTML);\n',
     '      }\n',
     '    }\n',
+    '    // Если KaTeX не загрузился с CDN (например, iframe без доступа в интернет —\n',
+    '    // песочница и т.п.), просим родительское окно предоставить файлы напрямую:\n',
+    '    //   родитель может прислать { type: \'geocompiler-provide-katex\', css, js } в ответ\n',
+    '    //   на { type: \'geocompiler-request-katex\' } — работает без CDN.\n',
+    '    if (typeof katex === \'undefined\' && window.parent && window.parent !== window) {\n',
+    '      window.addEventListener(\'message\', function(ev) {\n',
+    '        var data = ev.data;\n',
+    '        if (!data || data.type !== \'geocompiler-provide-katex\') return;\n',
+    '        if (typeof katex !== \'undefined\') return;\n',
+    '        try {\n',
+    '          if (data.css) { var st = document.createElement(\'style\'); st.textContent = data.css; document.head.appendChild(st); }\n',
+    '          if (data.js) { (0, eval)(data.js); }\n',
+    '          if (typeof katex !== \'undefined\') { renderInfoText(); markSceneChanged(); draw(); }\n',
+    '        } catch (err) { console.error(\'Не удалось применить KaTeX от родительского окна:\', err); }\n',
+    '      });\n',
+    '      window.parent.postMessage({ type: \'geocompiler-request-katex\' }, \'*\');\n',
+    '    }\n',
     '    if (typeof katex !== \'undefined\') {\n',
     '      renderInfoText();\n',
     '    } else {\n',
@@ -12867,6 +13380,8 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
     '      // запасной таймаут, чтобы не висело вечно\n',
     '      setTimeout(function() { clearInterval(checkInterval); }, 5000);\n',
     '    }\n',
+            '    window.__gc2D_canvas = canvas;\n',
+            '    window.__gc2D_isActive = function() { return dragMode !== null || isPanning; };\n',
             '  })();\n',
             '<' + '/script>\n',
             '</body>\n',
@@ -12884,7 +13399,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
 // оси, сетка, точки, отрезки, плоские многоугольники (грани многогранников).
 // Остальные типы объектов (углы, поля, поверхности, графики и т.д.) подключаются
 // на следующих этапах; здесь они молча игнорируются, если встречаются в 3D-сцене.
-function generate3D(params, pointsData, linesData, figuresData, clustersData, drawFillingsData, anglesData, drawAnglesData, drawVectorsData, drawSurfacesData, drawFieldsData, curvesData, drawTrajectoriesData, drawTextsData, uiData, drawInfPlanesData, funcsData, procsData, userVars, startCodes, updateCodes, primitivesData, derivedOpsData, angles3DData) {
+function generate3D(params, pointsData, linesData, figuresData, clustersData, drawFillingsData, anglesData, drawAnglesData, drawVectorsData, drawSurfacesData, drawFieldsData, curvesData, drawTrajectoriesData, drawTextsData, uiData, drawInfPlanesData, funcsData, procsData, userVars, startCodes, updateCodes, primitivesData, derivedOpsData, angles3DData, drawInfLinesData, drawImagesData, drawPunctirsData, drawEquallyData, drawHistogramsData, drawChartsData, drawTreesData, drawTablesData, drawGraphsData, drawCobwebsData, drawBifurcationsData) {
     try {
         const title = params.title || '';
         const undertitle = params.undertitle || '';
@@ -12912,6 +13427,11 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
         const themeNameJson = jsonForScript(themeName);
 
         const canRotateCamera = params['can rotate camera'] !== false;
+        const cameraProjection = (params['camera projection'] === 'orthographic') ? 'orthographic' : 'perspective';
+        const cameraFov = (typeof params['camera fov'] === 'number' && params['camera fov'] > 0) ? params['camera fov'] : 45;
+        const cameraNear = (typeof params['camera near'] === 'number' && params['camera near'] > 0) ? params['camera near'] : 0.1;
+        const cameraFar = (typeof params['camera far'] === 'number' && params['camera far'] > cameraNear) ? params['camera far'] : 100000;
+        const cameraType3D = (params['camera type'] === 'pan' || params['camera type'] === 'fixed') ? params['camera type'] : 'orbit';
         const canZoomCamera = params['can zoom camera'] !== false;
         const zoomLimits = Array.isArray(params['zoom limits']) ? params['zoom limits'] : [0.3, 4];
         const cameraStartZoom = (typeof params['camera start zoom'] === 'number') ? params['camera start zoom'] : 1;
@@ -12929,6 +13449,7 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
         const showGridY = (params['show grid y'] !== undefined) ? (params['show grid y'] !== false) : showGridMaster;
         const showGridZ = (params['show grid z'] !== undefined) ? (params['show grid z'] !== false) : showGridMaster;
         const gridSize = (typeof params['grid size'] === 'number') ? params['grid size'] : Math.max(fieldWidth, fieldHeight, fieldDepth);
+        const gridAdaptive3D = params['grid adaptive'] !== false;
 
         const footer = params.footer ? escapeHtml(params.footer) : `Сцена ${fieldWidth}×${fieldHeight}×${fieldDepth} · Вращайте камеру мышью, колесо — зум · перетаскивайте интерактивные точки · пространство: 3D`;
 
@@ -12947,6 +13468,17 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
         const drawTextsJson = jsonForScript(drawTextsData || []);
         const uiJson = jsonForScript(uiData || []);
         const infPlanesJson = jsonForScript(drawInfPlanesData || []);
+        const infLinesJson = jsonForScript(drawInfLinesData || []);
+        const imagesJson = jsonForScript(drawImagesData || []);
+        const punctirsJson = jsonForScript(drawPunctirsData || []);
+        const equallyJson = jsonForScript(drawEquallyData || []);
+        const histogramsJson = jsonForScript(drawHistogramsData || []);
+        const chartsJson = jsonForScript(drawChartsData || []);
+        const treesJson = jsonForScript(drawTreesData || []);
+        const tablesJson = jsonForScript(drawTablesData || []);
+        const graphsJson = jsonForScript(drawGraphsData || []);
+        const cobwebsJson = jsonForScript(drawCobwebsData || []);
+        const bifurcationsJson = jsonForScript(drawBifurcationsData || []);
         const primitivesJson = jsonForScript(primitivesData || []);
         const derivedOpsJson = jsonForScript(derivedOpsData || []);
         const angles3DJson = jsonForScript(angles3DData || []);
@@ -13070,17 +13602,48 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '  const drawTextsData = ', drawTextsJson, ';\n',
             '  const uiData = ', uiJson, ';\n',
             '  const infPlanesData = ', infPlanesJson, ';\n',
+            '  const infLinesData = ', infLinesJson, ';\n',
+            '  const imagesData = ', imagesJson, ';\n',
+            '  const punctirsData = ', punctirsJson, ';\n',
+            '  const equallyData = ', equallyJson, ';\n',
+            '  const histogramsData = ', histogramsJson, ';\n',
+            '  const chartsData = ', chartsJson, ';\n',
+            '  const treesData = ', treesJson, ';\n',
+            '  const tablesData = ', tablesJson, ';\n',
+            '  const graphsData = ', graphsJson, ';\n',
+            '  const cobwebsData = ', cobwebsJson, ';\n',
+            '  const bifurcationsData = ', bifurcationsJson, ';\n',
             '  const primitivesData = ', primitivesJson, ';\n',
             '  const derivedOpsData = ', derivedOpsJson, ';\n',
             '  const angles3DData = ', angles3DJson, ';\n',
             '  const funcsData = ', funcsJson, ';\n',
             '  const procsData = ', procsJson, ';\n',
-            '  const userVars = ', varsJson, ';\n',
+            '  const userVars = (typeof window.__gcCombined !== \'undefined\' && window.__gcCombined) ? new Proxy({}, {\n',
+            '    get: function(_, k) { return window[k]; },\n',
+            '    set: function(_, k, v) { window[k] = v; return true; },\n',
+            '    has: function(_, k) { return (k in window); },\n',
+            '    deleteProperty: function(_, k) { delete window[k]; return true; },\n',
+            '    ownKeys: function() { return Reflect.ownKeys(window); },\n',
+            '    getOwnPropertyDescriptor: function(_, k) { return { enumerable: true, configurable: true, value: window[k] }; },\n',
+            '  }) : ', varsJson, ';\n',
             '  const startCode = ', startCodeEscaped, ';\n',
             '  const updateCode = ', updateCodeEscaped, ';\n',
             '\n',
+            // Часы 3D-слоя. В одиночном режиме (нет 2D-слоя) считаем время сами — как в 2D.
+            // В комбинированном режиме единственный "источник правды" по времени — 2D-слой
+            // (он же единственный, кто реально выполняет Start/Update), поэтому здесь просто
+            // читаем опубликованное им window.__gcElapsedTime, чтобы переменная time и в 2D,
+            // и в 3D-слое всегда означала одно и то же значение в один и тот же кадр.
+            '  let elapsedTime = 0;\n',
+            '  const glStartTime3D = performance.now();\n',
+            '\n',
             '  const fieldW = ', String(fieldWidth), ', fieldH = ', String(fieldHeight), ', fieldD = ', String(fieldDepth), ';\n',
             '  const canRotateCamera = ', String(canRotateCamera), ';\n',
+            '  const CAMERA_PROJECTION = \'', cameraProjection, '\';\n',
+            '  const CAMERA_FOV = ', String(cameraFov), ';\n',
+            '  const CAMERA_NEAR = ', String(cameraNear), ';\n',
+            '  const CAMERA_FAR = ', String(cameraFar), ';\n',
+            '  const CAMERA_TYPE_3D = \'', cameraType3D, '\';\n',
             '  const canZoomCamera = ', String(canZoomCamera), ';\n',
             '  const zoomMin = ', String(zoomLimits[0]), ', zoomMax = ', String(zoomLimits[1]), ';\n',
             '  let camZoom = ', String(cameraStartZoom), ';\n',
@@ -13090,10 +13653,13 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '  const axesSize = ', String(axesSize), ';\n',
             '  const showGridX = ', String(showGridX), ', showGridY = ', String(showGridY), ', showGridZ = ', String(showGridZ), ';\n',
             '  const gridSize = ', String(gridSize), ';\n',
+            '  const GRID_ADAPTIVE_3D = ', String(gridAdaptive3D), ';\n',
             '\n',
             '  // ---------- Три.js: сцена, камера, рендерер ----------\n',
             '  const scene = new THREE.Scene();\n',
-            '  const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100000);\n',
+            '  const camera = (CAMERA_PROJECTION === \'orthographic\')\n',
+            '    ? new THREE.OrthographicCamera(-1, 1, 1, -1, CAMERA_NEAR, CAMERA_FAR)\n',
+            '    : new THREE.PerspectiveCamera(CAMERA_FOV, 1, CAMERA_NEAR, CAMERA_FAR);\n',
             '  const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true });\n',
             '  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));\n',
             '\n',
@@ -13111,6 +13677,19 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '  function clampPhi(p) { const eps = 0.02; return Math.max(eps, Math.min(Math.PI - eps, p)); }\n',
             '  phi = clampPhi(phi);\n',
             '\n',
+            '  let lastViewW = 1, lastViewH = 1;\n',
+            '  function applyCameraFrustum(w, h) {\n',
+            '    lastViewW = w; lastViewH = h;\n',
+            '    if (camera.isOrthographicCamera) {\n',
+            '      const viewSize = baseRadius / camZoom;\n',
+            '      const aspect = w / h;\n',
+            '      camera.left = -viewSize * aspect; camera.right = viewSize * aspect;\n',
+            '      camera.top = viewSize; camera.bottom = -viewSize;\n',
+            '    } else {\n',
+            '      camera.aspect = w / h;\n',
+            '    }\n',
+            '    camera.updateProjectionMatrix();\n',
+            '  }\n',
             '  function updateCameraPosition() {\n',
             '    camZoom = Math.max(zoomMin, Math.min(zoomMax, camZoom));\n',
             '    const r = baseRadius / camZoom;\n',
@@ -13120,6 +13699,7 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '    camera.position.set(x, y, z);\n',
             '    camera.lookAt(target);\n',
             '    camera.updateMatrixWorld();\n',
+            '    if (camera.isOrthographicCamera) applyCameraFrustum(lastViewW, lastViewH);\n',
             '  }\n',
             '\n',
             '  // ---------- Оси (каждая по отдельности включаемая, своя дальность) ----------\n',
@@ -13141,23 +13721,35 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '  // и из-за непредсказуемой сортировки по глубине либо "просвечивает" сквозь них,\n',
             '  // либо смешивает цвета в неверном порядке. ----------\n',
             '  const gridGroup = new THREE.Group();\n',
-            '  function makeGrid(rotAxis) {\n',
-            '    const divisions = Math.max(2, Math.min(40, Math.round(gridSize)));\n',
+            '  function makeGrid(rotAxis, divisions) {\n',
             '    const g = new THREE.GridHelper(gridSize, divisions, 0x555555, 0x333333);\n',
-            '    if (rotAxis === \'x\') g.rotation.z = Math.PI / 2; // сетка в плоскости YZ (нормаль X)\n',
-            '    if (rotAxis === \'z\') g.rotation.x = Math.PI / 2; // сетка в плоскости XY (нормаль Z)\n',
-            '    return g; // rotAxis === \'y\' -> плоскость XZ ("пол"), без поворота\n',
+            '    if (rotAxis === \'x\') g.rotation.z = Math.PI / 2;\n',
+            '    if (rotAxis === \'z\') g.rotation.x = Math.PI / 2;\n',
+            '    return g;\n',
             '  }\n',
-            '  if (showGridX) gridGroup.add(makeGrid(\'x\'));\n',
-            '  if (showGridY) gridGroup.add(makeGrid(\'y\'));\n',
-            '  if (showGridZ) gridGroup.add(makeGrid(\'z\'));\n',
+            '  let lastGridDivisions = -1;\n',
+            '  function baseGridDivisions() { return Math.max(2, Math.min(40, Math.round(gridSize))); }\n',
+            '  function updateGridLOD() {\n',
+            '    let divisions = baseGridDivisions();\n',
+            '    if (GRID_ADAPTIVE_3D && camZoom > 0) {\n',
+            '      divisions = Math.max(2, Math.min(200, Math.round(baseGridDivisions() * camZoom)));\n',
+            '    }\n',
+            '    if (divisions === lastGridDivisions) return;\n',
+            '    lastGridDivisions = divisions;\n',
+            '    while (gridGroup.children.length) { const c = gridGroup.children.pop(); c.geometry.dispose(); c.material.dispose(); }\n',
+            '    if (showGridX) gridGroup.add(makeGrid(\'x\', divisions));\n',
+            '    if (showGridY) gridGroup.add(makeGrid(\'y\', divisions));\n',
+            '    if (showGridZ) gridGroup.add(makeGrid(\'z\', divisions));\n',
+            '  }\n',
+            '  updateGridLOD();\n',
             '  scene.add(gridGroup);\n',
             '\n',
             '  // ---------- Точки ----------\n',
             '  const worldScale = Math.max(fieldW, fieldH, fieldD) / 20;\n',
+            '  const IS_TOUCH_DEVICE_3D = (\'ontouchstart\' in window) || (navigator.maxTouchPoints > 0);\n',
             '  const pointObjs = pointsData.map(function(p) {\n',
-            '    const color = p.color || \'', THEME_PRESETS.dark.defaultColor, '\';\n',
-            '    const r = Math.max(0.16 * (p.size || 1) * worldScale, 0.03);\n',
+            '    const color = p.color || \'', theme.defaultColor, '\';\n',
+            '    const r = Math.max(0.16 * (p.size || 1) * worldScale, 0.03) * (IS_TOUCH_DEVICE_3D ? 1.6 : 1);\n',
             '    let geo;\n',
             '    if (p.shape === \'square\') geo = new THREE.BoxGeometry(r * 1.7, r * 1.7, r * 1.7);\n',
             '    else geo = new THREE.SphereGeometry(r, 16, 12);\n',
@@ -13185,7 +13777,7 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '  const lineObjs = linesData.map(function(l) {\n',
             '    const a = findPoint(l.pointA), b = findPoint(l.pointB);\n',
             '    if (!a || !b) return null;\n',
-            '    const color = l.color || \'', THEME_PRESETS.dark.defaultColor, '\';\n',
+            '    const color = l.color || \'', theme.defaultColor, '\';\n',
             '    const radius = Math.max(0.035 * (l.thickness || 2.5) / 2.5 * worldScale, 0.008);\n',
             '    const geo = new THREE.CylinderGeometry(radius, radius, 1, 8, 1);\n',
             '    const mat = new THREE.MeshStandardMaterial({ color: color, roughness: 0.5 });\n',
@@ -13258,7 +13850,7 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '  const vectorObjs = drawVectorsData.map(function(d) {\n',
             '    const lineObj = lineObjs.find(function(l) { return l.name === d.edge; });\n',
             '    if (!lineObj) return null;\n',
-            '    const color = d.color || \'', THEME_PRESETS.dark.defaultColor, '\';\n',
+            '    const color = d.color || \'', theme.defaultColor, '\';\n',
             '    const length = (typeof d.length === \'number\') ? d.length : worldScale * 0.6;\n',
             '    const thick = (typeof d.thickness === \'number\') ? d.thickness : worldScale * 0.16;\n',
             '    const geo = new THREE.ConeGeometry(Math.max(thick, 0.01), Math.max(length, 0.02), 12);\n',
@@ -13737,8 +14329,8 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '  const angleObjs = drawAnglesData.map(function(d) {\n',
             '    const def = findAngleDef(d.angleName);\n',
             '    if (!def) return null;\n',
-            '    const arcColor = d.arccolor || \'', THEME_PRESETS.dark.defaultColor, '\';\n',
-            '    const measureColor = d.measurecolor || \'', THEME_PRESETS.dark.defaultColor, '\';\n',
+            '    const arcColor = d.arccolor || \'', theme.defaultColor, '\';\n',
+            '    const measureColor = d.measurecolor || \'', theme.defaultColor, '\';\n',
             '    const arcGeo = new THREE.BufferGeometry();\n',
             '    const arcMat = new THREE.LineBasicMaterial({ color: arcColor });\n',
             '    const arcMesh = new THREE.LineSegments(arcGeo, arcMat);\n',
@@ -14030,9 +14622,16 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '      }\n',
             '      return { type: \'ident\', name: name };\n',
             '    }\n',
+            '    function parseArrayLiteral() {\n',
+            '      i++; skipWs(); const items = [];\n',
+            '      if (src[i] !== \']\') { items.push(parseExpr()); skipWs(); while (src[i] === \',\') { i++; items.push(parseExpr()); skipWs(); } }\n',
+            '      skipWs(); if (src[i] === \']\') i++;\n',
+            '      return { type: \'array\', items: items };\n',
+            '    }\n',
             '    function parseAtom() {\n',
             '      skipWs(); const c = src[i];\n',
             '      if (c === \'(\') { i++; const e = parseExpr(); skipWs(); if (src[i] === \')\') i++; return e; }\n',
+            '      if (c === \'[\') return parseArrayLiteral();\n',
             '      if (/[0-9.]/.test(c)) return parseNumber();\n',
             '      if (/[a-zA-Z_]/.test(c)) return parseIdentOrCall();\n',
             '      throw new Error(\'Неожиданный символ в выражении: \' + c);\n',
@@ -14093,6 +14692,66 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '        skipWs(); if (src[i] === \';\') i++;\n',
             '        return { type: \'return\', expr: expr };\n',
             '      }\n',
+            // repeat(N) { ... } — тот же синтаксис, что и в 2D-мини-языке (см. parseStatement
+            // в generate2D). До этого момента 3D-интерпретатор поддерживал только if/return/
+            // присваивание — циклов не было вовсе (не в исполнителе, а в самой грамматике),
+            // поэтому Update/Start/Function/Void-код, написанный с оглядкой на 2D, в
+            // одиночной 3D-сцене просто не парсился бы. В комбинированной сцене это было не
+            // видно, т.к. Start/Update реально выполняет только 2D-слой.
+            '      if (consumeKeyword(\'repeat\')) {\n',
+            '        skipWs(); if (src[i] !== \'(\') throw new Error(\'Ожидалась "(" после repeat\'); i++;\n',
+            '        const count = parseExpr(); skipWs(); if (src[i] !== \')\') throw new Error(\'Ожидалась ")"\'); i++;\n',
+            '        return { type: \'repeat\', count: count, body: parseBlock() };\n',
+            '      }\n',
+            // for (x in coll) { ... } — перебор массива (см. type: 'array' в parseArrayLiteral
+            // и переменные типа list). Синтаксис идентичен 2D-мини-языку (там это тоже 'for'
+            // на уровне грамматики, хранится как узел type: 'forEach').
+            '      if (consumeKeyword(\'for\')) {\n',
+            '        skipWs(); if (src[i] !== \'(\') throw new Error(\'Ожидалась "(" после for\'); i++;\n',
+            '        skipWs();\n',
+            '        let vj = i; while (vj < n && /[a-zA-Z0-9_]/.test(src[vj])) vj++;\n',
+            '        const varName = src.slice(i, vj);\n',
+            '        if (!varName) throw new Error(\'Ожидался идентификатор после "for ("\');\n',
+            '        i = vj;\n',
+            '        if (!consumeKeyword(\'in\')) throw new Error(\'Ожидалось "in" в цикле for\');\n',
+            '        const coll = parseExpr(); skipWs(); if (src[i] !== \')\') throw new Error(\'Ожидалась ")"\'); i++;\n',
+            '        return { type: \'forEach\', varName: varName, coll: coll, body: parseBlock() };\n',
+            '      }\n',
+            // wait(секунды) — пауза перед следующим оператором. Поддержана только в
+            // "асинхронном" исполнителе (g3ExecStatementAsync) — Start/Update и action кнопок;
+            // внутри тела Function/Void (вызывается синхронно, посреди вычисления формулы)
+            // wait не имеет смысла — g3ExecStatementSync её просто пропускает с предупреждением,
+            // как и в 2D (см. glExecStatementSync).
+            '      if (consumeKeyword(\'wait\')) {\n',
+            '        skipWs(); if (src[i] !== \'(\') throw new Error(\'Ожидалась "(" после wait\'); i++;\n',
+            '        const arg = parseExpr(); skipWs(); if (src[i] !== \')\') throw new Error(\'Ожидалась ")"\'); i++;\n',
+            '        skipWs(); if (src[i] === \';\') i++;\n',
+            '        return { type: \'wait\', arg: arg };\n',
+            '      }\n',
+            // func name(params) = expr — динамическое определение простой (однострочной)
+            // функции прямо во время выполнения Start/Update/action (та же семантика, что и
+            // 2D-конструкция 'func', см. GL_USER_FUNCS[s.name] = {...} в glExecStatement).
+            '      if (consumeKeyword(\'func\')) {\n',
+            '        skipWs();\n',
+            '        let fj = i; while (fj < n && /[a-zA-Z0-9_]/.test(src[fj])) fj++;\n',
+            '        const fname = src.slice(i, fj);\n',
+            '        if (!fname) throw new Error(\'Ожидалось имя функции после "func"\');\n',
+            '        i = fj; skipWs();\n',
+            '        if (src[i] !== \'(\') throw new Error(\'Ожидалась "(" в определении функции\'); i++;\n',
+            '        const params = []; skipWs();\n',
+            '        if (src[i] !== \')\') {\n',
+            '          let pj = i; while (pj < n && /[a-zA-Z0-9_]/.test(src[pj])) pj++;\n',
+            '          params.push(src.slice(i, pj)); i = pj; skipWs();\n',
+            '          while (src[i] === \',\') {\n',
+            '            i++; skipWs(); let pj2 = i; while (pj2 < n && /[a-zA-Z0-9_]/.test(src[pj2])) pj2++;\n',
+            '            params.push(src.slice(i, pj2)); i = pj2; skipWs();\n',
+            '          }\n',
+            '        }\n',
+            '        skipWs(); if (src[i] === \')\') i++;\n',
+            '        skipWs(); if (src[i] !== \'=\') throw new Error(\'Ожидался "=" в определении функции\'); i++;\n',
+            '        const body = parseExpr(); skipWs(); if (src[i] === \';\') i++;\n',
+            '        return { type: \'funcDef\', name: fname, params: params, body: body };\n',
+            '      }\n',
             '      const save = i; skipWs();\n',
             '      if (/[a-zA-Z_]/.test(src[i] || \'\')) {\n',
             '        let j = i; while (j < n && /[a-zA-Z0-9_]/.test(src[j])) j++;\n',
@@ -14131,8 +14790,15 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '  for (const f of funcsData) { try { G3_FUNCS[f.name] = { params: f.params, ast: g3Parse(f.bodyExpr) }; } catch (e) { console.warn(\'Ошибка в функции \' + f.name, e); } }\n',
             '  // Function/Void — полноценные многострочные функции/процедуры (Задача: Void и Function).\n',
             '  for (const p of procsData) { try { G3_FUNCS[p.name] = { params: p.params, stmts: g3ParseProgram(p.body), isVoid: p.isVoid }; } catch (e) { console.warn(\'Ошибка в \' + (p.isVoid ? \'Void\' : \'Function\') + \' \' + p.name, e); } }\n',
-            '  function g3ExecStatements(stmts, ctx) { for (const s of stmts) g3ExecStatement(s, ctx); }\n',
-            '  function g3ExecStatement(s, ctx) {\n',
+            // Два исполнителя, как и в 2D (glExecStatements/glExecStatementsSync):
+            // — g3ExecStatementsSync/g3ExecStatementSync — используется там, где вызов обязан
+            //   быть синхронным (Function/Void, вызванные посреди вычисления формулы, — им
+            //   нельзя "уснуть" на середине кадра). wait() здесь просто пропускается с
+            //   предупреждением, как и в 2D.
+            // — g3ExecStatementsAsync/g3ExecStatementAsync — для Start/Update и action кнопок,
+            //   где пауза действительно нужна и осмысленна: await настоящего Promise/setTimeout.
+            '  function g3ExecStatementsSync(stmts, ctx) { for (const s of stmts) g3ExecStatementSync(s, ctx); }\n',
+            '  function g3ExecStatementSync(s, ctx) {\n',
             '    switch (s.type) {\n',
             '      case \'assign\': {\n',
             '        const val = g3Eval(s.expr, ctx);\n',
@@ -14148,8 +14814,64 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '        break;\n',
             '      }\n',
             '      case \'if\':\n',
-            '        if (g3Eval(s.cond, ctx)) g3ExecStatements(s.thenB, ctx);\n',
-            '        else if (s.elseB) g3ExecStatements(s.elseB, ctx);\n',
+            '        if (g3Eval(s.cond, ctx)) g3ExecStatementsSync(s.thenB, ctx);\n',
+            '        else if (s.elseB) g3ExecStatementsSync(s.elseB, ctx);\n',
+            '        break;\n',
+            '      case \'repeat\': {\n',
+            '        const cnt = Math.max(0, Math.floor(g3Eval(s.count, ctx)));\n',
+            '        for (let i = 0; i < cnt; i++) g3ExecStatementsSync(s.body, Object.assign({}, ctx, { i: i }));\n',
+            '        break;\n',
+            '      }\n',
+            '      case \'forEach\': {\n',
+            '        const coll = g3Eval(s.coll, ctx);\n',
+            '        if (Array.isArray(coll)) { for (const item of coll) g3ExecStatementsSync(s.body, Object.assign({}, ctx, { [s.varName]: item })); }\n',
+            '        break;\n',
+            '      }\n',
+            '      case \'wait\':\n',
+            '        console.warn(\'wait() нельзя использовать внутри Function/Void — вызов проигнорирован\');\n',
+            '        break;\n',
+            '      case \'funcDef\':\n',
+            '        G3_FUNCS[s.name] = { params: s.params, ast: s.body };\n',
+            '        break;\n',
+            '      case \'return\': throw new G3ReturnSignal(s.expr ? g3Eval(s.expr, ctx) : undefined);\n',
+            '      case \'expr\': g3Eval(s.expr, ctx); break;\n',
+            '    }\n',
+            '  }\n',
+            '  async function g3ExecStatementsAsync(stmts, ctx) { for (const s of stmts) await g3ExecStatementAsync(s, ctx); }\n',
+            '  async function g3ExecStatementAsync(s, ctx) {\n',
+            '    switch (s.type) {\n',
+            '      case \'assign\': {\n',
+            '        const val = g3Eval(s.expr, ctx);\n',
+            '        const hasLocal = ctx && Object.prototype.hasOwnProperty.call(ctx, s.name);\n',
+            '        if (s.op === \'=\') { if (hasLocal) ctx[s.name] = val; else userVars[s.name] = val; }\n',
+            '        else {\n',
+            '          const cur = hasLocal ? ctx[s.name] : ((typeof userVars[s.name] === \'number\') ? userVars[s.name] : 0);\n',
+            '          let nv = cur;\n',
+            '          if (s.op === \'+=\') nv = cur + val; else if (s.op === \'-=\') nv = cur - val;\n',
+            '          else if (s.op === \'*=\') nv = cur * val; else if (s.op === \'/=\') nv = cur / val;\n',
+            '          if (hasLocal) ctx[s.name] = nv; else userVars[s.name] = nv;\n',
+            '        }\n',
+            '        break;\n',
+            '      }\n',
+            '      case \'if\':\n',
+            '        if (g3Eval(s.cond, ctx)) await g3ExecStatementsAsync(s.thenB, ctx);\n',
+            '        else if (s.elseB) await g3ExecStatementsAsync(s.elseB, ctx);\n',
+            '        break;\n',
+            '      case \'repeat\': {\n',
+            '        const cnt = Math.max(0, Math.floor(g3Eval(s.count, ctx)));\n',
+            '        for (let i = 0; i < cnt; i++) await g3ExecStatementsAsync(s.body, Object.assign({}, ctx, { i: i }));\n',
+            '        break;\n',
+            '      }\n',
+            '      case \'forEach\': {\n',
+            '        const coll = g3Eval(s.coll, ctx);\n',
+            '        if (Array.isArray(coll)) { for (const item of coll) await g3ExecStatementsAsync(s.body, Object.assign({}, ctx, { [s.varName]: item })); }\n',
+            '        break;\n',
+            '      }\n',
+            '      case \'wait\':\n',
+            '        await new Promise(function(resolve) { setTimeout(resolve, Math.max(0, g3Eval(s.arg, ctx)) * 1000); });\n',
+            '        break;\n',
+            '      case \'funcDef\':\n',
+            '        G3_FUNCS[s.name] = { params: s.params, ast: s.body };\n',
             '        break;\n',
             '      case \'return\': throw new G3ReturnSignal(s.expr ? g3Eval(s.expr, ctx) : undefined);\n',
             '      case \'expr\': g3Eval(s.expr, ctx); break;\n',
@@ -14158,13 +14880,20 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '  function g3Eval(node, ctx) {\n',
             '    switch (node.type) {\n',
             '      case \'num\': return node.value;\n',
+            '      case \'array\': return node.items.map(function(it) { return g3Eval(it, ctx); });\n',
             '      case \'neg\': return -g3Eval(node.value, ctx);\n',
             '      case \'not\': return !g3Eval(node.value, ctx);\n',
             '      case \'ident\':\n',
             '        if (node.name in ctx) return ctx[node.name];\n',
+            '        if (node.name === \'time\') return elapsedTime;\n',
             '        if (node.name === \'pi\' || node.name === \'PI\') return Math.PI;\n',
             '        if (node.name === \'e\' || node.name === \'E\') return Math.E;\n',
-            '        if (typeof userVars[node.name] === \'number\') return userVars[node.name];\n',
+            // Раньше здесь было ограничение "только typeof === number" — из-за него переменная
+            // типа list/массив (например, объявленная как list nums = [1,2,3]) была не видна
+            // как идентификатор в 3D-выражениях, и её нельзя было передать в for (x in nums).
+            // Числовые формулы (bin/cmp/pow и т.п.) при этом не пострадали: если переменная не
+            // число, арифметика над ней просто даст NaN, как и в 2D-движке.
+            '        if (node.name in userVars) return userVars[node.name];\n',
             '        return NaN;\n',
             '      case \'cmp\': {\n',
             '        const a = g3Eval(node.left, ctx), b = g3Eval(node.right, ctx);\n',
@@ -14193,7 +14922,7 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '          const localCtx = {};\n',
             '          fn.params.forEach(function(p, idx) { localCtx[p] = args[idx]; });\n',
             '          if (fn.stmts) {\n',
-            '            try { g3ExecStatements(fn.stmts, localCtx); }\n',
+            '            try { g3ExecStatementsSync(fn.stmts, localCtx); }\n',
             '            catch (e) { if (e instanceof G3ReturnSignal) return e.value; throw e; }\n',
             '            return undefined;\n',
             '          }\n',
@@ -14216,11 +14945,22 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '    if (!fn) return undefined;\n',
             '    const localCtx = Object.assign({}, argsObj);\n',
             '    if (fn.stmts) {\n',
-            '      try { g3ExecStatements(fn.stmts, localCtx); }\n',
+            '      try { g3ExecStatementsSync(fn.stmts, localCtx); }\n',
             '      catch (e) { if (e instanceof G3ReturnSignal) return e.value; throw e; }\n',
             '      return undefined;\n',
             '    }\n',
             '    return g3Eval(fn.ast, localCtx);\n',
+            '  }\n',
+            '  // Вызов пользовательской функции по ПОЗИЦИОННЫМ аргументам (f(x), f(r, x) — как в\n',
+            '  // draw Cobweb/Bifurcation, см. glCallUserFunc в generate2D). g3CallNamed сам по себе\n',
+            '  // принимает объект { имяПараметра: значение }, поэтому здесь просто сопоставляем\n',
+            '  // объявленные имена параметров функции с переданными по порядку значениями.\n',
+            '  function g3CallPositional(name, argsArray) {\n',
+            '    const fn = G3_FUNCS[name];\n',
+            '    if (!fn) return undefined;\n',
+            '    const argsObj = {};\n',
+            '    (fn.params || []).forEach(function(p, i) { argsObj[p] = argsArray[i]; });\n',
+            '    return g3CallNamed(name, argsObj);\n',
             '  }\n',
             '\n',
             '  // ---------- draw Surface: f(x, y) (через func) либо параметрическая x(u,v), y(u,v), z(u,v).\n',
@@ -14339,7 +15079,7 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '  // в 3D пока не поддержаны (это опорные 2D-кривые вокруг точки). ----------\n',
             '  const curveObjs = curvesData.map(function(cv) {\n',
             '    if (cv.active === false && !cv.activeExpr) return null;\n',
-            '    const color = cv.color || \'', THEME_PRESETS.dark.defaultColor, '\';\n',
+            '    const color = cv.color || \'', theme.defaultColor, '\';\n',
             '    const n = Math.max(2, cv.segments || 50);\n',
             '    const geo = new THREE.BufferGeometry();\n',
             '    geo.setAttribute(\'position\', new THREE.BufferAttribute(new Float32Array((n + 1) * 3), 3));\n',
@@ -14531,14 +15271,15 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '    if (raw === undefined || raw === null) return fallback !== false;\n',
             '    return !(raw === false || raw === 0 || raw === \'\');\n',
             '  }\n',
-            '  // Раннер action у кнопок: теперь это полноценный код на том же мини-языке, что и\n',
-            '  // тела Function/Void — присваивания, if/else, и, главное, вызовы Void/Function\n',
-            '  // (например, action = "resetAmplitude()"), а не только простые присваивания.\n',
-            '  function g3RunAction(action) {\n',
+            '  // Раннер action у кнопок: полноценный код на том же мини-языке, что и тела\n',
+            '  // Function/Void — присваивания, if/else, repeat/for, вызовы Void/Function, и,\n',
+            '  // в отличие от тела Function/Void, ещё и wait() (см. g3ExecStatementsAsync) —\n',
+            '  // action кнопки не вызывается посреди вычисления формулы, поэтому пауза безопасна.\n',
+            '  async function g3RunAction(action) {\n',
             '    if (!action || !action.trim()) return;\n',
             '    try {\n',
             '      const stmts = g3ParseProgram(action);\n',
-            '      try { g3ExecStatements(stmts, {}); }\n',
+            '      try { await g3ExecStatementsAsync(stmts, {}); }\n',
             '      catch (e) { if (!(e instanceof G3ReturnSignal)) throw e; }\n',
             '    } catch (e) {\n',
             '      console.warn(\'Ошибка в action UI:\', action, e);\n',
@@ -14572,7 +15313,7 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '    to.div.style.left = sx + \'px\';\n',
             '    to.div.style.top = sy + \'px\';\n',
             '    to.div.textContent = g3EvalTextExpr(d.textExpr);\n',
-            '    to.div.style.color = (d.colorExpr && d.colorExpr !== \'default\' && !d.colorExpr.match(/^[a-zA-Z_]/)) ? d.colorExpr : (\'', THEME_PRESETS.dark.defaultColor, '\');\n',
+            '    to.div.style.color = (d.colorExpr && d.colorExpr !== \'default\' && !d.colorExpr.match(/^[a-zA-Z_]/)) ? d.colorExpr : (\'', theme.defaultColor, '\');\n',
             '    const sizeNum = parseFloat(d.sizeExpr); to.div.style.fontSize = (0.8 * (isFinite(sizeNum) ? sizeNum : 1)) + \'rem\';\n',
             '  }\n',
             '\n',
@@ -14603,11 +15344,11 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '      if (ui.type === \'button\') {\n',
             '        const btn = document.createElement(\'button\');\n',
             '        btn.textContent = ui.label || \'Button\';\n',
-            '        btn.style.backgroundColor = ui.color || \'', THEME_PRESETS.dark.defaultColor, '\';\n',
+            '        btn.style.backgroundColor = ui.color || \'', theme.defaultColor, '\';\n',
             '        btn.style.color = ui.textcolor || \'#ffffff\';\n',
             '        btn.style.borderRadius = (ui.radius !== null && ui.radius !== undefined ? ui.radius : 4) + \'px\';\n',
             '        if (positioned) { btn.style.width = \'100%\'; btn.style.height = \'100%\'; }\n',
-            '        btn.addEventListener(\'click\', function() { g3RunAction(ui.action || \'\'); });\n',
+            '        btn.addEventListener(\'click\', async function() { await g3RunAction(ui.action || \'\'); });\n',
             '        wrapper.appendChild(btn);\n',
             '      } else if (ui.type === \'toggle\') {\n',
             '        const checkbox = document.createElement(\'input\'); checkbox.type = \'checkbox\';\n',
@@ -14618,7 +15359,7 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '          if (g3GetVar(ui.variable) === undefined) g3SetVar(ui.variable, initialChecked);\n',
             '          checkbox.addEventListener(\'change\', function() { g3SetVar(ui.variable, this.checked); });\n',
             '        }\n',
-            '        const label = document.createElement(\'label\'); label.textContent = ui.label || \'\'; label.style.color = ui.textcolor || \'', THEME_PRESETS.dark.defaultColor, '\';\n',
+            '        const label = document.createElement(\'label\'); label.textContent = ui.label || \'\'; label.style.color = ui.textcolor || \'', theme.defaultColor, '\';\n',
             '        wrapper.appendChild(checkbox); wrapper.appendChild(label);\n',
             '      } else if (ui.type === \'input\') {\n',
             '        const input = document.createElement(\'input\'); input.type = ui.inputtype === \'formula\' ? \'text\' : (ui.inputtype || \'text\');\n',
@@ -14645,7 +15386,7 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '          }\n',
             '          registerFormula();\n',
             '          input.addEventListener(\'input\', registerFormula); input.addEventListener(\'change\', registerFormula);\n',
-            '          const label = document.createElement(\'label\'); label.textContent = ui.label || \'\'; label.style.color = ui.textcolor || \'', THEME_PRESETS.dark.defaultColor, '\';\n',
+            '          const label = document.createElement(\'label\'); label.textContent = ui.label || \'\'; label.style.color = ui.textcolor || \'', theme.defaultColor, '\';\n',
             '          wrapper.appendChild(label); wrapper.appendChild(input); wrapper.appendChild(errLabel);\n',
             '          if (positioned) uiOverlay.appendChild(wrapper); else uiContainer.appendChild(wrapper);\n',
             '          continue;\n',
@@ -14668,7 +15409,7 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '          }\n',
             '          input.addEventListener(\'input\', clampAndUpdate); input.addEventListener(\'change\', clampAndUpdate);\n',
             '        }\n',
-            '        const label = document.createElement(\'label\'); label.textContent = ui.label || \'\'; label.style.color = ui.textcolor || \'', THEME_PRESETS.dark.defaultColor, '\';\n',
+            '        const label = document.createElement(\'label\'); label.textContent = ui.label || \'\'; label.style.color = ui.textcolor || \'', theme.defaultColor, '\';\n',
             '        wrapper.appendChild(label); wrapper.appendChild(input);\n',
             '      } else if (ui.type === \'slider\') {\n',
             '        const input = document.createElement(\'input\'); input.type = \'range\';\n',
@@ -14676,9 +15417,9 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '        let defaultVal = (ui.default !== undefined && ui.default !== null) ? ui.default : ui.min;\n',
             '        if (ui.variable) { const val = g3GetVar(ui.variable); if (val !== undefined) defaultVal = val; }\n',
             '        input.value = defaultVal;\n',
-            '        input.style.accentColor = ui.color || \'', THEME_PRESETS.dark.defaultColor, '\';\n',
+            '        input.style.accentColor = ui.color || \'', theme.defaultColor, '\';\n',
             '        if (positioned) input.style.width = \'100%\';\n',
-            '        const valueLabel = document.createElement(\'span\'); valueLabel.textContent = String(defaultVal); valueLabel.style.color = ui.textcolor || \'', THEME_PRESETS.dark.defaultColor, '\'; valueLabel.style.marginLeft = \'6px\';\n',
+            '        const valueLabel = document.createElement(\'span\'); valueLabel.textContent = String(defaultVal); valueLabel.style.color = ui.textcolor || \'', theme.defaultColor, '\'; valueLabel.style.marginLeft = \'6px\';\n',
             '        if (ui.variable) {\n',
             '          if (g3GetVar(ui.variable) === undefined) g3SetVar(ui.variable, defaultVal);\n',
             '          input.addEventListener(\'input\', function() {\n',
@@ -14687,7 +15428,7 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '            valueLabel.textContent = String(num);\n',
             '          });\n',
             '        }\n',
-            '        const label2 = document.createElement(\'label\'); label2.textContent = ui.label || \'\'; label2.style.color = ui.textcolor || \'', THEME_PRESETS.dark.defaultColor, '\';\n',
+            '        const label2 = document.createElement(\'label\'); label2.textContent = ui.label || \'\'; label2.style.color = ui.textcolor || \'', theme.defaultColor, '\';\n',
             '        wrapper.appendChild(label2); wrapper.appendChild(input); wrapper.appendChild(valueLabel);\n',
             '      }\n',
             '      if (positioned) uiOverlay.appendChild(wrapper); else uiContainer.appendChild(wrapper);\n',
@@ -14756,6 +15497,673 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '      po.edges.geometry.computeBoundingSphere();\n',
             '    }\n',
             '  }\n',
+            '\n',
+            '  // ---------- draw InfLine — 3D-альтернатива (Задача: 3D-аналоги для всех объектов).\n',
+            '  // Раньше InfLine был жёстко только 2D. Теперь если edge ссылается на Line3D (см.\n',
+            '  // автоопределение dim в parseCommands), она достраивается в 3D-пространстве —\n',
+            '  // тем же способом, что и в 2D: прямая продлевается на большое кратное её длины в обе\n',
+            '  // стороны (или в одну, если задан limit — точка, определяющая, в какую сторону\n',
+            '  // "открыт" луч; см. drawInfLine в generate2D — семантика 1:1). Пересчитывается\n',
+            '  // каждый кадр, чтобы следовать за перетаскиваемыми точками (как InfPlane). ----------\n',
+            '  const infLineObjs = infLinesData.map(function(d) {\n',
+            '    const line = lineObjs.find(function(l) { return l.name === d.edge; });\n',
+            '    if (!line) return null;\n',
+            '    let limitPoint = null;\n',
+            '    if (d.limit && d.limit !== \'none\') limitPoint = findPoint(d.limit);\n',
+            '    const color = d.color || \'', theme.accent, '\';\n',
+            '    const geo = new THREE.BufferGeometry();\n',
+            '    geo.setAttribute(\'position\', new THREE.BufferAttribute(new Float32Array(2 * 3), 3));\n',
+            '    const mat = d.dotline\n',
+            '      ? new THREE.LineDashedMaterial({ color: color, dashSize: 0.3, gapSize: 0.2 })\n',
+            '      : new THREE.LineBasicMaterial({ color: color });\n',
+            '    const mesh = new THREE.Line(geo, mat);\n',
+            '    scene.add(mesh);\n',
+            '    return { name: d.name, line: line, limitPoint: limitPoint, mesh: mesh, dotline: !!d.dotline, active: d.active !== false, activeExpr: d.activeExpr };\n',
+            '  }).filter(function(x) { return x !== null; });\n',
+            '  function updateInfLine3D(lo) {\n',
+            '    const pA = lo.line.a.mesh.position, pB = lo.line.b.mesh.position;\n',
+            '    const dir = new THREE.Vector3().subVectors(pB, pA);\n',
+            '    const lenSq = dir.lengthSq();\n',
+            '    if (lenSq < 1e-8) { lo.mesh.visible = false; return; }\n',
+            '    const ext = 100;\n',
+            '    let start, end;\n',
+            '    if (lo.limitPoint) {\n',
+            '      const lim = lo.limitPoint.mesh.position;\n',
+            '      const toLim = new THREE.Vector3().subVectors(lim, pA);\n',
+            '      const proj = toLim.dot(dir) / lenSq;\n',
+            '      if (proj > 0) { start = pA.clone(); end = pA.clone().addScaledVector(dir, ext); }\n',
+            '      else { start = pA.clone().addScaledVector(dir, -ext); end = pA.clone(); }\n',
+            '    } else {\n',
+            '      start = pA.clone().addScaledVector(dir, -ext);\n',
+            '      end = pB.clone().addScaledVector(dir, ext);\n',
+            '    }\n',
+            '    const arr = lo.mesh.geometry.attributes.position.array;\n',
+            '    arr[0] = start.x; arr[1] = start.y; arr[2] = start.z;\n',
+            '    arr[3] = end.x; arr[4] = end.y; arr[5] = end.z;\n',
+            '    lo.mesh.geometry.attributes.position.needsUpdate = true;\n',
+            '    lo.mesh.geometry.computeBoundingSphere();\n',
+            '    if (lo.dotline) lo.mesh.computeLineDistances();\n',
+            '  }\n',
+            '  for (const lo of infLineObjs) { if (window[lo.name] === undefined) window[lo.name] = lo; }\n',
+            '\n',
+            '  // ---------- draw Punctir — 3D-альтернатива: пунктирный отрезок МЕЖДУ реальными\n',
+            '  // концами Line3D (в отличие от InfLine он не продлевается за пределы точек —\n',
+            '  // см. drawPunctir в generate2D, семантика та же). ----------\n',
+            '  const punctirObjs = punctirsData.map(function(d) {\n',
+            '    const line = lineObjs.find(function(l) { return l.name === d.edge; });\n',
+            '    if (!line) return null;\n',
+            '    const color = d.color || \'', theme.accent, '\';\n',
+            '    const geo = new THREE.BufferGeometry();\n',
+            '    geo.setAttribute(\'position\', new THREE.BufferAttribute(new Float32Array(2 * 3), 3));\n',
+            '    const mat = new THREE.LineDashedMaterial({ color: color, dashSize: (d.pattern && d.pattern[0] ? d.pattern[0] : 6) / 20, gapSize: (d.pattern && d.pattern[1] ? d.pattern[1] : 6) / 20 });\n',
+            '    const mesh = new THREE.Line(geo, mat);\n',
+            '    scene.add(mesh);\n',
+            '    return { name: d.name, line: line, mesh: mesh, active: d.active !== false, activeExpr: d.activeExpr };\n',
+            '  }).filter(function(x) { return x !== null; });\n',
+            '  function updatePunctir3D(pu) {\n',
+            '    const pa = pu.line.a.mesh.position, pb = pu.line.b.mesh.position;\n',
+            '    const arr = pu.mesh.geometry.attributes.position.array;\n',
+            '    arr[0] = pa.x; arr[1] = pa.y; arr[2] = pa.z;\n',
+            '    arr[3] = pb.x; arr[4] = pb.y; arr[5] = pb.z;\n',
+            '    pu.mesh.geometry.attributes.position.needsUpdate = true;\n',
+            '    pu.mesh.geometry.computeBoundingSphere();\n',
+            '    pu.mesh.computeLineDistances();\n',
+            '  }\n',
+            '  for (const pu of punctirObjs) { if (window[pu.name] === undefined) window[pu.name] = pu; }\n',
+            '\n',
+            '  // ---------- draw EquallySing — 3D-альтернатива: те же 10 узоров засечек, что и в 2D\n',
+            '  // (см. drawEquallySing в generate2D — geometry 1:1 портирована), только вместо\n',
+            '  // ctx.rotate(angle) в плоскости canvas здесь строится локальный базис (e1 — поперёк\n',
+            '  // линии, e2 — вдоль неё) в 3D, как и у draw Vector/Primitive-ориентаций. size3D —\n',
+            '  // мировой аналог markSize (22px в 2D); подобрано так, чтобы засечка была заметна\n',
+            '  // при типичном масштабе сцены, но не привязана к пикселям. ----------\n',
+            '  function gcEquallyLocalPaths(type, half, markSize) {\n',
+            '    const paths = [];\n',
+            '    switch (type) {\n',
+            '      case 1: paths.push([[0, -half], [0, half]]); break;\n',
+            '      case 2: { const gap = 5 * half / 11; paths.push([[-gap, -half], [-gap, half]]); paths.push([[gap, -half], [gap, half]]); break; }\n',
+            '      case 3: { const gap = 6 * half / 11; for (const off of [-gap, 0, gap]) paths.push([[off, -half], [off, half]]); break; }\n',
+            '      case 4: { const amp = 5 * half / 11, cycles = 2.5; const pts = []; for (let t = -half; t <= half; t += half / 22) { pts.push([amp * Math.sin(cycles * (t / half) * Math.PI), t]); } paths.push(pts); break; }\n',
+            '      case 5: { const peaks = 5, amp = 6 * half / 11; const step = markSize / peaks; const pts = []; for (let i = 0; i <= peaks; i++) { const t = -half + i * step; pts.push([(i % 2 === 0) ? -amp : amp, t]); } paths.push(pts); break; }\n',
+            '      case 6: { const amp = 6 * half / 11, cycles = 3; const pts = []; for (let t = -half; t <= half; t += half / 22) { const phase = (t / half) * cycles * Math.PI; pts.push([amp * Math.sin(phase) * (1 - 0.2 * Math.abs(t) / half), t]); } paths.push(pts); break; }\n',
+            '      case 7: { const amp = 7 * half / 11, loops = 2.5; const pts = []; for (let t = -half; t <= half; t += half / 22) { const phase = (t / half) * loops * 2 * Math.PI; pts.push([amp * Math.sin(phase) * (0.7 + 0.3 * Math.cos(phase * 0.5)), t]); } paths.push(pts); break; }\n',
+            '      case 8: { const maxR = half * 0.65, turns = 3.2; const pts = []; for (let i = 0; i <= 80; i++) { const frac = i / 80; const r = frac * maxR; const angle = frac * turns * 2 * Math.PI; pts.push([r * Math.cos(angle), r * Math.sin(angle) * 1.5]); } paths.push(pts); break; }\n',
+            '      case 9: { const amp = 5 * half / 11, cycles = 2.8, gap = 6 * half / 11; for (const off of [-gap, gap]) { const pts = []; for (let t = -half; t <= half; t += half / 22) { pts.push([off + amp * Math.sin(cycles * (t / half) * Math.PI), t]); } paths.push(pts); } break; }\n',
+            '      case 10: { const amp = 7 * half / 11, cycles = 4; const pts = []; for (let t = -half; t <= half; t += half / 22) { const frac = t / half; const phase = frac * cycles * Math.PI; const env = 1 - 0.3 * frac * frac; pts.push([amp * Math.sin(phase + 0.5 * Math.cos(phase * 0.7)) * env, t]); } paths.push(pts); break; }\n',
+            '      default: paths.push([[0, -half], [0, half]]);\n',
+            '    }\n',
+            '    return paths;\n',
+            '  }\n',
+            '  const equallyObjs = equallyData.map(function(d) {\n',
+            '    const edgeLines = (d.edges || []).map(function(en) { return lineObjs.find(function(l) { return l.name === en; }); }).filter(function(x) { return x; });\n',
+            '    if (!edgeLines.length) return null;\n',
+            '    const color = d.color || \'', theme.accent, '\';\n',
+            '    const size3D = 0.7;\n',
+            '    const localPaths = gcEquallyLocalPaths(d.type || 1, size3D / 2, size3D);\n',
+            '    const meshes = edgeLines.map(function() {\n',
+            '      return localPaths.map(function(path) {\n',
+            '        const geo = new THREE.BufferGeometry();\n',
+            '        geo.setAttribute(\'position\', new THREE.BufferAttribute(new Float32Array(path.length * 3), 3));\n',
+            '        const mat = new THREE.LineBasicMaterial({ color: color });\n',
+            '        const mesh = new THREE.Line(geo, mat);\n',
+            '        scene.add(mesh);\n',
+            '        return mesh;\n',
+            '      });\n',
+            '    });\n',
+            '    return { name: d.name, edgeLines: edgeLines, meshes: meshes, localPaths: localPaths, active: d.active !== false, activeExpr: d.activeExpr };\n',
+            '  }).filter(function(x) { return x !== null; });\n',
+            '  function updateEqually3D(eo) {\n',
+            '    for (let i = 0; i < eo.edgeLines.length; i++) {\n',
+            '      const line = eo.edgeLines[i];\n',
+            '      const pA = line.a.mesh.position, pB = line.b.mesh.position;\n',
+            '      const dir = new THREE.Vector3().subVectors(pB, pA);\n',
+            '      const len = dir.length();\n',
+            '      const meshesForEdge = eo.meshes[i];\n',
+            '      if (len < 1e-6) { meshesForEdge.forEach(function(m) { m.visible = false; }); continue; }\n',
+            '      const e2 = dir.clone().normalize();\n',
+            '      const up = new THREE.Vector3(0, 1, 0);\n',
+            '      let e1 = new THREE.Vector3().crossVectors(up, e2);\n',
+            '      if (e1.lengthSq() < 1e-8) e1 = new THREE.Vector3().crossVectors(new THREE.Vector3(1, 0, 0), e2);\n',
+            '      e1.normalize();\n',
+            '      const center = pA.clone().add(pB).multiplyScalar(0.5);\n',
+            '      for (let j = 0; j < meshesForEdge.length; j++) {\n',
+            '        const mesh = meshesForEdge[j];\n',
+            '        const path = eo.localPaths[j];\n',
+            '        mesh.visible = true;\n',
+            '        const arr = mesh.geometry.attributes.position.array;\n',
+            '        for (let k = 0; k < path.length; k++) {\n',
+            '          const p = center.clone().addScaledVector(e1, path[k][0]).addScaledVector(e2, path[k][1]);\n',
+            '          arr[k * 3] = p.x; arr[k * 3 + 1] = p.y; arr[k * 3 + 2] = p.z;\n',
+            '        }\n',
+            '        mesh.geometry.attributes.position.needsUpdate = true;\n',
+            '        mesh.geometry.computeBoundingSphere();\n',
+            '      }\n',
+            '    }\n',
+            '  }\n',
+            '  for (const eo of equallyObjs) { if (window[eo.name] === undefined) window[eo.name] = eo; }\n',
+            '\n',
+            '  // ---------- Общий механизм билборд-панелей (Задача: 3D-аналоги для всех объектов,\n',
+            '  // категория "инherentно 2D-данные"): Histogram/Chart/Tree/Table/Graph/Cobweb/\n',
+            '  // Bifurcation рисуются на offscreen-canvas ТЕМИ ЖЕ данными/формулами, что и их\n',
+            '  // 2D-версии, а результат натягивается как текстура на плоскость (billboard=true —\n',
+            '  // THREE.Sprite, всегда к камере; false — THREE.Mesh с фиксированной ориентацией\n',
+            '  // rotate). pxW/pxH — разрешение самого canvas (чёткость текста/линий),\n',
+            '  // worldW/worldH — физический размер плоскости в мировых единицах сцены. ----------\n',
+            '  function gcMakeCanvasPanel(pxW, pxH, worldW, worldH, pos3D, rotate3D, billboard) {\n',
+            '    const canvas = document.createElement(\'canvas\');\n',
+            '    canvas.width = pxW; canvas.height = pxH;\n',
+            '    const ctx = canvas.getContext(\'2d\');\n',
+            '    const texture = new THREE.CanvasTexture(canvas);\n',
+            '    let mesh;\n',
+            '    if (billboard !== false) {\n',
+            '      mesh = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true }));\n',
+            '      mesh.scale.set(worldW, worldH, 1);\n',
+            '    } else {\n',
+            '      const geo = new THREE.PlaneGeometry(worldW, worldH);\n',
+            '      const mat = new THREE.MeshBasicMaterial({ map: texture, transparent: true, side: THREE.DoubleSide });\n',
+            '      mesh = new THREE.Mesh(geo, mat);\n',
+            '      const rot = rotate3D || { x: 0, y: 0, z: 0 };\n',
+            '      mesh.rotation.set(rot.x * Math.PI / 180, rot.y * Math.PI / 180, rot.z * Math.PI / 180);\n',
+            '    }\n',
+            '    mesh.position.set(pos3D.x, pos3D.y, pos3D.z);\n',
+            '    scene.add(mesh);\n',
+            '    return { canvas: canvas, ctx: ctx, texture: texture, mesh: mesh };\n',
+            '  }\n',
+            '\n',
+            '  // draw Histogram — 3D-альтернатива (первая реализация через gcMakeCanvasPanel).\n',
+            '  // dataExpr/bins/color — те же поля, что и в 2D (см. drawHistogram в generate2D);\n',
+            '  // биннинг посчитан 1:1 тем же алгоритмом, просто в пикселях панели вместо экрана.\n',
+            '  const histogramObjs = histogramsData.filter(function(d) { return d.dim === \'3D\' && d.pos3D; }).map(function(d) {\n',
+            '    const panel = gcMakeCanvasPanel(512, 342, d.panelWidth || 6, d.panelHeight || 4, d.pos3D, d.rotate3D, d.billboard);\n',
+            '    let ast = null;\n',
+            '    try { ast = g3Parse(d.dataExpr); } catch (e) { console.warn(\'Ошибка в data для draw Histogram "\' + d.name + \'":\', e); }\n',
+            '    return { name: d.name, panel: panel, ast: ast, bins: d.bins || 10, color: d.color || \'#4a90d9\', active: d.active !== false, activeExpr: d.activeExpr };\n',
+            '  });\n',
+            '  function gcDrawHistogramPanel(ho) {\n',
+            '    const ctx = ho.panel.ctx;\n',
+            '    const w = ho.panel.canvas.width, h = ho.panel.canvas.height;\n',
+            '    ctx.clearRect(0, 0, w, h);\n',
+            '    ctx.fillStyle = \'rgba(255,255,255,0.92)\'; ctx.fillRect(0, 0, w, h);\n',
+            '    if (!ho.ast) { ho.panel.texture.needsUpdate = true; return; }\n',
+            '    let data;\n',
+            '    try { data = g3Eval(ho.ast, {}); } catch (e) { ho.panel.texture.needsUpdate = true; return; }\n',
+            '    if (!Array.isArray(data) || data.length === 0) { ho.panel.texture.needsUpdate = true; return; }\n',
+            '    const bins = ho.bins;\n',
+            '    let dmin = Infinity, dmax = -Infinity;\n',
+            '    for (const v of data) { if (typeof v === \'number\' && isFinite(v)) { if (v < dmin) dmin = v; if (v > dmax) dmax = v; } }\n',
+            '    if (!isFinite(dmin)) { ho.panel.texture.needsUpdate = true; return; }\n',
+            '    const range = (dmax - dmin) || 1;\n',
+            '    const counts = new Array(bins).fill(0);\n',
+            '    for (const v of data) {\n',
+            '      if (typeof v !== \'number\' || !isFinite(v)) continue;\n',
+            '      let idx = Math.floor((v - dmin) / range * bins);\n',
+            '      if (idx >= bins) idx = bins - 1; if (idx < 0) idx = 0;\n',
+            '      counts[idx]++;\n',
+            '    }\n',
+            '    let maxCount = 1;\n',
+            '    for (const c of counts) if (c > maxCount) maxCount = c;\n',
+            '    const pad = 24, chartX = pad, chartBottom = h - pad, chartW = w - pad * 2, chartH = h - pad * 2 - 20;\n',
+            '    const barW = chartW / bins;\n',
+            '    ctx.fillStyle = ho.color;\n',
+            '    for (let i = 0; i < bins; i++) {\n',
+            '      const barH = (counts[i] / maxCount) * chartH;\n',
+            '      ctx.fillRect(chartX + i * barW, chartBottom - barH, Math.max(1, barW - 1), barH);\n',
+            '    }\n',
+            '    ctx.strokeStyle = \'#333333\'; ctx.lineWidth = 2;\n',
+            '    ctx.strokeRect(chartX, chartBottom - chartH, chartW, chartH);\n',
+            '    ctx.fillStyle = \'#333333\'; ctx.font = \'20px sans-serif\'; ctx.textAlign = \'left\'; ctx.textBaseline = \'top\';\n',
+            '    ctx.fillText(dmin.toFixed(2) + \' .. \' + dmax.toFixed(2) + \'  (n=\' + data.length + \')\', chartX, chartBottom + 4);\n',
+            '    ho.panel.texture.needsUpdate = true;\n',
+            '  }\n',
+            '  for (const ho of histogramObjs) { if (window[ho.name] === undefined) window[ho.name] = ho; }\n',
+            '\n',
+            '  // draw Chart — 3D-альтернатива. Портированы scatter/line/bar (три самых частых\n',
+            '  // типа, см. drawChart/drawChartXY/drawChartBar в generate2D — та же геометрия,\n',
+            '  // только вместо fieldToPixel/scale сцены координаты вписываются в панель по\n',
+            '  // границам самих данных). pie/box пока НЕ перенесены в 3D — панель в этом случае\n',
+            '  // просто показывает текст-заглушку, это осознанное ограничение первой версии.\n',
+            '  function gcChartPairs3D(raw) {\n',
+            '    const out = [];\n',
+            '    if (!Array.isArray(raw)) return out;\n',
+            '    for (let i = 0; i < raw.length; i++) {\n',
+            '      const it = raw[i];\n',
+            '      if (Array.isArray(it) && it.length >= 2 && typeof it[0] === \'number\' && typeof it[1] === \'number\') out.push({ x: it[0], y: it[1] });\n',
+            '      else if (typeof it === \'number\') out.push({ x: i, y: it });\n',
+            '      else if (it && typeof it.x === \'number\' && typeof it.y === \'number\') out.push({ x: it.x, y: it.y });\n',
+            '    }\n',
+            '    return out;\n',
+            '  }\n',
+            '  function gcChartNumbers3D(raw) {\n',
+            '    const out = [];\n',
+            '    if (!Array.isArray(raw)) return out;\n',
+            '    for (const v of raw) if (typeof v === \'number\' && isFinite(v)) out.push(v);\n',
+            '    return out;\n',
+            '  }\n',
+            '  function gcChartColor3D(i, base) { if (i === 0 && base) return base; return \'hsl(\' + ((i * 47 + 200) % 360) + \', 55%, 55%)\'; }\n',
+            '  const chartObjs = chartsData.filter(function(d) { return d.dim === \'3D\' && d.pos3D; }).map(function(d) {\n',
+            '    const panel = gcMakeCanvasPanel(512, 342, d.width || 10, d.height || 6, d.pos3D, d.rotate3D, d.billboard);\n',
+            '    let dataAst = null, labelsAst = null;\n',
+            '    try { dataAst = g3Parse(d.dataExpr); } catch (e) { console.warn(\'Ошибка в data для draw Chart "\' + d.name + \'":\', e); }\n',
+            '    if (d.labelsExpr) { try { labelsAst = g3Parse(d.labelsExpr); } catch (e) { labelsAst = null; } }\n',
+            '    return { name: d.name, panel: panel, dataAst: dataAst, labelsAst: labelsAst, def: d, active: d.active !== false, activeExpr: d.activeExpr };\n',
+            '  });\n',
+            '  function gcDrawChartPanel(co) {\n',
+            '    const d = co.def;\n',
+            '    const ctx = co.panel.ctx;\n',
+            '    const w = co.panel.canvas.width, h = co.panel.canvas.height;\n',
+            '    ctx.clearRect(0, 0, w, h);\n',
+            '    ctx.fillStyle = \'rgba(255,255,255,0.92)\'; ctx.fillRect(0, 0, w, h);\n',
+            '    co.panel.texture.needsUpdate = true;\n',
+            '    if (!co.dataAst) return;\n',
+            '    let raw, labels = null;\n',
+            '    try { raw = g3Eval(co.dataAst, {}); } catch (e) { return; }\n',
+            '    if (co.labelsAst) { try { labels = g3Eval(co.labelsAst, {}); } catch (e) { labels = null; } }\n',
+            '    if (!Array.isArray(raw)) return;\n',
+            '    const pad = 30;\n',
+            '    if (d.type === \'scatter\' || d.type === \'line\') {\n',
+            '      const pts = gcChartPairs3D(raw);\n',
+            '      if (!pts.length) return;\n',
+            '      let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;\n',
+            '      for (const p of pts) { if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x; if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y; }\n',
+            '      const rx = (maxX - minX) || 1, ry = (maxY - minY) || 1;\n',
+            '      const toPix = function(p) { return { x: pad + (p.x - minX) / rx * (w - 2 * pad), y: h - pad - (p.y - minY) / ry * (h - 2 * pad) }; };\n',
+            '      if (d.showAxes) { ctx.strokeStyle = \'#666666\'; ctx.lineWidth = 1.5; ctx.strokeRect(pad, pad, w - 2 * pad, h - 2 * pad); }\n',
+            '      if (d.type === \'line\') {\n',
+            '        ctx.strokeStyle = d.color || \'#4a90d9\'; ctx.lineWidth = 2.5; ctx.beginPath();\n',
+            '        pts.forEach(function(p, i) { const px = toPix(p); if (i === 0) ctx.moveTo(px.x, px.y); else ctx.lineTo(px.x, px.y); });\n',
+            '        ctx.stroke();\n',
+            '      }\n',
+            '      if (d.type === \'scatter\' || d.markers) {\n',
+            '        ctx.fillStyle = d.color || \'#4a90d9\'; const r = Math.max(2, d.pointSize || 4);\n',
+            '        pts.forEach(function(p) { const px = toPix(p); ctx.beginPath(); ctx.arc(px.x, px.y, r, 0, 2 * Math.PI); ctx.fill(); });\n',
+            '      }\n',
+            '      if (d.regression && pts.length >= 2) {\n',
+            '        let sx = 0, sy = 0, sxy = 0, sxx = 0;\n',
+            '        for (const p of pts) { sx += p.x; sy += p.y; sxy += p.x * p.y; sxx += p.x * p.x; }\n',
+            '        const n = pts.length, den = n * sxx - sx * sx;\n',
+            '        if (Math.abs(den) > 1e-12) {\n',
+            '          const slope = (n * sxy - sx * sy) / den, inter = (sy - slope * sx) / n;\n',
+            '          const a = toPix({ x: minX, y: slope * minX + inter }), b = toPix({ x: maxX, y: slope * maxX + inter });\n',
+            '          ctx.strokeStyle = \'#e8590c\'; ctx.lineWidth = 2; ctx.setLineDash([7, 4]);\n',
+            '          ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); ctx.setLineDash([]);\n',
+            '        }\n',
+            '      }\n',
+            '    } else if (d.type === \'bar\') {\n',
+            '      const vals = gcChartNumbers3D(raw);\n',
+            '      if (!vals.length) return;\n',
+            '      let mx = 0; for (const v of vals) if (Math.abs(v) > mx) mx = Math.abs(v);\n',
+            '      if (mx < 1e-12) mx = 1;\n',
+            '      const chartW = w - 2 * pad, chartH = h - 2 * pad, originY = h - pad;\n',
+            '      const bw = chartW / vals.length;\n',
+            '      for (let i = 0; i < vals.length; i++) {\n',
+            '        const barH = (vals[i] / mx) * chartH;\n',
+            '        ctx.fillStyle = gcChartColor3D(i, d.color);\n',
+            '        ctx.fillRect(pad + i * bw + bw * 0.12, originY - barH, bw * 0.76, barH);\n',
+            '        if (d.showValues) { ctx.fillStyle = \'#333333\'; ctx.font = \'16px sans-serif\'; ctx.textAlign = \'center\'; ctx.textBaseline = \'bottom\'; ctx.fillText(String(Math.round(vals[i] * 100) / 100), pad + i * bw + bw / 2, originY - barH - 3); }\n',
+            '        if (labels && labels[i] !== undefined) { ctx.fillStyle = \'#333333\'; ctx.font = \'16px sans-serif\'; ctx.textAlign = \'center\'; ctx.textBaseline = \'top\'; ctx.fillText(String(labels[i]), pad + i * bw + bw / 2, originY + 4); }\n',
+            '      }\n',
+            '      if (d.showAxes) { ctx.strokeStyle = \'#666666\'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(pad, originY - chartH); ctx.lineTo(pad, originY); ctx.lineTo(pad + chartW, originY); ctx.stroke(); }\n',
+            '    } else {\n',
+            '      ctx.fillStyle = \'#999999\'; ctx.font = \'18px sans-serif\'; ctx.textAlign = \'center\'; ctx.textBaseline = \'middle\';\n',
+            '      ctx.fillText(\'Тип "\' + d.type + \'" пока не поддержан в 3D\', w / 2, h / 2);\n',
+            '    }\n',
+            '  }\n',
+            '  for (const co of chartObjs) { if (window[co.name] === undefined) window[co.name] = co; }\n',
+            '\n',
+            '  // draw Tree — 3D-альтернатива. Раскладка узлов (gcTreeNorm3D/gcTreeLayout3D) —\n',
+            '  // прямой порт glTreeNorm/glTreeLayout из generate2D (чистая математика, без\n',
+            '  // fieldToPixel), только вписывается в границы поддерева внутри панели, а не\n',
+            '  // масштабируется через сцену. ----------\n',
+            '  function gcTreeNorm3D(node) {\n',
+            '    if (node === null || node === undefined) return null;\n',
+            '    if (Array.isArray(node)) {\n',
+            '      if (node.length === 0) return null;\n',
+            '      const label = node[0]; const kids = [];\n',
+            '      if (node.length > 1 && Array.isArray(node[1])) { for (const c of node[1]) { const nc = gcTreeNorm3D(c); if (nc) kids.push(nc); } }\n',
+            '      else { for (let i = 1; i < node.length; i++) { const nc = gcTreeNorm3D(node[i]); if (nc) kids.push(nc); } }\n',
+            '      return { label: String(label), children: kids };\n',
+            '    }\n',
+            '    return { label: String(node), children: [] };\n',
+            '  }\n',
+            '  function gcTreeLayout3D(root, spacing, levelGap) {\n',
+            '    let cursor = 0;\n',
+            '    (function assign(n, depth) {\n',
+            '      n.depth = depth;\n',
+            '      if (!n.children.length) { n.x = cursor * spacing; cursor++; }\n',
+            '      else { for (const c of n.children) assign(c, depth + 1); n.x = (n.children[0].x + n.children[n.children.length - 1].x) / 2; }\n',
+            '      n.y = -depth * levelGap;\n',
+            '    })(root, 0);\n',
+            '    return root;\n',
+            '  }\n',
+            '  const treeObjs = treesData.filter(function(d) { return d.dim === \'3D\' && d.pos3D; }).map(function(d) {\n',
+            '    const panel = gcMakeCanvasPanel(512, 384, d.panelWidth || 8, d.panelHeight || 6, d.pos3D, d.rotate3D, d.billboard);\n',
+            '    let dataAst = null;\n',
+            '    try { dataAst = g3Parse(d.dataExpr); } catch (e) { console.warn(\'Ошибка в data для draw Tree "\' + d.name + \'":\', e); }\n',
+            '    return { name: d.name, panel: panel, dataAst: dataAst, def: d, active: d.active !== false, activeExpr: d.activeExpr };\n',
+            '  });\n',
+            '  function gcDrawTreePanel(to) {\n',
+            '    const d = to.def, ctx = to.panel.ctx, w = to.panel.canvas.width, h = to.panel.canvas.height;\n',
+            '    ctx.clearRect(0, 0, w, h);\n',
+            '    ctx.fillStyle = \'rgba(255,255,255,0.92)\'; ctx.fillRect(0, 0, w, h);\n',
+            '    to.panel.texture.needsUpdate = true;\n',
+            '    if (!to.dataAst) return;\n',
+            '    let raw;\n',
+            '    try { raw = g3Eval(to.dataAst, {}); } catch (e) { return; }\n',
+            '    const root = gcTreeNorm3D(raw);\n',
+            '    if (!root) return;\n',
+            '    gcTreeLayout3D(root, d.spacing || 2.2, d.levelGap || 2.2);\n',
+            '    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;\n',
+            '    (function bounds(n) { if (n.x < minX) minX = n.x; if (n.x > maxX) maxX = n.x; if (n.y < minY) minY = n.y; if (n.y > maxY) maxY = n.y; for (const c of n.children) bounds(c); })(root);\n',
+            '    const pad = 40, rx = (maxX - minX) || 1, ry = (maxY - minY) || 1;\n',
+            '    const toPix = function(n) { return { x: pad + (n.x - minX) / rx * (w - 2 * pad), y: pad + (maxY - n.y) / ry * (h - 2 * pad) }; };\n',
+            '    ctx.strokeStyle = d.edgeColor || \'#90a4ae\'; ctx.lineWidth = 1.8;\n',
+            '    (function edges(n) { const p = toPix(n); for (const c of n.children) { const q = toPix(c); ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(q.x, q.y); ctx.stroke(); edges(c); } })(root);\n',
+            '    const R = Math.max(8, Math.min(24, d.nodeRadius || 11));\n',
+            '    (function nodes(n) {\n',
+            '      const p = toPix(n);\n',
+            '      ctx.fillStyle = d.color || \'#37474f\';\n',
+            '      ctx.font = Math.max(10, R) + \'px sans-serif\';\n',
+            '      if (d.boxed) { const bw = Math.max(R * 2, ctx.measureText(n.label).width + 14); ctx.beginPath(); ctx.rect(p.x - bw / 2, p.y - R, bw, R * 2); ctx.fill(); }\n',
+            '      else { ctx.beginPath(); ctx.arc(p.x, p.y, R, 0, 2 * Math.PI); ctx.fill(); }\n',
+            '      ctx.fillStyle = d.labelColor || \'#ffffff\'; ctx.textAlign = \'center\'; ctx.textBaseline = \'middle\';\n',
+            '      ctx.fillText(n.label, p.x, p.y);\n',
+            '      for (const c of n.children) nodes(c);\n',
+            '    })(root);\n',
+            '  }\n',
+            '  for (const to of treeObjs) { if (window[to.name] === undefined) window[to.name] = to; }\n',
+            '\n',
+            '  // draw Table — 3D-альтернатива: та же сетка ячеек, что и в 2D, вписанная в панель\n',
+            '  // фиксированного пиксельного разрешения (ширина/высота ячейки подстраиваются под\n',
+            '  // число строк/столбцов, а не берутся в мировых единицах сцены). ----------\n',
+            '  const tableObjs = tablesData.filter(function(d) { return d.dim === \'3D\' && d.pos3D; }).map(function(d) {\n',
+            '    const panel = gcMakeCanvasPanel(512, 342, d.panelWidth || 8, d.panelHeight || 5, d.pos3D, d.rotate3D, d.billboard);\n',
+            '    let dataAst = null;\n',
+            '    try { dataAst = g3Parse(d.dataExpr); } catch (e) { console.warn(\'Ошибка в data для draw Table "\' + d.name + \'":\', e); }\n',
+            '    return { name: d.name, panel: panel, dataAst: dataAst, def: d, active: d.active !== false, activeExpr: d.activeExpr };\n',
+            '  });\n',
+            '  function gcDrawTablePanel(to) {\n',
+            '    const d = to.def, ctx = to.panel.ctx, w = to.panel.canvas.width, h = to.panel.canvas.height;\n',
+            '    ctx.clearRect(0, 0, w, h);\n',
+            '    ctx.fillStyle = \'rgba(255,255,255,0.92)\'; ctx.fillRect(0, 0, w, h);\n',
+            '    to.panel.texture.needsUpdate = true;\n',
+            '    if (!to.dataAst) return;\n',
+            '    let raw;\n',
+            '    try { raw = g3Eval(to.dataAst, {}); } catch (e) { return; }\n',
+            '    if (!Array.isArray(raw) || !raw.length) return;\n',
+            '    const rows = raw.map(function(r) { return Array.isArray(r) ? r : [r]; });\n',
+            '    let cols = 0;\n',
+            '    for (const r of rows) if (r.length > cols) cols = r.length;\n',
+            '    if (!cols) return;\n',
+            '    const pad = 10;\n',
+            '    const cw = (w - 2 * pad) / cols, ch = (h - 2 * pad) / rows.length;\n',
+            '    const fsize = Math.max(9, Math.min(cw, ch) * 0.4 * (d.fontSize || 1));\n',
+            '    ctx.textBaseline = \'middle\';\n',
+            '    for (let r = 0; r < rows.length; r++) {\n',
+            '      for (let c = 0; c < cols; c++) {\n',
+            '        const x = pad + c * cw, y = pad + r * ch;\n',
+            '        if (d.header && r === 0 && d.headerBg && d.headerBg !== \'transparent\') { ctx.fillStyle = d.headerBg; ctx.fillRect(x, y, cw, ch); }\n',
+            '        if (d.borders) { ctx.strokeStyle = d.borderColor || \'#90a4ae\'; ctx.lineWidth = 1; ctx.strokeRect(x, y, cw, ch); }\n',
+            '        const val = rows[r][c];\n',
+            '        if (val === undefined || val === null) continue;\n',
+            '        ctx.fillStyle = d.color || \'#222222\';\n',
+            '        ctx.font = (d.header && r === 0 ? \'bold \' : \'\') + fsize + \'px sans-serif\';\n',
+            '        let tx = x + cw / 2; ctx.textAlign = \'center\';\n',
+            '        if (d.align === \'left\') { tx = x + 6; ctx.textAlign = \'left\'; }\n',
+            '        else if (d.align === \'right\') { tx = x + cw - 6; ctx.textAlign = \'right\'; }\n',
+            '        ctx.fillText(String(val), tx, y + ch / 2);\n',
+            '      }\n',
+            '    }\n',
+            '  }\n',
+            '  for (const to of tableObjs) { if (window[to.name] === undefined) window[to.name] = to; }\n',
+            '\n',
+            '  // draw Graph — 3D-альтернатива. graph = "имя переменной", созданной через\n',
+            '  // newGraph()/addNode()/addEdge() (см. drawGraph в generate2D — те же билдеры;\n',
+            '  // в комбинированной сцене граф обычно строит Start-код 2D-слоя, а переменная\n',
+            '  // видна и здесь благодаря общей шине window — см. комментарий про общее\n',
+            '  // состояние в compile()). Портированы узлы/рёбра/петли/кратные рёбра дугой/\n',
+            '  // стрелки для ориентированного графа/подсветка highlight — координаты узлов\n',
+            '  // автоматически вписываются в границы панели (как в draw Chart), а не берутся\n',
+            '  // из координат сцены.\n',
+            '  const graphObjs = drawGraphsIn3D_filterAndBuild();\n',
+            '  function drawGraphsIn3D_filterAndBuild() {\n',
+            '    return graphsData.filter(function(d) { return d.dim === \'3D\' && d.pos3D; }).map(function(d) {\n',
+            '      const panel = gcMakeCanvasPanel(512, 384, d.panelWidth || 8, d.panelHeight || 6, d.pos3D, d.rotate3D, d.billboard);\n',
+            '      let hlAst = null, hlEdgeAst = null;\n',
+            '      if (d.highlightExpr) { try { hlAst = g3Parse(d.highlightExpr); } catch (e) {} }\n',
+            '      if (d.highlightEdgesExpr) { try { hlEdgeAst = g3Parse(d.highlightEdgesExpr); } catch (e) {} }\n',
+            '      return { name: d.name, panel: panel, hlAst: hlAst, hlEdgeAst: hlEdgeAst, def: d, active: d.active !== false, activeExpr: d.activeExpr };\n',
+            '    });\n',
+            '  }\n',
+            '  function gcDrawGraphPanel(go) {\n',
+            '    const d = go.def, ctx = go.panel.ctx, w = go.panel.canvas.width, h = go.panel.canvas.height;\n',
+            '    ctx.clearRect(0, 0, w, h);\n',
+            '    ctx.fillStyle = \'rgba(255,255,255,0.92)\'; ctx.fillRect(0, 0, w, h);\n',
+            '    go.panel.texture.needsUpdate = true;\n',
+            '    const g = window[d.graphVar];\n',
+            '    if (!g || !g.nodes) return;\n',
+            '    let hlNodes = [], hlEdges = [];\n',
+            '    if (go.hlAst) { try { hlNodes = g3Eval(go.hlAst, {}) || []; } catch (e) { hlNodes = []; } }\n',
+            '    if (go.hlEdgeAst) { try { hlEdges = g3Eval(go.hlEdgeAst, {}) || []; } catch (e) { hlEdges = []; } }\n',
+            '    if (hlNodes && !Array.isArray(hlNodes) && Array.isArray(hlNodes.path)) hlNodes = hlNodes.path;\n',
+            '    if (hlEdges && !Array.isArray(hlEdges) && Array.isArray(hlEdges.path)) {\n',
+            '      const pth = hlEdges.path; const conv = [];\n',
+            '      for (let i = 1; i < pth.length; i++) conv.push([pth[i - 1], pth[i]]);\n',
+            '      hlEdges = conv;\n',
+            '    }\n',
+            '    if (!Array.isArray(hlNodes)) hlNodes = [hlNodes];\n',
+            '    const hlSet = {};\n',
+            '    for (const v of hlNodes) hlSet[String(v)] = true;\n',
+            '    const edgeKey = function(a, b) { return a + \'~\' + b; };\n',
+            '    const hlEdgeSet = {};\n',
+            '    if (Array.isArray(hlEdges)) {\n',
+            '      for (const e of hlEdges) {\n',
+            '        if (Array.isArray(e) && e.length >= 2) { hlEdgeSet[edgeKey(e[0], e[1])] = true; hlEdgeSet[edgeKey(e[1], e[0])] = true; }\n',
+            '        else if (e && e.a !== undefined) { hlEdgeSet[edgeKey(e.a, e.b)] = true; hlEdgeSet[edgeKey(e.b, e.a)] = true; }\n',
+            '      }\n',
+            '    }\n',
+            '    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;\n',
+            '    for (const key in g.nodes) { const n = g.nodes[key]; if (!n || !n.pos) continue; if (n.pos[0] < minX) minX = n.pos[0]; if (n.pos[0] > maxX) maxX = n.pos[0]; if (n.pos[1] < minY) minY = n.pos[1]; if (n.pos[1] > maxY) maxY = n.pos[1]; }\n',
+            '    if (!isFinite(minX)) return;\n',
+            '    const pad = 40, rx = (maxX - minX) || 1, ry = (maxY - minY) || 1;\n',
+            '    const toPix = function(p) { return { x: pad + (p[0] - minX) / rx * (w - 2 * pad), y: h - pad - (p[1] - minY) / ry * (h - 2 * pad) }; };\n',
+            '    const base = d.color || \'#4a90d9\', eCol = d.edgeColor || base, nCol = d.nodeColor || base;\n',
+            '    const R = d.nodeRadius === undefined ? 9 : d.nodeRadius;\n',
+            '    const pairCount = {}, pairSeen = {};\n',
+            '    for (const e of g.edges) { const k = edgeKey(e.a < e.b ? e.a : e.b, e.a < e.b ? e.b : e.a); pairCount[k] = (pairCount[k] || 0) + 1; }\n',
+            '    for (const e of g.edges) {\n',
+            '      const na = g.nodes[e.a], nb = g.nodes[e.b];\n',
+            '      if (!na || !nb) continue;\n',
+            '      const p1 = toPix(na.pos), p2 = toPix(nb.pos);\n',
+            '      const pk = edgeKey(e.a < e.b ? e.a : e.b, e.a < e.b ? e.b : e.a);\n',
+            '      pairSeen[pk] = (pairSeen[pk] || 0) + 1;\n',
+            '      const total = pairCount[pk], ord = pairSeen[pk];\n',
+            '      const isHl = !!hlEdgeSet[edgeKey(e.a, e.b)];\n',
+            '      ctx.strokeStyle = isHl ? (d.highlightColor || \'#e8590c\') : eCol;\n',
+            '      ctx.lineWidth = isHl ? 3.5 : 2;\n',
+            '      let mx, my;\n',
+            '      if (e.a === e.b) {\n',
+            '        ctx.beginPath(); ctx.arc(p1.x, p1.y - R * 1.6, R * 1.4, 0, 2 * Math.PI); ctx.stroke();\n',
+            '        mx = p1.x; my = p1.y - R * 3;\n',
+            '      } else if (total > 1) {\n',
+            '        const off = (ord - (total + 1) / 2) * 22;\n',
+            '        const midX = (p1.x + p2.x) / 2, midY = (p1.y + p2.y) / 2;\n',
+            '        const dxE = p2.x - p1.x, dyE = p2.y - p1.y, len = Math.hypot(dxE, dyE) || 1;\n',
+            '        const cxE = midX - (dyE / len) * off, cyE = midY + (dxE / len) * off;\n',
+            '        ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.quadraticCurveTo(cxE, cyE, p2.x, p2.y); ctx.stroke();\n',
+            '        mx = (p1.x + 2 * cxE + p2.x) / 4; my = (p1.y + 2 * cyE + p2.y) / 4;\n',
+            '      } else {\n',
+            '        ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke();\n',
+            '        mx = (p1.x + p2.x) / 2; my = (p1.y + p2.y) / 2;\n',
+            '      }\n',
+            '      if (d.directed && e.a !== e.b) {\n',
+            '        const ang = Math.atan2(p2.y - p1.y, p2.x - p1.x);\n',
+            '        const tipX = p2.x - Math.cos(ang) * R, tipY = p2.y - Math.sin(ang) * R, ah = 11;\n',
+            '        ctx.fillStyle = isHl ? (d.highlightColor || \'#e8590c\') : eCol;\n',
+            '        ctx.beginPath();\n',
+            '        ctx.moveTo(tipX, tipY);\n',
+            '        ctx.lineTo(tipX - ah * Math.cos(ang - 0.4), tipY - ah * Math.sin(ang - 0.4));\n',
+            '        ctx.lineTo(tipX - ah * Math.cos(ang + 0.4), tipY - ah * Math.sin(ang + 0.4));\n',
+            '        ctx.closePath(); ctx.fill();\n',
+            '      }\n',
+            '      if (d.showWeights && e.weight !== undefined && e.weight !== 1) {\n',
+            '        ctx.fillStyle = \'#333333\'; ctx.font = \'13px sans-serif\'; ctx.textAlign = \'center\'; ctx.textBaseline = \'bottom\';\n',
+            '        ctx.fillText(String(e.weight), mx, my - 4);\n',
+            '      }\n',
+            '    }\n',
+            '    for (const key in g.nodes) {\n',
+            '      const n = g.nodes[key];\n',
+            '      if (!n || !n.pos) continue;\n',
+            '      const p = toPix(n.pos);\n',
+            '      const isHl = !!hlSet[String(n.label)];\n',
+            '      ctx.fillStyle = isHl ? (d.highlightColor || \'#e8590c\') : (n.color || nCol);\n',
+            '      ctx.beginPath(); ctx.arc(p.x, p.y, R, 0, 2 * Math.PI); ctx.fill();\n',
+            '      if (isHl) { ctx.strokeStyle = \'#ffffff\'; ctx.lineWidth = 2; ctx.stroke(); }\n',
+            '      if (d.labels) {\n',
+            '        ctx.fillStyle = d.labelColor || \'#ffffff\';\n',
+            '        ctx.font = Math.max(9, R * 1.1) + \'px sans-serif\'; ctx.textAlign = \'center\'; ctx.textBaseline = \'middle\';\n',
+            '        ctx.fillText(String(n.label), p.x, p.y);\n',
+            '      }\n',
+            '    }\n',
+            '  }\n',
+            '  for (const go of graphObjs) { if (window[go.name] === undefined) window[go.name] = go; }\n',
+            '\n',
+            '  // draw Cobweb — 3D-альтернатива: график f(x) + "лестница" итераций x -> f(x) вместе\n',
+            '  // с прямой y = x (см. drawCobweb в generate2D — та же геометрия, f вызывается через\n',
+            '  // g3CallPositional вместо glCallUserFunc). Границы панели вписаны в фактические\n',
+            '  // значения кривой/лестницы (как у Chart), а не заданы жёстко через xmin/xmax.\n',
+            '  const cobwebObjs = drawCobwebsData.filter(function(d) { return d.dim === \'3D\' && d.pos3D; }).map(function(d) {\n',
+            '    const panel = gcMakeCanvasPanel(512, 512, d.panelWidth || 6, d.panelHeight || 6, d.pos3D, d.rotate3D, d.billboard);\n',
+            '    let x0Ast = null;\n',
+            '    if (d.x0Expr) { try { x0Ast = g3Parse(d.x0Expr); } catch (e) {} }\n',
+            '    return { name: d.name, panel: panel, x0Ast: x0Ast, def: d, active: d.active !== false, activeExpr: d.activeExpr };\n',
+            '  });\n',
+            '  function gcDrawCobwebPanel(co) {\n',
+            '    const d = co.def, ctx = co.panel.ctx, w = co.panel.canvas.width, h = co.panel.canvas.height;\n',
+            '    ctx.clearRect(0, 0, w, h);\n',
+            '    ctx.fillStyle = \'rgba(255,255,255,0.92)\'; ctx.fillRect(0, 0, w, h);\n',
+            '    co.panel.texture.needsUpdate = true;\n',
+            '    if (!G3_FUNCS[d.funcName]) return;\n',
+            '    const f = function(x) { return g3CallPositional(d.funcName, [x]); };\n',
+            '    const N = 200;\n',
+            '    const curvePts = [];\n',
+            '    for (let i = 0; i <= N; i++) {\n',
+            '      const x = d.xmin + (d.xmax - d.xmin) * i / N;\n',
+            '      let y;\n',
+            '      try { y = f(x); } catch (e) { curvePts.push(null); continue; }\n',
+            '      if (typeof y !== \'number\' || !isFinite(y)) { curvePts.push(null); continue; }\n',
+            '      curvePts.push({ x: x, y: y });\n',
+            '    }\n',
+            '    let x0 = 0.5;\n',
+            '    if (co.x0Ast) { try { x0 = g3Eval(co.x0Ast, {}); } catch (e) { x0 = 0.5; } }\n',
+            '    if (typeof x0 !== \'number\' || !isFinite(x0)) x0 = 0.5;\n',
+            '    const stairPts = [{ x: x0, y: 0 }];\n',
+            '    let x = x0;\n',
+            '    const steps = Math.max(1, Math.min(500, Math.floor(d.steps)));\n',
+            '    for (let i = 0; i < steps; i++) {\n',
+            '      let y;\n',
+            '      try { y = f(x); } catch (e) { break; }\n',
+            '      if (typeof y !== \'number\' || !isFinite(y)) break;\n',
+            '      stairPts.push({ x: x, y: y });\n',
+            '      stairPts.push({ x: y, y: y });\n',
+            '      x = y;\n',
+            '    }\n',
+            '    let minX = d.xmin, maxX = d.xmax, minY = d.xmin, maxY = d.xmax;\n',
+            '    for (const p of curvePts) { if (!p) continue; if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y; }\n',
+            '    for (const p of stairPts) { if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x; if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y; }\n',
+            '    const pad = 30, rx = (maxX - minX) || 1, ry = (maxY - minY) || 1;\n',
+            '    const toPix = function(p) { return { x: pad + (p.x - minX) / rx * (w - 2 * pad), y: h - pad - (p.y - minY) / ry * (h - 2 * pad) }; };\n',
+            '    ctx.strokeStyle = d.curveColor || \'#1565c0\'; ctx.lineWidth = 2; ctx.beginPath();\n',
+            '    let started = false;\n',
+            '    for (const p of curvePts) {\n',
+            '      if (!p) { started = false; continue; }\n',
+            '      const px = toPix(p);\n',
+            '      if (!started) { ctx.moveTo(px.x, px.y); started = true; } else ctx.lineTo(px.x, px.y);\n',
+            '    }\n',
+            '    ctx.stroke();\n',
+            '    if (d.showDiagonal) {\n',
+            '      ctx.strokeStyle = \'#9e9e9e\'; ctx.lineWidth = 1; ctx.setLineDash([5, 4]);\n',
+            '      const a = toPix({ x: minX, y: minX }), b = toPix({ x: maxX, y: maxX });\n',
+            '      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); ctx.setLineDash([]);\n',
+            '    }\n',
+            '    ctx.strokeStyle = d.color || \'#c62828\'; ctx.lineWidth = 1.4; ctx.beginPath();\n',
+            '    stairPts.forEach(function(p, i) { const px = toPix(p); if (i === 0) ctx.moveTo(px.x, px.y); else ctx.lineTo(px.x, px.y); });\n',
+            '    ctx.stroke();\n',
+            '  }\n',
+            '  for (const co of cobwebObjs) { if (window[co.name] === undefined) window[co.name] = co; }\n',
+            '\n',
+            '  // draw Bifurcation — 3D-альтернатива. Уже в 2D рисуется через отдельный offscreen-\n',
+            '  // canvas (побитовый ImageData, см. drawBifurcation в generate2D) — здесь просто эту\n',
+            '  // же логику применяем прямо к canvas панели вместо промежуточного offscreen+blit.\n',
+            '  function gcHexToRgb3D(hex) {\n',
+            '    hex = String(hex || \'#1a237e\').replace(\'#\', \'\');\n',
+            '    if (hex.length === 3) hex = hex.split(\'\').map(function(c) { return c + c; }).join(\'\');\n',
+            '    const num = parseInt(hex, 16) || 0x1a237e;\n',
+            '    return { r: (num >> 16) & 255, g: (num >> 8) & 255, b: num & 255 };\n',
+            '  }\n',
+            '  const bifurcationObjs = drawBifurcationsData.filter(function(d) { return d.dim === \'3D\' && d.pos3D; }).map(function(d) {\n',
+            '    const panel = gcMakeCanvasPanel(384, 256, d.panelWidth || 8, d.panelHeight || 5, d.pos3D, d.rotate3D, d.billboard);\n',
+            '    return { name: d.name, panel: panel, def: d, active: d.active !== false, activeExpr: d.activeExpr, drawn: false };\n',
+            '  });\n',
+            '  function gcDrawBifurcationPanel(bo) {\n',
+            '    const d = bo.def, ctx = bo.panel.ctx, w = bo.panel.canvas.width, h = bo.panel.canvas.height;\n',
+            '    if (bo.drawn) { bo.panel.texture.needsUpdate = true; return; } // диаграмма статична для фиксированных r/x0/skip/keep — считаем один раз\n',
+            '    ctx.clearRect(0, 0, w, h);\n',
+            '    if (!G3_FUNCS[d.funcName]) { bo.panel.texture.needsUpdate = true; return; }\n',
+            '    const img = ctx.createImageData(w, h);\n',
+            '    const data = img.data;\n',
+            '    const rgb = gcHexToRgb3D(d.color || \'#1a237e\');\n',
+            '    const skip = Math.max(0, Math.floor(d.skip)), keep = Math.max(1, Math.floor(d.keep));\n',
+            '    for (let px = 0; px < w; px++) {\n',
+            '      const r = d.rmin + (d.rmax - d.rmin) * px / (w - 1);\n',
+            '      let x = d.x0, bad = false;\n',
+            '      for (let i = 0; i < skip; i++) {\n',
+            '        try { x = g3CallPositional(d.funcName, [r, x]); } catch (e) { bad = true; break; }\n',
+            '        if (typeof x !== \'number\' || !isFinite(x)) { bad = true; break; }\n',
+            '      }\n',
+            '      if (bad) continue;\n',
+            '      for (let i = 0; i < keep; i++) {\n',
+            '        try { x = g3CallPositional(d.funcName, [r, x]); } catch (e) { break; }\n',
+            '        if (typeof x !== \'number\' || !isFinite(x)) break;\n',
+            '        const py = Math.round((1 - (x - d.ymin) / (d.ymax - d.ymin)) * (h - 1));\n',
+            '        if (py < 0 || py >= h) continue;\n',
+            '        const i4 = (py * w + px) * 4;\n',
+            '        data[i4] = rgb.r; data[i4 + 1] = rgb.g; data[i4 + 2] = rgb.b;\n',
+            '        data[i4 + 3] = Math.min(255, data[i4 + 3] + 90);\n',
+            '      }\n',
+            '    }\n',
+            '    ctx.putImageData(img, 0, 0);\n',
+            '    bo.panel.texture.needsUpdate = true;\n',
+            '    bo.drawn = true;\n',
+            '  }\n',
+            '  for (const bo of bifurcationObjs) { if (window[bo.name] === undefined) window[bo.name] = bo; }\n',
+            '\n',
+            '  // ---------- draw Image — 3D-альтернатива: pos = (x, y, z) вместо ссылки на точку\n',
+            '  // (см. parseImageBlock). billboard = true (по умолчанию) — плоскость с текстурой\n',
+            '  // всегда развёрнута к камере (используется THREE.Sprite — это его штатное поведение,\n',
+            '  // отдельного пересчёта на каждый кадр не требуется); billboard = false — фиксированная\n',
+            '  // ориентация через rotate = (rx, ry, rz) в градусах (например, "плакат на стене"). ----------\n',
+            '  const gcTextureLoader = new THREE.TextureLoader();\n',
+            '  const imageObjs = imagesData.filter(function(d) { return d.dim === \'3D\' && d.pos3D; }).map(function(d) {\n',
+            '    const tex = gcTextureLoader.load(d.src, undefined, undefined, function(e) { console.warn(\'Не удалось загрузить текстуру для draw Image "\' + d.name + \'":\', e); });\n',
+            '    const w = d.width || 5, h = d.height || 5;\n',
+            '    const opacity = (d.opacity === undefined || d.opacity === null) ? 1 : d.opacity;\n',
+            '    let mesh;\n',
+            '    if (d.billboard !== false) {\n',
+            '      mesh = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, opacity: opacity }));\n',
+            '      mesh.scale.set(w, h, 1);\n',
+            '    } else {\n',
+            '      const geo = new THREE.PlaneGeometry(w, h);\n',
+            '      const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: opacity, side: THREE.DoubleSide, depthWrite: opacity >= 1 });\n',
+            '      mesh = new THREE.Mesh(geo, mat);\n',
+            '      const rot = d.rotate3D || { x: 0, y: 0, z: 0 };\n',
+            '      mesh.rotation.set(rot.x * Math.PI / 180, rot.y * Math.PI / 180, rot.z * Math.PI / 180);\n',
+            '    }\n',
+            '    mesh.position.set(d.pos3D.x, d.pos3D.y, d.pos3D.z);\n',
+            '    mesh.visible = d.active !== false;\n',
+            '    scene.add(mesh);\n',
+            '    return { name: d.name, mesh: mesh, active: d.active !== false, activeExpr: d.activeExpr };\n',
+            '  });\n',
+            '  for (const io of imageObjs) { if (window[io.name] === undefined) window[io.name] = io; }\n',
             '\n',
             '  // ---------- Кластеры (именованные группы для скриптов, как в 2D) ----------\n',
             '  let draggedPoint = null; // объявлено заранее: используется в applyClusterTransform3D ниже\n',
@@ -14961,7 +16369,7 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '      wrapper.classList.add(\'dragging-point\');\n',
             '      return;\n',
             '    }\n',
-            '    if (!canRotateCamera) return;\n',
+            '    if (!canRotateCamera || CAMERA_TYPE_3D === \'fixed\') return;\n',
             '    camDragging = true;\n',
             '    lastX = clientX; lastY = clientY;\n',
             '    wrapper.classList.add(\'dragging-cam\');\n',
@@ -14987,8 +16395,16 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '    if (!camDragging) return;\n',
             '    const dx = clientX - lastX, dy = clientY - lastY;\n',
             '    lastX = clientX; lastY = clientY;\n',
-            '    theta -= dx * 0.008;\n',
-            '    phi = clampPhi(phi - dy * 0.008);\n',
+            '    if (CAMERA_TYPE_3D === \'pan\') {\n',
+            '      const panScale = (baseRadius / camZoom) * 0.0025;\n',
+            '      const camRight = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0);\n',
+            '      const camUp = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 1);\n',
+            '      target.addScaledVector(camRight, -dx * panScale);\n',
+            '      target.addScaledVector(camUp, dy * panScale);\n',
+            '    } else {\n',
+            '      theta -= dx * 0.008;\n',
+            '      phi = clampPhi(phi - dy * 0.008);\n',
+            '    }\n',
             '    updateCameraPosition();\n',
             '  }\n',
             '  function onUp() {\n',
@@ -15002,21 +16418,23 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '  window.addEventListener(\'mousemove\', function(e) { onMove(e.clientX, e.clientY); });\n',
             '  window.addEventListener(\'mouseup\', onUp);\n',
             '  canvas.addEventListener(\'touchstart\', function(e) {\n',
+            '    if (CAMERA_TYPE_3D !== \'fixed\' && (e.touches.length === 1 || e.touches.length === 2)) e.preventDefault();\n',
             '    if (e.touches.length === 1) { onDown(e.touches[0].clientX, e.touches[0].clientY); }\n',
             '    lastPinch = null;\n',
-            '  }, { passive: true });\n',
+            '  }, { passive: false });\n',
             '  canvas.addEventListener(\'touchmove\', function(e) {\n',
+            '    if (CAMERA_TYPE_3D !== \'fixed\' && (e.touches.length === 1 || e.touches.length === 2)) e.preventDefault();\n',
             '    if (e.touches.length === 1) { onMove(e.touches[0].clientX, e.touches[0].clientY); }\n',
-            '    else if (e.touches.length === 2 && canZoomCamera) {\n',
+            '    else if (e.touches.length === 2 && canZoomCamera && CAMERA_TYPE_3D !== \'fixed\') {\n',
             '      const dx = e.touches[0].clientX - e.touches[1].clientX, dy = e.touches[0].clientY - e.touches[1].clientY;\n',
             '      const dist = Math.sqrt(dx * dx + dy * dy);\n',
             '      if (lastPinch) { camZoom *= (dist / lastPinch); updateCameraPosition(); }\n',
             '      lastPinch = dist;\n',
             '    }\n',
-            '  }, { passive: true });\n',
+            '  }, { passive: false });\n',
             '  canvas.addEventListener(\'touchend\', function() { onUp(); lastPinch = null; }, { passive: true });\n',
             '  canvas.addEventListener(\'wheel\', function(e) {\n',
-            '    if (!canZoomCamera) return;\n',
+            '    if (!canZoomCamera || CAMERA_TYPE_3D === \'fixed\') return;\n',
             '    e.preventDefault();\n',
             '    camZoom *= Math.pow(1.0015, -e.deltaY);\n',
             '    updateCameraPosition();\n',
@@ -15028,20 +16446,53 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '    const w = Math.max(1, Math.round(rect.width));\n',
             '    const h = Math.max(1, Math.round(rect.height));\n',
             '    renderer.setSize(w, h, false);\n',
-            '    camera.aspect = w / h;\n',
-            '    camera.updateProjectionMatrix();\n',
+            '    applyCameraFrustum(w, h);\n',
             '  }\n',
             '  window.addEventListener(\'resize\', resize);\n',
             '  resize();\n',
             '  updateCameraPosition();\n',
             '\n',
-            '  // ---------- Скрипты Start/Update (упрощённая интеграция; доступны переменные и объекты сцены) ----------\n',
-            '  try { if (startCode) { (new Function(\'vars\', \'with (vars) { \' + startCode + \' }\'))(userVars); } } catch (e) { console.error(\'Ошибка в Start:\', e); }\n',
+            '  // ---------- Скрипты Start/Update ----------\n',
+            '  // Раньше Start/Update в 3D выполнялись как сырой JS через new Function(\'vars\',\n',
+            '  // \'with (vars) {...}\'): технически поддерживало любой JS-синтаксис, но НЕ понимало\n',
+            '  // ключевые слова мини-языка (repeat/for/wait/func — их просто нет в JS), поэтому\n',
+            '  // код, рассчитанный на 2D-диалект, либо не выполнялся, либо падал с ReferenceError.\n',
+            '  // Теперь Start/Update идут через тот же g3-интерпретатор, что и Function/Void и\n',
+            '  // action кнопок — единый диалект во всех трёх местах, включая wait() (пауза не\n',
+            '  // блокирует рендер — see g3UpdateRunning ниже и requestAnimationFrame в animate()).\n',
+            '  // В комбинированной (2D+3D) сцене это по-прежнему не выполняется вовсе: единственный\n',
+            '  // источник правды по Start/Update — 2D-слой (см. комментарий про часы выше и в compile()).\n',
+            '  if (!(typeof window.__gcCombined !== \'undefined\' && window.__gcCombined)) {\n',
+            '    if (startCode && startCode.trim()) {\n',
+            '      (async function() {\n',
+            '        try { await g3ExecStatementsAsync(g3ParseProgram(startCode), {}); }\n',
+            '        catch (e) { if (!(e instanceof G3ReturnSignal)) console.error(\'Ошибка в Start:\', e); }\n',
+            '      })();\n',
+            '    }\n',
+            '    if (updateCode && updateCode.trim()) {\n',
+            '      let g3UpdateStmts = null;\n',
+            '      try { g3UpdateStmts = g3ParseProgram(updateCode); } catch (e) { console.error(\'Ошибка разбора Update:\', e); }\n',
+            '      let g3UpdateRunning = false;\n',
+            '      (function g3RunUpdateLoop() {\n',
+            '        requestAnimationFrame(g3RunUpdateLoop);\n',
+            '        if (g3UpdateRunning || !g3UpdateStmts) return;\n',
+            '        g3UpdateRunning = true;\n',
+            '        (async function() {\n',
+            '          try { await g3ExecStatementsAsync(g3UpdateStmts, {}); }\n',
+            '          catch (e) { if (!(e instanceof G3ReturnSignal)) console.error(\'Ошибка в Update:\', e); }\n',
+            '          g3UpdateRunning = false;\n',
+            '        })();\n',
+            '      })();\n',
+            '    }\n',
+            '  }\n',
             '  clusters.forEach(applyClusterTransform3D);\n',
             '\n',
             '  function animate() {\n',
             '    requestAnimationFrame(animate);\n',
-            '    try { if (updateCode) { (new Function(\'vars\', \'with (vars) { \' + updateCode + \' }\'))(userVars); } } catch (e) { /* тихо игнорируем ошибки покадрового кода */ }\n',
+            '    elapsedTime = (typeof window.__gcCombined !== \'undefined\' && window.__gcCombined && typeof window.__gcElapsedTime === \'number\')\n',
+            '      ? window.__gcElapsedTime\n',
+            '      : (performance.now() - glStartTime3D) / 1000;\n',
+            '    updateGridLOD();\n',
             '    clusters.forEach(applyClusterTransform3D);\n',
             '    for (const p of pointObjs) { p.active = g3IsActive(p.activeExpr, p.active); p.mesh.visible = p.active; }\n',
             '    for (const pr of primitiveObjs) { pr.active = g3IsActive(pr.activeExpr, pr.active); pr.mesh.visible = pr.active && !pr.hiddenByDerived; }\n',
@@ -15054,6 +16505,17 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '    for (const lo of lineObjs) { lo.active = g3IsActive(lo.activeExpr, lo.active); lo.mesh.visible = lo.active; }\n',
             '    for (const fo of fillingObjs) { fo.mesh.visible = g3IsActive(fo.activeExpr, fo.active); }\n',
             '    for (const po of infPlaneObjs) { const vis = g3IsActive(po.activeExpr, po.active); po.mesh.visible = vis; if (po.edges) po.edges.visible = vis; if (vis) updateInfPlane(po); }\n',
+            '    for (const lo of infLineObjs) { const vis = g3IsActive(lo.activeExpr, lo.active); lo.mesh.visible = vis; if (vis) updateInfLine3D(lo); }\n',
+            '    for (const pu of punctirObjs) { const vis = g3IsActive(pu.activeExpr, pu.active); pu.mesh.visible = vis; if (vis) updatePunctir3D(pu); }\n',
+            '    for (const eo of equallyObjs) { const vis = g3IsActive(eo.activeExpr, eo.active); eo.meshes.forEach(function(ms) { ms.forEach(function(m) { m.visible = vis; }); }); if (vis) updateEqually3D(eo); }\n',
+            '    for (const ho of histogramObjs) { const vis = g3IsActive(ho.activeExpr, ho.active); ho.panel.mesh.visible = vis; if (vis) gcDrawHistogramPanel(ho); }\n',
+            '    for (const co of chartObjs) { const vis = g3IsActive(co.activeExpr, co.active); co.panel.mesh.visible = vis; if (vis) gcDrawChartPanel(co); }\n',
+            '    for (const to of treeObjs) { const vis = g3IsActive(to.activeExpr, to.active); to.panel.mesh.visible = vis; if (vis) gcDrawTreePanel(to); }\n',
+            '    for (const tbo of tableObjs) { const vis = g3IsActive(tbo.activeExpr, tbo.active); tbo.panel.mesh.visible = vis; if (vis) gcDrawTablePanel(tbo); }\n',
+            '    for (const go of graphObjs) { const vis = g3IsActive(go.activeExpr, go.active); go.panel.mesh.visible = vis; if (vis) gcDrawGraphPanel(go); }\n',
+            '    for (const co of cobwebObjs) { const vis = g3IsActive(co.activeExpr, co.active); co.panel.mesh.visible = vis; if (vis) gcDrawCobwebPanel(co); }\n',
+            '    for (const bo of bifurcationObjs) { const vis = g3IsActive(bo.activeExpr, bo.active); bo.panel.mesh.visible = vis; if (vis) gcDrawBifurcationPanel(bo); }\n',
+            '    for (const io of imageObjs) { io.mesh.visible = g3IsActive(io.activeExpr, io.active); }\n',
             '    for (const so of surfaceObjs) { so.mesh.visible = g3IsActive(so.activeExpr, so.active); }\n',
             '    for (const co of curveObjs) { co.mesh.visible = g3IsActive(co.activeExpr, co.active); }\n',
             '    for (const to of trajectoryObjs) { to.mesh.visible = g3IsActive(to.activeExpr, to.active); }\n',
@@ -15073,6 +16535,8 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '    renderer.render(scene, camera);\n',
             '  }\n',
             '  animate();\n',
+            '  window.__gc3D_canvas = canvas;\n',
+            '  window.__gc3D_isActive = function() { return camDragging || !!draggedPoint || !!draggedCluster; };\n',
             '})();\n',
             '<' + '/script>\n',
             '</body>\n',
@@ -15106,10 +16570,11 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
 
             const lines = codeForParams.split('\n');
 
-            const validKeys = ['space', 'title', 'undertitle', 'description', 'footer',
+            const validKeys = ['title', 'undertitle', 'description', 'footer',
                                'can rotate camera', 'can zoom camera',
                                'zoom limits', 'camera start zoom', 'camera start rot',
                                'camera zoom limits', 'camera start offset',
+                               'camera type', 'camera projection', 'camera fov', 'camera near', 'camera far',
                                'field width', 'field height', 'field depth', 'field color',
                                'frame color', 'frame width',
                                'title color', 'title size',
@@ -15119,9 +16584,10 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
                                'theme',
                                'show axes', 'show axis x', 'show axis y', 'show axis z', 'axes size',
                                'show grid', 'show grid x', 'show grid y', 'show grid z', 'grid size',
+                               'grid color', 'axes color', 'grid adaptive', '2D layer',
                                'snap', 'snap grid', 'snap distance'];
-            const requiredKeys = ['space', 'title', 'undertitle', 'description'];
-            const numericKeys = ['field width', 'field height', 'field depth', 'frame width', 'title size', 'undertitle size', 'description size', 'footer size', 'camera start zoom', 'axes size', 'grid size', 'snap grid', 'snap distance'];
+            const requiredKeys = ['title', 'undertitle', 'description'];
+            const numericKeys = ['field width', 'field height', 'field depth', 'frame width', 'title size', 'undertitle size', 'description size', 'footer size', 'camera start zoom', 'axes size', 'grid size', 'snap grid', 'snap distance', 'camera fov', 'camera near', 'camera far'];
             // zoom limits = (min, max) дистанция камеры от центра сцены (только 3D)
             // camera start rot = (азимут, полярный угол) в градусах — начальный поворот камеры (только 3D)
             const tupleKeys = ['camera zoom limits', 'camera start offset', 'zoom limits', 'camera start rot'];
@@ -15176,10 +16642,7 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
                     inner = inner.replace(/\\"/g, '"').replace(/\\\\/g, '\\');
                     parsedValue = inner;
                 } else {
-                    if (key === 'space') {
-                        if (value === '2D' || value === '3D') parsedValue = value;
-                        else { errors.push({ line: lineNum, message: `space должно быть "2D" или "3D"` }); continue; }
-                    } else if (key === 'theme') {
+                    if (key === 'theme') {
                         if (value === 'light' || value === 'dark') parsedValue = value;
                         else { errors.push({ line: lineNum, message: `theme должно быть "light" или "dark"` }); continue; }
                     } else if (tupleKeys.includes(key)) {
@@ -15201,8 +16664,8 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
 
                 const booleanKeys = ['can rotate camera', 'can zoom camera',
                                      'show axes', 'show axis x', 'show axis y', 'show axis z',
-                                     'show grid', 'show grid x', 'show grid y', 'show grid z', 'snap'];
-                if (key !== 'space' && !booleanKeys.includes(key) && !numericKeys.includes(key) && !tupleKeys.includes(key)) {
+                                     'show grid', 'show grid x', 'show grid y', 'show grid z', 'snap', 'grid adaptive'];
+                if (!booleanKeys.includes(key) && !numericKeys.includes(key) && !tupleKeys.includes(key)) {
                     if (typeof parsedValue !== 'string') parsedValue = String(parsedValue);
                 }
                 if (booleanKeys.includes(key)) {
@@ -15224,6 +16687,124 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
         }
 
         // ========== КОМПИЛЯЦИЯ ==========
+// Извлекает из уже готового (полного, самодостаточного) HTML, который вернул generate2D
+// или generate3D, две части: внутреннее содержимое .canvas-wrapper (сам <canvas> и оверлеи)
+// и внутренний код <script>...</script> (сам движок — обе функции оборачивают его в
+// (function(){...})(), так что это можно безопасно вставлять рядом со вторым таким же
+// блоком без риска конфликта имён переменных). canvasId используется вместо общего для
+// обеих функций id="mainCanvas", чтобы у двух холстов на одной странице не было коллизии.
+function extractCanvasAndScript(fullHtml, canvasId) {
+    const canvasMarker = '<canvas id="mainCanvas"></canvas>';
+    const wrapperCloseMarker = '\n  </div>\n  <div class="controls"';
+    const scriptOpenMarker = '<script>\n';
+    const scriptCloseMarker = '</script>\n</body>\n</html>';
+
+    const cStart = fullHtml.indexOf(canvasMarker);
+    const cEnd = fullHtml.indexOf(wrapperCloseMarker, cStart);
+    const sStart = fullHtml.indexOf(scriptOpenMarker) + scriptOpenMarker.length;
+    const sEnd = fullHtml.lastIndexOf(scriptCloseMarker);
+    if (cStart < 0 || cEnd < 0 || sStart < 0 || sEnd < 0) {
+        throw new Error('Не удалось разобрать сгенерированный HTML для совмещения 2D и 3D (внутренняя ошибка компилятора)');
+    }
+
+    let canvasBlock = fullHtml.slice(cStart, cEnd);
+    let scriptInner = fullHtml.slice(sStart, sEnd);
+    canvasBlock = canvasBlock.split('mainCanvas').join(canvasId);
+    scriptInner = scriptInner.split('mainCanvas').join(canvasId);
+    return { canvasBlock, scriptInner };
+}
+
+// Совмещает уже сгенерированные html2D/html3D в одну страницу с двумя наложенными,
+// прозрачными холстами в одном .canvas-wrapper — оба движка (2D Canvas2D и 3D Three.js)
+// работают как и раньше, каждый в своём (function(){...})(), просто теперь оба рисуют
+// в одном визуальном контейнере вместо двух отдельных документов.
+function combineHtml2D3D(html2D, html3D, layer2D) {
+    const frag2D = extractCanvasAndScript(html2D, 'canvas2D');
+    const frag3D = extractCanvasAndScript(html3D, 'canvas3D');
+    const twoDOnTop = layer2D !== 'below';
+
+    // uiOverlay — общий якорь для UI поверх холста; достаточно одного (3D его уже содержит).
+    // formulaOverlay же есть только у 2D (нужен KaTeX-формулам) — его оставляем.
+    let canvas2DBlock = frag2D.canvasBlock.replace(
+        /\n\s*<div id="uiOverlay"[^>]*><\/div>/, ''
+    );
+
+    let combined = html3D;
+
+    // KaTeX нужен 2D-движку для формул/описания — 3D его не подключает, добавляем.
+    combined = combined.replace(
+        '<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"><\/script>\n',
+        '<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"><\/script>\n' +
+        '  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">\n' +
+        '  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"><\/script>\n'
+    );
+
+    // Оба холста накладываются друг на друга внутри .canvas-wrapper (у него уже position:relative).
+    combined = combined.replace(
+        '  <' + '/style>\n',
+        '    .canvas-wrapper canvas { position:absolute; top:0; left:0; width:100%; height:100%; }\n' +
+        '  <' + '/style>\n'
+    );
+
+    // Порядок в DOM = порядок отрисовки: то, что вставлено позже, оказывается визуально
+    // сверху и первым получает события мыши/тача. По умолчанию 2D сверху; '2D layer' = "below"
+    // меняет местами (нужен для интерактивности слоя, который сейчас не наверху — см. роутер ниже).
+    const canvasMarker = '<canvas id="mainCanvas"></canvas>';
+    const wrapperCloseMarker = '\n  </div>\n  <div class="controls"';
+    const cStart = combined.indexOf(canvasMarker);
+    const cEnd = combined.indexOf(wrapperCloseMarker, cStart);
+    const stacked = twoDOnTop
+        ? ('\n    ' + frag3D.canvasBlock + '\n    ' + canvas2DBlock.trim())
+        : (canvas2DBlock + '\n    ' + frag3D.canvasBlock);
+    combined = combined.slice(0, cStart) + stacked + combined.slice(cEnd);
+
+    const scriptOpenMarker = '<script>\n';
+    const scriptCloseMarker = '</script>\n</body>\n</html>';
+    const sStart = combined.lastIndexOf(scriptOpenMarker);
+    const sEnd = combined.lastIndexOf(scriptCloseMarker);
+
+    // Роутер кликов между слоями: верхний холст получает событие первым (обычный DOM-порядок).
+    // Если движок верхнего слоя ничего не «забрал» (не начал драг точки/линии/камеры) —
+    // передаём это же нажатие нижнему холсту, временно включая ему pointer-events.
+    // Так оба слоя остаются интерактивными, а не только тот, что нарисован сверху.
+    const routerScript =
+        '<script>\n' +
+        '(function() {\n' +
+        '  function ready() { return window.__gc2D_canvas && window.__gc3D_canvas && window.__gc2D_isActive && window.__gc3D_isActive; }\n' +
+        '  function init() {\n' +
+        '    if (!ready()) { requestAnimationFrame(init); return; }\n' +
+        '    var top2D = ' + String(twoDOnTop) + ';\n' +
+        '    var topCanvas = top2D ? window.__gc2D_canvas : window.__gc3D_canvas;\n' +
+        '    var bottomCanvas = top2D ? window.__gc3D_canvas : window.__gc2D_canvas;\n' +
+        '    var topActive = top2D ? window.__gc2D_isActive : window.__gc3D_isActive;\n' +
+        '    bottomCanvas.style.pointerEvents = \'none\';\n' +
+        '    function restore() { topCanvas.style.pointerEvents = \'auto\'; bottomCanvas.style.pointerEvents = \'none\'; }\n' +
+        '    function forward(e) {\n' +
+        '      if (topActive()) return;\n' +
+        '      if (e.type.indexOf(\'touch\') === 0) return; // клоны TouchEvent ненадёжны кроссбраузерно — пропускаем только мышь\n' +
+        '      topCanvas.style.pointerEvents = \'none\'; bottomCanvas.style.pointerEvents = \'auto\';\n' +
+        '      var clone = new MouseEvent(e.type, e);\n' +
+        '      bottomCanvas.dispatchEvent(clone);\n' +
+        '    }\n' +
+        '    topCanvas.addEventListener(\'mousedown\', forward, false);\n' +
+        '    window.addEventListener(\'mouseup\', restore, true);\n' +
+        '    window.addEventListener(\'touchend\', restore, true);\n' +
+        '  }\n' +
+        '  init();\n' +
+        '})();\n' +
+        '</' + 'script>\n';
+
+    combined = combined.slice(0, sStart + scriptOpenMarker.length) +
+        frag2D.scriptInner + '</script>\n' +
+        '<script>window.__gcCombined = true;</script>\n' +
+        '<script>\n' + frag3D.scriptInner +
+        combined.slice(sEnd, sEnd + scriptCloseMarker.length - '</body>\n</html>'.length) +
+        routerScript +
+        combined.slice(sEnd + scriptCloseMarker.length - '</body>\n</html>'.length);
+
+    return combined;
+}
+
     function compile(sourceCode) {
         try {
             const match = sourceCode.match(/\[([\s\S]*)\]/);
@@ -15252,12 +16833,6 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
 
             if (cmdErrors.length > 0) {
                 return { success: false, errors: cmdErrors.map(e => e.message) };
-            }
-
-            // Объёмные примитивы, сечения (new Section), булевы операции (new Boolean) и
-            // специфичные для 3D углы (new Angle3D) осмысленны только в 3D-сцене.
-            if (params.space === '2D' && (primitives.length > 0 || derivedOps.length > 0 || angles3D.length > 0)) {
-                return { success: false, errors: ['new Primitive/Section/Boolean/Angle3D (объёмные примитивы, сечения, булевы операции, 3D-углы) доступны только при space = "3D"'] };
             }
 
             // Валидация ссылок на функции: draw Function/Surface и Trajectory(system=...)
@@ -15298,26 +16873,107 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
                 }
             }
 
+            // "space" больше не существует как отдельный параметр — измерение (2D/3D) теперь
+            // прибито к каждому объекту (Point/Point2D/Point3D и т.п., см. parseCommands).
+            // generate2D/generate3D сами по себе не тронуты и по-прежнему каждый строит свой
+            // полностью самостоятельный HTML-документ. Когда в сцене есть только один "мир"
+            // (только 2D или только 3D), результат — это в точности их прежний вывод. Когда
+            // присутствуют оба — combineHtml2D3D() склеивает два уже готовых документа в один:
+            // холсты накладываются друг на друга в одном .canvas-wrapper, а движки остаются
+            // двумя независимыми, самодостаточными (function(){...})() — как и раньше.
+            //
+            // Общее состояние между слоями в комбинированной сцене:
+            // — Переменные (vars/Start/Update): единственный источник правды — window.
+            //   2D пишет и читает пользовательские переменные напрямую через window[имя];
+            //   3D в комбинированном режиме подключается к тем же ключам через Proxy
+            //   (см. userVars в generate3D). Start/Update реально выполняет только 2D-слой —
+            //   3D получает тот же самый исходный код, но не запускает его повторно, иначе
+            //   побочные эффекты вроде t += dt применялись бы дважды за кадр.
+            // — Время: 2D публикует свои часы в window.__gcElapsedTime на каждый Update;
+            //   3D в комбинированном режиме читает их оттуда (вместо собственного таймера),
+            //   поэтому переменная time означает одно и то же значение в обоих слоях в один
+            //   и тот же кадр. В одиночной 3D-сцене (без 2D) 3D ведёт часы сам.
+            // — UI (new UI): элементы управления рисует только 2D-слой (чтобы не дублировались
+            //   визуально); поскольку слайдеры/кнопки пишут в те же window-переменные, эффект
+            //   виден в обоих слоях одинаково.
+            // — Методы (Function/Void): каждый слой по-прежнему выполняет их в собственном,
+            //   независимом интерпретаторе (2D — glExecStatements, 3D — g3ExecStatement).
+            //   Именованные геометрические объекты (точки/линии/примитивы и т.п.) при этом
+            //   НЕ являются общими — они существуют только в "своём" слое; общими являются
+            //   именно скалярные/строковые/булевы пользовательские переменные.
+            // — Известное оставшееся ограничение: числовые параметры Primitive/Boolean/Section
+            //   (pos/rotate/radius и т.п.) вычисляются один раз при компиляции из тогдашнего
+            //   снимка vars и не пересчитываются в рантайме — в отличие от 2D, где положение
+            //   объекта может быть формулой, живо зависящей от переменных. Полноценная реактивная
+            //   параметризация тел — отдельная, более крупная задача.
+            const by2D = (arr) => (arr || []).filter(o => o.dim === '2D');
+            const by3D = (arr) => (arr || []).filter(o => o.dim === '3D');
+            const anyDim = (arr, dim) => (arr || []).some(o => o.dim === dim);
+
+            const has3D = primitives.length > 0 || derivedOps.length > 0 || angles3D.length > 0 || drawInfPlanes.length > 0 ||
+                anyDim(points, '3D') || anyDim(lines, '3D') || anyDim(figures, '3D') || anyDim(clusters, '3D') ||
+                anyDim(drawVectors, '3D') || anyDim(drawFillings, '3D') || anyDim(drawTexts, '3D') ||
+                anyDim(curves, '3D') || anyDim(drawSurfaces, '3D') || anyDim(drawFields, '3D') || anyDim(drawTrajectories, '3D') ||
+                anyDim(drawInfLines, '3D') || anyDim(drawImages, '3D') || anyDim(drawPunctirs, '3D') || anyDim(drawEqually, '3D') || anyDim(drawHistograms, '3D') || anyDim(drawCharts, '3D') || anyDim(drawTrees, '3D') || anyDim(drawTables, '3D') || anyDim(drawGraphs, '3D') || anyDim(drawCobwebs, '3D') || anyDim(drawBifurcations, '3D');
+            const has2D = circles.length > 0 || arcs.length > 0 || ellipses.length > 0 || drawFunctions.length > 0 ||
+                drawFractals.length > 0 || drawFormulas.length > 0 ||
+                drawLoci.length > 0 || drawTraces.length > 0 || drawRegions.length > 0 ||
+                drawComplexes.length > 0 || drawHyperbolics.length > 0 ||
+                drawIFSs.length > 0 || drawAutomata.length > 0 || drawVoronois.length > 0 || drawFouriers.length > 0 ||
+                drawDiagrams.length > 0 || angles.length > 0 || drawAngles.length > 0 ||
+                anyDim(points, '2D') || anyDim(lines, '2D') || anyDim(figures, '2D') || anyDim(clusters, '2D') ||
+                anyDim(drawVectors, '2D') || anyDim(drawFillings, '2D') || anyDim(drawTexts, '2D') ||
+                anyDim(curves, '2D') || anyDim(drawSurfaces, '2D') || anyDim(drawFields, '2D') || anyDim(drawTrajectories, '2D') ||
+                anyDim(drawInfLines, '2D') || anyDim(drawImages, '2D') || anyDim(drawPunctirs, '2D') || anyDim(drawEqually, '2D') || anyDim(drawHistograms, '2D') || anyDim(drawCharts, '2D') || anyDim(drawTrees, '2D') || anyDim(drawTables, '2D') || anyDim(drawGraphs, '2D') || anyDim(drawCobwebs, '2D') || anyDim(drawBifurcations, '2D');
+
             let html;
-            if (params.space === '2D') {
-                html = generate2D(
+            if (has2D && has3D) {
+                const html2D = generate2D(
                     params,
-                    points, lines, figures, clusters, angles,
-                    drawAngles, drawEqually, drawVectors, drawInfLines, drawFillings, drawPunctirs,
-                    drawTexts, uiElements, circles, arcs, ellipses, curves, drawFunctions, drawSurfaces, drawImages,
-                    drawHistograms, drawFields, drawTrajectories, drawGraphs, drawFractals,
-                    drawFormulas, drawLoci, drawTraces, drawRegions, drawCharts, drawTrees, drawTables,
-                    drawComplexes, drawHyperbolics, drawBifurcations, drawCobwebs, drawIFSs, drawAutomata, drawVoronois, drawFouriers, drawDiagrams,
+                    by2D(points), by2D(lines), by2D(figures), by2D(clusters), angles,
+                    drawAngles, by2D(drawEqually), by2D(drawVectors), by2D(drawInfLines), by2D(drawFillings), by2D(drawPunctirs),
+                    by2D(drawTexts), uiElements, circles, arcs, ellipses, by2D(curves), drawFunctions, by2D(drawSurfaces), by2D(drawImages),
+                    by2D(drawHistograms), by2D(drawFields), by2D(drawTrajectories), by2D(drawGraphs), drawFractals,
+                    drawFormulas, drawLoci, drawTraces, drawRegions, by2D(drawCharts), by2D(drawTrees), by2D(drawTables),
+                    drawComplexes, drawHyperbolics, by2D(drawBifurcations), by2D(drawCobwebs), drawIFSs, drawAutomata, drawVoronois, drawFouriers, drawDiagrams,
                     funcsData, procsData, vars, startCodes, updateCodes
                 );
-            } else {
-                html = generate3D(
+                const html3D = generate3D(
                     params,
-                    points, lines, figures, clusters, drawFillings, angles, drawAngles, drawVectors,
-                    drawSurfaces, drawFields, curves, drawTrajectories, drawTexts, uiElements,
+                    by3D(points), by3D(lines), by3D(figures), by3D(clusters), by3D(drawFillings), angles, drawAngles, by3D(drawVectors),
+                    by3D(drawSurfaces), by3D(drawFields), by3D(curves), by3D(drawTrajectories), by3D(drawTexts), [],
                     drawInfPlanes,
                     funcsData, procsData, vars, startCodes, updateCodes,
-                    primitives, derivedOps, angles3D
+                    primitives, derivedOps, angles3D, by3D(drawInfLines), by3D(drawImages), by3D(drawPunctirs), by3D(drawEqually), by3D(drawHistograms), by3D(drawCharts), by3D(drawTrees), by3D(drawTables), by3D(drawGraphs), by3D(drawCobwebs), by3D(drawBifurcations)
+                );
+                if (!html2D || !html3D) {
+                    return { success: false, errors: ['Ошибка генерации HTML'] };
+                }
+                try {
+                    html = combineHtml2D3D(html2D, html3D, params['2D layer']);
+                    if (!params.footer) html = html.replace(' · пространство: 3D', '');
+                } catch (e) {
+                    return { success: false, errors: [e.message] };
+                }
+            } else if (has3D) {
+                html = generate3D(
+                    params,
+                    by3D(points), by3D(lines), by3D(figures), by3D(clusters), by3D(drawFillings), angles, drawAngles, by3D(drawVectors),
+                    by3D(drawSurfaces), by3D(drawFields), by3D(curves), by3D(drawTrajectories), by3D(drawTexts), uiElements,
+                    drawInfPlanes,
+                    funcsData, procsData, vars, startCodes, updateCodes,
+                    primitives, derivedOps, angles3D, by3D(drawInfLines), by3D(drawImages), by3D(drawPunctirs), by3D(drawEqually), by3D(drawHistograms), by3D(drawCharts), by3D(drawTrees), by3D(drawTables), by3D(drawGraphs), by3D(drawCobwebs), by3D(drawBifurcations)
+                );
+            } else {
+                html = generate2D(
+                    params,
+                    by2D(points), by2D(lines), by2D(figures), by2D(clusters), angles,
+                    drawAngles, by2D(drawEqually), by2D(drawVectors), by2D(drawInfLines), by2D(drawFillings), by2D(drawPunctirs),
+                    by2D(drawTexts), uiElements, circles, arcs, ellipses, by2D(curves), drawFunctions, by2D(drawSurfaces), by2D(drawImages),
+                    by2D(drawHistograms), by2D(drawFields), by2D(drawTrajectories), by2D(drawGraphs), drawFractals,
+                    drawFormulas, drawLoci, drawTraces, drawRegions, by2D(drawCharts), by2D(drawTrees), by2D(drawTables),
+                    drawComplexes, drawHyperbolics, by2D(drawBifurcations), by2D(drawCobwebs), drawIFSs, drawAutomata, drawVoronois, drawFouriers, drawDiagrams,
+                    funcsData, procsData, vars, startCodes, updateCodes
                 );
             }
 
