@@ -38,10 +38,10 @@ function initTheme() {
     if (saved === 'light' || saved === 'dark') {
         applyTheme(saved, false, false);
     } else {
-        applySystemTheme(false);
+        applySystemTheme(false, false);
         window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
             if (localStorage.getItem('theme') === 'system' || !localStorage.getItem('theme')) {
-                applySystemTheme(true);
+                applySystemTheme(true, false);
             }
         });
     }
@@ -54,9 +54,12 @@ function applyTheme(theme, save = true, animated = true) {
         animateThemeChange(theme, () => {
             applyThemeImmediate(theme, save);
             isThemeAnimating = false;
+            // Обновляем выделение в UI
+            updateAllThemeSelections(theme);
         });
     } else {
         applyThemeImmediate(theme, save);
+        updateAllThemeSelections(theme);
     }
 }
 
@@ -69,11 +72,32 @@ function applyThemeImmediate(theme, save = true) {
     updateHeroBackground(theme);
 }
 
-function applySystemTheme(save = true) {
+function applySystemTheme(save = true, animated = true) {
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    const theme = prefersDark ? 'dark' : 'light';
-    applyTheme(theme, false, false);
-    if (save) localStorage.setItem('theme', 'system');
+    const targetTheme = prefersDark ? 'dark' : 'light';
+    const currentTheme = localStorage.getItem('theme') || 'system';
+
+    // Если системная тема совпадает с текущей, просто обновляем выделение
+    if (targetTheme === currentTheme) {
+        if (save) localStorage.setItem('theme', 'system');
+        updateAllThemeSelections('system');
+        return;
+    }
+
+    // Применяем системную тему как "system" (сохраняем в localStorage)
+    if (animated) {
+        isThemeAnimating = true;
+        animateThemeChange(targetTheme, () => {
+            applyThemeImmediate(targetTheme, false);
+            if (save) localStorage.setItem('theme', 'system');
+            isThemeAnimating = false;
+            updateAllThemeSelections('system');
+        });
+    } else {
+        applyThemeImmediate(targetTheme, false);
+        if (save) localStorage.setItem('theme', 'system');
+        updateAllThemeSelections('system');
+    }
 }
 
 function animateThemeChange(theme, callback) {
@@ -145,6 +169,14 @@ function updateHeroBackground(theme) {
     const root = document.documentElement;
     const isLight = theme === 'light';
     root.style.setProperty('--hero-bg', isLight ? 'var(--hero-bg-light)' : 'var(--hero-bg-dark)');
+}
+
+// ===== ОБНОВЛЕНИЕ ВЫДЕЛЕНИЯ ТЕМЫ ВО ВСЕХ МОДАЛКАХ =====
+function updateAllThemeSelections(theme) {
+    document.querySelectorAll('.theme-option').forEach(btn => {
+        const isActive = btn.dataset.theme === theme;
+        btn.classList.toggle('active', isActive);
+    });
 }
 
 // ===== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ДЛЯ АУТЕНТИФИКАЦИИ =====
@@ -245,6 +277,22 @@ function injectAuthModal() {
         </button>
       </div>
       <div id="recaptcha-container"></div>
+
+      <!-- Тема -->
+      <div style="margin: 1.2rem 0 0; border-top:1px solid var(--border); padding-top:0.8rem;">
+        <div style="font-weight:600; font-size:0.85rem; margin-bottom:0.6rem; color:var(--text-secondary); text-align:center;">Тема</div>
+        <div id="theme-selector-auth">
+          <button class="theme-option" data-theme="light" title="Светлая">
+            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23fbbf24' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='5'/%3E%3Cline x1='12' y1='1' x2='12' y2='3'/%3E%3Cline x1='12' y1='21' x2='12' y2='23'/%3E%3Cline x1='4.22' y1='4.22' x2='5.64' y2='5.64'/%3E%3Cline x1='18.36' y1='18.36' x2='19.78' y2='19.78'/%3E%3Cline x1='1' y1='12' x2='3' y2='12'/%3E%3Cline x1='21' y1='12' x2='23' y2='12'/%3E%3Cline x1='4.22' y1='19.78' x2='5.64' y2='18.36'/%3E%3Cline x1='18.36' y1='5.64' x2='19.78' y2='4.22'/%3E%3C/svg%3E" alt="Светлая" />
+          </button>
+          <button class="theme-option" data-theme="dark" title="Тёмная">
+            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23818cf8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z'/%3E%3C/svg%3E" alt="Тёмная" />
+          </button>
+          <button class="theme-option" data-theme="system" title="Системная">
+            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='2' y='3' width='20' height='14' rx='2' ry='2'/%3E%3Cline x1='8' y1='21' x2='16' y2='21'/%3E%3Cline x1='12' y1='17' x2='12' y2='21'/%3E%3C/svg%3E" alt="Системная" />
+          </button>
+        </div>
+      </div>
     </div>
   `;
     document.body.insertAdjacentHTML('beforeend', html);
@@ -257,6 +305,24 @@ function injectAuthModal() {
     const loginSection = document.getElementById('login-section');
     const registerSection = document.getElementById('register-section');
     const phoneVerifySection = document.getElementById('phone-verify-section');
+
+    // ===== Обработчики выбора темы в окне входа =====
+    const themeOptionsAuth = modal.querySelectorAll('#theme-selector-auth .theme-option');
+    themeOptionsAuth.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const theme = btn.dataset.theme;
+            const currentTheme = localStorage.getItem('theme') || 'system';
+            if (theme === currentTheme) return;
+
+            if (theme === 'system') {
+                applySystemTheme(true, true); // с анимацией
+            } else {
+                applyTheme(theme, true, true);
+            }
+            // Обновляем выделение во всех модалках
+            updateAllThemeSelections(theme);
+        });
+    });
 
     function showLoginTab() {
         tabLogin.classList.add('active');
@@ -290,6 +356,10 @@ function injectAuthModal() {
         document.getElementById('reg-password').value = '';
         document.getElementById('verification-code').value = '';
         confirmationResult = null;
+
+        // Обновляем выделение темы в модалке
+        const currentTheme = localStorage.getItem('theme') || 'system';
+        updateAllThemeSelections(currentTheme);
     }
 
     window.openAuthModal = openAuth;
@@ -421,7 +491,7 @@ function injectSettingsModal() {
       <!-- Тема -->
       <div style="margin: 1.2rem 0 0.8rem; border-top:1px solid var(--border); padding-top:1rem;">
         <div style="font-weight:600; font-size:0.85rem; margin-bottom:0.6rem; color:var(--text-secondary); text-align:center;">Тема</div>
-        <div id="theme-selector">
+        <div id="theme-selector-settings">
           <button class="theme-option" data-theme="light" title="Светлая">
             <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23fbbf24' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='5'/%3E%3Cline x1='12' y1='1' x2='12' y2='3'/%3E%3Cline x1='12' y1='21' x2='12' y2='23'/%3E%3Cline x1='4.22' y1='4.22' x2='5.64' y2='5.64'/%3E%3Cline x1='18.36' y1='18.36' x2='19.78' y2='19.78'/%3E%3Cline x1='1' y1='12' x2='3' y2='12'/%3E%3Cline x1='21' y1='12' x2='23' y2='12'/%3E%3Cline x1='4.22' y1='19.78' x2='5.64' y2='18.36'/%3E%3Cline x1='18.36' y1='5.64' x2='19.78' y2='4.22'/%3E%3C/svg%3E" alt="Светлая" />
           </button>
@@ -458,43 +528,20 @@ function injectSettingsModal() {
     const changePasswordBtn = document.getElementById('change-password-btn');
     const logoutBtn = document.getElementById('logout-btn');
 
-    // Выбор темы
-    const themeOptions = modal.querySelectorAll('.theme-option');
-    let lastAppliedTheme = localStorage.getItem('theme') || 'system';
-
-    function updateThemeSelection(theme) {
-        themeOptions.forEach(btn => {
-            const isActive = btn.dataset.theme === theme;
-            btn.classList.toggle('active', isActive);
-        });
-    }
-
-    themeOptions.forEach(btn => {
+    // ===== Обработчики выбора темы в настройках =====
+    const themeOptionsSettings = modal.querySelectorAll('#theme-selector-settings .theme-option');
+    themeOptionsSettings.forEach(btn => {
         btn.addEventListener('click', () => {
             const theme = btn.dataset.theme;
-            // Если это та же тема, что уже применена — ничего не делаем
             const currentTheme = localStorage.getItem('theme') || 'system';
             if (theme === currentTheme) return;
 
-            // Применяем тему с анимацией (или без, если системная)
             if (theme === 'system') {
-                // Системная: определяем предпочтение системы и применяем без анимации, если она не совпадает
-                const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-                const targetTheme = prefersDark ? 'dark' : 'light';
-                // Если системная тема совпадает с текущей, ничего не делаем
-                if (targetTheme === currentTheme) {
-                    // Но нужно обновить выделение
-                    updateThemeSelection('system');
-                    return;
-                }
-                // Применяем системную тему с анимацией (но сама системная записывается как system)
-                applySystemTheme(true);
+                applySystemTheme(true, true);
             } else {
                 applyTheme(theme, true, true);
             }
-            // Обновляем выделение после применения
-            const newTheme = localStorage.getItem('theme') || 'system';
-            updateThemeSelection(newTheme);
+            updateAllThemeSelections(theme);
         });
     });
 
@@ -525,9 +572,9 @@ function injectSettingsModal() {
         const isPasswordProvider = user.providerData.some(p => p.providerId === 'password');
         changePasswordBtn.style.display = isPasswordProvider ? '' : 'none';
 
-        // Обновляем выбор темы
+        // Обновляем выделение темы
         const currentTheme = localStorage.getItem('theme') || 'system';
-        updateThemeSelection(currentTheme);
+        updateAllThemeSelections(currentTheme);
     }
     populateSettingsRef = populateSettings;
 
@@ -619,7 +666,7 @@ function renderHeader() {
 
     const navHTML = navLinks
         .map(link => {
-            const isActive = link.href === currentFile || 
+            const isActive = link.href === currentFile ||
                             (currentFile === '' && link.href === 'index.html') ||
                             currentPath.endsWith(link.href);
             const activeClass = isActive ? ' active' : '';
