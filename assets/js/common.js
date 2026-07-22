@@ -148,7 +148,6 @@ function applyTheme(theme, save = true, animated = true) {
     if (isThemeAnimating) return;
     const currentActual = document.documentElement.classList.contains('light') ? 'light' : 'dark';
 
-    // Если запрошенная тема уже активна – просто сохраняем и обновляем выделение (без анимации)
     if (theme === currentActual) {
         if (save) localStorage.setItem('theme', theme);
         updateAllThemeSelections(theme);
@@ -157,12 +156,10 @@ function applyTheme(theme, save = true, animated = true) {
 
     if (animated) {
         isThemeAnimating = true;
-        // Мгновенно обновляем выделение до начала анимации
         updateAllThemeSelections(theme);
         animateThemeChange(theme, () => {
             applyThemeImmediate(theme, save);
             isThemeAnimating = false;
-            // Дополнительная синхронизация после анимации
             updateAllThemeSelections(theme);
         });
     } else {
@@ -185,7 +182,6 @@ function applySystemTheme(save = true, animated = true) {
     const targetTheme = prefersDark ? 'dark' : 'light';
     const currentActual = document.documentElement.classList.contains('light') ? 'light' : 'dark';
 
-    // Если системная тема совпадает с фактической – просто сохраняем и обновляем выделение
     if (targetTheme === currentActual) {
         if (save) localStorage.setItem('theme', 'system');
         updateAllThemeSelections('system');
@@ -194,7 +190,6 @@ function applySystemTheme(save = true, animated = true) {
 
     if (animated) {
         isThemeAnimating = true;
-        // Мгновенно обновляем выделение до начала анимации
         updateAllThemeSelections('system');
         animateThemeChange(targetTheme, () => {
             applyThemeImmediate(targetTheme, false);
@@ -269,8 +264,14 @@ function animateThemeChange(theme, callback) {
 
 function updateThemeImages(mode) {
     document.querySelectorAll('img[data-light-src][data-dark-src]').forEach(img => {
-        const src = mode === 'light' ? img.dataset.lightSrc : img.dataset.darkSrc;
-        if (src) img.src = PAGE_ROOT + src;
+        let src = mode === 'light' ? img.dataset.lightSrc : img.dataset.darkSrc;
+        if (src) {
+            // Если src – абсолютный URL, не добавляем PAGE_ROOT
+            if (!src.startsWith('http://') && !src.startsWith('https://')) {
+                src = PAGE_ROOT + src;
+            }
+            img.src = src;
+        }
     });
 }
 
@@ -383,7 +384,9 @@ function injectAuthModal() {
           <img src="https://logo-teka.com/wp-content/uploads/2025/06/google-logo.svg" alt="Google" />
         </button>
         <button class="social-btn" id="apple-login-btn">
-          <img src="https://abali.ru/wp-content/uploads/2012/09/logo_apple.png" alt="Apple" />
+          <img src="https://abali.ru/wp-content/uploads/2012/09/logo_apple.png" alt="Apple"
+               data-light-src="https://upload.wikimedia.org/wikipedia/commons/f/fa/Apple_logo_black.svg"
+               data-dark-src="https://abali.ru/wp-content/uploads/2012/09/logo_apple.png" />
         </button>
       </div>
       <div id="recaptcha-container"></div>
@@ -406,6 +409,10 @@ function injectAuthModal() {
     </div>
   `;
     document.body.insertAdjacentHTML('beforeend', html);
+
+    // Обновляем изображения для Apple в зависимости от текущей темы
+    const currentMode = document.documentElement.classList.contains('light') ? 'light' : 'dark';
+    updateThemeImages(currentMode);
 
     const overlay = document.getElementById('auth-overlay');
     const modal = document.getElementById('auth-modal');
@@ -464,6 +471,8 @@ function injectAuthModal() {
 
         const currentTheme = localStorage.getItem('theme') || 'system';
         updateAllThemeSelections(currentTheme);
+        // Обновляем логотип Apple
+        updateThemeImages(document.documentElement.classList.contains('light') ? 'light' : 'dark');
     }
 
     window.openAuthModal = openAuth;
