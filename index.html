@@ -6,7 +6,7 @@
   <title>MathFrame — интерактивная математика</title>
 
   <style>
-    /* ===== ПОДКЛЮЧЕНИЕ ЛОКАЛЬНЫХ ШРИФТОВ (OTF) ===== */ 
+    /* ===== ПОДКЛЮЧЕНИЕ ЛОКАЛЬНЫХ ШРИФТОВ (OTF) ===== */
     @font-face {
       font-family: 'LogoFont';
       src: url('assets/fonts/logo-font.otf') format('opentype');
@@ -14,10 +14,10 @@
       font-style: normal;
     }
 
-    @font-face { 
-      font-family: 'BodyFont';  
+    @font-face {
+      font-family: 'BodyFont';
       src: url('assets/fonts/body-font.otf') format('opentype');
-      font-weight: 400; 
+      font-weight: 400;
       font-style: normal;
     }
     @font-face {
@@ -44,8 +44,7 @@
       --hero-bg-dark: url(assets/img/hero-bg.webp);
       --hero-bg-light: url(assets/img/hero-bg-light.webp);
       --hero-bg: var(--hero-bg-dark);
-      
-      /* Переменные для цвета фона и градиента hero */
+
       --hero-bg-color: #020408;
       --hero-gradient-end: #020408;
     }
@@ -117,7 +116,7 @@
       letter-spacing: -0.03em;
       margin-bottom: 1rem;
       color: #3b82f6;
-      text-shadow: 
+      text-shadow:
         0 0 20px rgba(59, 130, 246, 0.7),
         0 0 40px rgba(59, 130, 246, 0.4),
         0 4px 12px rgba(0,0,0,0.6);
@@ -147,7 +146,7 @@
       flex-wrap: wrap;
     }
 
-    /* ===== КНОПКИ (стили из common.css переопределены, оставляем только специфику) ===== */
+    /* ===== КНОПКИ ===== */
     .btn {
       display: inline-flex;
       align-items: center;
@@ -251,63 +250,69 @@
     }
 
     /* ===== СЕТКА РАЗДЕЛОВ ===== */
-/* ===== СЕТКА РАЗДЕЛОВ ===== */
-.sections {
-  position: relative;
-  z-index: 2;
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 1.8rem;
-  max-width: 1100px;
-  margin: -5rem auto 4rem;
-  padding: 0 2rem;
-}
+    .sections {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 1.8rem;
+      max-width: 1100px;
+      margin: -5rem auto 4rem;
+      padding: 0 2rem;
+    }
 
-.section-card {
-  background: rgba(10, 20, 40, 0.35);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 0.5rem;
-  padding: 2rem;
-  box-shadow: 0 25px 40px rgba(0,0,0,0.4);
-  transition: all 0.35s cubic-bezier(0.23, 1, 0.32, 1);
-  /* цвет текста убран, будет наследоваться из body или задан в common.css */
-  text-decoration: none;
-  width: calc(33.333% - 1.8rem);
-  min-width: 280px;
-  max-width: 380px;
-}
+    .section-card {
+      background: rgba(10, 20, 40, 0.35);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 0.5rem;
+      padding: 2rem;
+      box-shadow: 0 25px 40px rgba(0,0,0,0.4);
+      transition: all 0.35s cubic-bezier(0.23, 1, 0.32, 1);
+      text-decoration: none;
+      width: calc(33.333% - 1.8rem);
+      min-width: 280px;
+      max-width: 380px;
+    }
 
-.section-card:hover {
-  transform: translateY(-6px);
-  border-color: rgba(99, 102, 241, 0.5);
-  box-shadow: 0 30px 50px rgba(0,0,0,0.6), 0 0 20px rgba(99,102,241,0.2);
-  background: rgba(15, 25, 50, 0.55);
-}
+    .section-card:hover {
+      transform: translateY(-6px);
+      border-color: rgba(99, 102, 241, 0.5);
+      box-shadow: 0 30px 50px rgba(0,0,0,0.6), 0 0 20px rgba(99,102,241,0.2);
+      background: rgba(15, 25, 50, 0.55);
+    }
 
-.section-card h3 {
-  font-size: 1.5rem;
-  margin-bottom: 0.8rem;
-  font-weight: 700;
-}
+    .section-card h3 {
+      font-size: 1.5rem;
+      margin-bottom: 0.8rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 0.3rem;
+    }
+    .section-card h3 svg {
+      width: 24px;
+      height: 24px;
+      flex-shrink: 0;
+    }
 
-.section-card p {
-  color: var(--text-secondary);
-  margin-bottom: 1.5rem;
-}
+    .section-card p {
+      color: var(--text-secondary);
+      margin-bottom: 1.5rem;
+    }
 
-.section-card a {
-  color: var(--accent);
-  font-weight: 600;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  transition: gap 0.3s;
-}
+    .section-card a {
+      color: var(--accent);
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      transition: gap 0.3s;
+    }
 
-.section-card a:hover { gap: 0.6rem; }
+    .section-card a:hover { gap: 0.6rem; }
 
     @keyframes fadeInUp {
       from { opacity: 0; transform: translateY(30px); }
@@ -364,28 +369,68 @@
     </section>
 
     <section class="sections">
+      <!-- Справочник -->
       <div class="section-card">
-        <h3>📘 Справочник</h3>
+        <h3>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+          </svg>
+          Справочник
+        </h3>
         <p>Все темы математики с интерактивными примерами.</p>
         <a href="pages/spravochnik.html">Открыть →</a>
       </div>
+
+      <!-- Мини‑сервисы -->
       <div class="section-card">
-        <h3>🔧 Мини‑сервисы</h3>
+        <h3>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+          </svg>
+          Мини‑сервисы
+        </h3>
         <p>Калькуляторы, решатели, конвертеры и инструменты.</p>
         <a href="pages/mini-services.html">Попробовать →</a>
       </div>
+
+      <!-- Форум -->
       <div class="section-card">
-        <h3>💬 Форум</h3>
+        <h3>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+          </svg>
+          Форум
+        </h3>
         <p>Обсуждайте задачи, помогайте друг другу.</p>
         <a href="pages/forum.html">Перейти →</a>
       </div>
+
+      <!-- AI‑агент -->
       <div class="section-card">
-        <h3>🤖 AI‑агент</h3>
+        <h3>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1H2a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2z"/>
+            <circle cx="9" cy="15" r="1"/>
+            <circle cx="15" cy="15" r="1"/>
+            <path d="M9 15v-2a3 3 0 0 1 6 0v2"/>
+          </svg>
+          AI‑агент
+        </h3>
         <p>Получите объяснение или решение от ИИ‑помощника.</p>
         <a href="pages/ai-agent.html">Задать вопрос →</a>
       </div>
+
+      <!-- Песочница -->
       <div class="section-card">
-        <h3>🛠 Песочница</h3>
+        <h3>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="16 18 22 12 16 6"/>
+            <polyline points="8 6 2 12 8 18"/>
+          </svg>
+          Песочница
+        </h3>
         <p>Программируйте интерактивные примеры на нашем языке.</p>
         <a href="pages/playground.html">Открыть редактор →</a>
       </div>
