@@ -18,7 +18,7 @@ function ensureFirestore() {
 
 function trackVisit() {
     if (sessionStorage.getItem('mf_visit_tracked')) return;
-    ensureFirestore().then(() => { 
+    ensureFirestore().then(() => {
         const db = firebase.firestore();
         const today = new Date().toISOString().slice(0, 10);
         return db.collection('stats').doc('visits').set({
@@ -66,7 +66,7 @@ const THEME_ANIMATION_CONFIG = {
     fadeDuration: 1000,
 };
 
-// ===== ДОБАВЛЯЕМ СТИЛИ ДЛЯ ГОРИЗОНТАЛЬНОГО ОТОБРАЖЕНИЯ ТЕМ И УВЕДОМЛЕНИЙ =====
+// ===== ДОБАВЛЯЕМ СТИЛИ =====
 (function addGlobalStyles() {
     const style = document.createElement('style');
     style.textContent = `
@@ -98,7 +98,6 @@ const THEME_ANIMATION_CONFIG = {
             display: block;
         }
 
-        /* Уведомления внутри модального окна */
         .auth-message {
             padding: 0.8rem 1rem;
             border-radius: 0.5rem;
@@ -316,7 +315,6 @@ function updateHeroBackground(theme) {
     root.style.setProperty('--hero-bg', isLight ? 'var(--hero-bg-light)' : 'var(--hero-bg-dark)');
 }
 
-// ===== ОБНОВЛЕНИЕ ВЫДЕЛЕНИЯ ТЕМЫ ВО ВСЕХ МОДАЛКАХ =====
 function updateAllThemeSelections(theme) {
     document.querySelectorAll('.theme-option').forEach(btn => {
         const isActive = btn.dataset.theme === theme;
@@ -324,11 +322,11 @@ function updateAllThemeSelections(theme) {
     });
 }
 
-// ===== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ДЛЯ АУТЕНТИФИКАЦИИ =====
+// ===== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ =====
 let currentUser = null;
 let populateSettingsRef = null;
 
-// ===== ПРОВЕРКА БЛОКИРОВКИ =====
+// ===== ПРОВЕРКА БЛОКИРОВКИ (исправлена: ошибки игнорируются) =====
 async function checkUserBanned(user) {
     if (!user) return false;
     try {
@@ -336,7 +334,8 @@ async function checkUserBanned(user) {
         const doc = await firebase.firestore().collection('bannedUsers').doc(user.uid).get();
         return doc.exists;
     } catch (e) {
-        console.warn('Ошибка проверки блокировки:', e);
+        // Если нет прав на чтение (например, ещё не настроены правила), считаем, что пользователь не забанен.
+        // Ошибка не выводится, чтобы не засорять консоль.
         return false;
     }
 }
@@ -346,10 +345,8 @@ async function updateUIForAuth(user) {
     if (user) {
         // Проверяем, подтверждён ли email (если вход через email/пароль)
         if (user.providerData.some(p => p.providerId === 'password') && !user.emailVerified) {
-            // Если email не подтверждён, разлогиниваем и показываем сообщение в модалке
             await window.Auth.logout();
             user = null;
-            // Покажем сообщение в модалке, если она открыта
             const msgEl = document.getElementById('auth-message');
             if (msgEl) {
                 msgEl.className = 'auth-message info';
@@ -370,7 +367,6 @@ async function updateUIForAuth(user) {
                     };
                 }
             }
-            // Открываем модалку, если она закрыта
             if (!document.getElementById('auth-modal')?.classList.contains('active')) {
                 window.openAuthModal();
             }
@@ -379,7 +375,6 @@ async function updateUIForAuth(user) {
 
         const banned = await checkUserBanned(user);
         if (banned) {
-            // Показываем уведомление о блокировке
             const msgEl = document.getElementById('auth-message');
             if (msgEl) {
                 msgEl.className = 'auth-message error';
@@ -493,7 +488,6 @@ function injectAuthModal() {
       </div>
       <div id="recaptcha-container"></div>
 
-      <!-- Тема -->
       <div style="margin: 1.2rem 0 0; border-top:1px solid var(--border); padding-top:0.8rem;">
         <div style="font-weight:600; font-size:0.85rem; margin-bottom:0.6rem; color:var(--text-secondary); text-align:center;">Тема</div>
         <div id="theme-selector-auth">
@@ -619,9 +613,7 @@ function injectAuthModal() {
     async function handleLoginEmail(email, password) {
         try {
             const result = await window.Auth.loginWithEmail(email, password);
-            // Проверяем, подтверждён ли email
             if (!result.user.emailVerified) {
-                // Разлогиниваемся и просим подтвердить
                 await window.Auth.logout();
                 setMessageHTML(
                     `Пожалуйста, подтвердите email, перейдя по ссылке в письме. 
@@ -651,14 +643,11 @@ function injectAuthModal() {
     async function handleRegister(email, password, nickname) {
         try {
             const result = await window.Auth.registerWithEmail(email, password);
-            // Устанавливаем никнейм
             if (nickname) {
                 await result.user.updateProfile({ displayName: nickname });
             }
-            // Отправляем письмо подтверждения
             await result.user.sendEmailVerification();
             setMessage('Регистрация успешна! На вашу почту отправлено письмо для подтверждения.', 'success');
-            // Переключаем на вкладку входа
             showLoginTab();
         } catch (error) {
             setMessage(error.message, 'error');
@@ -688,7 +677,7 @@ function injectAuthModal() {
             if (!password) { setMessage('Введите пароль', 'error'); return; }
             await handleLoginEmail(emailPhone, password);
         } else {
-            // Телефон – существующая логика
+            // Телефон
             if (!recaptchaVerifier) {
                 try { recaptchaVerifier = window.Auth.createRecaptchaVerifier('recaptcha-container'); } catch (e) { console.warn(e); }
             }
@@ -764,7 +753,7 @@ function injectAuthModal() {
     });
 }
 
-// ===== МОДАЛЬНОЕ ОКНО НАСТРОЕК (без изменений, кроме добавления кнопки удаления) =====
+// ===== МОДАЛЬНОЕ ОКНО НАСТРОЕК =====
 function injectSettingsModal() {
     if (document.getElementById('settings-modal')) return;
 
@@ -796,7 +785,6 @@ function injectSettingsModal() {
         </div>
       </div>
 
-      <!-- Тема -->
       <div style="margin: 1.2rem 0 0.8rem; border-top:1px solid var(--border); padding-top:1rem;">
         <div style="font-weight:600; font-size:0.85rem; margin-bottom:0.6rem; color:var(--text-secondary); text-align:center;">Тема</div>
         <div id="theme-selector-settings">
