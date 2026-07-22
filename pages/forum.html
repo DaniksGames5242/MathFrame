@@ -140,7 +140,7 @@ input.plain:focus{border-color:var(--accent)}
 <script src="../assets/js/auth.js"></script>
 <script src="../assets/js/common.js"></script>
 <script>
-const db = firebase.firestore(), storage = firebase.storage();
+const db = firebase.firestore();
 let currentUser = null, topicsCache = null, viewedSet = new Set(JSON.parse(sessionStorage.getItem('forumViewed')||'[]'));
 let unsubList=null, unsubDetail=null;
 
