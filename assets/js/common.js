@@ -49,12 +49,18 @@ function initTheme() {
 
 function applyTheme(theme, save = true, animated = true) {
     if (isThemeAnimating) return;
+    // Проверяем, не совпадает ли уже фактическая тема
+    const currentActual = document.documentElement.classList.contains('light') ? 'light' : 'dark';
+    if (theme === currentActual && (localStorage.getItem('theme') === theme || localStorage.getItem('theme') === 'system')) {
+        // Если тема уже активна, просто обновляем выделение
+        updateAllThemeSelections(localStorage.getItem('theme') || 'system');
+        return;
+    }
     if (animated) {
         isThemeAnimating = true;
         animateThemeChange(theme, () => {
             applyThemeImmediate(theme, save);
             isThemeAnimating = false;
-            // Обновляем выделение в UI
             updateAllThemeSelections(theme);
         });
     } else {
@@ -75,16 +81,23 @@ function applyThemeImmediate(theme, save = true) {
 function applySystemTheme(save = true, animated = true) {
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
     const targetTheme = prefersDark ? 'dark' : 'light';
-    const currentTheme = localStorage.getItem('theme') || 'system';
+    const currentActual = document.documentElement.classList.contains('light') ? 'light' : 'dark';
+    const currentStored = localStorage.getItem('theme') || 'system';
 
-    // Если системная тема совпадает с текущей, просто обновляем выделение
-    if (targetTheme === currentTheme) {
+    // Если системная тема совпадает с фактической и уже стоит system в localStorage — ничего не делаем
+    if (targetTheme === currentActual && currentStored === 'system') {
+        updateAllThemeSelections('system');
+        return;
+    }
+
+    // Если системная тема совпадает с фактической, но в localStorage другое — меняем сохранённое
+    if (targetTheme === currentActual) {
         if (save) localStorage.setItem('theme', 'system');
         updateAllThemeSelections('system');
         return;
     }
 
-    // Применяем системную тему как "system" (сохраняем в localStorage)
+    // Иначе применяем системную тему с анимацией (если нужно)
     if (animated) {
         isThemeAnimating = true;
         animateThemeChange(targetTheme, () => {
@@ -311,16 +324,11 @@ function injectAuthModal() {
     themeOptionsAuth.forEach(btn => {
         btn.addEventListener('click', () => {
             const theme = btn.dataset.theme;
-            const currentTheme = localStorage.getItem('theme') || 'system';
-            if (theme === currentTheme) return;
-
             if (theme === 'system') {
-                applySystemTheme(true, true); // с анимацией
+                applySystemTheme(true, true);
             } else {
                 applyTheme(theme, true, true);
             }
-            // Обновляем выделение во всех модалках
-            updateAllThemeSelections(theme);
         });
     });
 
@@ -533,15 +541,11 @@ function injectSettingsModal() {
     themeOptionsSettings.forEach(btn => {
         btn.addEventListener('click', () => {
             const theme = btn.dataset.theme;
-            const currentTheme = localStorage.getItem('theme') || 'system';
-            if (theme === currentTheme) return;
-
             if (theme === 'system') {
                 applySystemTheme(true, true);
             } else {
                 applyTheme(theme, true, true);
             }
-            updateAllThemeSelections(theme);
         });
     });
 
