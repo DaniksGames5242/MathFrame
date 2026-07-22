@@ -254,41 +254,45 @@
       display: flex;
       align-items: center;
       gap: 0.35rem;
-      border-radius: 0.45rem;
+      border-radius: 0.6rem;
       padding: 0.35rem 0.4rem;
-      transition: background 0.2s, opacity 0.2s, transform 0.2s;
+      transition: background 0.25s, opacity 0.2s, transform 0.2s, box-shadow 0.3s;
       cursor: pointer;
       position: relative;
     }
     .spr-node-row:hover {
-      background: rgba(255,255,255,0.06);
-      transform: translateX(2px);
+      background: rgba(255,255,255,0.07);
+      transform: translateX(3px);
     }
+    /* ===== НОВОЕ ВЫДЕЛЕНИЕ АКТИВНОЙ ТЕМЫ ===== */
     .spr-node-row.active {
-      background: rgba(99, 102, 241, 0.18);
+      background: rgba(99, 102, 241, 0.15);
+      border-radius: 0.75rem;
+      box-shadow: 0 0 20px rgba(99, 102, 241, 0.08);
       position: relative;
+      transition: background 0.3s, box-shadow 0.3s, transform 0.2s;
     }
     .spr-node-row.active::before {
       content: '';
       position: absolute;
       left: 0;
-      top: 0;
-      bottom: 0;
+      top: 8%;
+      bottom: 8%;
       width: 3px;
       background: var(--accent);
-      border-radius: 0 2px 2px 0;
+      border-radius: 0 4px 4px 0;
     }
     .spr-node-row.active .spr-node-title {
       color: var(--accent);
       font-weight: 600;
     }
     .spr-node-row.spr-active-transition {
-      animation: nodePop 0.4s ease;
+      animation: nodePop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
     }
     @keyframes nodePop {
-      0% { transform: scale(1); }
-      40% { transform: scale(1.04); background: rgba(99,102,241,0.25); }
-      100% { transform: scale(1); }
+      0% { transform: scale(1); background: rgba(99,102,241,0.1); }
+      40% { transform: scale(1.04); background: rgba(99,102,241,0.25); box-shadow: 0 0 30px rgba(99,102,241,0.15); }
+      100% { transform: scale(1); background: rgba(99,102,241,0.15); }
     }
 
     .spr-node-toggle {
@@ -741,10 +745,11 @@
       align-items: center;
       justify-content: center;
       box-shadow: var(--shadow);
-      transition: transform 0.2s, background 0.2s;
+      transition: opacity 0.3s ease, transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), background 0.2s;
       flex-direction: column;
       justify-content: space-around;
       padding: 10px 8px;
+      will-change: transform, opacity;
     }
     .spr-menu-toggle:hover { transform: scale(1.05); background: rgba(255,255,255,0.08); }
     .spr-menu-toggle span {
@@ -753,11 +758,14 @@
       height: 2px;
       border-radius: 2px;
       background: var(--text-primary);
-      transition: transform 0.25s, opacity 0.25s, background 0.25s;
+      transition: none; /* убираем анимацию крестика */
     }
-    .spr-menu-toggle.open span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
-    .spr-menu-toggle.open span:nth-child(2) { opacity: 0; }
-    .spr-menu-toggle.open span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+    /* При открытом сайдбаре кнопка исчезает и сдвигается вправо */
+    .spr-menu-toggle.hidden {
+      opacity: 0;
+      transform: scale(0.5) translateX(calc(var(--spr-sidebar-width) + 0.5rem));
+      pointer-events: none;
+    }
 
     .spr-sidebar-overlay {
       display: none;
@@ -769,6 +777,11 @@
       opacity: 0;
       transition: opacity 0.25s ease;
       pointer-events: none;
+    }
+    .spr-sidebar-overlay.visible {
+      display: block;
+      opacity: 1;
+      pointer-events: auto;
     }
 
     /* ===== АНИМАЦИИ ===== */
@@ -1115,16 +1128,27 @@
       // UI-обработчики
       // ===================================================================
       function setupUiHandlers() {
-        // Гамбургер
+        // Гамбургер — теперь переключаем класс hidden на кнопке
         els.menuToggle.addEventListener('click', () => {
           const isOpen = els.sidebar.classList.toggle('open');
-          els.menuToggle.classList.toggle('open', isOpen);
+          els.menuToggle.classList.toggle('hidden', isOpen);
           els.overlay.classList.toggle('visible', isOpen);
         });
+
+        // Закрытие по оверлею
         els.overlay.addEventListener('click', () => {
           els.sidebar.classList.remove('open');
-          els.menuToggle.classList.remove('open');
+          els.menuToggle.classList.remove('hidden');
           els.overlay.classList.remove('visible');
+        });
+
+        // При изменении размера окна на десктоп нужно убедиться, что кнопка скрыта
+        window.addEventListener('resize', () => {
+          if (window.innerWidth > 900) {
+            els.sidebar.classList.remove('open');
+            els.menuToggle.classList.remove('hidden');
+            els.overlay.classList.remove('visible');
+          }
         });
 
         // Параметры поиска — вкладка
@@ -1172,7 +1196,7 @@
       function closeMobileSidebar() {
         if (window.innerWidth <= 900) {
           els.sidebar.classList.remove('open');
-          els.menuToggle.classList.remove('open');
+          els.menuToggle.classList.remove('hidden');
           els.overlay.classList.remove('visible');
         }
       }
@@ -1316,85 +1340,91 @@
         highlightActive();
       }
 
-function buildList(ids) {
-  const ul = document.createElement('ul');
-  for (const id of ids) {
-    const topic = topicsById.get(id);
-    if (!topic) continue;
-    const kids = getFilteredChildren(id);
-    const li = document.createElement('li');
-    li.dataset.id = id;
+      function buildList(ids) {
+        const ul = document.createElement('ul');
+        for (const id of ids) {
+          const topic = topicsById.get(id);
+          if (!topic) continue;
+          const kids = getFilteredChildren(id);
+          const li = document.createElement('li');
+          li.dataset.id = id;
 
-    const row = document.createElement('div');
-    row.className = 'spr-node-row';
-    if (id === currentId) row.classList.add('active');
+          const row = document.createElement('div');
+          row.className = 'spr-node-row';
+          if (id === currentId) row.classList.add('active');
 
-    const toggleBtn = document.createElement('button');
-    toggleBtn.type = 'button';
-    toggleBtn.className = 'spr-node-toggle' + (kids.length ? '' : ' no-children');
-    toggleBtn.setAttribute('aria-label', 'Развернуть/свернуть');
-    toggleBtn.textContent = '▶';
-    if (expanded.has(id)) toggleBtn.classList.add('expanded');
+          const toggleBtn = document.createElement('button');
+          toggleBtn.type = 'button';
+          toggleBtn.className = 'spr-node-toggle' + (kids.length ? '' : ' no-children');
+          toggleBtn.setAttribute('aria-label', 'Развернуть/свернуть');
+          toggleBtn.textContent = '▶';
+          if (expanded.has(id)) toggleBtn.classList.add('expanded');
 
-    const icon = document.createElement('span');
-    icon.className = 'spr-node-icon';
-    icon.textContent = topic.type === 'folder' ? '📁' : '📄';
+          const icon = document.createElement('span');
+          icon.className = 'spr-node-icon';
+          icon.textContent = topic.type === 'folder' ? '📁' : '📄';
 
-    const titleBtn = document.createElement('button');
-    titleBtn.type = 'button';
-    titleBtn.className = 'spr-node-title';
-    titleBtn.textContent = topic.title;
+          const titleBtn = document.createElement('button');
+          titleBtn.type = 'button';
+          titleBtn.className = 'spr-node-title';
+          titleBtn.textContent = topic.title;
 
-    row.addEventListener('click', (e) => {
-      if (e.target.closest('.spr-node-toggle')) return;
-      navigate(id);
-    });
+          row.addEventListener('click', (e) => {
+            if (e.target.closest('.spr-node-toggle')) return;
+            navigate(id);
+          });
 
-    if (kids.length) {
-      toggleBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const isExpanded = expanded.has(id);
-        const childrenWrap = li.querySelector(':scope > .spr-node-children');
-        if (!childrenWrap) return;
+          if (kids.length) {
+            toggleBtn.addEventListener('click', (e) => {
+              e.stopPropagation();
+              const isExpanded = expanded.has(id);
+              const childrenWrap = li.querySelector(':scope > .spr-node-children');
+              if (!childrenWrap) return;
 
-        if (isExpanded) {
-          // === УПРОЩЁННОЕ СВОРАЧИВАНИЕ ===
-          childrenWrap.classList.add('collapsing');
-          childrenWrap.classList.remove('expanding');
-          toggleBtn.classList.remove('expanded');
-          expanded.delete(id);
-          childrenWrap.classList.remove('expanded');
-          setTimeout(() => {
-            childrenWrap.classList.remove('collapsing');
-          }, 300);
-        } else {
-          // Разворачивание
-          childrenWrap.classList.add('expanding');
-          childrenWrap.classList.remove('collapsing');
-          toggleBtn.classList.add('expanded');
-          expanded.add(id);
-          childrenWrap.classList.add('expanded');
-          setTimeout(() => {
-            childrenWrap.classList.remove('expanding');
-          }, 400);
+              if (isExpanded) {
+                // Сворачивание
+                childrenWrap.classList.add('collapsing');
+                childrenWrap.classList.remove('expanding');
+                toggleBtn.classList.remove('expanded');
+                void childrenWrap.offsetHeight;
+
+                const disappearDelay = 350 + kids.length * 10;
+                setTimeout(() => {
+                  expanded.delete(id);
+                  childrenWrap.classList.remove('expanded');
+                  setTimeout(() => {
+                    childrenWrap.classList.remove('collapsing');
+                  }, 400);
+                }, disappearDelay);
+              } else {
+                // Разворачивание
+                childrenWrap.classList.add('expanding');
+                childrenWrap.classList.remove('collapsing');
+                toggleBtn.classList.add('expanded');
+                expanded.add(id);
+                childrenWrap.classList.add('expanded');
+                setTimeout(() => {
+                  childrenWrap.classList.remove('expanding');
+                }, 400);
+              }
+            });
+          }
+
+          row.append(toggleBtn, icon, titleBtn);
+          li.appendChild(row);
+
+          if (kids.length) {
+            const childrenWrap = document.createElement('div');
+            childrenWrap.className = 'spr-node-children' + (expanded.has(id) ? ' expanded' : '');
+            childrenWrap.appendChild(buildList(kids));
+            li.appendChild(childrenWrap);
+          }
+
+          ul.appendChild(li);
         }
-      });
-    }
+        return ul;
+      }
 
-    row.append(toggleBtn, icon, titleBtn);
-    li.appendChild(row);
-
-    if (kids.length) {
-      const childrenWrap = document.createElement('div');
-      childrenWrap.className = 'spr-node-children' + (expanded.has(id) ? ' expanded' : '');
-      childrenWrap.appendChild(buildList(kids));
-      li.appendChild(childrenWrap);
-    }
-
-    ul.appendChild(li);
-  }
-  return ul;
-}
       function highlightActive() {
         if (currentId) {
           const activeRow = els.tree.querySelector(`li[data-id="${currentId}"] > .spr-node-row`);
