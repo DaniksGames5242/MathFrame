@@ -38,6 +38,7 @@
   .badge.yes { background: rgba(34,197,94,0.15); color: #22c55e; }
   .badge.no { background: rgba(239,68,68,0.12); color: #ef4444; }
   .badge.admin { background: rgba(129,140,248,0.18); color: var(--accent); }
+  .badge.banned { background: rgba(239,68,68,0.2); color: #ef4444; }
 
   .toolbar { display: flex; gap: 0.6rem; flex-wrap: wrap; margin-bottom: 1rem; }
   .toolbar input[type="text"] { flex: 1; min-width: 180px; padding: 0.55rem 0.9rem; border-radius: 0.5rem;
@@ -50,6 +51,7 @@
   .table-wrap { max-height: 420px; overflow: auto; }
 
   .actions-row { display: flex; gap: 0.6rem; flex-wrap: wrap; }
+  .btn.small { padding: 0.3rem 0.7rem; font-size: 0.75rem; }
 </style>
 </head>
 <body>
@@ -102,7 +104,7 @@
     </h2>
     <div class="table-wrap">
       <table class="admin-table">
-        <thead><tr><th>Пользователь</th><th>Email</th><th>Регистрация</th><th>Последний вход</th><th>Доступ к панели</th></tr></thead>
+        <thead><tr><th>Пользователь</th><th>Email</th><th>Регистрация</th><th>Последний вход</th><th>Доступ к панели</th><th>Статус</th><th>Действия</th></tr></thead>
         <tbody id="usersTbody"></tbody>
       </table>
     </div>
@@ -128,18 +130,17 @@
   const db = firebase.firestore();
   let isSuperAdmin = false;
   let allTopics = [];
+  let allUsers = [];
 
   function css(varName) {
     return getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
   }
 
-  // ===== ИСПРАВЛЕННАЯ ИНИЦИАЛИЗАЦИЯ АУТЕНТИФИКАЦИИ =====
+  // ===== ИНИЦИАЛИЗАЦИЯ АУТЕНТИФИКАЦИИ =====
   function initAuthCheck() {
     if (window.Auth) {
-      // Auth уже загружен – подписываемся сразу
       window.Auth.onAuthChange(user => checkAccess(user));
     } else {
-      // Иначе ждём события authReady
       document.addEventListener('authReady', () => {
         window.Auth.onAuthChange(user => checkAccess(user));
       });
@@ -169,6 +170,62 @@
     initPanel(user);
   }
 
+  // ===== ЗАГРУЗКА ДАННЫХ =====
+  async function loadTopics() {
+    try {
+      const res = await fetch(PAGE_ROOT + 'data/topics/config.json', { cache: 'no-cache' });
+      const data = await res.json();
+      return Array.isArray(data) ? data : [];
+    } catch (e) {
+      console.error('Не удалось загрузить config.json', e);
+      return [];
+    }
+  }
+
+  async function loadVisits() {
+    try {
+      const doc = await db.collection('stats').doc('visits').get();
+      if (!doc.exists) return { total: 0, days: {} };
+      const d = doc.data();
+      return { total: d.total || 0, days: d.days || {} };
+    } catch (e) {
+      console.error('Не удалось загрузить статистику посещений', e);
+      return { total: 0, days: {} };
+    }
+  }
+
+  async function loadUsers(currentUser) {
+    try {
+      const [usersSnap, adminsSnap, bannedSnap] = await Promise.all([
+        db.collection('users').get(),
+        db.collection('admins').get(),
+        db.collection('bannedUsers').get()
+      ]);
+      const adminMap = new Map();
+      adminsSnap.forEach(d => adminMap.set(d.id, d.data().granted === true));
+      const bannedSet = new Set();
+      bannedSnap.forEach(d => bannedSet.add(d.id));
+
+      allUsers = usersSnap.docs.map(d => {
+        const data = d.data();
+        return {
+          uid: d.id,
+          email: data.email || '—',
+          displayName: data.displayName || '',
+          createdAt: data.createdAt && data.createdAt.toDate ? data.createdAt.toDate() : null,
+          lastLogin: data.lastLogin && data.lastLogin.toDate ? data.lastLogin.toDate() : null,
+          isAdmin: data.email === SUPER_ADMIN_EMAIL ? true : !!adminMap.get(d.id),
+          isBanned: bannedSet.has(d.id)
+        };
+      });
+      return allUsers;
+    } catch (e) {
+      console.error('Не удалось загрузить пользователей', e);
+      return [];
+    }
+  }
+
+  // ===== ИНИЦИАЛИЗАЦИЯ ПАНЕЛИ =====
   async function initPanel(user) {
     document.getElementById('goEditorBtn').onclick = () => { window.location.href = 'config-editor.html'; };
 
@@ -194,57 +251,6 @@
     document.getElementById('exportStatsBtn').onclick = () => exportStatsJson(topics, visits, users.length);
   }
 
-  // ===== ТЕМЫ (data/topics/config.json) =====
-  async function loadTopics() {
-    try {
-      const res = await fetch(PAGE_ROOT + 'data/topics/config.json', { cache: 'no-cache' });
-      const data = await res.json();
-      return Array.isArray(data) ? data : [];
-    } catch (e) {
-      console.error('Не удалось загрузить config.json', e);
-      return [];
-    }
-  }
-
-  // ===== ПОСЕЩЕНИЯ (Firestore stats/visits) =====
-  async function loadVisits() {
-    try {
-      const doc = await db.collection('stats').doc('visits').get();
-      if (!doc.exists) return { total: 0, days: {} };
-      const d = doc.data();
-      return { total: d.total || 0, days: d.days || {} };
-    } catch (e) {
-      console.error('Не удалось загрузить статистику посещений', e);
-      return { total: 0, days: {} };
-    }
-  }
-
-  // ===== ПОЛЬЗОВАТЕЛИ (Firestore users + admins) =====
-  async function loadUsers(currentUser) {
-    try {
-      const [usersSnap, adminsSnap] = await Promise.all([
-        db.collection('users').get(),
-        db.collection('admins').get()
-      ]);
-      const adminMap = new Map();
-      adminsSnap.forEach(d => adminMap.set(d.id, d.data().granted === true));
-      return usersSnap.docs.map(d => {
-        const data = d.data();
-        return {
-          uid: d.id,
-          email: data.email || '—',
-          displayName: data.displayName || '',
-          createdAt: data.createdAt && data.createdAt.toDate ? data.createdAt.toDate() : null,
-          lastLogin: data.lastLogin && data.lastLogin.toDate ? data.lastLogin.toDate() : null,
-          isAdmin: data.email === SUPER_ADMIN_EMAIL ? true : !!adminMap.get(d.id)
-        };
-      });
-    } catch (e) {
-      console.error('Не удалось загрузить пользователей', e);
-      return [];
-    }
-  }
-
   // ===== КАРТОЧКИ =====
   function renderCards(topics, visits, usersCount) {
     const nonFolder = topics.filter(t => t.type !== 'folder');
@@ -267,7 +273,7 @@
     ).join('');
   }
 
-  // ===== ГРАФИК ПОСЕЩЕНИЙ =====
+  // ===== ГРАФИКИ =====
   function renderVisitsChart(visits) {
     const days = [];
     for (let i = 13; i >= 0; i--) {
@@ -344,7 +350,7 @@
     }).join('');
   }
 
-  // ===== ТАБЛИЦА ПОЛЬЗОВАТЕЛЕЙ =====
+  // ===== ТАБЛИЦА ПОЛЬЗОВАТЕЛЕЙ (с блокировкой) =====
   function renderUsersTable(users, currentUser) {
     document.getElementById('usersCount').textContent = users.length;
     const tbody = document.getElementById('usersTbody');
@@ -358,20 +364,70 @@
       if (isSuperAdmin && !isSelfSuper) {
         accessCell += ` <button class="btn small" data-uid="${u.uid}" data-grant="${u.isAdmin ? '0' : '1'}" style="margin-left:0.5rem;">${u.isAdmin ? 'Отозвать' : 'Выдать'}</button>`;
       }
+
+      // Статус блокировки
+      const statusCell = u.isBanned ? `<span class="badge banned">Заблокирован</span>` : `<span class="badge yes">Активен</span>`;
+
+      // Действия: заблокировать/разблокировать (только для суперадмина, не для себя)
+      let actionsCell = '';
+      if (isSuperAdmin && u.uid !== currentUser.uid) {
+        if (u.isBanned) {
+          actionsCell = `<button class="btn small" data-uid="${u.uid}" data-action="unban">Разблокировать</button>`;
+        } else {
+          actionsCell = `<button class="btn small danger" data-uid="${u.uid}" data-action="ban">Заблокировать</button>`;
+        }
+      }
+
       return `<tr>
         <td>${escapeHtml(u.displayName || '—')}</td>
         <td>${escapeHtml(u.email)}</td>
         <td>${formatDate(u.createdAt)}</td>
         <td>${formatDate(u.lastLogin)}</td>
         <td>${accessCell}</td>
+        <td>${statusCell}</td>
+        <td>${actionsCell}</td>
       </tr>`;
     }).join('');
 
-    tbody.querySelectorAll('button[data-uid]').forEach(btn => {
+    // Обработчики для кнопок выдачи/отзыва админки
+    tbody.querySelectorAll('button[data-uid][data-grant]').forEach(btn => {
       btn.addEventListener('click', () => toggleAdminAccess(btn, currentUser));
+    });
+
+    // Обработчики для блокировки/разблокировки
+    tbody.querySelectorAll('button[data-uid][data-action]').forEach(btn => {
+      btn.addEventListener('click', () => handleBanAction(btn, currentUser));
     });
   }
 
+  // ===== БЛОКИРОВКА / РАЗБЛОКИРОВКА =====
+  async function handleBanAction(btn, currentUser) {
+    const uid = btn.dataset.uid;
+    const action = btn.dataset.action; // 'ban' или 'unban'
+    if (!uid) return;
+    const confirmMsg = action === 'ban' ? 'Заблокировать этого пользователя?' : 'Разблокировать этого пользователя?';
+    if (!confirm(confirmMsg)) return;
+
+    btn.disabled = true;
+    try {
+      if (action === 'ban') {
+        await db.collection('bannedUsers').doc(uid).set({
+          bannedAt: firebase.firestore.FieldValue.serverTimestamp(),
+          bannedBy: currentUser.email
+        });
+      } else { // unban
+        await db.collection('bannedUsers').doc(uid).delete();
+      }
+      // Перезагружаем данные пользователей
+      const users = await loadUsers(currentUser);
+      renderUsersTable(users, currentUser);
+    } catch (err) {
+      alert('Ошибка: ' + err.message);
+      btn.disabled = false;
+    }
+  }
+
+  // ===== ВЫДАТЬ/ОТОЗВАТЬ АДМИНКУ =====
   function toggleAdminAccess(btn, currentUser) {
     const uid = btn.dataset.uid;
     const grant = btn.dataset.grant === '1';
@@ -388,8 +444,8 @@
 
   // ===== ЭКСПОРТ =====
   function exportUsersCsv(users) {
-    const header = 'Имя,Email,Регистрация,Последний вход,Админ\n';
-    const rows = users.map(u => [u.displayName, u.email, formatDate(u.createdAt), formatDate(u.lastLogin), u.isAdmin ? 'да' : 'нет']
+    const header = 'Имя,Email,Регистрация,Последний вход,Админ,Заблокирован\n';
+    const rows = users.map(u => [u.displayName, u.email, formatDate(u.createdAt), formatDate(u.lastLogin), u.isAdmin ? 'да' : 'нет', u.isBanned ? 'да' : 'нет']
       .map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
     downloadFile('users.csv', header + rows, 'text/csv;charset=utf-8;');
   }

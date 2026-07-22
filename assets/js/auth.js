@@ -39,6 +39,14 @@ const AuthAPI = {
         }
         return Promise.resolve();
     },
+    // Новая функция: удаление текущего аккаунта
+    deleteAccount: () => {
+        const user = auth.currentUser;
+        if (user) {
+            return user.delete();
+        }
+        return Promise.reject(new Error('Нет авторизованного пользователя'));
+    },
     onAuthChange: (callback) => auth.onAuthStateChanged(callback),
     getCurrentUser: () => auth.currentUser,
 };

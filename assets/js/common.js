@@ -266,7 +266,6 @@ function updateThemeImages(mode) {
     document.querySelectorAll('img[data-light-src][data-dark-src]').forEach(img => {
         let src = mode === 'light' ? img.dataset.lightSrc : img.dataset.darkSrc;
         if (src) {
-            // Если src – абсолютный URL, не добавляем PAGE_ROOT
             if (!src.startsWith('http://') && !src.startsWith('https://')) {
                 src = PAGE_ROOT + src;
             }
@@ -293,12 +292,35 @@ function updateAllThemeSelections(theme) {
 let currentUser = null;
 let populateSettingsRef = null;
 
-function updateUIForAuth(user) {
+// ===== ПРОВЕРКА БЛОКИРОВКИ =====
+async function checkUserBanned(user) {
+    if (!user) return false;
+    try {
+        await ensureFirestore();
+        const doc = await firebase.firestore().collection('bannedUsers').doc(user.uid).get();
+        return doc.exists;
+    } catch (e) {
+        console.warn('Ошибка проверки блокировки:', e);
+        return false;
+    }
+}
+
+// ===== ОБНОВЛЕНИЕ UI ПОЛЬЗОВАТЕЛЯ =====
+async function updateUIForAuth(user) {
+    if (user) {
+        const banned = await checkUserBanned(user);
+        if (banned) {
+            alert('Ваш аккаунт заблокирован. Обратитесь к администратору.');
+            await window.Auth.logout();
+            user = null;
+        } else {
+            syncUserProfile(user);
+        }
+    }
     currentUser = user;
     updateAccountCircle(user);
     updateHeroButtons(user);
     updateAdminNavLink(user);
-    if (user) syncUserProfile(user);
     if (document.getElementById('settings-modal')?.classList.contains('active')) {
         populateSettingsRef?.(user);
     }
@@ -410,7 +432,6 @@ function injectAuthModal() {
   `;
     document.body.insertAdjacentHTML('beforeend', html);
 
-    // Обновляем изображения для Apple в зависимости от текущей темы
     const currentMode = document.documentElement.classList.contains('light') ? 'light' : 'dark';
     updateThemeImages(currentMode);
 
@@ -423,7 +444,6 @@ function injectAuthModal() {
     const registerSection = document.getElementById('register-section');
     const phoneVerifySection = document.getElementById('phone-verify-section');
 
-    // ===== Обработчики выбора темы в окне входа =====
     const themeOptionsAuth = modal.querySelectorAll('#theme-selector-auth .theme-option');
     themeOptionsAuth.forEach(btn => {
         btn.addEventListener('click', () => {
@@ -471,7 +491,6 @@ function injectAuthModal() {
 
         const currentTheme = localStorage.getItem('theme') || 'system';
         updateAllThemeSelections(currentTheme);
-        // Обновляем логотип Apple
         updateThemeImages(document.documentElement.classList.contains('light') ? 'light' : 'dark');
     }
 
@@ -510,8 +529,11 @@ function injectAuthModal() {
             try {
                 if (isRegister) {
                     const nickname = document.getElementById('reg-nickname').value.trim();
+                    // ИСПРАВЛЕНИЕ: используем result.user.updateProfile
                     const result = await window.Auth.registerWithEmail(emailPhone, password);
-                    if (nickname) await window.Auth.updateUserProfile({ displayName: nickname });
+                    if (nickname) {
+                        await result.user.updateProfile({ displayName: nickname });
+                    }
                     closeAuth();
                 } else {
                     await window.Auth.loginWithEmail(emailPhone, password);
@@ -560,12 +582,22 @@ function injectAuthModal() {
 
     document.getElementById('google-login-btn').addEventListener('click', async () => {
         if (!window.Auth) return;
-        try { await window.Auth.loginWithGoogle(); closeAuth(); } catch (e) { alert('Ошибка: ' + e.message); }
+        try {
+            await window.Auth.loginWithGoogle();
+            closeAuth();
+        } catch (e) {
+            alert('Ошибка входа через Google: ' + e.message);
+        }
     });
 
     document.getElementById('apple-login-btn').addEventListener('click', async () => {
         if (!window.Auth) return;
-        try { await window.Auth.loginWithApple(); closeAuth(); } catch (e) { alert('Ошибка: ' + e.message); }
+        try {
+            await window.Auth.loginWithApple();
+            closeAuth();
+        } catch (e) {
+            alert('Ошибка входа через Apple: ' + e.message);
+        }
     });
 }
 
@@ -619,6 +651,9 @@ function injectSettingsModal() {
 
       <button class="btn small" id="change-password-btn" style="width:100%; margin:0.8rem 0;">Сменить пароль</button>
 
+      <!-- НОВАЯ КНОПКА: Удалить аккаунт -->
+      <button class="btn danger" id="delete-account-btn" style="width:100%; margin:0.5rem 0;">Удалить аккаунт</button>
+
       <div style="display:flex; justify-content:center; margin-top:0.5rem;">
         <button class="btn danger" id="logout-btn">Выйти из аккаунта</button>
       </div>
@@ -640,8 +675,27 @@ function injectSettingsModal() {
     const cancelUsernameBtn = document.getElementById('cancel-username-btn');
     const changePasswordBtn = document.getElementById('change-password-btn');
     const logoutBtn = document.getElementById('logout-btn');
+    const deleteAccountBtn = document.getElementById('delete-account-btn');
 
-    // ===== Обработчики выбора темы в настройках =====
+    // Обработчик удаления аккаунта
+    deleteAccountBtn.addEventListener('click', async () => {
+        if (!currentUser) return;
+        if (!confirm('Вы уверены, что хотите удалить свой аккаунт? Это действие необратимо.')) return;
+        try {
+            // Удаляем пользователя из Auth
+            await window.Auth.deleteAccount();
+            // Удаляем документ из Firestore (если есть)
+            await ensureFirestore();
+            await firebase.firestore().collection('users').doc(currentUser.uid).delete();
+            // Также удаляем из bannedUsers, если был
+            await firebase.firestore().collection('bannedUsers').doc(currentUser.uid).delete();
+            alert('Аккаунт удалён.');
+            closeSettings();
+        } catch (e) {
+            alert('Ошибка при удалении аккаунта: ' + e.message);
+        }
+    });
+
     const themeOptionsSettings = modal.querySelectorAll('#theme-selector-settings .theme-option');
     themeOptionsSettings.forEach(btn => {
         btn.addEventListener('click', () => {
@@ -662,6 +716,7 @@ function injectSettingsModal() {
             avatarPlaceholder.textContent = '?';
             emailDisplay.textContent = '';
             changePasswordBtn.style.display = 'none';
+            deleteAccountBtn.style.display = 'none';
             return;
         }
         const name = user.displayName || user.email || user.phoneNumber || 'User';
@@ -680,6 +735,7 @@ function injectSettingsModal() {
 
         const isPasswordProvider = user.providerData.some(p => p.providerId === 'password');
         changePasswordBtn.style.display = isPasswordProvider ? '' : 'none';
+        deleteAccountBtn.style.display = ''; // всегда показываем
 
         const currentTheme = localStorage.getItem('theme') || 'system';
         updateAllThemeSelections(currentTheme);
