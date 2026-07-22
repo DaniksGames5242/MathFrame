@@ -5,90 +5,56 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Форум — MathFrame</title>
 <style>
-:root{
-  --bg:#020408; --card:rgba(10,20,40,.45); --card2:rgba(15,25,50,.6);
-  --border:rgba(255,255,255,.12); --text:#e5e7eb; --text2:#94a3b8;
-  --accent:#3b82f6; --accent2:#2563eb; --danger:#ef4444; --gold:#f59e0b;
-  --radius:.7rem;
-}
-html.light{
-  --bg:#f3f5fa; --card:rgba(255,255,255,.75); --card2:#ffffff;
-  --border:rgba(0,0,0,.1); --text:#1a2233; --text2:#5b6577;
-}
-*{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;transition:background .3s,color .3s;min-height:100vh}
-a{color:inherit}
-button{font-family:inherit;cursor:pointer}
-::selection{background:rgba(59,130,246,.35)}
-
-/* ===== TOPBAR ===== */
-.topbar{position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:1rem;padding:.8rem 1.5rem;
-  background:rgba(5,10,20,.7);backdrop-filter:blur(16px);border-bottom:1px solid var(--border)}
-html.light .topbar{background:rgba(255,255,255,.7)}
-.topbar .brand{font-weight:800;font-size:1.15rem;color:var(--accent);text-decoration:none;white-space:nowrap;display:flex;align-items:center;gap:.4rem}
-.topbar .title{font-weight:600;color:var(--text2);border-left:1px solid var(--border);padding-left:1rem;white-space:nowrap}
-.searchbox{flex:1;max-width:420px;position:relative}
-.searchbox input{width:100%;padding:.55rem .9rem .55rem 2.2rem;border-radius:2rem;border:1px solid var(--border);
-  background:var(--card);color:var(--text);outline:none;transition:border-color .2s}
-.searchbox input:focus{border-color:var(--accent)}
-.searchbox svg{position:absolute;left:.7rem;top:50%;transform:translateY(-50%);width:16px;height:16px;color:var(--text2)}
-.spacer{flex:1}
-.icon-btn{background:var(--card);border:1px solid var(--border);border-radius:50%;width:38px;height:38px;
-  display:flex;align-items:center;justify-content:center;color:var(--text);transition:all .2s}
-.icon-btn:hover{border-color:var(--accent);color:var(--accent);transform:translateY(-2px)}
-.avatar{width:38px;height:38px;border-radius:50%;object-fit:cover;border:2px solid var(--accent)}
-.avatar-ph{width:38px;height:38px;border-radius:50%;background:var(--accent2);color:#fff;display:flex;align-items:center;
-  justify-content:center;font-weight:700;font-size:.85rem}
-.user-chip{display:flex;align-items:center;gap:.5rem;cursor:pointer;padding:.2rem .6rem .2rem .2rem;border-radius:2rem;
-  border:1px solid var(--border);background:var(--card);transition:.2s}
-.user-chip:hover{border-color:var(--accent)}
-.user-chip span{font-size:.85rem;font-weight:600;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-
-/* ===== BUTTONS ===== */
-.btn{display:inline-flex;align-items:center;gap:.4rem;padding:.6rem 1.3rem;border-radius:.6rem;border:1px solid var(--border);
-  background:var(--card);color:var(--text);font-weight:600;font-size:.9rem;transition:all .2s}
-.btn:hover{transform:translateY(-2px);box-shadow:0 8px 18px rgba(0,0,0,.25)}
-.btn-primary{background:var(--accent2);border-color:var(--accent2);color:#fff}
-.btn-primary:hover{background:#1d4ed8}
-.btn-outline{background:transparent;border-color:var(--accent)}
-.btn-danger{color:var(--danger);border-color:rgba(239,68,68,.4)}
-.btn-danger:hover{background:rgba(239,68,68,.12)}
-.btn-sm{padding:.35rem .8rem;font-size:.8rem}
-.btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
-
-/* ===== LAYOUT ===== */
+:root{ --card2:rgba(255,255,255,.04); --danger:#ef4444; --gold:#f59e0b; --radius:.7rem; }
+html.light{ --card2:rgba(0,0,0,.03); }
 main{max-width:980px;margin:0 auto;padding:1.5rem 1rem 4rem}
+
+/* ===== РЕКОМЕНДАЦИИ ===== */
+.reco-title{font-size:.85rem;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:.6rem}
+.reco-row{display:flex;gap:.8rem;overflow-x:auto;padding-bottom:.3rem;margin-bottom:1.4rem}
+.reco-card{flex:0 0 220px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);
+  padding:1rem 1.1rem;cursor:pointer;transition:.25s;backdrop-filter:blur(16px)}
+.reco-card:hover{transform:translateY(-3px);border-color:var(--accent);box-shadow:0 14px 26px rgba(0,0,0,.25)}
+.reco-tag{font-size:.72rem;font-weight:700;color:var(--accent)}
+.reco-card h4{margin:.4rem 0;font-size:.98rem;line-height:1.3;max-height:2.5em;overflow:hidden}
+.reco-meta{font-size:.76rem;color:var(--text-secondary)}
+
+/* ===== TOOLBAR / SEARCH ===== */
 .toolbar-row{display:flex;flex-wrap:wrap;gap:.6rem;align-items:center;margin-bottom:1.2rem}
-select{background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:.5rem;padding:.5rem .7rem}
+.searchbox{flex:1;min-width:180px;position:relative}
+.searchbox input{width:100%;padding:.55rem .9rem .55rem 2.1rem;border-radius:2rem;border:1px solid var(--border);
+  background:var(--bg-card);color:var(--text-primary);outline:none;transition:border-color .2s}
+.searchbox input:focus{border-color:var(--accent)}
+.searchbox svg{position:absolute;left:.65rem;top:50%;transform:translateY(-50%);width:15px;height:15px;color:var(--text-secondary)}
+select{background:var(--bg-card);color:var(--text-primary);border:1px solid var(--border);border-radius:.5rem;padding:.5rem .7rem}
 .tag-chip{display:inline-flex;align-items:center;gap:.3rem;padding:.2rem .7rem;border-radius:2rem;font-size:.78rem;
-  background:rgba(59,130,246,.15);color:var(--accent);border:1px solid rgba(59,130,246,.3)}
-.tag-chip.rm{cursor:pointer}
+  background:rgba(129,140,248,.15);color:var(--accent);border:1px solid rgba(129,140,248,.3)}
 .topic-badge{display:inline-flex;align-items:center;gap:.3rem;padding:.3rem .8rem;border-radius:.5rem;font-size:.82rem;
   background:rgba(245,158,11,.13);color:var(--gold);border:1px solid rgba(245,158,11,.3);text-decoration:none;transition:.2s}
 .topic-badge:hover{background:rgba(245,158,11,.22);transform:translateY(-1px)}
 
 /* ===== ARTICLE CARDS ===== */
 .grid{display:flex;flex-direction:column;gap:1rem}
-.card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:1.3rem 1.5rem;
+.card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:1.3rem 1.5rem;
   backdrop-filter:blur(20px);cursor:pointer;transition:all .3s cubic-bezier(.23,1,.32,1);animation:fadeUp .5s ease both}
-.card:hover{transform:translateY(-4px);border-color:rgba(59,130,246,.4);box-shadow:0 20px 35px rgba(0,0,0,.3)}
+.card:hover{transform:translateY(-4px);border-color:var(--accent);box-shadow:0 20px 35px rgba(0,0,0,.3)}
 .card h3{margin:.1rem 0 .5rem;font-size:1.25rem}
-.card .meta{display:flex;flex-wrap:wrap;gap:.9rem;color:var(--text2);font-size:.82rem;align-items:center}
-.card .excerpt{color:var(--text2);font-size:.9rem;margin:.6rem 0;line-height:1.5;max-height:2.7em;overflow:hidden}
+.card .meta{display:flex;flex-wrap:wrap;gap:.9rem;color:var(--text-secondary);font-size:.82rem;align-items:center}
+.card .excerpt{color:var(--text-secondary);font-size:.9rem;margin:.6rem 0;line-height:1.5;max-height:2.7em;overflow:hidden}
 .card .foot{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:.7rem;align-items:center}
 @keyframes fadeUp{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}
-.empty{text-align:center;color:var(--text2);padding:3rem 1rem}
+.empty{text-align:center;color:var(--text-secondary);padding:3rem 1rem}
 
 /* ===== DETAIL ===== */
 .back-link{display:inline-flex;align-items:center;gap:.4rem;color:var(--accent);font-weight:600;margin-bottom:1rem;text-decoration:none}
 .article-head{margin-bottom:1rem}
 .article-head h1{font-size:1.8rem;margin:.3rem 0}
-.author-row{display:flex;align-items:center;gap:.6rem;color:var(--text2);font-size:.88rem;flex-wrap:wrap}
-.badge-author{background:rgba(59,130,246,.18);color:var(--accent);padding:.1rem .55rem;border-radius:1rem;font-size:.72rem;font-weight:700}
+.author-row{display:flex;align-items:center;gap:.6rem;color:var(--text-secondary);font-size:.88rem;flex-wrap:wrap}
+.badge-author{background:rgba(129,140,248,.18);color:var(--accent);padding:.1rem .55rem;border-radius:1rem;font-size:.72rem;font-weight:700}
 .content-body{line-height:1.7;font-size:1.02rem}
 .content-body img{max-width:100%;border-radius:.5rem;margin:.5rem 0}
 .content-body audio{width:100%;margin:.5rem 0}
-.content-body blockquote{border-left:3px solid var(--accent);margin:.6rem 0;padding:.3rem 1rem;color:var(--text2);background:rgba(255,255,255,.03)}
+.content-body blockquote{border-left:3px solid var(--accent);margin:.6rem 0;padding:.3rem 1rem;color:var(--text-secondary);background:rgba(255,255,255,.03)}
 .content-body pre,.content-body code{background:rgba(255,255,255,.06);border-radius:.35rem;padding:.15rem .4rem;font-family:monospace}
 .content-body pre{padding:.8rem;overflow-x:auto}
 .article-actions{display:flex;gap:.5rem;flex-wrap:wrap;margin:1rem 0}
@@ -100,139 +66,87 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:1.6rem 0}
 .reply.best{border-left-color:var(--gold)}
 .reply-box{background:var(--card2);border:1px solid var(--border);border-radius:.6rem;padding:.9rem 1.1rem}
 .reply.best .reply-box{box-shadow:0 0 0 1px rgba(245,158,11,.4)}
-.reply-top{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;font-size:.85rem;color:var(--text2);margin-bottom:.4rem}
-.reply-top b{color:var(--text)}
+.reply-top{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;font-size:.85rem;color:var(--text-secondary);margin-bottom:.4rem}
+.reply-top b{color:var(--text-primary)}
 .best-tag{color:var(--gold);font-weight:700;font-size:.75rem;display:inline-flex;align-items:center;gap:.2rem}
 .reply-body{font-size:.95rem;line-height:1.6}
 .reply-body img{max-width:100%;border-radius:.4rem}
 .reply-body audio{width:100%;margin-top:.3rem}
 .reply-actions{display:flex;gap:.5rem;align-items:center;margin-top:.5rem;flex-wrap:wrap}
 .vote-btn{display:flex;align-items:center;gap:.25rem;background:none;border:1px solid var(--border);border-radius:1rem;
-  padding:.25rem .65rem;color:var(--text2);font-size:.8rem;transition:.15s}
+  padding:.25rem .65rem;color:var(--text-secondary);font-size:.8rem;transition:.15s;cursor:pointer}
 .vote-btn:hover{border-color:var(--accent)}
 .vote-btn.active-like{color:#22c55e;border-color:#22c55e}
 .vote-btn.active-dislike{color:var(--danger);border-color:var(--danger)}
 .vote-btn:active{transform:scale(.9)}
-.link-btn{background:none;border:none;color:var(--text2);font-size:.8rem;text-decoration:underline;padding:0}
+.link-btn{background:none;border:none;color:var(--text-secondary);font-size:.8rem;text-decoration:underline;padding:0;cursor:pointer}
 .link-btn:hover{color:var(--accent)}
 .children{margin-left:1rem}
 .reply-form{margin-top:.6rem}
-.reply-deleted{color:var(--text2);font-style:italic;font-size:.9rem}
+.reply-deleted{color:var(--text-secondary);font-style:italic;font-size:.9rem}
 
 /* ===== EDITOR ===== */
 .editor-toolbar{display:flex;flex-wrap:wrap;gap:.3rem;margin-bottom:.5rem}
-.tb-btn{width:34px;height:34px;border-radius:.4rem;border:1px solid var(--border);background:var(--card2);color:var(--text);
-  display:flex;align-items:center;justify-content:center;font-size:.85rem;transition:.15s}
+.tb-btn{width:34px;height:34px;border-radius:.4rem;border:1px solid var(--border);background:var(--card2);color:var(--text-primary);
+  display:flex;align-items:center;justify-content:center;font-size:.85rem;transition:.15s;cursor:pointer}
 .tb-btn:hover{border-color:var(--accent);color:var(--accent)}
-.editable{min-height:140px;border:1px solid var(--border);border-radius:.5rem;padding:.8rem 1rem;background:var(--card2);outline:none}
+.editable{min-height:140px;border:1px solid var(--border);border-radius:.5rem;padding:.8rem 1rem;background:var(--card2);
+  color:var(--text-primary);outline:none}
 .editable:focus{border-color:var(--accent)}
-.editable.mini{min-height:70px}
-input.plain,textarea.plain{width:100%;padding:.6rem .8rem;border-radius:.5rem;border:1px solid var(--border);
-  background:var(--card2);color:var(--text);font-family:inherit;outline:none}
+input.plain{width:100%;padding:.6rem .8rem;border-radius:.5rem;border:1px solid var(--border);
+  background:var(--card2);color:var(--text-primary);font-family:inherit;outline:none}
 input.plain:focus{border-color:var(--accent)}
-.field-label{font-size:.82rem;color:var(--text2);margin:.8rem 0 .3rem;display:block}
-.attach-row{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.5rem}
-.attach-chip{display:flex;align-items:center;gap:.4rem;background:var(--card2);border:1px solid var(--border);
-  padding:.3rem .6rem;border-radius:.5rem;font-size:.78rem}
-.attach-chip button{background:none;border:none;color:var(--danger);font-size:1rem;line-height:1}
+.field-label{font-size:.82rem;color:var(--text-secondary);margin:.8rem 0 .3rem;display:block}
 
-/* ===== MODALS ===== */
-.overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(4px);z-index:100;opacity:0;
-  visibility:hidden;transition:opacity .25s}
-.overlay.active{opacity:1;visibility:visible}
-.modal{position:fixed;top:50%;left:50%;transform:translate(-50%,-46%);width:92%;max-width:620px;max-height:88vh;overflow-y:auto;
-  background:var(--bg);border:1px solid var(--border);border-radius:1rem;padding:1.6rem;z-index:101;opacity:0;visibility:hidden;
-  transition:opacity .25s,transform .25s;box-shadow:0 30px 60px rgba(0,0,0,.5)}
-.modal.active{opacity:1;visibility:visible;transform:translate(-50%,-50%)}
-.modal.wide{max-width:760px}
-.modal h2{margin-top:0}
-.modal-close{position:absolute;top:1.1rem;right:1.3rem;background:none;border:none;color:var(--text2);font-size:1.3rem}
-.modal-close:hover{color:var(--text)}
-.tabs{display:flex;gap:.5rem;margin-bottom:1rem}
-.tab-btn{flex:1;padding:.5rem;border-radius:.5rem;border:1px solid var(--border);background:transparent;color:var(--text2)}
-.tab-btn.active{background:var(--accent2);color:#fff;border-color:var(--accent2)}
+/* ===== TOPIC PICKER (переиспользует .overlay/.modal из common.css) ===== */
 .topic-list{max-height:260px;overflow-y:auto;margin-top:.6rem;border:1px solid var(--border);border-radius:.5rem}
 .topic-item{padding:.6rem .9rem;border-bottom:1px solid var(--border);cursor:pointer;font-size:.9rem}
 .topic-item:last-child{border-bottom:none}
-.topic-item:hover{background:rgba(59,130,246,.1);color:var(--accent)}
+.topic-item:hover{background:rgba(129,140,248,.1);color:var(--accent)}
+.editor-overlay,.editor-modal{z-index:120}
+.editor-modal{max-width:760px}
 
 /* ===== TOAST ===== */
-#toasts{position:fixed;bottom:1.2rem;right:1.2rem;z-index:200;display:flex;flex-direction:column;gap:.5rem}
-.toast{background:var(--card2);border:1px solid var(--border);padding:.7rem 1.1rem;border-radius:.5rem;font-size:.85rem;
-  box-shadow:0 10px 25px rgba(0,0,0,.3);animation:toastIn .25s ease}
+#toasts{position:fixed;bottom:1.2rem;right:1.2rem;z-index:300;display:flex;flex-direction:column;gap:.5rem}
+.toast{background:var(--bg-card);border:1px solid var(--border);color:var(--text-primary);padding:.7rem 1.1rem;
+  border-radius:.5rem;font-size:.85rem;box-shadow:0 10px 25px rgba(0,0,0,.3);animation:toastIn .25s ease;backdrop-filter:blur(10px)}
 @keyframes toastIn{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}
-
-@media(max-width:640px){
-  .topbar .title{display:none} .searchbox{max-width:none}
-  .modal{padding:1.1rem}
-}
 </style>
+<link rel="stylesheet" href="../assets/css/common.css" />
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 </head>
 <body>
 
-<div class="topbar">
-  <a class="brand" href="../index.html">📐 MathFrame</a>
-  <span class="title">Форум</span>
-  <div class="searchbox">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="16" y1="16" x2="22" y2="22"/></svg>
-    <input id="searchInput" placeholder="Поиск по статьям…" />
-  </div>
-  <div class="spacer"></div>
-  <button class="icon-btn" id="themeBtn" title="Тема">🌙</button>
-  <div id="authArea"></div>
-</div>
+<div id="app-header"></div>
 
 <main id="app"></main>
 
-<!-- ===== AUTH MODAL ===== -->
-<div class="overlay" id="authOverlay"></div>
-<div class="modal" id="authModal">
-  <button class="modal-close" data-close="auth">×</button>
-  <h2>Вход в аккаунт</h2>
-  <div class="tabs">
-    <button class="tab-btn active" id="tabLogin">Вход</button>
-    <button class="tab-btn" id="tabRegister">Регистрация</button>
-  </div>
-  <input class="plain" id="authEmail" placeholder="Email" style="margin-bottom:.6rem" />
-  <input class="plain" id="authPass" type="password" placeholder="Пароль" style="margin-bottom:.6rem" />
-  <button class="btn btn-primary" id="authSubmit" style="width:100%">Войти</button>
-  <div style="text-align:center;margin:.7rem 0;color:var(--text2);font-size:.85rem">или</div>
-  <button class="btn btn-outline" id="googleBtn" style="width:100%">Продолжить с Google</button>
-  <div style="text-align:center;margin-top:.8rem">
-    <button class="link-btn" id="resetPassBtn">Забыли пароль?</button>
-  </div>
-</div>
+<div id="app-footer"></div>
 
-<!-- ===== TOPIC PICKER MODAL ===== -->
+<!-- ===== TOPIC PICKER MODAL (справочник) ===== -->
 <div class="overlay" id="topicOverlay"></div>
 <div class="modal" id="topicModal">
-  <button class="modal-close" data-close="topic">×</button>
-  <h2>Ссылка на тему справочника</h2>
+  <div class="modal-header"><h2>Ссылка на тему справочника</h2><button class="modal-close" id="topicClose">✕</button></div>
   <input class="plain" id="topicSearch" placeholder="Поиск темы…" />
   <div class="topic-list" id="topicListEl"></div>
 </div>
 
 <div id="toasts"></div>
 
-<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
+<script>var PAGE_ROOT = '../';</script>
+<script src="../assets/js/auth.js"></script>
+<script src="../assets/js/common.js"></script>
 <script>
-firebase.initializeApp({
-  apiKey:"AIzaSyBaxewKo6Aoi5nTOcjkZfvg0IyKssWR5us", authDomain:"mathframe-ff436.firebaseapp.com",
-  projectId:"mathframe-ff436", storageBucket:"mathframe-ff436.firebasestorage.app",
-  messagingSenderId:"470778322895", appId:"1:470778322895:web:7180eccc946e907bcbbcba"
-});
-const auth = firebase.auth(), db = firebase.firestore(), storage = firebase.storage();
+const db = firebase.firestore(), storage = firebase.storage();
 let currentUser = null, topicsCache = null, viewedSet = new Set(JSON.parse(sessionStorage.getItem('forumViewed')||'[]'));
 let unsubList=null, unsubDetail=null;
 
-/* ===== THEME ===== */
-function applyTheme(t){document.documentElement.classList.toggle('light', t==='light');
-  document.getElementById('themeBtn').textContent = t==='light' ? '☀️' : '🌙'; localStorage.setItem('theme', t);}
-applyTheme(localStorage.getItem('theme') === 'light' ? 'light' : (localStorage.getItem('theme')==='dark'?'dark':(matchMedia('(prefers-color-scheme: light)').matches?'light':'dark')));
-document.getElementById('themeBtn').onclick=()=>applyTheme(document.documentElement.classList.contains('light')?'dark':'light');
+function initForumAuth(){ window.Auth.onAuthChange(user=>{ currentUser = user; route(); }); }
+if (window.Auth) initForumAuth(); else document.addEventListener('authReady', initForumAuth);
+function requireAuth(){ if(!currentUser){ toast('Войдите, чтобы продолжить'); window.openAuthModal(); return false; } return true; }
 
 /* ===== TOAST ===== */
 function toast(msg){const t=document.createElement('div');t.className='toast';t.textContent=msg;
@@ -265,67 +179,34 @@ function sanitizeHTML(html){
 }
 function escapeHtml(s){return (s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 
-/* ===== AUTH ===== */
-function renderAuthArea(){
-  const el = document.getElementById('authArea');
-  if(currentUser){
-    const name = currentUser.displayName || currentUser.email || 'Профиль';
-    el.innerHTML = currentUser.photoURL
-      ? `<div class="user-chip" id="logoutChip"><img class="avatar" src="${currentUser.photoURL}"><span>${escapeHtml(name)}</span></div>`
-      : `<div class="user-chip" id="logoutChip"><div class="avatar-ph">${escapeHtml(name[0]||'?').toUpperCase()}</div><span>${escapeHtml(name)}</span></div>`;
-    document.getElementById('logoutChip').onclick=()=>{ if(confirm('Выйти из аккаунта?')) auth.signOut(); };
-  } else {
-    el.innerHTML = `<button class="btn btn-primary btn-sm" id="loginTrigger">Войти</button>`;
-    document.getElementById('loginTrigger').onclick = openAuthModal;
-  }
-}
-auth.onAuthStateChanged(u=>{ currentUser=u; renderAuthArea(); route(); });
-
-function openModal(id){document.getElementById(id+'Overlay').classList.add('active');document.getElementById(id+'Modal').classList.add('active');}
-function closeModal(id){document.getElementById(id+'Overlay').classList.remove('active');document.getElementById(id+'Modal').classList.remove('active');}
-document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>closeModal(b.dataset.close));
-document.getElementById('authOverlay').onclick=()=>closeModal('auth');
-document.getElementById('topicOverlay').onclick=()=>closeModal('topic');
-
-function openAuthModal(){ openModal('auth'); }
-let authMode='login';
-document.getElementById('tabLogin').onclick=()=>{authMode='login';document.getElementById('tabLogin').classList.add('active');document.getElementById('tabRegister').classList.remove('active');document.getElementById('authSubmit').textContent='Войти';};
-document.getElementById('tabRegister').onclick=()=>{authMode='register';document.getElementById('tabRegister').classList.add('active');document.getElementById('tabLogin').classList.remove('active');document.getElementById('authSubmit').textContent='Зарегистрироваться';};
-document.getElementById('authSubmit').onclick=async()=>{
-  const email=document.getElementById('authEmail').value.trim(), pass=document.getElementById('authPass').value;
-  if(!email||!pass) return toast('Заполните поля');
-  try{
-    if(authMode==='login') await auth.signInWithEmailAndPassword(email,pass);
-    else await auth.createUserWithEmailAndPassword(email,pass);
-    closeModal('auth'); toast('Добро пожаловать!');
-  }catch(e){toast('Ошибка: '+e.message);}
-};
-document.getElementById('googleBtn').onclick=async()=>{
-  try{ await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()); closeModal('auth'); }catch(e){toast('Ошибка: '+e.message);}
-};
-document.getElementById('resetPassBtn').onclick=async()=>{
-  const email=document.getElementById('authEmail').value.trim();
-  if(!email) return toast('Введите email выше');
-  try{ await auth.sendPasswordResetEmail(email); toast('Письмо отправлено'); }catch(e){toast('Ошибка: '+e.message);}
-};
-function requireAuth(){ if(!currentUser){ toast('Войдите, чтобы продолжить'); openAuthModal(); return false;} return true; }
-
 /* ===== TOPIC PICKER (справочник) ===== */
 async function loadTopics(){
   if(topicsCache) return topicsCache;
   try{
-    const res = await fetch('../data/topics/config.json');
+    const res = await fetch(PAGE_ROOT + 'data/topics/config.json');
     const data = await res.json();
     topicsCache = Array.isArray(data) ? data : (data.topics || data.items || []);
   }catch(e){ topicsCache = []; }
   return topicsCache;
 }
 let topicPickCallback=null;
+function openTopicOverlay(){
+  const overlay = document.getElementById('topicOverlay'), modal = document.getElementById('topicModal');
+  document.body.classList.add('no-scroll'); overlay.style.visibility='visible'; modal.style.visibility='visible';
+  requestAnimationFrame(()=>{ overlay.classList.add('active'); modal.classList.add('active'); });
+}
+function closeTopicOverlay(){
+  const overlay = document.getElementById('topicOverlay'), modal = document.getElementById('topicModal');
+  overlay.classList.remove('active'); modal.classList.remove('active');
+  setTimeout(()=>{ overlay.style.visibility='hidden'; modal.style.visibility='hidden'; document.body.classList.remove('no-scroll'); },300);
+}
+document.getElementById('topicOverlay').onclick=closeTopicOverlay;
+document.getElementById('topicClose').onclick=closeTopicOverlay;
 async function openTopicPicker(cb){
   topicPickCallback = cb;
   const topics = await loadTopics();
   renderTopicList(topics);
-  openModal('topic');
+  openTopicOverlay();
 }
 function renderTopicList(list){
   const el = document.getElementById('topicListEl');
@@ -333,7 +214,7 @@ function renderTopicList(list){
   el.innerHTML = list.map(t=>`<div class="topic-item" data-id="${escapeHtml(t.id)}" data-title="${escapeHtml(t.title||'')}">${escapeHtml(t.title||t.id)}</div>`).join('');
   el.querySelectorAll('.topic-item').forEach(it=>it.onclick=()=>{
     if(it.dataset.id && topicPickCallback) topicPickCallback({id:it.dataset.id, title:it.dataset.title});
-    closeModal('topic');
+    closeTopicOverlay();
   });
 }
 document.getElementById('topicSearch').oninput=async(e)=>{
@@ -348,7 +229,7 @@ function uploadFile(file, folder){
   const ref = storage.ref().child(path);
   return ref.put(file).then(()=>ref.getDownloadURL());
 }
-function makeToolbar(editableId, uidHint){
+function makeToolbar(editableId){
   return `
   <div class="editor-toolbar">
     <button type="button" class="tb-btn" data-cmd="bold" title="Жирный"><b>B</b></button>
@@ -407,6 +288,35 @@ function route(){
   else renderList();
 }
 
+/* ===== СИСТЕМА РЕКОМЕНДАЦИЙ ===== */
+function renderRecommendations(all){
+  const host = document.getElementById('recoRow'); if(!host) return;
+  if(!all || !all.length){ host.innerHTML=''; return; }
+  const counts = window._replyCounts || {};
+  const byViews = [...all].sort((x,y)=>(y.views||0)-(x.views||0))[0];
+  const byNew = [...all].sort((x,y)=>(y.createdAt?.toMillis?.()||0)-(x.createdAt?.toMillis?.()||0))[0];
+  const discussedSorted = [...all].sort((x,y)=>(counts[y.id]||0)-(counts[x.id]||0));
+  const byDiscussed = (counts[discussedSorted[0]?.id]||0) > 0 ? discussedSorted[0] : null;
+  const picked = [byViews, byNew, byDiscussed].filter(Boolean);
+  const seenIds = new Set(picked.map(a=>a.id));
+  const rest = all.filter(a=>!seenIds.has(a.id));
+  const random = rest.length ? rest[Math.floor(Math.random()*rest.length)] : null;
+  const items = [
+    byViews && {icon:'🔥', label:'Популярное', a:byViews},
+    byNew && {icon:'🆕', label:'Новое', a:byNew},
+    byDiscussed && {icon:'💬', label:'Обсуждаемое', a:byDiscussed},
+    random && {icon:'🎲', label:'Попробуйте', a:random},
+  ].filter(Boolean);
+  const seen2 = new Set(); const uniq = items.filter(it=>{ if(seen2.has(it.a.id)) return false; seen2.add(it.a.id); return true; });
+  if(!uniq.length){ host.innerHTML=''; return; }
+  host.innerHTML = `<div class="reco-title">Рекомендуем</div><div class="reco-row">` +
+    uniq.map(it=>`<div class="reco-card" data-id="${it.a.id}"><span class="reco-tag">${it.icon} ${it.label}</span>
+      <h4>${escapeHtml(it.a.title)}</h4>
+      <span class="reco-meta">👤 ${escapeHtml(it.a.authorName||'Аноним')} · 👁 ${it.a.views||0}</span></div>`).join('') +
+    `</div>`;
+  host.querySelectorAll('.reco-card').forEach(c=>c.onclick=()=>{ location.hash='article/'+c.dataset.id; });
+}
+
 /* ===== LIST VIEW ===== */
 let listFilter = {search:'', tag:'', sort:'new', bookmarks:false};
 function getBookmarks(){ return JSON.parse(localStorage.getItem('forumBookmarks')||'[]'); }
@@ -416,23 +326,28 @@ function toggleBookmark(id){
   localStorage.setItem('forumBookmarks', JSON.stringify(b));
   toast(b.includes(id)?'Добавлено в закладки':'Удалено из закладок');
 }
-document.getElementById('searchInput').oninput = e=>{ listFilter.search=e.target.value.toLowerCase(); if(!location.hash.startsWith('#article')) renderArticleCards(); };
 
 function renderList(){
   const app = document.getElementById('app');
   app.innerHTML = `
+    <div id="recoRow"></div>
     <div class="toolbar-row">
-      <button class="btn btn-primary" id="newArticleBtn">✎ Написать статью</button>
+      <button class="btn primary" id="newArticleBtn">✎ Написать статью</button>
+      <div class="searchbox">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="16" y1="16" x2="22" y2="22"/></svg>
+        <input id="searchInput" placeholder="Поиск по статьям…" value="${escapeHtml(listFilter.search)}" />
+      </div>
       <select id="sortSelect">
         <option value="new">Сначала новые</option>
         <option value="views">По популярности</option>
         <option value="replies">По обсуждаемости</option>
       </select>
       <select id="tagSelect"><option value="">Все теги</option></select>
-      <button class="btn ${listFilter.bookmarks?'btn-primary':''}" id="bookmarkFilterBtn">🔖 Закладки</button>
+      <button class="btn ${listFilter.bookmarks?'primary':''}" id="bookmarkFilterBtn">🔖 Закладки</button>
     </div>
     <div class="grid" id="cardsGrid"><div class="empty">Загрузка…</div></div>`;
   document.getElementById('newArticleBtn').onclick=()=>{ if(requireAuth()) openEditor(); };
+  document.getElementById('searchInput').oninput = e=>{ listFilter.search=e.target.value.toLowerCase(); renderArticleCards(); };
   document.getElementById('sortSelect').value = listFilter.sort;
   document.getElementById('sortSelect').onchange = e=>{listFilter.sort=e.target.value; renderArticleCards();};
   document.getElementById('tagSelect').onchange = e=>{listFilter.tag=e.target.value; renderArticleCards();};
@@ -444,6 +359,7 @@ function renderList(){
     const tags = new Set(); window._articlesCache.forEach(a=>(a.tags||[]).forEach(t=>tags.add(t)));
     const tagSel = document.getElementById('tagSelect');
     if(tagSel) tagSel.innerHTML = '<option value="">Все теги</option>' + [...tags].map(t=>`<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
+    renderRecommendations(window._articlesCache);
     renderArticleCards();
   }, err=>toast('Ошибка загрузки: '+err.message));
 }
@@ -468,7 +384,6 @@ async function renderArticleCards(){
   if(listFilter.bookmarks) list = list.filter(a=>bm.includes(a.id));
   if(listFilter.search) list = list.filter(a=> a.title.toLowerCase().includes(listFilter.search) || (a.bodyHTML||'').toLowerCase().includes(listFilter.search));
   if(listFilter.tag) list = list.filter(a=>(a.tags||[]).includes(listFilter.tag));
-  // reply counts
   const counts = window._replyCounts || {};
   if(listFilter.sort==='views') list.sort((a,b)=>(b.views||0)-(a.views||0));
   else if(listFilter.sort==='replies') list.sort((a,b)=>(counts[b.id]||0)-(counts[a.id]||0));
@@ -492,25 +407,25 @@ async function renderArticleCards(){
       </div>
     </div>`).join('');
   grid.querySelectorAll('.card').forEach(c=>c.onclick=()=>{ location.hash = 'article/'+c.dataset.id; });
-  // fetch reply counts lazily for sort accuracy next time
-  list.forEach(a=>{
+
+  await Promise.all(list.map(a=>
     db.collection('forumArticles').doc(a.id).collection('replies').get().then(s=>{
       window._replyCounts = window._replyCounts||{}; window._replyCounts[a.id]=s.size;
-    });
-  });
+    })
+  ));
+  renderRecommendations(window._articlesCache);
 }
 
 /* ===== EDITOR (create/edit) ===== */
 function openEditor(article=null){
   const draftKey = article ? 'forumDraftEdit_'+article.id : 'forumDraftNew';
   const draft = JSON.parse(localStorage.getItem(draftKey)||'null');
-  const overlay = document.createElement('div'); overlay.className='overlay active';
-  const modal = document.createElement('div'); modal.className='modal wide active';
+  const overlay = document.createElement('div'); overlay.className='overlay active editor-overlay';
+  const modal = document.createElement('div'); modal.className='modal active editor-modal';
   let topicRef = article?.topicRef || draft?.topicRef || null;
   let tags = article?.tags ? [...article.tags] : (draft?.tags || []);
   modal.innerHTML = `
-    <button class="modal-close">×</button>
-    <h2>${article ? 'Редактировать статью' : 'Новая статья'}</h2>
+    <div class="modal-header"><h2>${article ? 'Редактировать статью' : 'Новая статья'}</h2><button class="modal-close" id="closeEditorBtn">✕</button></div>
     <span class="field-label">Заголовок</span>
     <input class="plain" id="artTitle" value="${escapeHtml(article?.title || draft?.title || '')}" placeholder="Заголовок статьи">
     <span class="field-label">Содержание</span>
@@ -518,9 +433,9 @@ function openEditor(article=null){
     <span class="field-label">Теги (через запятую)</span>
     <input class="plain" id="artTags" value="${escapeHtml(tags.join(', '))}" placeholder="алгебра, интегралы">
     <span class="field-label">Ссылка на тему справочника</span>
-    <div><button class="btn btn-sm" id="pickTopicBtn">📚 Выбрать тему</button> <span id="topicRefShow"></span></div>
+    <div><button class="btn small" id="pickTopicBtn">📚 Выбрать тему</button> <span id="topicRefShow"></span></div>
     <div style="display:flex;gap:.6rem;margin-top:1.2rem">
-      <button class="btn btn-primary" id="saveArtBtn">Опубликовать</button>
+      <button class="btn primary" id="saveArtBtn">Опубликовать</button>
       <button class="btn" id="cancelArtBtn">Отмена</button>
     </div>`;
   document.body.append(overlay, modal);
@@ -531,7 +446,7 @@ function openEditor(article=null){
   showTopicRef();
   modal.querySelector('#pickTopicBtn').onclick=()=>openTopicPicker(t=>{ topicRef=t; showTopicRef(); });
   function close(){ overlay.remove(); modal.remove(); }
-  modal.querySelector('.modal-close').onclick=close;
+  modal.querySelector('#closeEditorBtn').onclick=close;
   modal.querySelector('#cancelArtBtn').onclick=close;
   overlay.onclick=close;
 
@@ -596,9 +511,9 @@ async function renderDetail(id){
     </div>
     <div class="content-body">${a.bodyHTML}</div>
     <div class="article-actions">
-      <button class="btn btn-sm" id="bmBtn">${bm?'🔖 В закладках':'🔖 В закладки'}</button>
-      <button class="btn btn-sm" id="shareBtn">🔗 Скопировать ссылку</button>
-      ${isOwner ? `<button class="btn btn-sm" id="editArtBtn">✎ Редактировать</button><button class="btn btn-sm btn-danger" id="delArtBtn">🗑 Удалить</button>` : ''}
+      <button class="btn small" id="bmBtn">${bm?'🔖 В закладках':'🔖 В закладки'}</button>
+      <button class="btn small" id="shareBtn">🔗 Скопировать ссылку</button>
+      ${isOwner ? `<button class="btn small" id="editArtBtn">✎ Редактировать</button><button class="btn small danger" id="delArtBtn">🗑 Удалить</button>` : ''}
     </div>
     <hr class="sep">
     <div class="replies-head"><h2 style="margin:0">Ответы</h2></div>
@@ -638,12 +553,12 @@ async function renderDetail(id){
 
 function renderReplyForm(container, articleId, parentId, article){
   if(!currentUser){
-    container.innerHTML = `<p style="color:var(--text2)">Войдите, чтобы оставить ответ. <button class="link-btn" id="lf${parentId||'root'}">Войти</button></p>`;
-    const btn = container.querySelector('#lf'+(parentId||'root')); if(btn) btn.onclick=openAuthModal;
+    container.innerHTML = `<p style="color:var(--text-secondary)">Войдите, чтобы оставить ответ. <button class="link-btn" id="lf${parentId||'root'}">Войти</button></p>`;
+    const btn = container.querySelector('#lf'+(parentId||'root')); if(btn) btn.onclick=()=>window.openAuthModal();
     return;
   }
   const uid = 'rf_'+(parentId||'root')+'_'+Math.random().toString(36).slice(2,7);
-  container.innerHTML = `${makeToolbar(uid)}<button class="btn btn-primary btn-sm" style="margin-top:.5rem" id="${uid}_send">Отправить</button>`;
+  container.innerHTML = `${makeToolbar(uid)}<button class="btn primary small" style="margin-top:.5rem" id="${uid}_send">Отправить</button>`;
   const editable = container.querySelector('#'+uid);
   bindToolbar(container, editable);
   editable.addEventListener('keydown', e=>{ if(e.ctrlKey && e.key==='Enter') container.querySelector('#'+uid+'_send').click(); });
@@ -698,7 +613,7 @@ function renderRepliesTree(root, all, articleId, article){
       <div class="children"></div>`;
     if(!r.deleted){
       wrap.querySelectorAll('[data-vote]').forEach(b=>b.onclick=()=>{
-        if(!requireAuth()) return; castVote(articleId, r.id, b.dataset.vote, r);
+        if(!requireAuth()) return; castVote(articleId, r.id, b.dataset.vote);
       });
       const replyBtn = wrap.querySelector('[data-act="reply"]');
       const formHost = wrap.querySelector('.reply-form');
@@ -722,7 +637,7 @@ function renderRepliesTree(root, all, articleId, article){
   topLevel.forEach(r=>root.appendChild(renderNode(r,0)));
 }
 
-async function castVote(articleId, replyId, type, replyData){
+async function castVote(articleId, replyId, type){
   const ref = db.collection('forumArticles').doc(articleId).collection('replies').doc(replyId);
   try{
     await db.runTransaction(async tx=>{
