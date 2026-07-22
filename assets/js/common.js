@@ -175,9 +175,10 @@ function updateAccountCircle(user) {
         circle.title = name;
         circle.onclick = () => openSettings();
     } else {
+        // Иконка гостя
         circle.innerHTML = `<img src="https://cdn-icons-png.flaticon.com/512/8188/8188349.png" alt="Гость" style="width:100%;height:100%;object-fit:cover;" />`;
         circle.title = 'Войти';
-        circle.onclick = () => openAuthModal();
+        circle.onclick = () => window.openAuthModal();
     }
 }
 
@@ -191,8 +192,8 @@ function updateHeroButtons(user) {
     } else {
         loginBtn.style.display = '';
         registerBtn.style.display = '';
-        loginBtn.onclick = (e) => { e.preventDefault(); openAuthModal(); };
-        registerBtn.onclick = (e) => { e.preventDefault(); openAuthModal(); };
+        loginBtn.onclick = (e) => { e.preventDefault(); window.openAuthModal(); };
+        registerBtn.onclick = (e) => { e.preventDefault(); window.openAuthModal(); };
     }
 }
 
@@ -240,10 +241,7 @@ function injectAuthModal() {
           <img src="https://logo-teka.com/wp-content/uploads/2025/06/google-logo.svg" alt="Google" />
         </button>
         <button class="social-btn" id="apple-login-btn">
-          <img src="https://upload.wikimedia.org/wikipedia/commons/f/fa/Apple_logo_black.svg"
-               data-light-src="https://upload.wikimedia.org/wikipedia/commons/f/fa/Apple_logo_black.svg"
-               data-dark-src="https://abali.ru/wp-content/uploads/2012/09/logo_apple.png"
-               alt="Apple" />
+          <img src="https://abali.ru/wp-content/uploads/2012/09/logo_apple.png" alt="Apple" />
         </button>
       </div>
       <div id="recaptcha-container"></div>
@@ -251,14 +249,146 @@ function injectAuthModal() {
   `;
     document.body.insertAdjacentHTML('beforeend', html);
 
-    // ... (остальной код модалки без изменений)
+    const overlay = document.getElementById('auth-overlay');
+    const modal = document.getElementById('auth-modal');
+    const closeBtn = document.getElementById('auth-close');
+    const tabLogin = document.getElementById('tab-login');
+    const tabRegister = document.getElementById('tab-register');
+    const loginSection = document.getElementById('login-section');
+    const registerSection = document.getElementById('register-section');
+    const phoneVerifySection = document.getElementById('phone-verify-section');
+
+    function showLoginTab() {
+        tabLogin.classList.add('active');
+        tabRegister.classList.remove('active');
+        loginSection.style.display = 'flex';
+        registerSection.style.display = 'none';
+        phoneVerifySection.classList.remove('active');
+    }
+
+    function showRegisterTab() {
+        tabRegister.classList.add('active');
+        tabLogin.classList.remove('active');
+        registerSection.style.display = 'flex';
+        loginSection.style.display = 'none';
+        phoneVerifySection.classList.remove('active');
+    }
+
+    function openAuth() {
+        document.body.classList.add('no-scroll');
+        overlay.style.visibility = 'visible';
+        modal.style.visibility = 'visible';
+        requestAnimationFrame(() => {
+            overlay.classList.add('active');
+            modal.classList.add('active');
+        });
+        showLoginTab();
+        document.getElementById('login-email-phone').value = '';
+        document.getElementById('login-password').value = '';
+        document.getElementById('reg-email-phone').value = '';
+        document.getElementById('reg-nickname').value = '';
+        document.getElementById('reg-password').value = '';
+        document.getElementById('verification-code').value = '';
+        confirmationResult = null;
+    }
+
+    window.openAuthModal = openAuth;
+
+    function closeAuth() {
+        overlay.classList.remove('active');
+        modal.classList.remove('active');
+        setTimeout(() => {
+            overlay.style.visibility = 'hidden';
+            modal.style.visibility = 'hidden';
+            document.body.classList.remove('no-scroll');
+        }, 300);
+    }
+
+    overlay.addEventListener('click', closeAuth);
+    closeBtn.addEventListener('click', closeAuth);
+    tabLogin.addEventListener('click', showLoginTab);
+    tabRegister.addEventListener('click', showRegisterTab);
+
+    function isEmail(str) { return str.includes('@'); }
+
+    async function handleAuth(isRegister) {
+        if (!window.Auth) { alert('Сервис аутентификации ещё загружается'); return; }
+
+        const emailPhone = isRegister ?
+            document.getElementById('reg-email-phone').value.trim() :
+            document.getElementById('login-email-phone').value.trim();
+        const password = isRegister ?
+            document.getElementById('reg-password').value :
+            document.getElementById('login-password').value;
+
+        if (!emailPhone) return alert('Введите email или телефон');
+        if (isEmail(emailPhone)) {
+            if (!password) return alert('Введите пароль');
+            try {
+                if (isRegister) {
+                    const nickname = document.getElementById('reg-nickname').value.trim();
+                    const result = await window.Auth.registerWithEmail(emailPhone, password);
+                    if (nickname) await window.Auth.updateUserProfile({ displayName: nickname });
+                    closeAuth();
+                } else {
+                    await window.Auth.loginWithEmail(emailPhone, password);
+                    closeAuth();
+                }
+            } catch (error) {
+                alert('Ошибка: ' + error.message);
+            }
+        } else {
+            if (!recaptchaVerifier) {
+                try { recaptchaVerifier = window.Auth.createRecaptchaVerifier('recaptcha-container'); } catch (e) { console.warn(e); }
+            }
+            try {
+                confirmationResult = await window.Auth.loginWithPhoneNumber(emailPhone, recaptchaVerifier);
+                loginSection.style.display = 'none';
+                registerSection.style.display = 'none';
+                phoneVerifySection.classList.add('active');
+            } catch (error) {
+                alert('Ошибка отправки кода: ' + error.message);
+                recaptchaVerifier = null;
+            }
+        }
+    }
+
+    document.getElementById('login-submit').addEventListener('click', () => handleAuth(false));
+    document.getElementById('register-submit').addEventListener('click', () => handleAuth(true));
+
+    document.getElementById('verify-code-btn').addEventListener('click', async () => {
+        const code = document.getElementById('verification-code').value.trim();
+        if (!code) return alert('Введите код');
+        if (!confirmationResult) return alert('Сначала отправьте код');
+        try {
+            await confirmationResult.confirm(code);
+            closeAuth();
+        } catch (error) {
+            alert('Неверный код: ' + error.message);
+        }
+    });
+
+    document.getElementById('cancel-phone-verify').addEventListener('click', () => {
+        phoneVerifySection.classList.remove('active');
+        loginSection.style.display = 'flex';
+        registerSection.style.display = 'none';
+        confirmationResult = null;
+    });
+
+    document.getElementById('google-login-btn').addEventListener('click', async () => {
+        if (!window.Auth) return;
+        try { await window.Auth.loginWithGoogle(); closeAuth(); } catch (e) { alert('Ошибка: ' + e.message); }
+    });
+
+    document.getElementById('apple-login-btn').addEventListener('click', async () => {
+        if (!window.Auth) return;
+        try { await window.Auth.loginWithApple(); closeAuth(); } catch (e) { alert('Ошибка: ' + e.message); }
+    });
 }
 
 // ===== МОДАЛЬНОЕ ОКНО НАСТРОЕК =====
 function injectSettingsModal() {
     if (document.getElementById('settings-modal')) return;
-
-    const currentTheme = localStorage.getItem('theme') || 'system';
 
     const html = `
     <div class="overlay" id="settings-overlay"></div>
@@ -290,16 +420,16 @@ function injectSettingsModal() {
 
       <!-- Тема -->
       <div style="margin: 1.2rem 0 0.8rem; border-top:1px solid var(--border); padding-top:1rem;">
-        <div style="font-weight:600; font-size:0.9rem; margin-bottom:0.7rem; color:var(--text-secondary);">Тема</div>
-        <div style="display:flex; gap:0.6rem; justify-content:center;" id="theme-selector">
-          <button class="theme-option" data-theme="light" style="border:2px solid ${currentTheme === 'light' ? 'var(--accent)' : 'transparent'}; border-radius:0.8rem; background:${currentTheme === 'light' ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.05)'}; cursor:pointer; padding:0.3rem; transition: all 0.2s; width:50px; height:50px; display:flex; align-items:center; justify-content:center;">
-            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 24 24' fill='none' stroke='%23fbbf24' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='5'/%3E%3Cline x1='12' y1='1' x2='12' y2='3'/%3E%3Cline x1='12' y1='21' x2='12' y2='23'/%3E%3Cline x1='4.22' y1='4.22' x2='5.64' y2='5.64'/%3E%3Cline x1='18.36' y1='18.36' x2='19.78' y2='19.78'/%3E%3Cline x1='1' y1='12' x2='3' y2='12'/%3E%3Cline x1='21' y1='12' x2='23' y2='12'/%3E%3Cline x1='4.22' y1='19.78' x2='5.64' y2='18.36'/%3E%3Cline x1='18.36' y1='5.64' x2='19.78' y2='4.22'/%3E%3C/svg%3E" alt="Светлая" style="width:28px;height:28px;" />
+        <div style="font-weight:600; font-size:0.85rem; margin-bottom:0.6rem; color:var(--text-secondary); text-align:center;">Тема</div>
+        <div id="theme-selector">
+          <button class="theme-option" data-theme="light" title="Светлая">
+            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23fbbf24' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='5'/%3E%3Cline x1='12' y1='1' x2='12' y2='3'/%3E%3Cline x1='12' y1='21' x2='12' y2='23'/%3E%3Cline x1='4.22' y1='4.22' x2='5.64' y2='5.64'/%3E%3Cline x1='18.36' y1='18.36' x2='19.78' y2='19.78'/%3E%3Cline x1='1' y1='12' x2='3' y2='12'/%3E%3Cline x1='21' y1='12' x2='23' y2='12'/%3E%3Cline x1='4.22' y1='19.78' x2='5.64' y2='18.36'/%3E%3Cline x1='18.36' y1='5.64' x2='19.78' y2='4.22'/%3E%3C/svg%3E" alt="Светлая" />
           </button>
-          <button class="theme-option" data-theme="dark" style="border:2px solid ${currentTheme === 'dark' ? 'var(--accent)' : 'transparent'}; border-radius:0.8rem; background:${currentTheme === 'dark' ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.05)'}; cursor:pointer; padding:0.3rem; transition: all 0.2s; width:50px; height:50px; display:flex; align-items:center; justify-content:center;">
-            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 24 24' fill='none' stroke='%23818cf8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z'/%3E%3C/svg%3E" alt="Тёмная" style="width:28px;height:28px;" />
+          <button class="theme-option" data-theme="dark" title="Тёмная">
+            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23818cf8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z'/%3E%3C/svg%3E" alt="Тёмная" />
           </button>
-          <button class="theme-option" data-theme="system" style="border:2px solid ${currentTheme === 'system' ? 'var(--accent)' : 'transparent'}; border-radius:0.8rem; background:${currentTheme === 'system' ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.05)'}; cursor:pointer; padding:0.3rem; transition: all 0.2s; width:50px; height:50px; display:flex; align-items:center; justify-content:center;">
-            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='2' y='3' width='20' height='14' rx='2' ry='2'/%3E%3Cline x1='8' y1='21' x2='16' y2='21'/%3E%3Cline x1='12' y1='17' x2='12' y2='21'/%3E%3C/svg%3E" alt="Системная" style="width:28px;height:28px;" />
+          <button class="theme-option" data-theme="system" title="Системная">
+            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='2' y='3' width='20' height='14' rx='2' ry='2'/%3E%3Cline x1='8' y1='21' x2='16' y2='21'/%3E%3Cline x1='12' y1='17' x2='12' y2='21'/%3E%3C/svg%3E" alt="Системная" />
           </button>
         </div>
       </div>
@@ -330,11 +460,11 @@ function injectSettingsModal() {
 
     // Выбор темы
     const themeOptions = modal.querySelectorAll('.theme-option');
+    let lastAppliedTheme = localStorage.getItem('theme') || 'system';
+
     function updateThemeSelection(theme) {
         themeOptions.forEach(btn => {
             const isActive = btn.dataset.theme === theme;
-            btn.style.borderColor = isActive ? 'var(--accent)' : 'transparent';
-            btn.style.background = isActive ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.05)';
             btn.classList.toggle('active', isActive);
         });
     }
@@ -342,28 +472,29 @@ function injectSettingsModal() {
     themeOptions.forEach(btn => {
         btn.addEventListener('click', () => {
             const theme = btn.dataset.theme;
+            // Если это та же тема, что уже применена — ничего не делаем
             const currentTheme = localStorage.getItem('theme') || 'system';
-            if (theme === currentTheme) return; // ничего не делаем
+            if (theme === currentTheme) return;
 
+            // Применяем тему с анимацией (или без, если системная)
             if (theme === 'system') {
+                // Системная: определяем предпочтение системы и применяем без анимации, если она не совпадает
                 const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
                 const targetTheme = prefersDark ? 'dark' : 'light';
+                // Если системная тема совпадает с текущей, ничего не делаем
                 if (targetTheme === currentTheme) {
-                    applySystemTheme(true);
+                    // Но нужно обновить выделение
                     updateThemeSelection('system');
                     return;
                 }
-                // Применяем тему с анимацией
-                applyTheme(targetTheme, true, true);
-                setTimeout(() => {
-                    localStorage.setItem('theme', 'system');
-                    updateThemeSelection('system');
-                }, 100);
+                // Применяем системную тему с анимацией (но сама системная записывается как system)
+                applySystemTheme(true);
             } else {
                 applyTheme(theme, true, true);
-                updateThemeSelection(theme);
             }
-            if (currentUser) populateSettings(currentUser);
+            // Обновляем выделение после применения
+            const newTheme = localStorage.getItem('theme') || 'system';
+            updateThemeSelection(newTheme);
         });
     });
 
@@ -394,6 +525,7 @@ function injectSettingsModal() {
         const isPasswordProvider = user.providerData.some(p => p.providerId === 'password');
         changePasswordBtn.style.display = isPasswordProvider ? '' : 'none';
 
+        // Обновляем выбор темы
         const currentTheme = localStorage.getItem('theme') || 'system';
         updateThemeSelection(currentTheme);
     }
@@ -401,7 +533,7 @@ function injectSettingsModal() {
 
     function openSettings() {
         if (!currentUser) {
-            openAuthModal();
+            window.openAuthModal();
             return;
         }
         populateSettings(currentUser);
@@ -526,6 +658,7 @@ function renderHeader() {
         if (window.innerWidth > 768) closeNav();
     });
 
+    // Обновляем изображения для текущей темы
     const currentTheme = document.documentElement.classList.contains('light') ? 'light' : 'dark';
     updateThemeImages(currentTheme);
 }
