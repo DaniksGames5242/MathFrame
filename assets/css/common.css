@@ -110,6 +110,7 @@ img { max-width: 100%; display: block; }
 #app-header nav a:hover { color: var(--text-primary); }
 #app-header nav a:hover::after { width: 100%; }
 
+/* ===== АКТИВНАЯ ССЫЛКА В ШАПКЕ ===== */
 #app-header nav a.active {
     color: var(--accent);
 }
@@ -391,28 +392,42 @@ img { max-width: 100%; display: block; }
 /* ===== ВЫБОР ТЕМЫ В НАСТРОЙКАХ ===== */
 .theme-option {
     border: 2px solid transparent !important;
-    border-radius: 1rem !important;
+    border-radius: 0.75rem !important;
     background: rgba(255,255,255,0.05) !important;
     cursor: pointer;
-    padding: 0.3rem !important;
+    padding: 0.25rem !important;
     transition: all 0.2s !important;
-    width: 70px;
-    height: 70px;
+    width: 42px;
+    height: 42px;
     display: flex;
-    flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 0.3rem;
+    flex-shrink: 0;
 }
 .theme-option:hover {
     background: rgba(255,255,255,0.1) !important;
+    transform: scale(1.05);
 }
 .theme-option.active {
     border-color: var(--accent) !important;
     background: rgba(99,102,241,0.15) !important;
-    transform: scale(1.05);
+    transform: scale(1.1);
+    box-shadow: 0 0 12px rgba(99,102,241,0.2);
+}
+.theme-option img {
+    width: 24px;
+    height: 24px;
+    display: block;
 }
 
+#theme-selector {
+    display: flex;
+    gap: 0.6rem;
+    justify-content: center;
+    align-items: center;
+}
+
+/* ===== ОБЩИЕ КНОПКИ ===== */
 .btn {
     display: inline-flex;
     align-items: center;
@@ -494,6 +509,7 @@ html.light .btn:hover {
     box-shadow: 0 8px 20px rgba(0,0,0,0.1);
 }
 
+/* ===== СВЕТЛАЯ ТЕМА: СЕКЦИИ (карточки) ===== */
 html.light .section-card {
     background: rgba(255, 255, 255, 0.7);
     backdrop-filter: blur(24px);
