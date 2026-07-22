@@ -18,7 +18,7 @@ function ensureFirestore() {
 
 function trackVisit() {
     if (sessionStorage.getItem('mf_visit_tracked')) return;
-    ensureFirestore().then(() => {
+    ensureFirestore().then(() => { 
         const db = firebase.firestore();
         const today = new Date().toISOString().slice(0, 10);
         return db.collection('stats').doc('visits').set({
