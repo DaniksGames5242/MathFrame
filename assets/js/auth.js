@@ -39,7 +39,22 @@ const AuthAPI = {
         }
         return Promise.resolve();
     },
-    // Новая функция: удаление текущего аккаунта
+    // Отправка письма подтверждения
+    sendEmailVerification: () => {
+        const user = auth.currentUser;
+        if (user) {
+            return user.sendEmailVerification();
+        }
+        return Promise.reject(new Error('Нет авторизованного пользователя'));
+    },
+    // Перезагрузка пользователя (чтобы обновить статус emailVerified)
+    reloadUser: () => {
+        const user = auth.currentUser;
+        if (user) {
+            return user.reload();
+        }
+        return Promise.reject(new Error('Нет авторизованного пользователя'));
+    },
     deleteAccount: () => {
         const user = auth.currentUser;
         if (user) {
