@@ -133,9 +133,19 @@
     return getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
   }
 
-  document.addEventListener('authReady', () => {
-    window.Auth.onAuthChange(user => checkAccess(user));
-  });
+  // ===== ИСПРАВЛЕННАЯ ИНИЦИАЛИЗАЦИЯ АУТЕНТИФИКАЦИИ =====
+  function initAuthCheck() {
+    if (window.Auth) {
+      // Auth уже загружен – подписываемся сразу
+      window.Auth.onAuthChange(user => checkAccess(user));
+    } else {
+      // Иначе ждём события authReady
+      document.addEventListener('authReady', () => {
+        window.Auth.onAuthChange(user => checkAccess(user));
+      });
+    }
+  }
+  initAuthCheck();
 
   function checkAccess(user) {
     if (!user) return denyAccess();
