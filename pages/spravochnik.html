@@ -256,43 +256,62 @@
       gap: 0.35rem;
       border-radius: 0.6rem;
       padding: 0.35rem 0.4rem;
-      transition: background 0.25s, opacity 0.2s, transform 0.2s, box-shadow 0.3s;
+      transition: background 0.25s ease, opacity 0.2s, transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s;
       cursor: pointer;
       position: relative;
     }
     .spr-node-row:hover {
       background: rgba(255,255,255,0.07);
-      transform: translateX(3px);
+      transform: translateX(4px);
     }
-    /* ===== НОВОЕ ВЫДЕЛЕНИЕ АКТИВНОЙ ТЕМЫ ===== */
+    .spr-node-row:active {
+      transform: translateX(4px) scale(0.985);
+    }
+    /* ===== ВЫДЕЛЕНИЕ АКТИВНОЙ ТЕМЫ ===== */
     .spr-node-row.active {
       background: rgba(99, 102, 241, 0.15);
       border-radius: 0.75rem;
       box-shadow: 0 0 20px rgba(99, 102, 241, 0.08);
       position: relative;
-      transition: background 0.3s, box-shadow 0.3s, transform 0.2s;
+      transition: background 0.35s ease, box-shadow 0.35s ease, transform 0.2s;
     }
     .spr-node-row.active::before {
       content: '';
       position: absolute;
       left: 0;
-      top: 8%;
-      bottom: 8%;
+      top: 50%;
       width: 3px;
+      height: 0;
       background: var(--accent);
       border-radius: 0 4px 4px 0;
+      transform: translateY(-50%);
+      transition: height 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.4s ease;
+    }
+    .spr-node-row.active.spr-active-transition::before,
+    .spr-node-row.active:not(.spr-active-transition)::before {
+      height: 84%;
+      box-shadow: 0 0 8px rgba(99, 102, 241, 0.6);
+    }
+    .spr-node-row.active .spr-node-icon {
+      transform: scale(1.08);
+      color: var(--accent);
     }
     .spr-node-row.active .spr-node-title {
       color: var(--accent);
       font-weight: 600;
+      transition: color 0.3s ease;
     }
     .spr-node-row.spr-active-transition {
-      animation: nodePop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+      animation: nodePop 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
     }
     @keyframes nodePop {
-      0% { transform: scale(1); background: rgba(99,102,241,0.1); }
-      40% { transform: scale(1.04); background: rgba(99,102,241,0.25); box-shadow: 0 0 30px rgba(99,102,241,0.15); }
-      100% { transform: scale(1); background: rgba(99,102,241,0.15); }
+      0% { transform: scale(1) translateX(0); background: rgba(99,102,241,0.05); box-shadow: 0 0 0 rgba(99,102,241,0); }
+      35% { transform: scale(1.035) translateX(2px); background: rgba(99,102,241,0.28); box-shadow: 0 0 28px rgba(99,102,241,0.18); }
+      70% { transform: scale(0.995) translateX(0); }
+      100% { transform: scale(1) translateX(0); background: rgba(99,102,241,0.15); box-shadow: 0 0 20px rgba(99,102,241,0.08); }
+    }
+    .spr-node-row:not(.active) .spr-node-title {
+      transition: color 0.25s ease;
     }
 
     .spr-node-toggle {
@@ -307,21 +326,41 @@
       color: var(--text-secondary);
       cursor: pointer;
       font-size: 0.65rem;
-      transition: transform 0.25s ease, color 0.2s;
+      transition: transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1), color 0.2s, background 0.2s;
       padding: 0;
       border-radius: 4px;
     }
     .spr-node-toggle:hover {
       color: var(--text-primary);
-      background: rgba(255,255,255,0.05);
+      background: rgba(255,255,255,0.08);
     }
+    .spr-node-toggle:active { transform: scale(0.8); }
+    .spr-node-toggle.expanded:active { transform: rotate(90deg) scale(0.8); }
     .spr-node-toggle.no-children { visibility: hidden; }
     .spr-node-toggle.expanded { transform: rotate(90deg); }
 
     .spr-node-icon {
       flex: 0 0 auto;
-      font-size: 0.95rem;
-      line-height: 1;
+      width: 16px;
+      height: 16px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-secondary);
+      transition: transform 0.25s ease, color 0.25s ease;
+    }
+    .spr-node-icon svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+    .spr-node-icon.spr-icon-pop {
+      animation: iconPop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    @keyframes iconPop {
+      0% { transform: scale(1) rotate(0); }
+      45% { transform: scale(1.3) rotate(-8deg); }
+      100% { transform: scale(1) rotate(0); }
     }
     .spr-node-title {
       flex: 1 1 auto;
@@ -339,38 +378,38 @@
     }
     .spr-node-title:hover { color: var(--accent); }
 
+    /* Плавное разворачивание/сворачивание через grid-template-rows:
+       высота вычисляется браузером точно под контент — без "прыжков"
+       и без искусственного max-height, независимо от числа дочерних тем. */
     .spr-node-children {
-      overflow: hidden;
-      max-height: 0;
-      transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      display: grid;
+      grid-template-rows: 0fr;
+      opacity: 0;
+      transition: grid-template-rows 0.42s cubic-bezier(0.4, 0, 0.2, 1),
+                  opacity 0.3s ease;
     }
-    .spr-node-children.expanded { max-height: 4000px; }
+    .spr-node-children > ul {
+      overflow: hidden;
+      min-height: 0;
+    }
+    .spr-node-children.expanded {
+      grid-template-rows: 1fr;
+      opacity: 1;
+    }
 
     .spr-node-children > ul > li {
-      transition: opacity 0.25s ease, transform 0.25s ease;
+      transition: opacity 0.3s ease, transform 0.32s cubic-bezier(0.4, 0, 0.2, 1);
     }
-    .spr-node-children.collapsing > ul > li {
-      opacity: 0;
-      transform: translateX(-8px);
-    }
+    .spr-node-children.collapsing > ul > li,
     .spr-node-children.expanding > ul > li {
       opacity: 0;
-      transform: translateX(-8px);
+      transform: translateX(-10px);
     }
     .spr-node-children.expanded > ul > li {
       opacity: 1;
       transform: translateX(0);
     }
-    .spr-node-children.expanded > ul > li:nth-child(1) { transition-delay: 0.02s; }
-    .spr-node-children.expanded > ul > li:nth-child(2) { transition-delay: 0.04s; }
-    .spr-node-children.expanded > ul > li:nth-child(3) { transition-delay: 0.06s; }
-    .spr-node-children.expanded > ul > li:nth-child(4) { transition-delay: 0.08s; }
-    .spr-node-children.expanded > ul > li:nth-child(5) { transition-delay: 0.10s; }
-    .spr-node-children.expanded > ul > li:nth-child(6) { transition-delay: 0.12s; }
-    .spr-node-children.expanded > ul > li:nth-child(7) { transition-delay: 0.14s; }
-    .spr-node-children.expanded > ul > li:nth-child(8) { transition-delay: 0.16s; }
-    .spr-node-children.expanded > ul > li:nth-child(9) { transition-delay: 0.18s; }
-    .spr-node-children.expanded > ul > li:nth-child(10) { transition-delay: 0.20s; }
+    .spr-node-children.expanded > ul > li:nth-child(n) { transition-delay: calc(var(--spr-i, 0) * 0.03s); }
 
     .spr-node-row.search-dim { opacity: 0.35; }
     .spr-node-row.search-match .spr-node-title mark {
@@ -1340,14 +1379,32 @@
         highlightActive();
       }
 
+      const ICON_FILE = '<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6.6 3h7.2l4.2 4.2v13.2a.6.6 0 0 1-.6.6H6.6a.6.6 0 0 1-.6-.6V3.6a.6.6 0 0 1 .6-.6Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M13.8 3v3.6c0 .66.54 1.2 1.2 1.2H18.6" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M9 13h6M9 16.5h6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
+
+      const ICON_FOLDER_CLOSED = '<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M3 6.6C3 5.72 3.72 5 4.6 5h4.68c.5 0 .97.24 1.26.65l1 1.4h8.06c.88 0 1.6.72 1.6 1.6v9.35c0 .88-.72 1.6-1.6 1.6H4.6c-.88 0-1.6-.72-1.6-1.6V6.6Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>';
+
+      const ICON_FOLDER_OPEN = '<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M3 8.2C3 7.32 3.72 6.6 4.6 6.6h4.68c.5 0 .97.24 1.26.65l1 1.4h6.86c.99 0 1.72.93 1.48 1.9l-1.55 6.2a1.6 1.6 0 0 1-1.55 1.21H4.6c-.88 0-1.6-.72-1.6-1.6V8.2Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M3 8.6l1.3 8.86" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+      function folderIcon(id, topic) {
+        if (topic.type !== 'folder') return ICON_FILE;
+        return expanded.has(id) ? ICON_FOLDER_OPEN : ICON_FOLDER_CLOSED;
+      }
+
+      function popIcon(icon) {
+        icon.classList.remove('spr-icon-pop');
+        void icon.offsetWidth;
+        icon.classList.add('spr-icon-pop');
+      }
+
       function buildList(ids) {
         const ul = document.createElement('ul');
-        for (const id of ids) {
+        ids.forEach((id, index) => {
           const topic = topicsById.get(id);
-          if (!topic) continue;
+          if (!topic) return;
           const kids = getFilteredChildren(id);
           const li = document.createElement('li');
           li.dataset.id = id;
+          li.style.setProperty('--spr-i', index);
 
           const row = document.createElement('div');
           row.className = 'spr-node-row';
@@ -1362,7 +1419,7 @@
 
           const icon = document.createElement('span');
           icon.className = 'spr-node-icon';
-          icon.textContent = topic.type === 'folder' ? '📁' : '📄';
+          icon.innerHTML = folderIcon(id, topic);
 
           const titleBtn = document.createElement('button');
           titleBtn.type = 'button';
@@ -1382,30 +1439,36 @@
               if (!childrenWrap) return;
 
               if (isExpanded) {
-                // Сворачивание
-                childrenWrap.classList.add('collapsing');
+                // Сворачивание: сперва «разбегаются» дочерние строки, затем схлопывается контейнер
                 childrenWrap.classList.remove('expanding');
+                childrenWrap.classList.add('collapsing');
                 toggleBtn.classList.remove('expanded');
+                if (topic.type === 'folder') { icon.innerHTML = ICON_FOLDER_CLOSED; popIcon(icon); }
                 void childrenWrap.offsetHeight;
 
-                const disappearDelay = 350 + kids.length * 10;
+                const fadeOutMs = 320 + kids.length * 30;
                 setTimeout(() => {
                   expanded.delete(id);
                   childrenWrap.classList.remove('expanded');
                   setTimeout(() => {
                     childrenWrap.classList.remove('collapsing');
-                  }, 400);
-                }, disappearDelay);
+                  }, 440);
+                }, fadeOutMs);
               } else {
-                // Разворачивание
-                childrenWrap.classList.add('expanding');
+                // Разворачивание: контейнер и дочерние строки красиво «выезжают» каскадом
                 childrenWrap.classList.remove('collapsing');
+                childrenWrap.classList.add('expanding');
                 toggleBtn.classList.add('expanded');
                 expanded.add(id);
-                childrenWrap.classList.add('expanded');
-                setTimeout(() => {
-                  childrenWrap.classList.remove('expanding');
-                }, 400);
+                if (topic.type === 'folder') { icon.innerHTML = ICON_FOLDER_OPEN; popIcon(icon); }
+                void childrenWrap.offsetHeight;
+                requestAnimationFrame(() => {
+                  childrenWrap.classList.add('expanded');
+                  const fadeInMs = 320 + kids.length * 30 + 120;
+                  setTimeout(() => {
+                    childrenWrap.classList.remove('expanding');
+                  }, fadeInMs);
+                });
               }
             });
           }
@@ -1421,7 +1484,7 @@
           }
 
           ul.appendChild(li);
-        }
+        });
         return ul;
       }
 
@@ -1553,6 +1616,9 @@
           if (ancestorIds.has(id) && childrenWrap) {
             childrenWrap.classList.add('expanded');
             if (toggle) toggle.classList.add('expanded');
+            const iconEl = row.querySelector('.spr-node-icon');
+            const t = topicsById.get(id);
+            if (iconEl && t && t.type === 'folder') iconEl.innerHTML = ICON_FOLDER_OPEN;
           }
           if (matchedIds.has(id)) {
             row.classList.add('search-match');
