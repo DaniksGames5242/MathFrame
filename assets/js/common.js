@@ -12,7 +12,7 @@ const THEME_ANIMATION_CONFIG = {
     const style = document.createElement('style');
     style.textContent = `
         #theme-selector-auth, #theme-selector-settings {
-            display: flex;
+            display: flex; 
             justify-content: center;
             gap: 0.5rem;
             flex-wrap: wrap;
