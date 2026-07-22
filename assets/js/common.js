@@ -66,8 +66,8 @@ const THEME_ANIMATION_CONFIG = {
     fadeDuration: 1000,
 };
 
-// ===== ДОБАВЛЯЕМ СТИЛИ ДЛЯ ГОРИЗОНТАЛЬНОГО ОТОБРАЖЕНИЯ ТЕМ =====
-(function addThemeSelectorStyles() {
+// ===== ДОБАВЛЯЕМ СТИЛИ ДЛЯ ГОРИЗОНТАЛЬНОГО ОТОБРАЖЕНИЯ ТЕМ И УВЕДОМЛЕНИЙ =====
+(function addGlobalStyles() {
     const style = document.createElement('style');
     style.textContent = `
         #theme-selector-auth, #theme-selector-settings {
@@ -96,6 +96,42 @@ const THEME_ANIMATION_CONFIG = {
             width: 24px;
             height: 24px;
             display: block;
+        }
+
+        /* Уведомления внутри модального окна */
+        .auth-message {
+            padding: 0.8rem 1rem;
+            border-radius: 0.5rem;
+            margin-bottom: 0.8rem;
+            font-size: 0.9rem;
+            display: none;
+        }
+        .auth-message.error {
+            background: rgba(239, 68, 68, 0.15);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            color: #ef4444;
+            display: block;
+        }
+        .auth-message.success {
+            background: rgba(34, 197, 94, 0.15);
+            border: 1px solid rgba(34, 197, 94, 0.3);
+            color: #22c55e;
+            display: block;
+        }
+        .auth-message.info {
+            background: rgba(59, 130, 246, 0.15);
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            color: #3b82f6;
+            display: block;
+        }
+        .auth-message .resend-link {
+            color: var(--accent);
+            cursor: pointer;
+            text-decoration: underline;
+            margin-left: 0.3rem;
+        }
+        .auth-message .resend-link:hover {
+            text-decoration: none;
         }
     `;
     document.head.appendChild(style);
@@ -308,14 +344,56 @@ async function checkUserBanned(user) {
 // ===== ОБНОВЛЕНИЕ UI ПОЛЬЗОВАТЕЛЯ =====
 async function updateUIForAuth(user) {
     if (user) {
-        const banned = await checkUserBanned(user);
-        if (banned) {
-            alert('Ваш аккаунт заблокирован. Обратитесь к администратору.');
+        // Проверяем, подтверждён ли email (если вход через email/пароль)
+        if (user.providerData.some(p => p.providerId === 'password') && !user.emailVerified) {
+            // Если email не подтверждён, разлогиниваем и показываем сообщение в модалке
             await window.Auth.logout();
             user = null;
-        } else {
-            syncUserProfile(user);
+            // Покажем сообщение в модалке, если она открыта
+            const msgEl = document.getElementById('auth-message');
+            if (msgEl) {
+                msgEl.className = 'auth-message info';
+                msgEl.innerHTML = `Пожалуйста, подтвердите email, перейдя по ссылке в письме. 
+                    <span class="resend-link" id="resend-verification-link">Отправить повторно</span>`;
+                msgEl.style.display = 'block';
+                const resendLink = document.getElementById('resend-verification-link');
+                if (resendLink) {
+                    resendLink.onclick = async () => {
+                        try {
+                            await window.Auth.sendEmailVerification();
+                            msgEl.className = 'auth-message success';
+                            msgEl.innerHTML = 'Письмо отправлено повторно. Проверьте почту.';
+                        } catch (e) {
+                            msgEl.className = 'auth-message error';
+                            msgEl.textContent = 'Ошибка: ' + e.message;
+                        }
+                    };
+                }
+            }
+            // Открываем модалку, если она закрыта
+            if (!document.getElementById('auth-modal')?.classList.contains('active')) {
+                window.openAuthModal();
+            }
+            return;
         }
+
+        const banned = await checkUserBanned(user);
+        if (banned) {
+            // Показываем уведомление о блокировке
+            const msgEl = document.getElementById('auth-message');
+            if (msgEl) {
+                msgEl.className = 'auth-message error';
+                msgEl.textContent = 'Ваш аккаунт заблокирован. Обратитесь к администратору.';
+                msgEl.style.display = 'block';
+            }
+            await window.Auth.logout();
+            user = null;
+            if (!document.getElementById('auth-modal')?.classList.contains('active')) {
+                window.openAuthModal();
+            }
+            return;
+        }
+        syncUserProfile(user);
     }
     currentUser = user;
     updateAccountCircle(user);
@@ -376,6 +454,7 @@ function injectAuthModal() {
         <h2>Вход</h2>
         <button class="modal-close" id="auth-close">✕</button>
       </div>
+      <div class="auth-message" id="auth-message"></div>
       <div class="auth-tabs">
         <button class="auth-tab active" id="tab-login">Войти</button>
         <button class="auth-tab" id="tab-register">Создать аккаунт</button>
@@ -385,6 +464,7 @@ function injectAuthModal() {
         <input type="text" id="login-email-phone" placeholder="Email или телефон" />
         <input type="password" id="login-password" placeholder="Пароль" />
         <button class="btn primary" id="login-submit">Войти</button>
+        <button class="btn small" id="forgot-password-btn" style="background:transparent;border:none;color:var(--text-secondary);font-size:0.8rem;margin-top:-0.2rem;">Забыли пароль?</button>
       </div>
 
       <div class="login-form" id="register-section" style="display:none;">
@@ -443,6 +523,7 @@ function injectAuthModal() {
     const loginSection = document.getElementById('login-section');
     const registerSection = document.getElementById('register-section');
     const phoneVerifySection = document.getElementById('phone-verify-section');
+    const messageEl = document.getElementById('auth-message');
 
     const themeOptionsAuth = modal.querySelectorAll('#theme-selector-auth .theme-option');
     themeOptionsAuth.forEach(btn => {
@@ -462,6 +543,7 @@ function injectAuthModal() {
         loginSection.style.display = 'flex';
         registerSection.style.display = 'none';
         phoneVerifySection.classList.remove('active');
+        clearMessage();
     }
 
     function showRegisterTab() {
@@ -470,6 +552,25 @@ function injectAuthModal() {
         registerSection.style.display = 'flex';
         loginSection.style.display = 'none';
         phoneVerifySection.classList.remove('active');
+        clearMessage();
+    }
+
+    function clearMessage() {
+        messageEl.className = 'auth-message';
+        messageEl.style.display = 'none';
+        messageEl.innerHTML = '';
+    }
+
+    function setMessage(text, type = 'error') {
+        messageEl.className = 'auth-message ' + type;
+        messageEl.textContent = text;
+        messageEl.style.display = 'block';
+    }
+
+    function setMessageHTML(html, type = 'info') {
+        messageEl.className = 'auth-message ' + type;
+        messageEl.innerHTML = html;
+        messageEl.style.display = 'block';
     }
 
     function openAuth() {
@@ -488,6 +589,7 @@ function injectAuthModal() {
         document.getElementById('reg-password').value = '';
         document.getElementById('verification-code').value = '';
         confirmationResult = null;
+        clearMessage();
 
         const currentTheme = localStorage.getItem('theme') || 'system';
         updateAllThemeSelections(currentTheme);
@@ -513,36 +615,80 @@ function injectAuthModal() {
 
     function isEmail(str) { return str.includes('@'); }
 
-    async function handleAuth(isRegister) {
-        if (!window.Auth) { alert('Сервис аутентификации ещё загружается'); return; }
-
-        const emailPhone = isRegister ?
-            document.getElementById('reg-email-phone').value.trim() :
-            document.getElementById('login-email-phone').value.trim();
-        const password = isRegister ?
-            document.getElementById('reg-password').value :
-            document.getElementById('login-password').value;
-
-        if (!emailPhone) return alert('Введите email или телефон');
-        if (isEmail(emailPhone)) {
-            if (!password) return alert('Введите пароль');
-            try {
-                if (isRegister) {
-                    const nickname = document.getElementById('reg-nickname').value.trim();
-                    // ИСПРАВЛЕНИЕ: используем result.user.updateProfile
-                    const result = await window.Auth.registerWithEmail(emailPhone, password);
-                    if (nickname) {
-                        await result.user.updateProfile({ displayName: nickname });
-                    }
-                    closeAuth();
-                } else {
-                    await window.Auth.loginWithEmail(emailPhone, password);
-                    closeAuth();
+    // ===== ВХОД ПО EMAIL =====
+    async function handleLoginEmail(email, password) {
+        try {
+            const result = await window.Auth.loginWithEmail(email, password);
+            // Проверяем, подтверждён ли email
+            if (!result.user.emailVerified) {
+                // Разлогиниваемся и просим подтвердить
+                await window.Auth.logout();
+                setMessageHTML(
+                    `Пожалуйста, подтвердите email, перейдя по ссылке в письме. 
+                    <span class="resend-link" id="resend-verification-link">Отправить повторно</span>`,
+                    'info'
+                );
+                const resendLink = document.getElementById('resend-verification-link');
+                if (resendLink) {
+                    resendLink.onclick = async () => {
+                        try {
+                            await window.Auth.sendEmailVerification();
+                            setMessage('Письмо отправлено повторно. Проверьте почту.', 'success');
+                        } catch (e) {
+                            setMessage('Ошибка: ' + e.message, 'error');
+                        }
+                    };
                 }
-            } catch (error) {
-                alert('Ошибка: ' + error.message);
+                return;
             }
+            closeAuth();
+        } catch (error) {
+            setMessage(error.message, 'error');
+        }
+    }
+
+    // ===== РЕГИСТРАЦИЯ =====
+    async function handleRegister(email, password, nickname) {
+        try {
+            const result = await window.Auth.registerWithEmail(email, password);
+            // Устанавливаем никнейм
+            if (nickname) {
+                await result.user.updateProfile({ displayName: nickname });
+            }
+            // Отправляем письмо подтверждения
+            await result.user.sendEmailVerification();
+            setMessage('Регистрация успешна! На вашу почту отправлено письмо для подтверждения.', 'success');
+            // Переключаем на вкладку входа
+            showLoginTab();
+        } catch (error) {
+            setMessage(error.message, 'error');
+        }
+    }
+
+    // ===== СБРОС ПАРОЛЯ =====
+    async function handleForgotPassword(email) {
+        if (!email) {
+            setMessage('Введите email для сброса пароля.', 'error');
+            return;
+        }
+        try {
+            await window.Auth.resetPassword(email);
+            setMessage('Письмо для сброса пароля отправлено.', 'success');
+        } catch (error) {
+            setMessage(error.message, 'error');
+        }
+    }
+
+    // ===== ОБРАБОТЧИКИ КНОПОК =====
+    document.getElementById('login-submit').addEventListener('click', async () => {
+        const emailPhone = document.getElementById('login-email-phone').value.trim();
+        const password = document.getElementById('login-password').value;
+        if (!emailPhone) { setMessage('Введите email или телефон', 'error'); return; }
+        if (isEmail(emailPhone)) {
+            if (!password) { setMessage('Введите пароль', 'error'); return; }
+            await handleLoginEmail(emailPhone, password);
         } else {
+            // Телефон – существующая логика
             if (!recaptchaVerifier) {
                 try { recaptchaVerifier = window.Auth.createRecaptchaVerifier('recaptcha-container'); } catch (e) { console.warn(e); }
             }
@@ -551,25 +697,36 @@ function injectAuthModal() {
                 loginSection.style.display = 'none';
                 registerSection.style.display = 'none';
                 phoneVerifySection.classList.add('active');
+                clearMessage();
             } catch (error) {
-                alert('Ошибка отправки кода: ' + error.message);
+                setMessage('Ошибка отправки кода: ' + error.message, 'error');
                 recaptchaVerifier = null;
             }
         }
-    }
+    });
 
-    document.getElementById('login-submit').addEventListener('click', () => handleAuth(false));
-    document.getElementById('register-submit').addEventListener('click', () => handleAuth(true));
+    document.getElementById('register-submit').addEventListener('click', async () => {
+        const emailPhone = document.getElementById('reg-email-phone').value.trim();
+        const password = document.getElementById('reg-password').value;
+        const nickname = document.getElementById('reg-nickname').value.trim();
+        if (!emailPhone) { setMessage('Введите email или телефон', 'error'); return; }
+        if (isEmail(emailPhone)) {
+            if (!password) { setMessage('Введите пароль', 'error'); return; }
+            await handleRegister(emailPhone, password, nickname);
+        } else {
+            setMessage('Регистрация по телефону не поддерживается. Используйте email.', 'error');
+        }
+    });
 
     document.getElementById('verify-code-btn').addEventListener('click', async () => {
         const code = document.getElementById('verification-code').value.trim();
-        if (!code) return alert('Введите код');
-        if (!confirmationResult) return alert('Сначала отправьте код');
+        if (!code) { setMessage('Введите код', 'error'); return; }
+        if (!confirmationResult) { setMessage('Сначала отправьте код', 'error'); return; }
         try {
             await confirmationResult.confirm(code);
             closeAuth();
         } catch (error) {
-            alert('Неверный код: ' + error.message);
+            setMessage('Неверный код: ' + error.message, 'error');
         }
     });
 
@@ -578,6 +735,12 @@ function injectAuthModal() {
         loginSection.style.display = 'flex';
         registerSection.style.display = 'none';
         confirmationResult = null;
+        clearMessage();
+    });
+
+    document.getElementById('forgot-password-btn').addEventListener('click', () => {
+        const email = document.getElementById('login-email-phone').value.trim();
+        handleForgotPassword(email);
     });
 
     document.getElementById('google-login-btn').addEventListener('click', async () => {
@@ -586,7 +749,7 @@ function injectAuthModal() {
             await window.Auth.loginWithGoogle();
             closeAuth();
         } catch (e) {
-            alert('Ошибка входа через Google: ' + e.message);
+            setMessage('Ошибка входа через Google: ' + e.message, 'error');
         }
     });
 
@@ -596,12 +759,12 @@ function injectAuthModal() {
             await window.Auth.loginWithApple();
             closeAuth();
         } catch (e) {
-            alert('Ошибка входа через Apple: ' + e.message);
+            setMessage('Ошибка входа через Apple: ' + e.message, 'error');
         }
     });
 }
 
-// ===== МОДАЛЬНОЕ ОКНО НАСТРОЕК =====
+// ===== МОДАЛЬНОЕ ОКНО НАСТРОЕК (без изменений, кроме добавления кнопки удаления) =====
 function injectSettingsModal() {
     if (document.getElementById('settings-modal')) return;
 
@@ -650,8 +813,6 @@ function injectSettingsModal() {
       </div>
 
       <button class="btn small" id="change-password-btn" style="width:100%; margin:0.8rem 0;">Сменить пароль</button>
-
-      <!-- НОВАЯ КНОПКА: Удалить аккаунт -->
       <button class="btn danger" id="delete-account-btn" style="width:100%; margin:0.5rem 0;">Удалить аккаунт</button>
 
       <div style="display:flex; justify-content:center; margin-top:0.5rem;">
@@ -677,17 +838,13 @@ function injectSettingsModal() {
     const logoutBtn = document.getElementById('logout-btn');
     const deleteAccountBtn = document.getElementById('delete-account-btn');
 
-    // Обработчик удаления аккаунта
     deleteAccountBtn.addEventListener('click', async () => {
         if (!currentUser) return;
         if (!confirm('Вы уверены, что хотите удалить свой аккаунт? Это действие необратимо.')) return;
         try {
-            // Удаляем пользователя из Auth
             await window.Auth.deleteAccount();
-            // Удаляем документ из Firestore (если есть)
             await ensureFirestore();
             await firebase.firestore().collection('users').doc(currentUser.uid).delete();
-            // Также удаляем из bannedUsers, если был
             await firebase.firestore().collection('bannedUsers').doc(currentUser.uid).delete();
             alert('Аккаунт удалён.');
             closeSettings();
@@ -735,7 +892,7 @@ function injectSettingsModal() {
 
         const isPasswordProvider = user.providerData.some(p => p.providerId === 'password');
         changePasswordBtn.style.display = isPasswordProvider ? '' : 'none';
-        deleteAccountBtn.style.display = ''; // всегда показываем
+        deleteAccountBtn.style.display = '';
 
         const currentTheme = localStorage.getItem('theme') || 'system';
         updateAllThemeSelections(currentTheme);
