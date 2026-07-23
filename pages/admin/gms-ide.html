@@ -66,7 +66,7 @@
   #suggest{position:absolute;background:var(--panel);border:1px solid var(--accent);border-radius:6px;z-index:10;max-height:160px;overflow:auto;display:none;font:13px monospace;min-width:120px}
   #suggest div{padding:4px 10px;cursor:pointer}
   #suggest div.sel,#suggest div:hover{background:var(--accent);color:#fff}
-  #colorPickerInput{position:fixed;left:-999px;top:-999px;opacity:0;width:1px;height:1px}
+  #colorPickerInput{position:fixed;left:0;top:0;width:16px;height:16px;opacity:0;pointer-events:none;border:none;padding:0}
 </style>
 </head>
 <body>
@@ -120,6 +120,7 @@
       <span>Тема примера:</span>
       <button id="themeDark">Тёмная</button>
       <button id="themeLight">Светлая</button>
+      <button id="previewClose" title="Закрыть превью" style="margin-left:auto">✕ Закрыть</button>
     </div>
     <div id="previewHost"><iframe id="previewFrame" sandbox="allow-scripts allow-same-origin"></iframe></div>
   </div>
@@ -139,16 +140,20 @@ const preview = document.getElementById('preview');
 const previewFrame = document.getElementById('previewFrame');
 const colorPickerInput = document.getElementById('colorPickerInput');
 
+// ВАЖНО: compile() берёт исходник как sourceCode.match(/\[([\s\S]*)\]/) — то есть
+// АБСОЛЮТНО ВСЁ (описание сцены, Start, Update, new/draw объекты, func/Function/Void)
+// должно находиться ВНУТРИ одного верхнеуровневого блока [ ... ]. Снаружи скобок код
+// просто не попадает в компиляцию.
 const TEMPLATE =
 `[
 \tdescription = "";
+
+\tStart {
+\t}
+
+\tUpdate {
+\t}
 ]
-
-Start {
-}
-
-Update {
-}
 `;
 
 // ===== Ключевые слова языка (актуальная версия компилятора) =====
@@ -164,29 +169,72 @@ const PREFIX_WORDS = ['new','draw','func','Void','Function','Start','Update','if
 const DECL_WORDS = ['int','float','string','bool','Vector2','color','list'];
 
 // Поля для автозаполнения "следующий параметр =" по типу блока (наиболее используемые поля)
-const FIELD_ORDER = {
-  Point:['name','pos','color'], Point2D:['name','pos','color'], Point3D:['name','pos','color'],
-  Line:['name','pos','color'], Line2D:['name','pos','color'], Line3D:['name','pos','color'],
-  Circle:['name','center','radius','color'], Ellipse:['name','center','a','b','color'],
-  Figure:['name','elements'], Figure2D:['name','elements'], Figure3D:['name','elements'],
-  Curve:['name','center','radius','color'], Curve2D:['name','center','radius','color'], Curve3D:['name','center','radius','color'],
-  Vector:['name','edge','color'], Vector2D:['name','edge','color'], Vector3D:['name','edge','color'],
-  Text:['name','pos','text','color'], Text2D:['name','pos','text','color'], Text3D:['name','pos','text','color'],
-  UI:['type','label','variable','default','min','max','step'],
-  Angle:['name','lines'], Section:['name','source','normal','offset','color'],
-  Boolean:['name','op','parts','color'], Truncate:['name','source','color'], Hull:['name','parts','color'],
-  Minkowski:['name','parts','color'], Angle3D:['name','type','color'],
-  Claster:['name','elements'], Claster2D:['name','elements'], Claster3D:['name','elements'],
-  Primitive:['name','type','pos','color'],
-  Function:['name','f','color'], Surface:['name','f','color'], Field:['name','P','Q','color'],
-  Trajectory:['name','start','system','color'], Graph:['name','graph','color'],
-  Filling:['name','figure','color'], Punctir:['name','line','color'],
-  Arc:['name','center','from','to','color'], Formula:['name','pos','latex','color'],
-  Locus:['name','point','driver','color'], Trace:['name','point','color'], Region:['name','f','color'],
-  Chart:['name','data','color'], Tree:['name','data','color'], Table:['name','data'],
-  Complex:['name','f','color'], Fractal:['name','type','color'], Image:['name','src','pos'],
-  Histogram:['name','data','color'], InfLine:['name','line','color'], InfPlane:['name','points','color']
+// Полные наборы полей по типам блоков (объединены основные обязательные поля +
+// все второстепенные, извлечённые из компилятора). Используются для выпадающего
+// списка автодополнения полей — предлагаются ВСЕ ещё не использованные поля,
+// а не одно угаданное.
+const ALL_FIELDS = {
+  Point:['name','pos','color','textColor','active','dynamic','size','shape','textSize','layer','pauseOnDrag',
+    'text','line','circle','ellipse','axis','t','extend','construct','vertex','base',
+    'reflect','over','rotate','around','homothety','center','ratio','ratioY','translate','dx','dy','angle',
+    'collision','collisionGroup','collisionMask','collisionMargin','collideWithPoints','collideWithLines',
+    'collideWithCurves','collideWithCircles','collideWithEllipses','collideWithArcs','collideWithFigures','collideWithClusters','collideWithBoundary'],
+  Line:['name','pos','color','thickness','interact','active','layer',
+    'reflect','over','rotate','around','homothety','center','ratio','ratioY','translate','dx','dy','angle'],
+  Figure:['name','elements','rotate','size','sizeX','sizeY','flipX','flipY','interact','active'],
+  Circle:['name','center','radius','points','type','color','thickness','layer'],
+  Ellipse:['name','center','a','b','focus1','focus2','points','color','thickness','active','dynamic','layer','rotate'],
+  Curve:['name','points','x','y','center','start','turns','a','b','radius','segments','color','thickness','active','layer'],
+  Vector:['name','edge','color','length','thickness','layer'],
+  Text:['name','pos','text','color','layer'],
+  UI:['type','label','variable','default','min','max','step','action','inputtype','funcName','color','textcolor','active','x','y','width','height','radius','stepper','layer'],
+  Angle:['name','lines','lock','arc','arccolor','fractions','measure','measurecolor','layer'],
+  Section:['name','source','normal','offset','point','color','capColor','opacity','wireframe','active','explode','showInfo','hideSource','textColor','textSize'],
+  Boolean:['name','op','parts','color','opacity','wireframe','active','showInfo','hideSource','textColor','textSize'],
+  Truncate:['name','source','fraction','color','opacity','wireframe','active','showInfo','hideSource','textColor','textSize'],
+  Hull:['name','parts','color','opacity','wireframe','active','showInfo','hideSource','textColor','textSize'],
+  Minkowski:['name','parts','color','opacity','wireframe','active','showInfo','hideSource','textColor','textSize'],
+  Angle3D:['name','type','arc','arccolor','count','fractions','measure','measurecolor','radius','active'],
+  Claster:['name','elements','active','interact','rotate'],
+  Primitive:['name','type','pos','rotate','width','height','depth','radius','tube','sides','edge','color','opacity','wireframe','showInfo','textColor','textSize','active'],
+  Function:['name','f','xmin','xmax','segments','color','thickness','active','layer','grid','gridStep','extend','extendDistance'],
+  Surface:['name','f','xmin','xmax','ymin','ymax','zmin','zmax','umin','umax','vmin','vmax','grid','color','active','layer','angle','levels','level','opacity'],
+  Field:['name','P','Q','xmin','xmax','ymin','ymax','zmin','zmax','grid','scale','color','active','layer','directed','dt','edgeColor','highlight','highlightColor','highlightEdges','labelColor','labels','nodeColor','nodeRadius','panelWidth','panelHeight','rotate','showWeights','steps','text','thickness','billboard','interact'],
+  Trajectory:['name','start','system','field','P','Q','steps','dt','color','thickness','active','layer','directed','edgeColor','highlight','highlightColor','highlightEdges','labelColor','labels','nodeColor','nodeRadius','panelWidth','panelHeight','rotate','showWeights','text','billboard','interact'],
+  Graph:['name','graph','color','nodeColor','edgeColor','labelColor','nodeRadius','directed','showWeights','labels','highlight','highlightColor','highlightEdges','active','layer','rotate','billboard','panelWidth','panelHeight'],
+  Filling:['name','figure','line','side','circle','from','to','color','opacity','layer'],
+  Punctir:['name','line','color','thickness','layer','collision','collisionGroup','collisionMask','collisionMargin',
+    'collideWithPoints','collideWithLines','collideWithCurves','collideWithCircles','collideWithEllipses','collideWithArcs',
+    'collideWithFigures','collideWithClusters','collideWithBoundary','textColor','dynamic','active','size','textSize','pauseOnDrag'],
+  InfLine:['name','line','dotline','color','layer'],
+  InfPlane:['name','figure','points','color','opacity','grid','size','active','layer'],
+  EquallySing:['name','edges','color','layer'],
+  Arc:['name','center','from','to','points','color','thickness','active','layer'],
+  Formula:['name','pos','latex','text','display','background','color','size','active','layer'],
+  Locus:['name','point','driver','from','to','samples','dashed','color','thickness','active','layer'],
+  Trace:['name','point','maxPoints','minDist','fade','color','thickness','active','layer'],
+  Region:['name','f','rangeX','rangeY','level','level2','border','quality','opacity','color','active','layer','rotate','billboard','panelWidth','panelHeight'],
+  Chart:['name','data','labels','color','width','height','pointSize','radius','horizontal','markers','regression','showAxes','showValues','rotate','billboard','active','layer'],
+  Tree:['name','data','color','edgeColor','labelColor','nodeRadius','spacing','levelGap','boxed','rotate','billboard','panelWidth','panelHeight','active','layer'],
+  Table:['name','data','header','headerBg','borders','borderColor','cellWidth','cellHeight','fontSize','color','rotate','billboard','panelWidth','panelHeight','active','layer'],
+  Complex:['name','f','centerRe','centerIm','scale','contours','quality','opacity','rotate','billboard','panelWidth','panelHeight','active','layer'],
+  Hyperbolic:['name','points','radius','depth','geodesics','showBoundary','tileColor','color','thickness','active','layer'],
+  Fractal:['name','type','cRe','cIm','centerRe','centerIm','maxIter','scale','opacity','quality','rotate','billboard','panelWidth','panelHeight','active','layer'],
+  Cobweb:['name','f','x0','xmin','xmax','steps','curveColor','showDiagonal','color','rotate','billboard','panelWidth','panelHeight','active','layer'],
+  Bifurcation:['name','f','rmin','rmax','x0','ymin','ymax','skip','keep','color','rotate','billboard','panelWidth','panelHeight','active','layer'],
+  IFS:['name','maps','iterations','scale','pointSize','color','active','layer'],
+  Automaton:['name','rule','cells','cellSize','init','generation','steps','color','rotate','billboard','panelWidth','panelHeight','active','layer'],
+  Voronoi:['name','sites','rangeX','rangeY','rangeZ','resolution','quality','filled','showSites','opacity','color','active','layer'],
+  Fourier:['name','path','terms','speed','showCircles','circleColor','color','active','layer'],
+  Diagram:['name','nodes','arrows','accepting','curved','boxed','nodeRadius','labelColor','arrowColor','color','active','layer'],
+  Image:['name','src','pos','width','height','rotate','opacity','billboard','active','layer'],
+  Histogram:['name','data','bins','color','rotate','billboard','panelWidth','panelHeight','active','layer']
 };
+// Point/Line/Figure/Claster/Vector/Text/Curve/Field/Trajectory также существуют
+// в вариантах 2D/3D — используют тот же набор полей.
+for (const base of ['Point','Line','Figure','Claster','Vector','Text','Curve','Field','Trajectory','Filling','Angle3D']) {
+  if (ALL_FIELDS[base]) { ALL_FIELDS[base + '2D'] = ALL_FIELDS[base]; ALL_FIELDS[base + '3D'] = ALL_FIELDS[base]; }
+}
 
 const THEME_BG = { dark:'#1b1b2a', light:'#ffffff' };
 
@@ -340,12 +388,10 @@ function maybeApplyPunctuation(pos){
   const braceInfo = findEnclosingBrace(lsStart);
   let insertion;
   if (braceInfo && braceInfo.type) {
-    // это литерал объекта: new X {...} / draw X {...} — поля через запятую
-    const type = braceInfo.type;
-    const used = collectUsedFields(braceInfo.start, pos);
-    const order = FIELD_ORDER[type];
-    const next = order ? order.find(f => !used.includes(f)) : null;
-    insertion = next ? ', ' + next + ' = ' : ',';
+    // это литерал объекта: new X {...} / draw X {...} — поля через запятую;
+    // конкретное имя следующего поля пользователь выбирает из выпадающего
+    // списка (см. updateSuggest), который откроется сразу после вставки запятой.
+    insertion = ',';
   } else {
     // верхний уровень, [заголовок], Start/Update/if/repeat/for/func/Void — операторы с ';'
     insertion = ';';
@@ -651,6 +697,10 @@ document.getElementById('btnCompileSave').addEventListener('click', doCompileAnd
 document.getElementById('btnCompileRun').addEventListener('click', doCompileAndRun);
 document.getElementById('themeDark').addEventListener('click', () => { previewTheme = 'dark'; if (preview.classList.contains('show')) doCompileAndRun(); });
 document.getElementById('themeLight').addEventListener('click', () => { previewTheme = 'light'; if (preview.classList.contains('show')) doCompileAndRun(); });
+document.getElementById('previewClose').addEventListener('click', () => {
+  preview.classList.remove('show');
+  previewFrame.srcdoc = 'about:blank';
+});
 
 // ===== Проверка ошибок с задержкой 2с =====
 let checkTimer = null;
@@ -716,19 +766,45 @@ function collectNames(){
   return [...names];
 }
 function suggestVisible(){ return suggestEl.style.display === 'block'; }
+let suggestFormat = (x) => x;
+function openSuggest(items, start, end, formatter){
+  suggestItems = items; suggestSel = 0;
+  suggestRange = { start, end };
+  suggestFormat = formatter;
+  renderSuggest();
+}
 function updateSuggest(){
   const pos = code.selectionStart;
   const head = code.value.slice(0, pos);
-  const m = head.match(/=\s*([A-Za-z_][A-Za-z0-9_]*)$/);
-  if (!m) { hideSuggest(); return; }
-  const partial = m[1];
-  const startPos = pos - partial.length;
   if (isInsideString(pos)) { hideSuggest(); return; }
-  const names = collectNames().filter(n => n.toLowerCase().startsWith(partial.toLowerCase()) && n !== partial);
-  if (!names.length) { hideSuggest(); return; }
-  suggestItems = names; suggestSel = 0;
-  suggestRange = { start: startPos, end: pos };
-  renderSuggest();
+
+  // Режим А: значение после "=" — предложить существующие имена объектов/переменных.
+  const mVal = head.match(/=\s*([A-Za-z_][A-Za-z0-9_]*)$/);
+  if (mVal) {
+    const partial = mVal[1];
+    const names = collectNames().filter(n => n.toLowerCase().startsWith(partial.toLowerCase()) && n !== partial);
+    if (names.length) { openSuggest(names, pos - partial.length, pos, (n) => n); return; }
+    hideSuggest(); return;
+  }
+
+  // Режим Б: имя нового поля внутри литерала объекта new X {...} / draw X {...} —
+  // предложить ВСЕ ещё не использованные поля этого типа.
+  const lsStart = currentLineStart(pos);
+  const braceInfo = findEnclosingBrace(lsStart);
+  if (braceInfo && braceInfo.type && ALL_FIELDS[braceInfo.type]) {
+    const afterOpen = code.value.slice(braceInfo.start, pos);
+    const lastSep = Math.max(afterOpen.lastIndexOf(','), afterOpen.lastIndexOf('{'));
+    const tail = afterOpen.slice(lastSep + 1);
+    if (!tail.includes('=')) {
+      const partial = tail.replace(/^\s+/, '');
+      if (/^[A-Za-z0-9_]*$/.test(partial)) {
+        const used = collectUsedFields(braceInfo.start, pos);
+        const options = ALL_FIELDS[braceInfo.type].filter(f => !used.includes(f) && f.toLowerCase().startsWith(partial.toLowerCase()));
+        if (options.length) { openSuggest(options, pos - partial.length, pos, (n) => n + ' = '); return; }
+      }
+    }
+  }
+  hideSuggest();
 }
 function isInsideString(pos){
   const head = code.value.slice(0, pos);
@@ -744,7 +820,7 @@ function renderSuggest(){
 }
 function hideSuggest(){ suggestEl.style.display = 'none'; suggestItems = []; }
 function acceptSuggest(){
-  const name = suggestItems[suggestSel];
+  const name = suggestFormat(suggestItems[suggestSel]);
   code.value = code.value.slice(0, suggestRange.start) + name + code.value.slice(suggestRange.end);
   code.selectionStart = code.selectionEnd = suggestRange.start + name.length;
   hideSuggest();
@@ -826,7 +902,12 @@ function replaceRange(start, end, text){
   code.value = code.value.slice(0, start) + text + code.value.slice(end);
   onEdit();
 }
-function openColorPicker(start, end, raw){
+function openColorPicker(start, end, raw, btnEl){
+  const rect = btnEl.getBoundingClientRect();
+  colorPickerInput.style.left = rect.left + 'px';
+  colorPickerInput.style.top = rect.top + 'px';
+  colorPickerInput.style.width = rect.width + 'px';
+  colorPickerInput.style.height = rect.height + 'px';
   colorPickerInput.value = normalizeHex(raw);
   colorPickerInput.onchange = () => replaceRange(start, end, colorPickerInput.value);
   colorPickerInput.click();
@@ -851,7 +932,7 @@ function updateColorSwatches(src){
     const css = swatchCssColor(raw);
     if (css) { btn.style.backgroundColor = css; btn.style.backgroundImage = 'none'; }
     btn.title = raw === 'default' ? 'default — клик: задать цвет, ПКМ: оставить default' : raw + ' — клик: изменить цвет, ПКМ: сбросить на default';
-    btn.addEventListener('click', (e) => { e.preventDefault(); openColorPicker(valueStart, valueEnd, raw); });
+    btn.addEventListener('click', (e) => { e.preventDefault(); openColorPicker(valueStart, valueEnd, raw, btn); });
     btn.addEventListener('contextmenu', (e) => { e.preventDefault(); replaceRange(valueStart, valueEnd, 'default'); });
     colorLayer.appendChild(btn);
   }
