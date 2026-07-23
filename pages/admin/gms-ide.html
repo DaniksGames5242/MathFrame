@@ -13,22 +13,33 @@
   }
   *{box-sizing:border-box}
   html,body{height:100%;margin:0;background:var(--bg);color:var(--text);font-family:'Segoe UI',Arial,sans-serif}
-  #toolbar{display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--panel);border-bottom:1px solid var(--border);flex-wrap:wrap}
-  button{background:#2a2a40;color:var(--text);border:1px solid var(--border);border-radius:6px;padding:7px 12px;cursor:pointer;font-size:13px}
-  button:hover{border-color:var(--accent)}
-  button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
-  #filename{color:var(--muted);font-size:13px;margin-left:auto;white-space:nowrap}
-  #main{display:flex;height:calc(100% - 46px)}
+  #menubar{display:flex;align-items:center;gap:2px;padding:4px 8px;background:var(--panel);border-bottom:1px solid var(--border)}
+  .menu{position:relative}
+  .menu-btn{background:transparent;border:none;color:var(--text);padding:6px 10px;cursor:pointer;font-size:13px;border-radius:4px}
+  .menu-btn:hover{background:#2a2a40}
+  .menu.open .menu-btn{background:#2a2a40}
+  .menu-drop{position:absolute;top:100%;left:0;background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:4px;display:none;flex-direction:column;min-width:220px;z-index:20;box-shadow:0 6px 18px rgba(0,0,0,.4)}
+  .menu.open .menu-drop{display:flex}
+  .menu-drop button{background:transparent;border:none;color:var(--text);text-align:left;padding:7px 10px;border-radius:4px;cursor:pointer;font-size:13px;display:flex;justify-content:space-between;gap:14px}
+  .menu-drop button:hover{background:var(--accent);color:#fff}
+  .menu-drop button.primary{color:var(--accent);font-weight:600}
+  .menu-drop button.primary:hover{color:#fff}
+  .hint{color:var(--muted);font-size:11px}
+  .menu-drop button:hover .hint{color:#e8e8ff}
+  #filename{color:var(--muted);font-size:13px;margin-left:auto;white-space:nowrap;padding:0 6px}
+  #main{display:flex;height:calc(100% - 38px)}
   #editorCol{display:flex;flex-direction:column;flex:1;min-width:0;border-right:1px solid var(--border)}
   #editorWrap{position:relative;flex:1;display:flex;overflow:hidden}
   #gutter{width:46px;flex:none;background:var(--gutter);color:var(--muted);font:var(--fs)/var(--lh) monospace;text-align:right;padding:10px 6px 10px 0;overflow:hidden;white-space:pre}
   #gutter div{height:var(--lh)}
   #codeArea{position:relative;flex:1;overflow:hidden}
-  #highlight,#code{position:absolute;top:0;left:0;right:0;bottom:0;margin:0;padding:10px;font:var(--fs)/var(--lh) monospace;white-space:pre;overflow:auto;box-sizing:border-box}
+  #highlight,#code,#colorLayer{position:absolute;top:0;left:0;right:0;bottom:0;margin:0;padding:10px;font:var(--fs)/var(--lh) monospace;white-space:pre;overflow:auto;box-sizing:border-box}
   #highlight{color:var(--text);pointer-events:none;background:transparent}
   #highlight div{height:var(--lh);white-space:pre}
   #code{background:transparent;color:transparent;caret-color:var(--text);border:none;resize:none;z-index:2}
   #code::selection{background:#3a3a6a}
+  #colorLayer{pointer-events:none;overflow:hidden;z-index:3}
+  .swatch{position:absolute;width:14px;height:14px;border-radius:3px;border:1px solid rgba(255,255,255,.5);cursor:pointer;pointer-events:auto;padding:0;background-image:repeating-conic-gradient(#888 0% 25%, #3a3a52 0% 50%);background-size:8px 8px}
   .kwp{color:var(--kwPrefix);font-weight:600}
   .kwt{color:var(--kwType);font-weight:600}
   .kwd{color:var(--kwDecl)}
@@ -55,15 +66,33 @@
   #suggest{position:absolute;background:var(--panel);border:1px solid var(--accent);border-radius:6px;z-index:10;max-height:160px;overflow:auto;display:none;font:13px monospace;min-width:120px}
   #suggest div{padding:4px 10px;cursor:pointer}
   #suggest div.sel,#suggest div:hover{background:var(--accent);color:#fff}
+  #colorPickerInput{position:fixed;left:-999px;top:-999px;opacity:0;width:1px;height:1px}
 </style>
 </head>
 <body>
-<div id="toolbar">
-  <button id="btnNew">Новый файл</button>
-  <button id="btnOpen">Открыть файл</button>
-  <button id="btnSave">Сохранить (Ctrl+S)</button>
-  <button id="btnCompileSave">Скомпилировать и сохранить</button>
-  <button id="btnCompileRun" class="primary">Скомпилировать и запустить</button>
+<div id="menubar">
+  <div class="menu" id="menuFile">
+    <button class="menu-btn">Файл</button>
+    <div class="menu-drop">
+      <button id="btnNew">Новый файл</button>
+      <button id="btnOpen">Открыть файл</button>
+      <button id="btnSave">Сохранить <span class="hint">Ctrl+S</span></button>
+      <button id="btnCompileSave">Скомпилировать и сохранить</button>
+      <button id="btnCompileRun" class="primary">Скомпилировать и запустить</button>
+    </div>
+  </div>
+  <div class="menu" id="menuEdit">
+    <button class="menu-btn">Правка</button>
+    <div class="menu-drop">
+      <button id="editUndo">Отменить <span class="hint">Ctrl+Z</span></button>
+      <button id="editRedo">Повторить <span class="hint">Ctrl+Y</span></button>
+      <button id="editCut">Вырезать <span class="hint">Ctrl+X</span></button>
+      <button id="editCopy">Копировать <span class="hint">Ctrl+C</span></button>
+      <button id="editPaste">Вставить <span class="hint">Ctrl+V</span></button>
+      <button id="editSelectAll">Выделить всё <span class="hint">Ctrl+A</span></button>
+      <button id="editRefresh">Обновить проверку <span class="hint">F5</span></button>
+    </div>
+  </div>
   <span id="filename">файл не выбран</span>
 </div>
 <div id="main">
@@ -72,6 +101,7 @@
       <div id="gutter"></div>
       <div id="codeArea">
         <div id="highlight"></div>
+        <div id="colorLayer"></div>
         <textarea id="code" spellcheck="false" wrap="off" placeholder="Создайте или откройте .gms файл..."></textarea>
         <div id="findBar">
           <input id="findInput" placeholder="Поиск...">
@@ -94,17 +124,20 @@
     <div id="previewHost"><iframe id="previewFrame" sandbox="allow-scripts allow-same-origin"></iframe></div>
   </div>
 </div>
+<input type="color" id="colorPickerInput">
 
 <script type="module">
 import { compile } from '../../assets/js/GMS-script-compiler.js';
 
 const code = document.getElementById('code');
 const highlightEl = document.getElementById('highlight');
+const colorLayer = document.getElementById('colorLayer');
 const gutter = document.getElementById('gutter');
 const errorsEl = document.getElementById('errors');
 const filenameEl = document.getElementById('filename');
 const preview = document.getElementById('preview');
 const previewFrame = document.getElementById('previewFrame');
+const colorPickerInput = document.getElementById('colorPickerInput');
 
 const TEMPLATE =
 `[
@@ -120,7 +153,7 @@ Update {
 
 // ===== Ключевые слова языка (актуальная версия компилятора) =====
 const TYPE_WORDS = ['Point2D','Point3D','Point','Line2D','Line3D','Line','Figure2D','Figure3D','Figure',
- 'Primitive','Section','Boolean','Angle3D','Claster2D','Claster3D','Claster','Angle','EquallySing',
+ 'Primitive','Section','Boolean','Truncate','Hull','Minkowski','Angle3D','Claster2D','Claster3D','Claster','Angle','EquallySing',
  'Vector2D','Vector3D','Vector','InfLine','InfPlane','Filling2D','Filling3D','Filling','Punctir',
  'Text2D','Text3D','Text','UI','Circle','Arc','Ellipse','Curve2D','Curve3D','Curve',
  'Surface2D','Surface3D','Surface','Image','Histogram','Field2D','Field3D','Field',
@@ -130,17 +163,29 @@ const TYPE_WORDS = ['Point2D','Point3D','Point','Line2D','Line3D','Line','Figure
 const PREFIX_WORDS = ['new','draw','func','Void','Function','Start','Update','if','else','repeat','for','wait','return'];
 const DECL_WORDS = ['int','float','string','bool','Vector2','color','list'];
 
-// Поля для автозаполнения "следующий параметр =" по типу блока
+// Поля для автозаполнения "следующий параметр =" по типу блока (наиболее используемые поля)
 const FIELD_ORDER = {
   Point:['name','pos','color'], Point2D:['name','pos','color'], Point3D:['name','pos','color'],
-  Line:['name','pointA','pointB','color'], Line2D:['name','pointA','pointB','color'], Line3D:['name','pointA','pointB','color'],
+  Line:['name','pos','color'], Line2D:['name','pos','color'], Line3D:['name','pos','color'],
   Circle:['name','center','radius','color'], Ellipse:['name','center','a','b','color'],
-  Figure:['name','elements','color'], Figure2D:['name','elements','color'], Figure3D:['name','elements','color'],
-  Curve:['name','points','color'], Curve2D:['name','points','color'], Curve3D:['name','points','color'],
-  Vector:['name','edge','color'], Text:['name','pos','text','color'],
+  Figure:['name','elements'], Figure2D:['name','elements'], Figure3D:['name','elements'],
+  Curve:['name','center','radius','color'], Curve2D:['name','center','radius','color'], Curve3D:['name','center','radius','color'],
+  Vector:['name','edge','color'], Vector2D:['name','edge','color'], Vector3D:['name','edge','color'],
+  Text:['name','pos','text','color'], Text2D:['name','pos','text','color'], Text3D:['name','pos','text','color'],
   UI:['type','label','variable','default','min','max','step'],
-  Angle:['name','lines','color'], Section:['name','a','b','color'], Boolean:['name','a','b','mode','color'],
-  Surface:['name','f','color'], Field:['name','fx','fy','color'], Graph:['name','f','color']
+  Angle:['name','lines'], Section:['name','source','normal','offset','color'],
+  Boolean:['name','op','parts','color'], Truncate:['name','source','color'], Hull:['name','parts','color'],
+  Minkowski:['name','parts','color'], Angle3D:['name','type','color'],
+  Claster:['name','elements'], Claster2D:['name','elements'], Claster3D:['name','elements'],
+  Primitive:['name','type','pos','color'],
+  Function:['name','f','color'], Surface:['name','f','color'], Field:['name','P','Q','color'],
+  Trajectory:['name','start','system','color'], Graph:['name','graph','color'],
+  Filling:['name','figure','color'], Punctir:['name','line','color'],
+  Arc:['name','center','from','to','color'], Formula:['name','pos','latex','color'],
+  Locus:['name','point','driver','color'], Trace:['name','point','color'], Region:['name','f','color'],
+  Chart:['name','data','color'], Tree:['name','data','color'], Table:['name','data'],
+  Complex:['name','f','color'], Fractal:['name','type','color'], Image:['name','src','pos'],
+  Histogram:['name','data','color'], InfLine:['name','line','color'], InfPlane:['name','points','color']
 };
 
 const THEME_BG = { dark:'#1b1b2a', light:'#ffffff' };
@@ -178,7 +223,6 @@ function tokenizeToSegments(src){
   if (last < src.length) segs.push({ cls: null, text: src.slice(last) });
   return segs;
 }
-
 function segmentsToLines(segs){
   const lines = [[]];
   for (const seg of segs) {
@@ -204,12 +248,13 @@ function render(){
   }
   highlightEl.innerHTML = html;
   gutter.innerHTML = lines.map((_, i) => `<div>${i + 1}</div>`).join('');
+  updateColorSwatches(src);
 }
 
 // синхронизация скролла
 code.addEventListener('scroll', () => {
-  highlightEl.scrollTop = code.scrollTop;
-  highlightEl.scrollLeft = code.scrollLeft;
+  highlightEl.scrollTop = code.scrollTop; highlightEl.scrollLeft = code.scrollLeft;
+  colorLayer.scrollTop = code.scrollTop; colorLayer.scrollLeft = code.scrollLeft;
   gutter.scrollTop = code.scrollTop;
 });
 
@@ -217,6 +262,10 @@ code.addEventListener('scroll', () => {
 function currentLineStart(pos){ return code.value.lastIndexOf('\n', pos - 1) + 1; }
 function lineIndent(lineText){ const m = lineText.match(/^[ \t]*/); return m ? m[0] : ''; }
 
+// Находит ближайшую охватывающую фигурную скобку и заголовок перед ней.
+// type !== null только если это литерал объекта (new X {.../draw X {...}) —
+// у всех остальных блоков ({} у Start/Update/if/repeat/for/func/Void) — обычные
+// операторы с ';', а не список полей через ','.
 function findEnclosingBrace(uptoPos){
   const s = code.value.slice(0, uptoPos);
   let depth = 0, idx = -1;
@@ -247,7 +296,7 @@ function isBalancedValue(v){
     const c = v[i];
     if (inStr) { if (c === '\\') { i++; continue; } if (c === '"') inStr = false; continue; }
     if (c === '"') { inStr = true; continue; }
-    if (c === '(' || c === '[' ) depth++;
+    if (c === '(' || c === '[') depth++;
     else if (c === ')' || c === ']') { depth--; if (depth < 0) return false; }
   }
   if (inStr || depth !== 0) return false;
@@ -264,14 +313,22 @@ function lastTopLevelEquals(t){
   }
   return -1;
 }
+// Строка считается логически завершённой ТОЛЬКО если:
+//  а) есть верхнеуровневое "поле = значение" со сбалансированным значением, либо
+//  б) это вызов-оператор вида "имя(...)" с полностью сбалансированными скобками, либо
+//  в) это "return <выражение>" со сбалансированным выражением.
+// Одиночные слова/ключевые слова/незавершённые идентификаторы (например "Start",
+// "name", начало "if (") НИКОГДА не считаются завершённой строкой.
 function lineLooksComplete(t){
   if (!t) return false;
   if (/[;,{}\[\]]$/.test(t)) return false;
-  const openComment = t.lastIndexOf('//');
-  if (openComment !== -1) return false;
+  if (t.lastIndexOf('//') !== -1) return false;
   const eqIdx = lastTopLevelEquals(t);
-  const valuePart = eqIdx !== -1 ? t.slice(eqIdx + 1) : t;
-  return isBalancedValue(valuePart);
+  if (eqIdx !== -1) return isBalancedValue(t.slice(eqIdx + 1));
+  const retMatch = t.match(/^return\s+(.+)$/);
+  if (retMatch) return isBalancedValue(retMatch[1]);
+  if (/^[A-Za-z_][A-Za-z0-9_.]*\s*\([\s\S]*\)$/.test(t)) return isBalancedValue(t);
+  return false;
 }
 
 // вставляет ; или , [следующее поле] непосредственно перед pos, возвращает длину вставки
@@ -282,13 +339,15 @@ function maybeApplyPunctuation(pos){
   if (!lineLooksComplete(t)) return 0;
   const braceInfo = findEnclosingBrace(lsStart);
   let insertion;
-  if (braceInfo) {
+  if (braceInfo && braceInfo.type) {
+    // это литерал объекта: new X {...} / draw X {...} — поля через запятую
     const type = braceInfo.type;
     const used = collectUsedFields(braceInfo.start, pos);
-    const order = type ? FIELD_ORDER[type] : null;
+    const order = FIELD_ORDER[type];
     const next = order ? order.find(f => !used.includes(f)) : null;
     insertion = next ? ', ' + next + ' = ' : ',';
   } else {
+    // верхний уровень, [заголовок], Start/Update/if/repeat/for/func/Void — операторы с ';'
     insertion = ';';
   }
   code.value = code.value.slice(0, pos) + insertion + code.value.slice(pos);
@@ -391,10 +450,44 @@ code.addEventListener('keyup', () => { updateSuggest(); });
 function onEdit(){ render(); scheduleCheck(); }
 code.addEventListener('input', onEdit);
 
+// ===== Меню =====
+document.querySelectorAll('.menu-btn').forEach(btn => {
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const menu = btn.parentElement;
+    const wasOpen = menu.classList.contains('open');
+    document.querySelectorAll('.menu.open').forEach(m => m.classList.remove('open'));
+    if (!wasOpen) menu.classList.add('open');
+  });
+});
+document.addEventListener('click', () => document.querySelectorAll('.menu.open').forEach(m => m.classList.remove('open')));
+function closeMenus(){ document.querySelectorAll('.menu.open').forEach(m => m.classList.remove('open')); }
+
+// ===== Правка (Undo/Redo/Cut/Copy/Paste/...) =====
+function withFocus(fn){ code.focus(); fn(); closeMenus(); onEdit(); }
+document.getElementById('editUndo').addEventListener('click', () => withFocus(() => document.execCommand('undo')));
+document.getElementById('editRedo').addEventListener('click', () => withFocus(() => document.execCommand('redo')));
+document.getElementById('editCut').addEventListener('click', () => withFocus(() => document.execCommand('cut')));
+document.getElementById('editCopy').addEventListener('click', () => withFocus(() => document.execCommand('copy')));
+document.getElementById('editPaste').addEventListener('click', async () => {
+  code.focus();
+  try {
+    const text = await navigator.clipboard.readText();
+    const s = code.selectionStart, en = code.selectionEnd;
+    code.value = code.value.slice(0, s) + text + code.value.slice(en);
+    code.selectionStart = code.selectionEnd = s + text.length;
+  } catch (err) { document.execCommand('paste'); }
+  closeMenus(); onEdit();
+});
+document.getElementById('editSelectAll').addEventListener('click', () => { code.focus(); code.select(); closeMenus(); });
+document.getElementById('editRefresh').addEventListener('click', () => { closeMenus(); runCheck(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'F5') { e.preventDefault(); runCheck(); } });
+
 // ===== Файлы =====
 let currentHandle = null;
 
 document.getElementById('btnNew').addEventListener('click', async () => {
+  closeMenus();
   try {
     if (window.showSaveFilePicker) {
       currentHandle = await window.showSaveFilePicker({
@@ -413,6 +506,7 @@ document.getElementById('btnNew').addEventListener('click', async () => {
 });
 
 document.getElementById('btnOpen').addEventListener('click', async () => {
+  closeMenus();
   try {
     if (window.showOpenFilePicker) {
       [currentHandle] = await window.showOpenFilePicker({
@@ -463,7 +557,7 @@ async function saveCurrentFile(){
     a.click();
   }
 }
-document.getElementById('btnSave').addEventListener('click', saveCurrentFile);
+document.getElementById('btnSave').addEventListener('click', () => { closeMenus(); saveCurrentFile(); });
 
 async function saveHtmlOutput(html){
   if (window.showSaveFilePicker) {
@@ -485,6 +579,7 @@ async function saveHtmlOutput(html){
 }
 
 // ===== Компиляция =====
+// compile() возвращает { success, errors: string[] } или { success, html }
 function withTheme(source, themeName){
   const first = source.indexOf('[');
   const last = source.lastIndexOf(']');
@@ -500,10 +595,10 @@ function showCompileErrors(res){
   if (res.success) {
     errorsEl.innerHTML = '<span class="ok">Компиляция успешна.</span>';
   } else {
-    errorsEl.innerHTML = res.errors.map(er => {
-      let ln = (typeof er.line === 'number') ? er.line : guessLineFromMessage(er.message);
+    errorsEl.innerHTML = res.errors.map(msg => {
+      const ln = guessLineFromMessage(msg);
       if (ln) errorLines.add(ln);
-      return `<span class="e" data-line="${ln || ''}">✕ ${ln ? 'строка ' + ln + ': ' : ''}${escapeHtml(er.message)}</span>`;
+      return `<span class="e" data-line="${ln || ''}">✕ ${ln ? 'строка ' + ln + ': ' : ''}${escapeHtml(msg)}</span>`;
     }).join('');
     errorsEl.querySelectorAll('.e[data-line]').forEach(el => {
       el.addEventListener('click', () => { const ln = +el.dataset.line; if (ln) jumpToLine(ln); });
@@ -512,7 +607,7 @@ function showCompileErrors(res){
   render();
 }
 function guessLineFromMessage(msg){
-  const m = msg.match(/"([^"]+)"/);
+  const m = typeof msg === 'string' ? msg.match(/"([^"]+)"/) : null;
   if (!m) return null;
   const name = m[1];
   const lines = code.value.split('\n');
@@ -531,6 +626,7 @@ function jumpToLine(ln){
 }
 
 async function doCompileAndSave(){
+  closeMenus();
   const res = compile(code.value);
   showCompileErrors(res);
   if (!res.success) return;
@@ -540,6 +636,7 @@ async function doCompileAndSave(){
 
 let previewTheme = 'dark';
 async function doCompileAndRun(){
+  closeMenus();
   const res = compile(code.value);
   showCompileErrors(res);
   if (!res.success) return;
@@ -554,10 +651,6 @@ document.getElementById('btnCompileSave').addEventListener('click', doCompileAnd
 document.getElementById('btnCompileRun').addEventListener('click', doCompileAndRun);
 document.getElementById('themeDark').addEventListener('click', () => { previewTheme = 'dark'; if (preview.classList.contains('show')) doCompileAndRun(); });
 document.getElementById('themeLight').addEventListener('click', () => { previewTheme = 'light'; if (preview.classList.contains('show')) doCompileAndRun(); });
-
-document.addEventListener('keydown', (e) => {
-  if (e.key === 's' && (e.ctrlKey || e.metaKey) && e.target !== code) { e.preventDefault(); saveCurrentFile(); }
-});
 
 // ===== Проверка ошибок с задержкой 2с =====
 let checkTimer = null;
@@ -681,6 +774,87 @@ function getCaretCoords(){
   const top = (rect.top - mirrorRect.top) - code.scrollTop + 20;
   document.body.removeChild(mirror);
   return { left: Math.min(left, code.clientWidth - 40), top };
+}
+
+// ===== Редактирование цвета (визуальный пикер для полей *color* / color) =====
+let CHAR_WIDTH = 7.8;
+(function measureCharWidth(){
+  const c = document.createElement('canvas');
+  const ctx = c.getContext('2d');
+  ctx.font = getComputedStyle(code).font || '13px monospace';
+  CHAR_WIDTH = ctx.measureText('0').width || CHAR_WIDTH;
+})();
+
+function buildLineOffsets(src){
+  const offsets = [0];
+  for (let i = 0; i < src.length; i++) if (src[i] === '\n') offsets.push(i + 1);
+  return offsets;
+}
+function offsetToLineCol(offsets, idx){
+  let line = 0;
+  for (let i = 0; i < offsets.length; i++) { if (offsets[i] <= idx) line = i; else break; }
+  return { line, col: idx - offsets[line] };
+}
+
+const COLOR_FIELD_RE = /\b([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(#[0-9A-Fa-f]{3,8}|default|"[^"]*"|'[^']*')/g;
+
+function swatchCssColor(raw){
+  if (raw === 'default') return null; // checkerboard из CSS
+  if ((raw.startsWith('"') && raw.endsWith('"')) || (raw.startsWith("'") && raw.endsWith("'"))) raw = raw.slice(1, -1);
+  return raw;
+}
+function normalizeHex(raw){
+  let v = raw;
+  if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) v = v.slice(1, -1);
+  if (v === 'default' || !v) return '#7c7cff';
+  if (/^#[0-9a-fA-F]{3}$/.test(v)) return '#' + [...v.slice(1)].map(ch => ch + ch).join('');
+  if (/^#[0-9a-fA-F]{8}$/.test(v)) return v.slice(0, 7);
+  if (/^#[0-9a-fA-F]{6}$/.test(v)) return v;
+  return nameToHex(v);
+}
+function nameToHex(name){
+  const d = document.createElement('div');
+  d.style.color = name;
+  document.body.appendChild(d);
+  const rgb = getComputedStyle(d).color;
+  document.body.removeChild(d);
+  const m = rgb.match(/\d+/g);
+  if (!m) return '#7c7cff';
+  return '#' + m.slice(0, 3).map(n => (+n).toString(16).padStart(2, '0')).join('');
+}
+function replaceRange(start, end, text){
+  code.value = code.value.slice(0, start) + text + code.value.slice(end);
+  onEdit();
+}
+function openColorPicker(start, end, raw){
+  colorPickerInput.value = normalizeHex(raw);
+  colorPickerInput.onchange = () => replaceRange(start, end, colorPickerInput.value);
+  colorPickerInput.click();
+}
+
+function updateColorSwatches(src){
+  colorLayer.innerHTML = '';
+  const offsets = buildLineOffsets(src);
+  COLOR_FIELD_RE.lastIndex = 0;
+  let m;
+  while ((m = COLOR_FIELD_RE.exec(src))) {
+    const key = m[1];
+    if (!/color/i.test(key)) continue;
+    const raw = m[2];
+    const valueEnd = m.index + m[0].length;
+    const valueStart = valueEnd - raw.length;
+    const { line, col } = offsetToLineCol(offsets, valueEnd);
+    const btn = document.createElement('button');
+    btn.className = 'swatch';
+    btn.style.left = (10 + col * CHAR_WIDTH + 4) + 'px';
+    btn.style.top = (10 + line * 19.5 + 2) + 'px';
+    const css = swatchCssColor(raw);
+    if (css) { btn.style.backgroundColor = css; btn.style.backgroundImage = 'none'; }
+    btn.title = raw === 'default' ? 'default — клик: задать цвет, ПКМ: оставить default' : raw + ' — клик: изменить цвет, ПКМ: сбросить на default';
+    btn.addEventListener('click', (e) => { e.preventDefault(); openColorPicker(valueStart, valueEnd, raw); });
+    btn.addEventListener('contextmenu', (e) => { e.preventDefault(); replaceRange(valueStart, valueEnd, 'default'); });
+    colorLayer.appendChild(btn);
+  }
 }
 
 // старт
