@@ -1187,7 +1187,7 @@
               <h3>Выберите формат</h3>
               <div class="btn-group">
                 <button class="primary" id="sprDownloadMd">Markdown (.md) — ZIP</button>
-                <button class="primary" id="sprDownloadDocx">DOCX (.docx) — ZIP</button>
+                <button class="primary" id="sprDownloadDoc">Word (.doc) — ZIP</button>
                 <button class="primary" id="sprDownloadHtml">Единый HTML</button>
                 <button class="cancel" id="sprDownloadCancel">Отмена</button>
               </div>
@@ -1230,7 +1230,7 @@
           downloadBtn: document.getElementById('sprDownloadBtn'),
           downloadOverlay: document.getElementById('sprDownloadOverlay'),
           downloadMd: document.getElementById('sprDownloadMd'),
-          downloadDocx: document.getElementById('sprDownloadDocx'),
+          downloadDoc: document.getElementById('sprDownloadDoc'),
           downloadHtml: document.getElementById('sprDownloadHtml'),
           downloadCancel: document.getElementById('sprDownloadCancel'),
         };
@@ -2118,7 +2118,7 @@
       }
 
       // ===================================================================
-      // АДМИН: СКАЧИВАНИЕ (MD, DOCX, HTML)
+      // АДМИН: СКАЧИВАНИЕ (MD, DOC, HTML)
       // ===================================================================
       function sanitizeFileName(name) {
         return name.replace(/[^a-zA-Zа-яА-ЯёЁ0-9\-_ ]/g, '_');
@@ -2176,28 +2176,28 @@
         }
       }
 
-      // -------- 2. DOCX (.docx) ZIP --------
-      function generateDocxZip() {
+      // -------- 2. Word (.doc) ZIP (HTML+MathML) --------
+      function generateDocZip() {
         const zip = new JSZip();
         const rootIds = getChildren(null);
         for (const id of rootIds) {
           const topic = topicsById.get(id);
           if (topic && filterTopic(id)) {
-            addTopicToZipDocx(zip, topic, '');
+            addTopicToZipDoc(zip, topic, '');
           }
         }
         zip.generateAsync({ type: 'blob' }).then((blob) => {
-          saveAs(blob, 'mathframe_topics_docx.zip');
+          saveAs(blob, 'mathframe_topics_doc.zip');
         }).catch((err) => {
-          alert('Ошибка создания архива DOCX: ' + err.message);
+          alert('Ошибка создания архива Word: ' + err.message);
         });
       }
 
-      function addTopicToZipDocx(zip, topic, parentPath) {
+      function addTopicToZipDoc(zip, topic, parentPath) {
         const safeTitle = sanitizeFileName(topic.title);
         const path = parentPath ? parentPath + '/' + safeTitle : safeTitle;
 
-        function buildDocxHtml(description, title) {
+        function buildDocHtml(description, title) {
           const descWithMathML = convertFormulasToMathML(description || '');
           return `
             <html xmlns:o='urn:schemas-microsoft-com:office:office'
@@ -2257,38 +2257,38 @@
         if (topic.type === 'folder') {
           zip.folder(path);
           if (topic.description) {
-            const folderDescName = `Описание папки — ${safeTitle}.docx`;
-            const content = buildDocxHtml(topic.description, 'Описание папки: ' + topic.title);
+            const folderDescName = `Описание папки — ${safeTitle}.doc`;
+            const content = buildDocHtml(topic.description, 'Описание папки: ' + topic.title);
             zip.file(path + '/' + folderDescName, content);
           }
           const children = getChildren(topic.id);
           for (const childId of children) {
             const child = topicsById.get(childId);
             if (child && filterTopic(childId)) {
-              addTopicToZipDocx(zip, child, path);
+              addTopicToZipDoc(zip, child, path);
             }
           }
         } else {
           const children = getChildren(topic.id);
           if (children.length > 0) {
             zip.folder(path);
-            const content = buildDocxHtml(topic.description, topic.title);
-            zip.file(path + '/' + safeTitle + '.docx', content);
+            const content = buildDocHtml(topic.description, topic.title);
+            zip.file(path + '/' + safeTitle + '.doc', content);
             for (const childId of children) {
               const child = topicsById.get(childId);
               if (child && filterTopic(childId)) {
-                addTopicToZipDocx(zip, child, path);
+                addTopicToZipDoc(zip, child, path);
               }
             }
           } else {
-            const filePath = parentPath ? parentPath + '/' + safeTitle + '.docx' : safeTitle + '.docx';
-            const content = buildDocxHtml(topic.description, topic.title);
+            const filePath = parentPath ? parentPath + '/' + safeTitle + '.doc' : safeTitle + '.doc';
+            const content = buildDocHtml(topic.description, topic.title);
             zip.file(filePath, content);
           }
         }
       }
 
-      // -------- 3. Единый HTML --------
+      // -------- 3. Единый HTML (с исправленными ссылками) --------
       function generateSingleHtml() {
         let html = `<!DOCTYPE html>
         <html lang="ru">
@@ -2342,7 +2342,10 @@
           html += `<${tag}>${title}</${tag}>`;
           html += `<div class="topic-meta">Тип: ${topic.type} | Класс: ${topic.class || '—'}</div>`;
           if (topic.description) {
-            html += `<div class="topic-description">${topic.description}</div>`;
+            // Заменяем ссылки вида topic:... на #...
+            let desc = topic.description;
+            desc = desc.replace(/href="topic:([^"]*)"/g, 'href="#$1"');
+            html += `<div class="topic-description">${desc}</div>`;
           }
           const children = getChildren(topic.id);
           if (children.length > 0) {
@@ -2479,9 +2482,9 @@
           hideDownloadModal();
           generateMdZip();
         });
-        els.downloadDocx.addEventListener('click', () => {
+        els.downloadDoc.addEventListener('click', () => {
           hideDownloadModal();
-          generateDocxZip();
+          generateDocZip();
         });
         els.downloadHtml.addEventListener('click', () => {
           hideDownloadModal();
