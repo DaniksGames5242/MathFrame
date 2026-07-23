@@ -354,6 +354,11 @@
       height: 100%;
       display: block;
     }
+    .spr-node-icon img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
     .spr-node-icon.spr-icon-pop {
       animation: iconPop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
     }
@@ -887,9 +892,8 @@
       height: 2px;
       border-radius: 2px;
       background: var(--text-primary);
-      transition: none; /* убираем анимацию крестика */
+      transition: none;
     }
-    /* При открытом сайдбаре кнопка исчезает и сдвигается вправо */
     .spr-menu-toggle.hidden {
       opacity: 0;
       transform: scale(0.5) translateX(calc(var(--spr-sidebar-width) + 0.5rem));
@@ -932,7 +936,6 @@
     }
     @media (max-width: 900px) {
       .spr-menu-toggle { display: flex; }
-
       .spr-sidebar {
         position: fixed;
         top: var(--header-height);
@@ -947,13 +950,11 @@
       }
       .spr-sidebar.open { transform: translateX(0); }
       .spr-sidebar-resizer { display: none; }
-
       .spr-sidebar-overlay.visible {
         display: block;
         opacity: 1;
         pointer-events: auto;
       }
-
       .spr-content {
         margin-left: 0;
         padding: 1.5rem 1.1rem 3rem;
@@ -986,7 +987,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 
-  <!-- JSZip & FileSaver для скачивания тем -->
+  <!-- JSZip & FileSaver -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
 </head>
@@ -1034,7 +1035,6 @@
       let currentId = null;
       let compilerModulePromise = null;
       let lastQuery = '';
-      let katexReady = false;
       let katexCheckInterval = null;
       let isFirstRender = true;
       let historyStack = [];
@@ -1103,7 +1103,7 @@
                   <div class="spr-search-empty" id="sprSearchEmpty">Ничего не найдено</div>
                 </div>
 
-                <!-- Дерево тем (занимает всё свободное пространство) -->
+                <!-- Дерево тем -->
                 <nav class="spr-tree" id="sprTree" aria-label="Дерево тем"></nav>
 
                 <!-- Низ: фильтры и параметры -->
@@ -1180,7 +1180,7 @@
           </div>
         `;
 
-        // --- Добавляем модальное окно выбора формата ---
+        // Модальное окно выбора формата
         const downloadModalHTML = `
           <div class="spr-download-overlay" id="sprDownloadOverlay">
             <div class="spr-download-modal">
@@ -1238,69 +1238,6 @@
       }
 
       // ===================================================================
-      // РЕСАЙЗ САЙДБАРА
-      // ===================================================================
-      function initResizer() {
-        let isResizing = false;
-        let startX, startWidth;
-
-        const resizer = els.resizer;
-        const sidebar = els.sidebar;
-
-        function onStart(e) {
-          const ev = e.touches ? e.touches[0] : e;
-          isResizing = true;
-          startX = ev.clientX;
-          startWidth = sidebar.getBoundingClientRect().width;
-          resizer.classList.add('active');
-          document.body.style.cursor = 'col-resize';
-          document.body.style.userSelect = 'none';
-          e.preventDefault();
-        }
-
-        function onMove(e) {
-          if (!isResizing) return;
-          const ev = e.touches ? e.touches[0] : e;
-          const delta = ev.clientX - startX;
-          let newWidth = Math.min(
-            Math.max(startWidth + delta, parseInt(getComputedStyle(document.documentElement).getPropertyValue('--spr-sidebar-min-width'))),
-            parseInt(getComputedStyle(document.documentElement).getPropertyValue('--spr-sidebar-max-width'))
-          );
-          document.documentElement.style.setProperty('--spr-sidebar-width', newWidth + 'px');
-          localStorage.setItem('spr-sidebar-width', String(newWidth));
-          e.preventDefault();
-        }
-
-        function onEnd() {
-          if (isResizing) {
-            isResizing = false;
-            resizer.classList.remove('active');
-            document.body.style.cursor = '';
-            document.body.style.userSelect = '';
-          }
-        }
-
-        resizer.addEventListener('mousedown', onStart);
-        window.addEventListener('mousemove', onMove);
-        window.addEventListener('mouseup', onEnd);
-        resizer.addEventListener('touchstart', onStart);
-        window.addEventListener('touchmove', onMove);
-        window.addEventListener('touchend', onEnd);
-      }
-
-      function restoreSidebarWidth() {
-        const saved = localStorage.getItem('spr-sidebar-width');
-        if (saved) {
-          const w = parseInt(saved);
-          const min = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--spr-sidebar-min-width'));
-          const max = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--spr-sidebar-max-width'));
-          if (w >= min && w <= max) {
-            document.documentElement.style.setProperty('--spr-sidebar-width', w + 'px');
-          }
-        }
-      }
-
-      // ===================================================================
       // UI-обработчики
       // ===================================================================
       function setupUiHandlers() {
@@ -1310,13 +1247,11 @@
           els.menuToggle.classList.toggle('hidden', isOpen);
           els.overlay.classList.toggle('visible', isOpen);
         });
-
         els.overlay.addEventListener('click', () => {
           els.sidebar.classList.remove('open');
           els.menuToggle.classList.remove('hidden');
           els.overlay.classList.remove('visible');
         });
-
         window.addEventListener('resize', () => {
           if (window.innerWidth > 900) {
             els.sidebar.classList.remove('open');
@@ -1374,6 +1309,68 @@
           els.sidebar.classList.remove('open');
           els.menuToggle.classList.remove('hidden');
           els.overlay.classList.remove('visible');
+        }
+      }
+
+      // ===================================================================
+      // РЕСАЙЗ
+      // ===================================================================
+      function initResizer() {
+        let isResizing = false;
+        let startX, startWidth;
+        const resizer = els.resizer;
+        const sidebar = els.sidebar;
+
+        function onStart(e) {
+          const ev = e.touches ? e.touches[0] : e;
+          isResizing = true;
+          startX = ev.clientX;
+          startWidth = sidebar.getBoundingClientRect().width;
+          resizer.classList.add('active');
+          document.body.style.cursor = 'col-resize';
+          document.body.style.userSelect = 'none';
+          e.preventDefault();
+        }
+
+        function onMove(e) {
+          if (!isResizing) return;
+          const ev = e.touches ? e.touches[0] : e;
+          const delta = ev.clientX - startX;
+          let newWidth = Math.min(
+            Math.max(startWidth + delta, parseInt(getComputedStyle(document.documentElement).getPropertyValue('--spr-sidebar-min-width'))),
+            parseInt(getComputedStyle(document.documentElement).getPropertyValue('--spr-sidebar-max-width'))
+          );
+          document.documentElement.style.setProperty('--spr-sidebar-width', newWidth + 'px');
+          localStorage.setItem('spr-sidebar-width', String(newWidth));
+          e.preventDefault();
+        }
+
+        function onEnd() {
+          if (isResizing) {
+            isResizing = false;
+            resizer.classList.remove('active');
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+          }
+        }
+
+        resizer.addEventListener('mousedown', onStart);
+        window.addEventListener('mousemove', onMove);
+        window.addEventListener('mouseup', onEnd);
+        resizer.addEventListener('touchstart', onStart);
+        window.addEventListener('touchmove', onMove);
+        window.addEventListener('touchend', onEnd);
+      }
+
+      function restoreSidebarWidth() {
+        const saved = localStorage.getItem('spr-sidebar-width');
+        if (saved) {
+          const w = parseInt(saved);
+          const min = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--spr-sidebar-min-width'));
+          const max = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--spr-sidebar-max-width'));
+          if (w >= min && w <= max) {
+            document.documentElement.style.setProperty('--spr-sidebar-width', w + 'px');
+          }
         }
       }
 
@@ -1500,26 +1497,33 @@
       }
 
       // ===================================================================
-      // ИКОНКИ ДЛЯ РАЗНЫХ ТИПОВ
+      // ИКОНКИ (SVG для папок и тем, PNG для новых типов)
       // ===================================================================
       function getIconForType(type, expandedFlag) {
-        const commonAttrs = 'viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"';
-        switch (type) {
-          case 'folder':
-            return expandedFlag
-              ? `<svg ${commonAttrs}><path d="M3 8.2C3 7.32 3.72 6.6 4.6 6.6h4.68c.5 0 .97.24 1.26.65l1 1.4h6.86c.99 0 1.72.93 1.48 1.9l-1.55 6.2a1.6 1.6 0 0 1-1.55 1.21H4.6c-.88 0-1.6-.72-1.6-1.6V8.2Z"/><path d="M3 8.6l1.3 8.86"/></svg>`
-              : `<svg ${commonAttrs}><path d="M3 6.6C3 5.72 3.72 5 4.6 5h4.68c.5 0 .97.24 1.26.65l1 1.4h8.06c.88 0 1.6.72 1.6 1.6v9.35c0 .88-.72 1.6-1.6 1.6H4.6c-.88 0-1.6-.72-1.6-1.6V6.6Z"/></svg>`;
-          case 'topic':
-            return `<svg ${commonAttrs}><path d="M6.6 3h7.2l4.2 4.2v13.2a.6.6 0 0 1-.6.6H6.6a.6.6 0 0 1-.6-.6V3.6a.6.6 0 0 1 .6-.6Z"/><path d="M13.8 3v3.6c0 .66.54 1.2 1.2 1.2H18.6"/><path d="M9 13h6M9 16.5h6"/></svg>`;
-          case 'theorem':
-            return `<svg ${commonAttrs}><circle cx="12" cy="12" r="10"/><text x="12" y="16" font-family="serif" font-size="14" text-anchor="middle" fill="currentColor" stroke="none">T</text></svg>`;
-          case 'proof':
-            return `<svg ${commonAttrs}><path d="M4 12l4 4L20 6"/></svg>`;
-          case 'example':
-            return `<svg ${commonAttrs}><circle cx="12" cy="12" r="10"/><text x="12" y="16" font-family="sans-serif" font-size="14" text-anchor="middle" fill="currentColor" stroke="none">!</text></svg>`;
-          default:
-            return `<svg ${commonAttrs}><path d="M6.6 3h7.2l4.2 4.2v13.2a.6.6 0 0 1-.6.6H6.6a.6.6 0 0 1-.6-.6V3.6a.6.6 0 0 1 .6-.6Z"/><path d="M13.8 3v3.6c0 .66.54 1.2 1.2 1.2H18.6"/></svg>`;
+        // Для папок и обычных тем оставляем SVG
+        if (type === 'folder') {
+          const commonAttrs = 'viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"';
+          return expandedFlag
+            ? `<svg ${commonAttrs}><path d="M3 8.2C3 7.32 3.72 6.6 4.6 6.6h4.68c.5 0 .97.24 1.26.65l1 1.4h6.86c.99 0 1.72.93 1.48 1.9l-1.55 6.2a1.6 1.6 0 0 1-1.55 1.21H4.6c-.88 0-1.6-.72-1.6-1.6V8.2Z"/><path d="M3 8.6l1.3 8.86"/></svg>`
+            : `<svg ${commonAttrs}><path d="M3 6.6C3 5.72 3.72 5 4.6 5h4.68c.5 0 .97.24 1.26.65l1 1.4h8.06c.88 0 1.6.72 1.6 1.6v9.35c0 .88-.72 1.6-1.6 1.6H4.6c-.88 0-1.6-.72-1.6-1.6V6.6Z"/></svg>`;
         }
+        if (type === 'topic') {
+          const commonAttrs = 'viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"';
+          return `<svg ${commonAttrs}><path d="M6.6 3h7.2l4.2 4.2v13.2a.6.6 0 0 1-.6.6H6.6a.6.6 0 0 1-.6-.6V3.6a.6.6 0 0 1 .6-.6Z"/><path d="M13.8 3v3.6c0 .66.54 1.2 1.2 1.2H18.6"/><path d="M9 13h6M9 16.5h6"/></svg>`;
+        }
+        // Для новых типов используем PNG
+        const iconMap = {
+          'theorem': 'theorem-icon.png',
+          'proof': 'proof-icon.png',
+          'example': 'example-icon.png'
+        };
+        const fileName = iconMap[type];
+        if (fileName) {
+          const src = PAGE_ROOT + 'assets/img/' + fileName;
+          return `<img src="${src}" alt="${type}" style="width:16px;height:16px;object-fit:contain;" />`;
+        }
+        // fallback
+        return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="10"/></svg>`;
       }
 
       function folderIcon(id, topic) {
@@ -2172,7 +2176,7 @@
         }
       }
 
-      // -------- 2. DOCX (.docx) ZIP (фактически HTML+MathML) --------
+      // -------- 2. DOCX (.docx) ZIP --------
       function generateDocxZip() {
         const zip = new JSZip();
         const rootIds = getChildren(null);
@@ -2193,7 +2197,6 @@
         const safeTitle = sanitizeFileName(topic.title);
         const path = parentPath ? parentPath + '/' + safeTitle : safeTitle;
 
-        // Функция для создания HTML-строки с MathML
         function buildDocxHtml(description, title) {
           const descWithMathML = convertFormulasToMathML(description || '');
           return `
@@ -2216,7 +2219,6 @@
           `;
         }
 
-        // Функция для преобразования формул в MathML
         function convertFormulasToMathML(htmlStr) {
           const div = document.createElement('div');
           div.innerHTML = htmlStr;
@@ -2288,16 +2290,13 @@
 
       // -------- 3. Единый HTML --------
       function generateSingleHtml() {
-        let html = `
-        <!DOCTYPE html>
+        let html = `<!DOCTYPE html>
         <html lang="ru">
         <head>
           <meta charset="UTF-8">
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
           <title>MathFrame — все темы</title>
-          <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" integrity="sha384-n8MVd4RsNIU0tAv4ct0nTaAbDJwPJzDEaqSD1odI+WdtXRGWt2kTvGFasHpSy3SV" crossorigin="anonymous">
-          <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js" integrity="sha384-XjKyOOlGwcjNTAIQHIpgOno0Hl1YQqzUOEleOLALmuqehneUG+vnGctmUb0ZY0l8" crossorigin="anonymous"></script>
-          <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" integrity="sha384-+VBxd3r6XgURycqtZ117nYw44OOcIax56Z4dCRWbxyPt0Koah1uHoK0o4+/RRE05" crossorigin="anonymous"></script>
+          <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
           <style>
             body { font-family: 'Segoe UI', Arial, sans-serif; max-width: 1000px; margin: 2rem auto; padding: 0 1.5rem; color: #1e293b; line-height: 1.6; background: #f8fafc; }
             h1 { font-size: 2.2rem; border-bottom: 3px solid #818cf8; padding-bottom: 0.5rem; }
@@ -2327,12 +2326,9 @@
           <div class="toc" id="toc"><h3>Содержание</h3><ul id="tocList"></ul></div>
         `;
 
-        // Строим дерево для навигации и контента
         const rootIds = getChildren(null);
-        const tocList = document.createElement('ul');
-        // Рекурсивно генерируем контент и TOC
-        let contentHtml = '';
         let tocHtml = '';
+        let contentHtml = '';
 
         function buildTopicHtml(topic, level) {
           const id = topic.id;
@@ -2340,7 +2336,6 @@
           const tag = level <= 2 ? 'h' + (level + 1) : 'h3';
           const indent = (level - 1) * 20;
 
-          // Добавляем в TOC
           tocHtml += `<li style="margin-left:${(level-1)*20}px;"><a href="#${id}">${title}</a></li>`;
 
           let html = `<div class="topic" id="${id}" style="margin-left:${indent}px;">`;
@@ -2359,7 +2354,6 @@
               }
             }
             html += `</div>`;
-            // Добавляем кнопку сворачивания
             html += `<span class="toggle-link" data-target="children-${id}">Свернуть</span>`;
           }
           html += '</div>';
@@ -2373,22 +2367,22 @@
           }
         }
 
-        // Вставляем TOC и контент
         html += contentHtml;
+        // Добавляем скрипты отдельно, разбивая тег <script>
         html += `
+          <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"><\/script>
+          <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"><\/script>
           <script>
             document.addEventListener('DOMContentLoaded', function() {
-              // Сворачивание/разворачивание
-              document.querySelectorAll('.toggle-link').forEach(link => {
+              document.querySelectorAll('.toggle-link').forEach(function(link) {
                 link.addEventListener('click', function() {
-                  const targetId = this.dataset.target;
-                  const children = document.getElementById(targetId);
+                  var targetId = this.dataset.target;
+                  var children = document.getElementById(targetId);
                   if (!children) return;
                   children.classList.toggle('collapsed');
                   this.textContent = children.classList.contains('collapsed') ? 'Развернуть' : 'Свернуть';
                 });
               });
-              // Рендерим формулы через KaTeX
               if (typeof renderMathInElement === 'function') {
                 renderMathInElement(document.body, {
                   delimiters: [
@@ -2400,11 +2394,9 @@
               }
             });
           <\/script>
-        </body>
-        </html>
         `;
+        html += '</body></html>';
 
-        // Скачиваем как .html
         const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
         saveAs(blob, 'mathframe_all_topics.html');
       }
@@ -2476,10 +2468,8 @@
         restoreSidebarWidth();
         initResizer();
 
-        // Инициализируем аутентификацию
         initAuth();
 
-        // Обработчики кнопки скачивания
         els.downloadBtn.addEventListener('click', showDownloadModal);
         els.downloadCancel.addEventListener('click', hideDownloadModal);
         els.downloadOverlay.addEventListener('click', (e) => {
