@@ -1186,8 +1186,9 @@
             <div class="spr-download-modal">
               <h3>Выберите формат</h3>
               <div class="btn-group">
-                <button class="primary" id="sprDownloadMd">Markdown (.md)</button>
-                <button class="primary" id="sprDownloadDocx">DOCX (.html)</button>
+                <button class="primary" id="sprDownloadMd">Markdown (.md) — ZIP</button>
+                <button class="primary" id="sprDownloadDocx">DOCX (.docx) — ZIP</button>
+                <button class="primary" id="sprDownloadHtml">Единый HTML</button>
                 <button class="cancel" id="sprDownloadCancel">Отмена</button>
               </div>
             </div>
@@ -1230,6 +1231,7 @@
           downloadOverlay: document.getElementById('sprDownloadOverlay'),
           downloadMd: document.getElementById('sprDownloadMd'),
           downloadDocx: document.getElementById('sprDownloadDocx'),
+          downloadHtml: document.getElementById('sprDownloadHtml'),
           downloadCancel: document.getElementById('sprDownloadCancel'),
         };
         return true;
@@ -2112,13 +2114,13 @@
       }
 
       // ===================================================================
-      // АДМИН: СКАЧИВАНИЕ ВСЕХ ТЕМ (MD и DOCX)
+      // АДМИН: СКАЧИВАНИЕ (MD, DOCX, HTML)
       // ===================================================================
       function sanitizeFileName(name) {
         return name.replace(/[^a-zA-Zа-яА-ЯёЁ0-9\-_ ]/g, '_');
       }
 
-      // -------- MD --------
+      // -------- 1. Markdown (.md) ZIP --------
       function generateMdZip() {
         const zip = new JSZip();
         const rootIds = getChildren(null);
@@ -2142,7 +2144,8 @@
         if (topic.type === 'folder') {
           zip.folder(path);
           if (topic.description) {
-            zip.file(path + '/Folder Description.md', topic.description);
+            const folderDescName = `Описание папки — ${safeTitle}.md`;
+            zip.file(path + '/' + folderDescName, topic.description);
           }
           const children = getChildren(topic.id);
           for (const childId of children) {
@@ -2169,118 +2172,241 @@
         }
       }
 
-      // -------- DOCX (как HTML с MathML) --------
-      function generateDocxHtml() {
-        // Собираем все темы в один HTML-документ с MathML
-        let html = `
-        <html>
-        <head>
-          <meta charset="UTF-8">
-          <title>MathFrame — все темы</title>
-          <style>
-            body { font-family: 'Segoe UI', Arial, sans-serif; max-width: 1000px; margin: 2rem auto; padding: 0 1.5rem; color: #1e293b; }
-            h1 { font-size: 2rem; border-bottom: 2px solid #818cf8; padding-bottom: 0.5rem; }
-            h2 { font-size: 1.6rem; margin-top: 2rem; }
-            h3 { font-size: 1.3rem; margin-top: 1.5rem; }
-            .topic { margin-bottom: 2rem; }
-            .topic-meta { color: #475569; font-size: 0.9rem; margin-bottom: 0.5rem; }
-            .topic-description { line-height: 1.6; }
-            .topic-description p { margin: 0.6rem 0; }
-            .topic-description ul, .topic-description ol { margin: 0.6rem 0 0.6rem 1.5rem; }
-            .katex-mathml { font-size: 1.1em; }
-          </style>
-        </head>
-        <body>
-          <h1>MathFrame — все темы</h1>
-        `;
-
-        // Рекурсивно обходим корневые элементы
+      // -------- 2. DOCX (.docx) ZIP (фактически HTML+MathML) --------
+      function generateDocxZip() {
+        const zip = new JSZip();
         const rootIds = getChildren(null);
         for (const id of rootIds) {
           const topic = topicsById.get(id);
           if (topic && filterTopic(id)) {
-            html += buildTopicHtml(topic, 1);
+            addTopicToZipDocx(zip, topic, '');
+          }
+        }
+        zip.generateAsync({ type: 'blob' }).then((blob) => {
+          saveAs(blob, 'mathframe_topics_docx.zip');
+        }).catch((err) => {
+          alert('Ошибка создания архива DOCX: ' + err.message);
+        });
+      }
+
+      function addTopicToZipDocx(zip, topic, parentPath) {
+        const safeTitle = sanitizeFileName(topic.title);
+        const path = parentPath ? parentPath + '/' + safeTitle : safeTitle;
+
+        // Функция для создания HTML-строки с MathML
+        function buildDocxHtml(description, title) {
+          const descWithMathML = convertFormulasToMathML(description || '');
+          return `
+            <html xmlns:o='urn:schemas-microsoft-com:office:office'
+                  xmlns:w='urn:schemas-microsoft-com:office:word'
+                  xmlns='http://www.w3.org/TR/REC-html40'>
+            <head><meta charset="UTF-8">
+            <style>
+              body { font-family: 'Times New Roman', serif; font-size: 12pt; margin: 2cm; }
+              h1 { font-size: 18pt; }
+              h2 { font-size: 16pt; }
+              p { margin: 6pt 0; }
+            </style>
+            </head>
+            <body>
+              <h1>${escapeHtml(title)}</h1>
+              <div>${descWithMathML}</div>
+            </body>
+            </html>
+          `;
+        }
+
+        // Функция для преобразования формул в MathML
+        function convertFormulasToMathML(htmlStr) {
+          const div = document.createElement('div');
+          div.innerHTML = htmlStr;
+          walkTextNodes(div, (node) => {
+            const text = node.nodeValue;
+            if (!text || text.indexOf('$') === -1) return;
+            const regex = /\$\$([\s\S]+?)\$\$|\$([^\$\n]+?)\$/g;
+            let lastIndex = 0, match, found = false;
+            const frag = document.createDocumentFragment();
+            while ((match = regex.exec(text))) {
+              found = true;
+              if (match.index > lastIndex) {
+                frag.appendChild(document.createTextNode(text.slice(lastIndex, match.index)));
+              }
+              const isBlock = match[1] !== undefined;
+              const expr = isBlock ? match[1] : match[2];
+              const span = document.createElement('span');
+              try {
+                window.katex.render(expr, span, { throwOnError: false, displayMode: isBlock, output: 'mathml' });
+              } catch (e) {
+                span.textContent = (isBlock ? '$$' : '$') + expr + (isBlock ? '$$' : '$');
+              }
+              frag.appendChild(span);
+              lastIndex = regex.lastIndex;
+            }
+            if (found) {
+              if (lastIndex < text.length) {
+                frag.appendChild(document.createTextNode(text.slice(lastIndex)));
+              }
+              node.replaceWith(frag);
+            }
+          });
+          return div.innerHTML;
+        }
+
+        if (topic.type === 'folder') {
+          zip.folder(path);
+          if (topic.description) {
+            const folderDescName = `Описание папки — ${safeTitle}.docx`;
+            const content = buildDocxHtml(topic.description, 'Описание папки: ' + topic.title);
+            zip.file(path + '/' + folderDescName, content);
+          }
+          const children = getChildren(topic.id);
+          for (const childId of children) {
+            const child = topicsById.get(childId);
+            if (child && filterTopic(childId)) {
+              addTopicToZipDocx(zip, child, path);
+            }
+          }
+        } else {
+          const children = getChildren(topic.id);
+          if (children.length > 0) {
+            zip.folder(path);
+            const content = buildDocxHtml(topic.description, topic.title);
+            zip.file(path + '/' + safeTitle + '.docx', content);
+            for (const childId of children) {
+              const child = topicsById.get(childId);
+              if (child && filterTopic(childId)) {
+                addTopicToZipDocx(zip, child, path);
+              }
+            }
+          } else {
+            const filePath = parentPath ? parentPath + '/' + safeTitle + '.docx' : safeTitle + '.docx';
+            const content = buildDocxHtml(topic.description, topic.title);
+            zip.file(filePath, content);
+          }
+        }
+      }
+
+      // -------- 3. Единый HTML --------
+      function generateSingleHtml() {
+        let html = `
+        <!DOCTYPE html>
+        <html lang="ru">
+        <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>MathFrame — все темы</title>
+          <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" integrity="sha384-n8MVd4RsNIU0tAv4ct0nTaAbDJwPJzDEaqSD1odI+WdtXRGWt2kTvGFasHpSy3SV" crossorigin="anonymous">
+          <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js" integrity="sha384-XjKyOOlGwcjNTAIQHIpgOno0Hl1YQqzUOEleOLALmuqehneUG+vnGctmUb0ZY0l8" crossorigin="anonymous"></script>
+          <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" integrity="sha384-+VBxd3r6XgURycqtZ117nYw44OOcIax56Z4dCRWbxyPt0Koah1uHoK0o4+/RRE05" crossorigin="anonymous"></script>
+          <style>
+            body { font-family: 'Segoe UI', Arial, sans-serif; max-width: 1000px; margin: 2rem auto; padding: 0 1.5rem; color: #1e293b; line-height: 1.6; background: #f8fafc; }
+            h1 { font-size: 2.2rem; border-bottom: 3px solid #818cf8; padding-bottom: 0.5rem; }
+            h2 { font-size: 1.8rem; margin-top: 2rem; cursor: pointer; user-select: none; display: flex; align-items: center; gap: 0.5rem; }
+            h2::before { content: '▾'; font-size: 1rem; transition: transform 0.2s; }
+            h2.collapsed::before { transform: rotate(-90deg); }
+            .topic { margin-bottom: 1.5rem; padding-left: 1.5rem; border-left: 3px solid #e2e8f0; }
+            .topic-meta { color: #475569; font-size: 0.9rem; margin-bottom: 0.3rem; }
+            .topic-description { padding: 0.5rem 0; }
+            .topic-description p { margin: 0.6rem 0; }
+            .topic-description ul, .topic-description ol { margin: 0.6rem 0 0.6rem 1.5rem; }
+            .topic-description .katex { font-size: 1.1em; }
+            .topic-description .katex-display { margin: 1rem 0; }
+            .topic-children { overflow: hidden; transition: max-height 0.4s ease; max-height: 10000px; }
+            .topic-children.collapsed { max-height: 0; }
+            .toggle-link { cursor: pointer; color: #818cf8; font-size: 0.9rem; margin-left: 0.5rem; }
+            .toggle-link:hover { text-decoration: underline; }
+            .toc { background: #f1f5f9; padding: 1rem 1.5rem; border-radius: 0.5rem; margin-bottom: 2rem; }
+            .toc ul { list-style: none; padding-left: 1.5rem; }
+            .toc li { margin: 0.3rem 0; }
+            .toc a { text-decoration: none; color: #1e293b; }
+            .toc a:hover { color: #818cf8; }
+          </style>
+        </head>
+        <body>
+          <h1>MathFrame — все темы</h1>
+          <div class="toc" id="toc"><h3>Содержание</h3><ul id="tocList"></ul></div>
+        `;
+
+        // Строим дерево для навигации и контента
+        const rootIds = getChildren(null);
+        const tocList = document.createElement('ul');
+        // Рекурсивно генерируем контент и TOC
+        let contentHtml = '';
+        let tocHtml = '';
+
+        function buildTopicHtml(topic, level) {
+          const id = topic.id;
+          const title = escapeHtml(topic.title);
+          const tag = level <= 2 ? 'h' + (level + 1) : 'h3';
+          const indent = (level - 1) * 20;
+
+          // Добавляем в TOC
+          tocHtml += `<li style="margin-left:${(level-1)*20}px;"><a href="#${id}">${title}</a></li>`;
+
+          let html = `<div class="topic" id="${id}" style="margin-left:${indent}px;">`;
+          html += `<${tag}>${title}</${tag}>`;
+          html += `<div class="topic-meta">Тип: ${topic.type} | Класс: ${topic.class || '—'}</div>`;
+          if (topic.description) {
+            html += `<div class="topic-description">${topic.description}</div>`;
+          }
+          const children = getChildren(topic.id);
+          if (children.length > 0) {
+            html += `<div class="topic-children" id="children-${id}">`;
+            for (const childId of children) {
+              const child = topicsById.get(childId);
+              if (child && filterTopic(childId)) {
+                html += buildTopicHtml(child, level + 1);
+              }
+            }
+            html += `</div>`;
+            // Добавляем кнопку сворачивания
+            html += `<span class="toggle-link" data-target="children-${id}">Свернуть</span>`;
+          }
+          html += '</div>';
+          return html;
+        }
+
+        for (const id of rootIds) {
+          const topic = topicsById.get(id);
+          if (topic && filterTopic(id)) {
+            contentHtml += buildTopicHtml(topic, 1);
           }
         }
 
+        // Вставляем TOC и контент
+        html += contentHtml;
         html += `
+          <script>
+            document.addEventListener('DOMContentLoaded', function() {
+              // Сворачивание/разворачивание
+              document.querySelectorAll('.toggle-link').forEach(link => {
+                link.addEventListener('click', function() {
+                  const targetId = this.dataset.target;
+                  const children = document.getElementById(targetId);
+                  if (!children) return;
+                  children.classList.toggle('collapsed');
+                  this.textContent = children.classList.contains('collapsed') ? 'Развернуть' : 'Свернуть';
+                });
+              });
+              // Рендерим формулы через KaTeX
+              if (typeof renderMathInElement === 'function') {
+                renderMathInElement(document.body, {
+                  delimiters: [
+                    {left: '$$', right: '$$', display: true},
+                    {left: '$', right: '$', display: false}
+                  ],
+                  throwOnError: false
+                });
+              }
+            });
+          <\/script>
         </body>
         </html>
         `;
 
-        // Скачиваем как .html (пользователь откроет в Word)
+        // Скачиваем как .html
         const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
-        saveAs(blob, 'mathframe_topics.html');
-      }
-
-      function buildTopicHtml(topic, level) {
-        const tag = level <= 2 ? 'h' + (level + 1) : 'h3';
-        let html = `<div class="topic" style="margin-left:${(level-1)*20}px;">`;
-        html += `<${tag}>${escapeHtml(topic.title)}</${tag}>`;
-        html += `<div class="topic-meta">Тип: ${topic.type} | Класс: ${topic.class || '—'}</div>`;
-        if (topic.description) {
-          // Преобразуем формулы в MathML с помощью katex
-          const descHtml = convertFormulasToMathML(topic.description);
-          html += `<div class="topic-description">${descHtml}</div>`;
-        }
-        // Дочерние
-        const children = getChildren(topic.id);
-        for (const childId of children) {
-          const child = topicsById.get(childId);
-          if (child && filterTopic(childId)) {
-            html += buildTopicHtml(child, level + 1);
-          }
-        }
-        html += '</div>';
-        return html;
-      }
-
-      function convertFormulasToMathML(htmlStr) {
-        // Создаём временный DOM для обработки формул
-        const div = document.createElement('div');
-        div.innerHTML = htmlStr;
-        // Находим все текстовые узлы, содержащие $...$ или $$...$$
-        walkTextNodes(div, (node) => {
-          const text = node.nodeValue;
-          if (!text || text.indexOf('$') === -1) return;
-          // Разбиваем на фрагменты с формулами
-          const regex = /\$\$([\s\S]+?)\$\$|\$([^\$\n]+?)\$/g;
-          let lastIndex = 0, match, found = false;
-          const frag = document.createDocumentFragment();
-          while ((match = regex.exec(text))) {
-            found = true;
-            if (match.index > lastIndex) {
-              frag.appendChild(document.createTextNode(text.slice(lastIndex, match.index)));
-            }
-            const isBlock = match[1] !== undefined;
-            const expr = isBlock ? match[1] : match[2];
-            // Рендерим в MathML через katex
-            const span = document.createElement('span');
-            try {
-              window.katex.render(expr, span, { throwOnError: false, displayMode: isBlock, output: 'mathml' });
-            } catch (e) {
-              span.textContent = (isBlock ? '$$' : '$') + expr + (isBlock ? '$$' : '$');
-            }
-            frag.appendChild(span);
-            lastIndex = regex.lastIndex;
-          }
-          if (found) {
-            if (lastIndex < text.length) {
-              frag.appendChild(document.createTextNode(text.slice(lastIndex)));
-            }
-            node.replaceWith(frag);
-          }
-        });
-        return div.innerHTML;
-      }
-
-      // Вспомогательная функция для обхода текстовых узлов
-      function walkTextNodes(root, cb) {
-        const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null);
-        let node;
-        while ((node = walker.nextNode())) {
-          cb(node);
-        }
+        saveAs(blob, 'mathframe_all_topics.html');
       }
 
       // ===================================================================
@@ -2365,7 +2491,11 @@
         });
         els.downloadDocx.addEventListener('click', () => {
           hideDownloadModal();
-          generateDocxHtml();
+          generateDocxZip();
+        });
+        els.downloadHtml.addEventListener('click', () => {
+          hideDownloadModal();
+          generateSingleHtml();
         });
 
         try {
