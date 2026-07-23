@@ -8,27 +8,22 @@
 :root{ --card2:rgba(255,255,255,.04); --danger:#ef4444; --gold:#f59e0b; --radius:.7rem; }
 html.light{ --card2:rgba(0,0,0,.03); }
 main{max-width:980px;margin:0 auto;padding:1.5rem 1rem 4rem}
-
-/* ===== РЕКОМЕНДАЦИИ ===== */
-.reco-title{font-size:.85rem;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:.6rem}
-.reco-row{display:flex;gap:.8rem;overflow-x:auto;padding-bottom:.3rem;margin-bottom:1.4rem}
-.reco-card{flex:0 0 220px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);
-  padding:1rem 1.1rem;cursor:pointer;transition:.25s;backdrop-filter:blur(16px)}
-.reco-card:hover{transform:translateY(-3px);border-color:var(--accent);box-shadow:0 14px 26px rgba(0,0,0,.25)}
-.reco-tag{font-size:.72rem;font-weight:700;color:var(--accent)}
-.reco-card h4{margin:.4rem 0;font-size:.98rem;line-height:1.3;max-height:2.5em;overflow:hidden}
-.reco-meta{font-size:.76rem;color:var(--text-secondary)}
+.ic{display:inline-flex;width:14px;height:14px;vertical-align:-2px;flex-shrink:0}
+.ic svg{width:100%;height:100%}
+.ic.md{width:16px;height:16px;vertical-align:-3px}
+.ic.lg{width:18px;height:18px;vertical-align:-4px}
 
 /* ===== TOOLBAR / SEARCH ===== */
-.toolbar-row{display:flex;flex-wrap:wrap;gap:.6rem;align-items:center;margin-bottom:1.2rem}
+.toolbar-row{display:flex;flex-wrap:wrap;gap:.6rem;align-items:center;margin-bottom:1.4rem}
 .searchbox{flex:1;min-width:180px;position:relative}
 .searchbox input{width:100%;padding:.55rem .9rem .55rem 2.1rem;border-radius:2rem;border:1px solid var(--border);
   background:var(--bg-card);color:var(--text-primary);outline:none;transition:border-color .2s}
 .searchbox input:focus{border-color:var(--accent)}
-.searchbox svg{position:absolute;left:.65rem;top:50%;transform:translateY(-50%);width:15px;height:15px;color:var(--text-secondary)}
+.searchbox .ic{position:absolute;left:.65rem;top:50%;transform:translateY(-50%);color:var(--text-secondary)}
 select{background:var(--bg-card);color:var(--text-primary);border:1px solid var(--border);border-radius:.5rem;padding:.5rem .7rem}
 .tag-chip{display:inline-flex;align-items:center;gap:.3rem;padding:.2rem .7rem;border-radius:2rem;font-size:.78rem;
   background:rgba(129,140,248,.15);color:var(--accent);border:1px solid rgba(129,140,248,.3)}
+.reco-chip{background:rgba(245,158,11,.13);color:var(--gold);border-color:rgba(245,158,11,.3)}
 .topic-badge{display:inline-flex;align-items:center;gap:.3rem;padding:.3rem .8rem;border-radius:.5rem;font-size:.82rem;
   background:rgba(245,158,11,.13);color:var(--gold);border:1px solid rgba(245,158,11,.3);text-decoration:none;transition:.2s}
 .topic-badge:hover{background:rgba(245,158,11,.22);transform:translateY(-1px)}
@@ -40,6 +35,7 @@ select{background:var(--bg-card);color:var(--text-primary);border:1px solid var(
 .card:hover{transform:translateY(-4px);border-color:var(--accent);box-shadow:0 20px 35px rgba(0,0,0,.3)}
 .card h3{margin:.1rem 0 .5rem;font-size:1.25rem}
 .card .meta{display:flex;flex-wrap:wrap;gap:.9rem;color:var(--text-secondary);font-size:.82rem;align-items:center}
+.card .meta span{display:inline-flex;align-items:center;gap:.3rem}
 .card .excerpt{color:var(--text-secondary);font-size:.9rem;margin:.6rem 0;line-height:1.5;max-height:2.7em;overflow:hidden}
 .card .foot{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:.7rem;align-items:center}
 @keyframes fadeUp{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}
@@ -50,15 +46,23 @@ select{background:var(--bg-card);color:var(--text-primary);border:1px solid var(
 .article-head{margin-bottom:1rem}
 .article-head h1{font-size:1.8rem;margin:.3rem 0}
 .author-row{display:flex;align-items:center;gap:.6rem;color:var(--text-secondary);font-size:.88rem;flex-wrap:wrap}
+.author-row span{display:inline-flex;align-items:center;gap:.3rem}
 .badge-author{background:rgba(129,140,248,.18);color:var(--accent);padding:.1rem .55rem;border-radius:1rem;font-size:.72rem;font-weight:700}
 .content-body{line-height:1.7;font-size:1.02rem}
 .content-body img{max-width:100%;border-radius:.5rem;margin:.5rem 0}
 .content-body audio{width:100%;margin:.5rem 0}
-.content-body blockquote{border-left:3px solid var(--accent);margin:.6rem 0;padding:.3rem 1rem;color:var(--text-secondary);background:rgba(255,255,255,.03)}
-.content-body pre,.content-body code{background:rgba(255,255,255,.06);border-radius:.35rem;padding:.15rem .4rem;font-family:monospace}
-.content-body pre{padding:.8rem;overflow-x:auto}
 .article-actions{display:flex;gap:.5rem;flex-wrap:wrap;margin:1rem 0}
+.article-actions .btn{display:inline-flex;align-items:center;gap:.4rem}
 hr.sep{border:none;border-top:1px solid var(--border);margin:1.6rem 0}
+
+/* ===== RICH TEXT (общее для написания и просмотра) ===== */
+.editable a, .content-body a, .reply-body a { color: var(--accent); text-decoration: underline; }
+.editable blockquote, .content-body blockquote, .reply-body blockquote{
+  border-left:3px solid var(--accent);margin:.5rem 0;padding:.3rem 1rem;color:var(--text-secondary);background:rgba(255,255,255,.03)}
+.editable pre, .content-body pre, .reply-body pre,
+.editable code, .content-body code, .reply-body code{
+  background:rgba(255,255,255,.06);border-radius:.35rem;padding:.15rem .4rem;font-family:monospace}
+.editable pre, .content-body pre, .reply-body pre{padding:.8rem;overflow-x:auto;white-space:pre-wrap}
 
 /* ===== REPLIES ===== */
 .replies-head{display:flex;align-items:center;gap:.6rem;margin-bottom:1rem}
@@ -68,18 +72,19 @@ hr.sep{border:none;border-top:1px solid var(--border);margin:1.6rem 0}
 .reply.best .reply-box{box-shadow:0 0 0 1px rgba(245,158,11,.4)}
 .reply-top{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;font-size:.85rem;color:var(--text-secondary);margin-bottom:.4rem}
 .reply-top b{color:var(--text-primary)}
-.best-tag{color:var(--gold);font-weight:700;font-size:.75rem;display:inline-flex;align-items:center;gap:.2rem}
+.best-tag{color:var(--gold);font-weight:700;font-size:.75rem;display:inline-flex;align-items:center;gap:.25rem}
 .reply-body{font-size:.95rem;line-height:1.6}
 .reply-body img{max-width:100%;border-radius:.4rem}
 .reply-body audio{width:100%;margin-top:.3rem}
 .reply-actions{display:flex;gap:.5rem;align-items:center;margin-top:.5rem;flex-wrap:wrap}
-.vote-btn{display:flex;align-items:center;gap:.25rem;background:none;border:1px solid var(--border);border-radius:1rem;
+.vote-btn{display:flex;align-items:center;gap:.3rem;background:none;border:1px solid var(--border);border-radius:1rem;
   padding:.25rem .65rem;color:var(--text-secondary);font-size:.8rem;transition:.15s;cursor:pointer}
 .vote-btn:hover{border-color:var(--accent)}
 .vote-btn.active-like{color:#22c55e;border-color:#22c55e}
 .vote-btn.active-dislike{color:var(--danger);border-color:var(--danger)}
 .vote-btn:active{transform:scale(.9)}
-.link-btn{background:none;border:none;color:var(--text-secondary);font-size:.8rem;text-decoration:underline;padding:0;cursor:pointer}
+.link-btn{display:inline-flex;align-items:center;gap:.3rem;background:none;border:none;color:var(--text-secondary);
+  font-size:.8rem;text-decoration:underline;padding:0;cursor:pointer}
 .link-btn:hover{color:var(--accent)}
 .children{margin-left:1rem}
 .reply-form{margin-top:.6rem}
@@ -98,16 +103,19 @@ input.plain{width:100%;padding:.6rem .8rem;border-radius:.5rem;border:1px solid 
 input.plain:focus{border-color:var(--accent)}
 .field-label{font-size:.82rem;color:var(--text-secondary);margin:.8rem 0 .3rem;display:block}
 
-/* ===== TOPIC PICKER (переиспользует .overlay/.modal из common.css) ===== */
+/* ===== МОДАЛКИ (переиспользуют .overlay/.modal common.css, но с гарантированным z-index) ===== */
 .topic-list{max-height:260px;overflow-y:auto;margin-top:.6rem;border:1px solid var(--border);border-radius:.5rem}
 .topic-item{padding:.6rem .9rem;border-bottom:1px solid var(--border);cursor:pointer;font-size:.9rem}
 .topic-item:last-child{border-bottom:none}
 .topic-item:hover{background:rgba(129,140,248,.1);color:var(--accent)}
-.editor-overlay,.editor-modal{z-index:120}
-.editor-modal{max-width:760px}
+.editor-overlay{z-index:250 !important}
+.editor-modal{max-width:760px;z-index:251 !important}
+#topicOverlay{z-index:400 !important}
+#topicModal{z-index:401 !important}
+.modal-close{display:inline-flex;align-items:center;justify-content:center}
 
 /* ===== TOAST ===== */
-#toasts{position:fixed;bottom:1.2rem;right:1.2rem;z-index:300;display:flex;flex-direction:column;gap:.5rem}
+#toasts{position:fixed;bottom:1.2rem;right:1.2rem;z-index:500;display:flex;flex-direction:column;gap:.5rem}
 .toast{background:var(--bg-card);border:1px solid var(--border);color:var(--text-primary);padding:.7rem 1.1rem;
   border-radius:.5rem;font-size:.85rem;box-shadow:0 10px 25px rgba(0,0,0,.3);animation:toastIn .25s ease;backdrop-filter:blur(10px)}
 @keyframes toastIn{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}
@@ -129,7 +137,7 @@ input.plain:focus{border-color:var(--accent)}
 <!-- ===== TOPIC PICKER MODAL (справочник) ===== -->
 <div class="overlay" id="topicOverlay"></div>
 <div class="modal" id="topicModal">
-  <div class="modal-header"><h2>Ссылка на тему справочника</h2><button class="modal-close" id="topicClose">✕</button></div>
+  <div class="modal-header"><h2>Ссылка на тему справочника</h2><button class="modal-close" id="topicClose"></button></div>
   <input class="plain" id="topicSearch" placeholder="Поиск темы…" />
   <div class="topic-list" id="topicListEl"></div>
 </div>
@@ -141,6 +149,33 @@ input.plain:focus{border-color:var(--accent)}
 <script src="../assets/js/common.js"></script>
 <script>
 const db = firebase.firestore();
+
+/* ===== SVG-ИКОНКИ (вместо эмодзи) ===== */
+const ICONS = {
+  pencil:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>',
+  user:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>',
+  eye:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"/><circle cx="12" cy="12" r="3"/></svg>',
+  clock:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>',
+  book:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>',
+  flame:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 17a2.5 2.5 0 0 0 2.5-2.5c0-1.38-.5-2-1-3-1.07-2.14-.22-4.05 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7.5 7.5 0 1 1-15 0c0-1.15.43-2.29 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>',
+  sparkle:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8"/></svg>',
+  chat:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>',
+  shuffle:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5"/><path d="M4 20 21 3"/><path d="M21 16v5h-5"/><path d="m15 15 6 6"/><path d="m4 4 5 5"/></svg>',
+  thumbUp:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 10v12"/><path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2h0a3.13 3.13 0 0 1 3 3.88Z"/></svg>',
+  thumbDown:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 14V2"/><path d="M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L12 22h0a3.13 3.13 0 0 1-3-3.88Z"/></svg>',
+  bookmark:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21 12 16l-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>',
+  bookmarkFilled:'<svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1"><path d="M19 21 12 16l-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>',
+  link:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>',
+  trash:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="m19 6-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>',
+  image:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/></svg>',
+  music:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>',
+  star:'<svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>',
+  close:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>',
+  search:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="16" y1="16" x2="22" y2="22"/></svg>',
+};
+function ic(name, cls=''){ return `<span class="ic ${cls}">${ICONS[name]||''}</span>`; }
+document.querySelectorAll('#topicClose').forEach(b=>b.innerHTML = ic('close'));
+
 let fUser = null, topicsCache = null, viewedSet = new Set(JSON.parse(sessionStorage.getItem('forumViewed')||'[]'));
 let unsubList=null, unsubDetail=null;
 
@@ -150,7 +185,7 @@ function requireAuth(){ if(!fUser){ toast('Войдите, чтобы продо
 
 /* ===== TOAST ===== */
 function toast(msg){const t=document.createElement('div');t.className='toast';t.textContent=msg;
-  document.getElementById('toasts').appendChild(t);setTimeout(()=>t.remove(),3200);}
+  document.getElementById('toasts').appendChild(t);setTimeout(()=>t.remove(),3800);}
 
 /* ===== SANITIZER (allowlist) ===== */
 const ALLOWED_TAGS = {B:1,STRONG:1,I:1,EM:1,U:1,S:1,STRIKE:1,P:1,BR:1,DIV:1,SPAN:1,UL:1,OL:1,LI:1,BLOCKQUOTE:1,H2:1,H3:1,H4:1,A:1,IMG:1,AUDIO:1,CODE:1,PRE:1};
@@ -223,11 +258,11 @@ document.getElementById('topicSearch').oninput=async(e)=>{
   renderTopicList(!q ? topics : topics.filter(t=>(t.title||'').toLowerCase().includes(q)));
 };
 
-/* ===== ATTACHMENTS ===== */
+/* ===== ВЛОЖЕНИЯ ===== */
 function uploadFile(file, folder){
   const path = `forum/${folder}/${Date.now()}_${file.name}`;
   const ref = storage.ref().child(path);
-  return ref.put(file).then(()=>ref.getDownloadURL());
+  return ref.put(file, {contentType:file.type}).then(()=>ref.getDownloadURL());
 }
 function makeToolbar(editableId){
   return `
@@ -236,14 +271,14 @@ function makeToolbar(editableId){
     <button type="button" class="tb-btn" data-cmd="italic" title="Курсив"><i>I</i></button>
     <button type="button" class="tb-btn" data-cmd="underline" title="Подчёркнутый"><u>U</u></button>
     <button type="button" class="tb-btn" data-cmd="strikeThrough" title="Зачёркнутый"><s>S</s></button>
-    <button type="button" class="tb-btn" data-cmd="formatBlock" data-val="h3" title="Заголовок">H</button>
-    <button type="button" class="tb-btn" data-cmd="formatBlock" data-val="blockquote" title="Цитата">❝</button>
-    <button type="button" class="tb-btn" data-cmd="formatBlock" data-val="pre" title="Код">&lt;/&gt;</button>
+    <button type="button" class="tb-btn" data-cmd="formatBlock" data-val="H3" title="Заголовок">H</button>
+    <button type="button" class="tb-btn" data-cmd="formatBlock" data-val="BLOCKQUOTE" title="Цитата">❝</button>
+    <button type="button" class="tb-btn" data-cmd="formatBlock" data-val="PRE" title="Код">&lt;/&gt;</button>
     <button type="button" class="tb-btn" data-cmd="insertUnorderedList" title="Список">•≡</button>
     <button type="button" class="tb-btn" data-cmd="insertOrderedList" title="Нумерованный">1.≡</button>
-    <button type="button" class="tb-btn" data-cmd="createLink" title="Ссылка">🔗</button>
-    <button type="button" class="tb-btn" data-act="img" title="Изображение">🖼️</button>
-    <button type="button" class="tb-btn" data-act="audio" title="Аудио">🎵</button>
+    <button type="button" class="tb-btn" data-act="link" title="Ссылка">${ic('link','md')}</button>
+    <button type="button" class="tb-btn" data-act="img" title="Изображение">${ic('image','md')}</button>
+    <button type="button" class="tb-btn" data-act="audio" title="Аудио">${ic('music','md')}</button>
     <input type="file" accept="image/*" data-file="img" style="display:none">
     <input type="file" accept="audio/*" data-file="audio" style="display:none">
   </div>
@@ -252,34 +287,43 @@ function makeToolbar(editableId){
 function bindToolbar(container, editableEl){
   container.querySelectorAll('.tb-btn[data-cmd]').forEach(b=>b.onclick=()=>{
     editableEl.focus();
-    if(b.dataset.cmd==='createLink'){ const url=prompt('Введите URL:'); if(url) document.execCommand('createLink',false,url); return; }
     document.execCommand(b.dataset.cmd,false,b.dataset.val||null);
   });
+  const linkBtn = container.querySelector('[data-act="link"]');
+  if(linkBtn) linkBtn.onclick=()=>{
+    editableEl.focus();
+    const sel = window.getSelection();
+    if(!sel || sel.isCollapsed || !editableEl.contains(sel.anchorNode)){ toast('Сначала выделите текст для ссылки'); return; }
+    const url = prompt('Введите URL (с http:// или https://):');
+    if(url) document.execCommand('createLink', false, url);
+  };
   const imgInput = container.querySelector('input[data-file="img"]');
   const audioInput = container.querySelector('input[data-file="audio"]');
   container.querySelector('[data-act="img"]').onclick=()=>imgInput.click();
   container.querySelector('[data-act="audio"]').onclick=()=>audioInput.click();
   imgInput.onchange=async()=>{
     const f=imgInput.files[0]; if(!f) return;
+    if(!fUser) return toast('Войдите, чтобы прикреплять файлы');
     if(f.size>8*1024*1024) return toast('Изображение слишком большое (макс 8МБ)');
     toast('Загрузка изображения…');
     try{ const url=await uploadFile(f, fUser.uid); editableEl.focus();
-      document.execCommand('insertHTML',false,`<img src="${url}">`); toast('Изображение добавлено'); }
-    catch(e){ toast('Ошибка загрузки'); }
+      document.execCommand('insertHTML',false,`<img src="${url}"><br>`); toast('Изображение добавлено'); }
+    catch(e){ toast('Ошибка загрузки: '+e.message); }
     imgInput.value='';
   };
   audioInput.onchange=async()=>{
     const f=audioInput.files[0]; if(!f) return;
+    if(!fUser) return toast('Войдите, чтобы прикреплять файлы');
     if(f.size>15*1024*1024) return toast('Аудио слишком большое (макс 15МБ)');
     toast('Загрузка аудио…');
     try{ const url=await uploadFile(f, fUser.uid); editableEl.focus();
       document.execCommand('insertHTML',false,`<audio controls src="${url}"></audio><br>`); toast('Аудио добавлено'); }
-    catch(e){ toast('Ошибка загрузки'); }
+    catch(e){ toast('Ошибка загрузки: '+e.message); }
     audioInput.value='';
   };
 }
 
-/* ===== ROUTER ===== */
+/* ===== РОУТЕР ===== */
 window.addEventListener('hashchange', route);
 function route(){
   const h = location.hash.slice(1);
@@ -288,37 +332,29 @@ function route(){
   else renderList();
 }
 
-/* ===== СИСТЕМА РЕКОМЕНДАЦИЙ ===== */
-function renderRecommendations(all){
-  const host = document.getElementById('recoRow'); if(!host) return;
-  if(!all || !all.length){ host.innerHTML=''; return; }
+/* ===== СИСТЕМА РЕКОМЕНДАЦИЙ (интегрирована в основную ленту) ===== */
+function computeRecoOrder(list){
+  if(!list.length) return {order:[], reasons:{}};
   const counts = window._replyCounts || {};
-  const byViews = [...all].sort((x,y)=>(y.views||0)-(x.views||0))[0];
-  const byNew = [...all].sort((x,y)=>(y.createdAt?.toMillis?.()||0)-(x.createdAt?.toMillis?.()||0))[0];
-  const discussedSorted = [...all].sort((x,y)=>(counts[y.id]||0)-(counts[x.id]||0));
+  const byViews = [...list].sort((x,y)=>(y.views||0)-(x.views||0))[0];
+  const byNew = [...list].sort((x,y)=>(y.createdAt?.toMillis?.()||0)-(x.createdAt?.toMillis?.()||0))[0];
+  const discussedSorted = [...list].sort((x,y)=>(counts[y.id]||0)-(counts[x.id]||0));
   const byDiscussed = (counts[discussedSorted[0]?.id]||0) > 0 ? discussedSorted[0] : null;
-  const picked = [byViews, byNew, byDiscussed].filter(Boolean);
-  const seenIds = new Set(picked.map(a=>a.id));
-  const rest = all.filter(a=>!seenIds.has(a.id));
-  const random = rest.length ? rest[Math.floor(Math.random()*rest.length)] : null;
-  const items = [
-    byViews && {icon:'🔥', label:'Популярное', a:byViews},
-    byNew && {icon:'🆕', label:'Новое', a:byNew},
-    byDiscussed && {icon:'💬', label:'Обсуждаемое', a:byDiscussed},
-    random && {icon:'🎲', label:'Попробуйте', a:random},
+  const picks = [
+    byViews && {a:byViews, icon:'flame', label:'Популярное'},
+    byNew && {a:byNew, icon:'sparkle', label:'Новое'},
+    byDiscussed && {a:byDiscussed, icon:'chat', label:'Обсуждаемое'},
   ].filter(Boolean);
-  const seen2 = new Set(); const uniq = items.filter(it=>{ if(seen2.has(it.a.id)) return false; seen2.add(it.a.id); return true; });
-  if(!uniq.length){ host.innerHTML=''; return; }
-  host.innerHTML = `<div class="reco-title">Рекомендуем</div><div class="reco-row">` +
-    uniq.map(it=>`<div class="reco-card" data-id="${it.a.id}"><span class="reco-tag">${it.icon} ${it.label}</span>
-      <h4>${escapeHtml(it.a.title)}</h4>
-      <span class="reco-meta">👤 ${escapeHtml(it.a.authorName||'Аноним')} · 👁 ${it.a.views||0}</span></div>`).join('') +
-    `</div>`;
-  host.querySelectorAll('.reco-card').forEach(c=>c.onclick=()=>{ location.hash='article/'+c.dataset.id; });
+  const seen = new Set(); const uniqPicks = picks.filter(p=>{ if(seen.has(p.a.id)) return false; seen.add(p.a.id); return true; });
+  const rest = list.filter(a=>!seen.has(a.id));
+  if(rest.length){ const r = rest[Math.floor(Math.random()*rest.length)]; uniqPicks.push({a:r, icon:'shuffle', label:'Попробуйте'}); seen.add(r.id); }
+  const remaining = list.filter(a=>!seen.has(a.id)).sort((x,y)=>(y.createdAt?.toMillis?.()||0)-(x.createdAt?.toMillis?.()||0));
+  const reasons = {}; uniqPicks.forEach(p=>{ reasons[p.a.id] = p; });
+  return { order: [...uniqPicks.map(p=>p.a), ...remaining], reasons };
 }
 
-/* ===== LIST VIEW ===== */
-let listFilter = {search:'', tag:'', sort:'new', bookmarks:false};
+/* ===== ГЛАВНАЯ ЛЕНТА ===== */
+let listFilter = {search:'', tag:'', sort:'reco', bookmarks:false, mine:false};
 function getBookmarks(){ return JSON.parse(localStorage.getItem('forumBookmarks')||'[]'); }
 function toggleBookmark(id){
   let b=getBookmarks();
@@ -330,23 +366,25 @@ function toggleBookmark(id){
 function renderList(){
   const app = document.getElementById('app');
   app.innerHTML = `
-    <div id="recoRow"></div>
     <div class="toolbar-row">
-      <button class="btn primary" id="newArticleBtn">✎ Написать статью</button>
+      <button class="btn primary" id="newArticleBtn">${ic('pencil','md')} Написать статью</button>
+      <button class="btn ${listFilter.mine?'primary':''}" id="mineBtn">${ic('user','md')} Мои статьи</button>
       <div class="searchbox">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="16" y1="16" x2="22" y2="22"/></svg>
+        ${ic('search')}
         <input id="searchInput" placeholder="Поиск по статьям…" value="${escapeHtml(listFilter.search)}" />
       </div>
       <select id="sortSelect">
+        <option value="reco">Рекомендуемые</option>
         <option value="new">Сначала новые</option>
         <option value="views">По популярности</option>
         <option value="replies">По обсуждаемости</option>
       </select>
       <select id="tagSelect"><option value="">Все теги</option></select>
-      <button class="btn ${listFilter.bookmarks?'primary':''}" id="bookmarkFilterBtn">🔖 Закладки</button>
+      <button class="btn ${listFilter.bookmarks?'primary':''}" id="bookmarkFilterBtn">${ic('bookmark','md')} Закладки</button>
     </div>
     <div class="grid" id="cardsGrid"><div class="empty">Загрузка…</div></div>`;
   document.getElementById('newArticleBtn').onclick=()=>{ if(requireAuth()) openEditor(); };
+  document.getElementById('mineBtn').onclick=()=>{ if(!requireAuth()) return; listFilter.mine=!listFilter.mine; renderList(); };
   document.getElementById('searchInput').oninput = e=>{ listFilter.search=e.target.value.toLowerCase(); renderArticleCards(); };
   document.getElementById('sortSelect').value = listFilter.sort;
   document.getElementById('sortSelect').onchange = e=>{listFilter.sort=e.target.value; renderArticleCards();};
@@ -359,7 +397,6 @@ function renderList(){
     const tags = new Set(); window._articlesCache.forEach(a=>(a.tags||[]).forEach(t=>tags.add(t)));
     const tagSel = document.getElementById('tagSelect');
     if(tagSel) tagSel.innerHTML = '<option value="">Все теги</option>' + [...tags].map(t=>`<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
-    renderRecommendations(window._articlesCache);
     renderArticleCards();
   }, err=>toast('Ошибка загрузки: '+err.message));
 }
@@ -381,29 +418,34 @@ async function renderArticleCards(){
   const grid = document.getElementById('cardsGrid'); if(!grid) return;
   let list = [...(window._articlesCache||[])];
   const bm = getBookmarks();
+  if(listFilter.mine) list = list.filter(a=>fUser && a.authorUid===fUser.uid);
   if(listFilter.bookmarks) list = list.filter(a=>bm.includes(a.id));
   if(listFilter.search) list = list.filter(a=> a.title.toLowerCase().includes(listFilter.search) || (a.bodyHTML||'').toLowerCase().includes(listFilter.search));
   if(listFilter.tag) list = list.filter(a=>(a.tags||[]).includes(listFilter.tag));
+
   const counts = window._replyCounts || {};
+  let reasons = {};
   if(listFilter.sort==='views') list.sort((a,b)=>(b.views||0)-(a.views||0));
   else if(listFilter.sort==='replies') list.sort((a,b)=>(counts[b.id]||0)-(counts[a.id]||0));
-  else list.sort((a,b)=>(b.createdAt?.toMillis?.()||0)-(a.createdAt?.toMillis?.()||0));
+  else if(listFilter.sort==='new') list.sort((a,b)=>(b.createdAt?.toMillis?.()||0)-(a.createdAt?.toMillis?.()||0));
+  else { const reco = computeRecoOrder(list); list = reco.order; reasons = reco.reasons; }
 
   if(!list.length){ grid.innerHTML='<div class="empty">Пока нет статей. Будьте первым!</div>'; return; }
   grid.innerHTML = list.map((a,i)=>`
     <div class="card" style="animation-delay:${i*0.04}s" data-id="${a.id}">
       <div class="meta">
-        <span>👤 ${escapeHtml(a.authorName||'Аноним')}</span>
-        <span>🕒 ${timeAgo(a.createdAt)}</span>
-        <span>👁 ${a.views||0}</span>
-        <span>📖 ${readingTime(a.bodyHTML)} мин чтения</span>
+        <span>${ic('user')} ${escapeHtml(a.authorName||'Аноним')}</span>
+        <span>${ic('clock')} ${timeAgo(a.createdAt)}</span>
+        <span>${ic('eye')} ${a.views||0}</span>
+        <span>${ic('book')} ${readingTime(a.bodyHTML)} мин чтения</span>
       </div>
       <h3>${escapeHtml(a.title)}</h3>
       <div class="excerpt">${escapeHtml((a.bodyHTML||'').replace(/<[^>]+>/g,' ')).slice(0,180)}</div>
       <div class="foot">
+        ${reasons[a.id] ? `<span class="tag-chip reco-chip">${ic(reasons[a.id].icon)} ${reasons[a.id].label}</span>` : ''}
         ${(a.tags||[]).map(t=>`<span class="tag-chip">#${escapeHtml(t)}</span>`).join('')}
-        ${a.topicRef ? `<span class="topic-badge">📚 ${escapeHtml(a.topicRef.title)}</span>` : ''}
-        ${bm.includes(a.id) ? `<span class="tag-chip">🔖 в закладках</span>` : ''}
+        ${a.topicRef ? `<span class="topic-badge">${ic('book')} ${escapeHtml(a.topicRef.title)}</span>` : ''}
+        ${bm.includes(a.id) ? `<span class="tag-chip">${ic('bookmarkFilled')} в закладках</span>` : ''}
       </div>
     </div>`).join('');
   grid.querySelectorAll('.card').forEach(c=>c.onclick=()=>{ location.hash = 'article/'+c.dataset.id; });
@@ -413,10 +455,9 @@ async function renderArticleCards(){
       window._replyCounts = window._replyCounts||{}; window._replyCounts[a.id]=s.size;
     })
   ));
-  renderRecommendations(window._articlesCache);
 }
 
-/* ===== EDITOR (create/edit) ===== */
+/* ===== РЕДАКТОР (создание/редактирование) ===== */
 function openEditor(article=null){
   const draftKey = article ? 'forumDraftEdit_'+article.id : 'forumDraftNew';
   const draft = JSON.parse(localStorage.getItem(draftKey)||'null');
@@ -425,7 +466,7 @@ function openEditor(article=null){
   let topicRef = article?.topicRef || draft?.topicRef || null;
   let tags = article?.tags ? [...article.tags] : (draft?.tags || []);
   modal.innerHTML = `
-    <div class="modal-header"><h2>${article ? 'Редактировать статью' : 'Новая статья'}</h2><button class="modal-close" id="closeEditorBtn">✕</button></div>
+    <div class="modal-header"><h2>${article ? 'Редактировать статью' : 'Новая статья'}</h2><button class="modal-close" id="closeEditorBtn">${ic('close')}</button></div>
     <span class="field-label">Заголовок</span>
     <input class="plain" id="artTitle" value="${escapeHtml(article?.title || draft?.title || '')}" placeholder="Заголовок статьи">
     <span class="field-label">Содержание</span>
@@ -433,7 +474,7 @@ function openEditor(article=null){
     <span class="field-label">Теги (через запятую)</span>
     <input class="plain" id="artTags" value="${escapeHtml(tags.join(', '))}" placeholder="алгебра, интегралы">
     <span class="field-label">Ссылка на тему справочника</span>
-    <div><button class="btn small" id="pickTopicBtn">📚 Выбрать тему</button> <span id="topicRefShow"></span></div>
+    <div><button class="btn small" id="pickTopicBtn">${ic('book','md')} Выбрать тему</button> <span id="topicRefShow"></span></div>
     <div style="display:flex;gap:.6rem;margin-top:1.2rem">
       <button class="btn primary" id="saveArtBtn">Опубликовать</button>
       <button class="btn" id="cancelArtBtn">Отмена</button>
@@ -442,7 +483,7 @@ function openEditor(article=null){
   const bodyEl = modal.querySelector('#artBody');
   bodyEl.innerHTML = article?.bodyHTML || draft?.bodyHTML || '';
   bindToolbar(modal, bodyEl);
-  function showTopicRef(){ modal.querySelector('#topicRefShow').innerHTML = topicRef ? `<span class="topic-badge">📚 ${escapeHtml(topicRef.title)}</span>` : ''; }
+  function showTopicRef(){ modal.querySelector('#topicRefShow').innerHTML = topicRef ? `<span class="topic-badge">${ic('book')} ${escapeHtml(topicRef.title)}</span>` : ''; }
   showTopicRef();
   modal.querySelector('#pickTopicBtn').onclick=()=>openTopicPicker(t=>{ topicRef=t; showTopicRef(); });
   function close(){ overlay.remove(); modal.remove(); }
@@ -483,7 +524,7 @@ function openEditor(article=null){
   };
 }
 
-/* ===== DETAIL VIEW ===== */
+/* ===== СТРАНИЦА СТАТЬИ ===== */
 async function renderDetail(id){
   const app = document.getElementById('app');
   app.innerHTML = `<div class="empty">Загрузка…</div>`;
@@ -499,28 +540,30 @@ async function renderDetail(id){
     <a class="back-link" href="#">← Ко всем статьям</a>
     <div class="article-head">
       <div class="author-row">
-        <span>👤 ${escapeHtml(a.authorName||'Аноним')}</span> · <span>${timeAgo(a.createdAt)}</span>
-        · <span>👁 ${a.views||0}</span> · <span>📖 ${readingTime(a.bodyHTML)} мин</span>
+        <span>${ic('user')} ${escapeHtml(a.authorName||'Аноним')}</span> · <span>${timeAgo(a.createdAt)}</span>
+        · <span>${ic('eye')} ${a.views||0}</span> · <span>${ic('book')} ${readingTime(a.bodyHTML)} мин</span>
         ${a.updatedAt && a.updatedAt.toMillis && a.createdAt && a.updatedAt.toMillis()>a.createdAt.toMillis()+5000 ? '· <span>(ред.)</span>' : ''}
       </div>
       <h1>${escapeHtml(a.title)}</h1>
       <div class="foot">
         ${(a.tags||[]).map(t=>`<span class="tag-chip">#${escapeHtml(t)}</span>`).join('')}
-        ${a.topicRef ? `<a class="topic-badge" href="spravochnik.html#${encodeURIComponent(a.topicRef.id)}">📚 ${escapeHtml(a.topicRef.title)}</a>` : ''}
+        ${a.topicRef ? `<a class="topic-badge" href="spravochnik.html#${encodeURIComponent(a.topicRef.id)}">${ic('book')} ${escapeHtml(a.topicRef.title)}</a>` : ''}
       </div>
     </div>
     <div class="content-body">${a.bodyHTML}</div>
     <div class="article-actions">
-      <button class="btn small" id="bmBtn">${bm?'🔖 В закладках':'🔖 В закладки'}</button>
-      <button class="btn small" id="shareBtn">🔗 Скопировать ссылку</button>
-      ${isOwner ? `<button class="btn small" id="editArtBtn">✎ Редактировать</button><button class="btn small danger" id="delArtBtn">🗑 Удалить</button>` : ''}
+      <button class="btn small" id="bmBtn">${bm?ic('bookmarkFilled'):ic('bookmark')} ${bm?'В закладках':'В закладки'}</button>
+      <button class="btn small" id="shareBtn">${ic('link')} Скопировать ссылку</button>
+      ${isOwner ? `<button class="btn small" id="editArtBtn">${ic('pencil')} Редактировать</button><button class="btn small danger" id="delArtBtn">${ic('trash')} Удалить</button>` : ''}
     </div>
     <hr class="sep">
     <div class="replies-head"><h2 style="margin:0">Ответы</h2></div>
     <div id="replyFormRoot"></div>
     <div id="repliesRoot"><div class="empty">Загрузка ответов…</div></div>`;
 
-  document.getElementById('bmBtn').onclick=()=>{ toggleBookmark(id); document.getElementById('bmBtn').textContent = getBookmarks().includes(id)?'🔖 В закладках':'🔖 В закладки'; };
+  document.getElementById('bmBtn').onclick=()=>{ toggleBookmark(id);
+    const nowBm = getBookmarks().includes(id);
+    document.getElementById('bmBtn').innerHTML = `${nowBm?ic('bookmarkFilled'):ic('bookmark')} ${nowBm?'В закладках':'В закладки'}`; };
   document.getElementById('shareBtn').onclick=()=>{
     const url = location.href;
     navigator.clipboard?.writeText(url).then(()=>toast('Ссылка скопирована')).catch(()=>toast(url));
@@ -597,16 +640,16 @@ function renderRepliesTree(root, all, articleId, article){
         <div class="reply-top">
           <b>${escapeHtml(r.authorName||'Аноним')}</b>
           ${isArticleAuthor ? '<span class="badge-author">Автор</span>' : ''}
-          ${isBest ? '<span class="best-tag">⭐ Лучший ответ</span>' : ''}
+          ${isBest ? `<span class="best-tag">${ic('star')} Лучший ответ</span>` : ''}
           <span>· ${timeAgo(r.createdAt)}</span>
         </div>
         <div class="reply-body">${r.bodyHTML}</div>
         <div class="reply-actions">
-          <button class="vote-btn ${myVote==='like'?'active-like':''}" data-vote="like">👍 ${r.likes||0}</button>
-          <button class="vote-btn ${myVote==='dislike'?'active-dislike':''}" data-vote="dislike">👎 ${r.dislikes||0}</button>
+          <button class="vote-btn ${myVote==='like'?'active-like':''}" data-vote="like">${ic('thumbUp')} ${r.likes||0}</button>
+          <button class="vote-btn ${myVote==='dislike'?'active-dislike':''}" data-vote="dislike">${ic('thumbDown')} ${r.dislikes||0}</button>
           <button class="link-btn" data-act="reply">Ответить</button>
-          ${(!r.parentId && fUser && fUser.uid===article.authorUid && !isBest) ? `<button class="link-btn" data-act="best">Отметить лучшим</button>` : ''}
-          ${(fUser && (fUser.uid===r.authorUid || fUser.uid===article.authorUid)) ? `<button class="link-btn" data-act="del" style="color:var(--danger)">Удалить</button>` : ''}
+          ${(!r.parentId && fUser && fUser.uid===article.authorUid && !isBest) ? `<button class="link-btn" data-act="best">${ic('star')} Отметить лучшим</button>` : ''}
+          ${(fUser && (fUser.uid===r.authorUid || fUser.uid===article.authorUid)) ? `<button class="link-btn" data-act="del" style="color:var(--danger)">${ic('trash')} Удалить</button>` : ''}
         </div>
         <div class="reply-form" style="display:none"></div>
       </div>
