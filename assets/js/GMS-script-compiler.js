@@ -1,4 +1,4 @@
-function escapeHtml(text) {
+        function escapeHtml(text) {
             if (!text) return '';
             return text.replace(/&/g, '&amp;')
                        .replace(/</g, '&lt;')
@@ -16,21 +16,40 @@ function escapeHtml(text) {
                 .replace(/\u2029/g, '\\u2029');
         }
 
+        // Разбор экранирования внутри "..."-значений top-level параметров (description и т.п.)
+        // — один проход по символам, а не цепочка replace(), чтобы \\n не превращалось в перевод
+        // строки дважды (после того как \\\\ уже развернулось в \\). Поддерживает \\n и \\t —
+        // это единственный способ вписать реальный перевод строки в description, т.к. сам разбор
+        // top-level параметров построчный и настоящий перевод строки внутри значения недопустим.
+        function gcUnescapeStringLiteral(inner) {
+            let out = '';
+            for (let i = 0; i < inner.length; i++) {
+                const c = inner[i];
+                if (c === '\\' && i + 1 < inner.length) {
+                    const next = inner[i + 1];
+                    if (next === 'n') { out += '\n'; i++; }
+                    else if (next === 't') { out += '\t'; i++; }
+                    else if (next === '"') { out += '"'; i++; }
+                    else if (next === "'") { out += "'"; i++; }
+                    else if (next === '\\') { out += '\\'; i++; }
+                    else { out += c; }
+                } else {
+                    out += c;
+                }
+            }
+            return out;
+        }
+
         // ========== ТЕМЫ ОФОРМЛЕНИЯ ==========
         // Две заготовки: тёмная (по умолчанию) и светлая. "light" воспроизводит исходную
-        // (дореформенную) цветовую схему компилятора, чтобы не ломать старые примеры. 
-        const THEME_PRESETS = { 
+        // (дореформенную) цветовую схему компилятора, чтобы не ломать старые примеры.
+        const THEME_PRESETS = {
             dark: {
                 background: '#1b1b2a',
                 fieldColor: '#12121c',
                 frameColor: '#4a4a68',
                 defaultColor: '#e8e8f0',
-                titleColor: '#f5f5fa',
-                subColor: '#b8b8cc',
                 descColor: '#dcdce6',
-                footerColor: '#9494ac',
-                panelBg: 'rgba(255,255,255,0.06)',
-                footerBorder: '#3a3a52',
                 controlBg: '#2a2a40',
                 controlBorder: '#5a5a7e',
                 controlText: '#f0f0f5',
@@ -43,12 +62,7 @@ function escapeHtml(text) {
                 fieldColor: 'transparent',
                 frameColor: '#000000',
                 defaultColor: '#000000',
-                titleColor: '#000000',
-                subColor: '#333333',
                 descColor: '#000000',
-                footerColor: '#333333',
-                panelBg: 'rgba(0,0,0,0.03)',
-                footerBorder: '#cccccc',
                 controlBg: '#000000',
                 controlBorder: '#000000',
                 controlText: '#000000',
@@ -397,16 +411,17 @@ function escapeHtml(text) {
 
 const OBJECT_BLOCK_HEADERS = [
     '\\bnew\\s+Point(2D|3D)?\\b', '\\bnew\\s+Line(2D|3D)?\\b', '\\bnew\\s+Figure(2D|3D)?\\b', '\\bnew\\s+Primitive\\b',
-    '\\bnew\\s+Section\\b', '\\bnew\\s+Boolean\\b', '\\bnew\\s+Angle3D\\b', '\\bnew\\s+Claster(2D|3D)?\\b',
+    '\\bnew\\s+Section\\b', '\\bnew\\s+Boolean\\b', '\\bnew\\s+Truncate\\b', '\\bnew\\s+Hull\\b', '\\bnew\\s+Minkowski\\b', '\\bnew\\s+Angle3D\\b', '\\bnew\\s+Claster(2D|3D)?\\b',
     '\\bnew\\s+Angle\\b', '\\bdraw\\s+Angle\\b', '\\bdraw\\s+EquallySing\\b', '\\bdraw\\s+Vector(2D|3D)?\\b',
     '\\bdraw\\s+InfLine\\b', '\\bdraw\\s+InfPlane\\b', '\\bdraw\\s+Filling(2D|3D)?\\b', '\\bdraw\\s+Punctir\\b', '\\bdraw\\s+Text(2D|3D)?\\b',
     '\\bnew\\s+UI\\b', '\\bnew\\s+Circle\\b', '\\bdraw\\s+Arc\\b', '\\bnew\\s+Ellipse\\b',
     '\\bnew\\s+Curve(2D|3D)?\\b', '\\bdraw\\s+Function\\b', '\\bdraw\\s+Surface(2D|3D)?\\b', '\\bdraw\\s+Image\\b',
     '\\bdraw\\s+Histogram\\b', '\\bdraw\\s+Field(2D|3D)?\\b', '\\bdraw\\s+Trajectory(2D|3D)?\\b', '\\bdraw\\s+Graph\\b',
-    '\\bdraw\\s+Fractal\\b', '\\bdraw\\s+Formula\\b', '\\bdraw\\s+Locus\\b',
+    '\\bdraw\\s+Fractal\\b', '\\bdraw\\s+Formula\\b', '\\bdraw\\s+Distribution\\b', '\\bdraw\\s+Locus\\b',
     '\\bdraw\\s+Trace\\b', '\\bdraw\\s+Region\\b', '\\bdraw\\s+Chart\\b',
     '\\bdraw\\s+Tree\\b', '\\bdraw\\s+Table\\b', '\\bdraw\\s+Complex\\b',
-    '\\bdraw\\s+Hyperbolic\\b', '\\bdraw\\s+Bifurcation\\b', '\\bdraw\\s+Cobweb\\b', '\\bdraw\\s+IFS\\b', '\\bdraw\\s+Automaton\\b', '\\bdraw\\s+Voronoi\\b', '\\bdraw\\s+Fourier\\b', '\\bdraw\\s+Diagram\\b'
+    '\\bdraw\\s+Hyperbolic\\b', '\\bdraw\\s+Bifurcation\\b', '\\bdraw\\s+Cobweb\\b', '\\bdraw\\s+IFS\\b', '\\bdraw\\s+Automaton\\b', '\\bdraw\\s+Voronoi\\b', '\\bdraw\\s+Fourier\\b', '\\bdraw\\s+Diagram\\b', '\\bdraw\\s+TensorField\\b',
+    '\\bdraw\\s+Scatter3D\\b', '\\bdraw\\s+Histogram3D\\b'
 ];
 function removeObjectBlocks(code) {
     // Балансный поиск вместо нежадных regex: '};' внутри строк (например, в action кнопки)
@@ -1183,9 +1198,42 @@ function parseFillingBlock(block, vars) {
         }
     }
 
-    if (!figure && !line && !circle && !arc) return null;
+    // Площадь под графиком / между графиками: func — имя объекта draw Function
+    // (нижняя граница области — ось X, если func2 не задан); func2 — имя второго
+    // draw Function (тогда заливается область между двумя кривыми на общем участке x).
+    // xmin/xmax/segments необязательны: если не заданы явно, при инициализации сцены
+    // берутся из самого объекта draw Function, на который ссылается func (см. initDrawFillings).
+    let func = null;
+    const funcMatch = block.match(/\bfunc\s*=\s*"([^"]*)"/);
+    if (funcMatch) func = funcMatch[1];
+    else {
+        const varNameMatch = block.match(/\bfunc\s*=\s*([a-zA-Z_][a-zA-Z0-9_]*)/);
+        if (varNameMatch) {
+            const varName = varNameMatch[1];
+            if (vars[varName] !== undefined && typeof vars[varName] === 'string') func = vars[varName];
+        }
+    }
+    let func2 = null;
+    const func2Match = block.match(/\bfunc2\s*=\s*"([^"]*)"/);
+    if (func2Match) func2 = func2Match[1];
+    else {
+        const varNameMatch = block.match(/\bfunc2\s*=\s*([a-zA-Z_][a-zA-Z0-9_]*)/);
+        if (varNameMatch) {
+            const varName = varNameMatch[1];
+            if (vars[varName] !== undefined && typeof vars[varName] === 'string') func2 = vars[varName];
+        }
+    }
+    const hasFuncXmin = /(?:^|[^A-Za-z0-9_])xmin\s*=/.test(block);
+    const hasFuncXmax = /(?:^|[^A-Za-z0-9_])xmax\s*=/.test(block);
+    const funcXmin = hasFuncXmin ? parseNumberField(block, vars, 'xmin', null, false) : null;
+    const funcXmax = hasFuncXmax ? parseNumberField(block, vars, 'xmax', null, false) : null;
+    const hasFuncSegments = /(?:^|[^A-Za-z0-9_])segments\s*=/.test(block);
+    const funcSegments = hasFuncSegments ? parseNumberField(block, vars, 'segments', null, false) : null;
+
+    if (!figure && !line && !circle && !arc && !func) return null;
     if (line && !side) return null; // для полуплоскости обязательно указать сторону точкой
     if (circle && (!from || !to)) return null; // для сектора/сегмента обязательны from и to
+    if (func2 && !func) return null; // func2 без func не имеет смысла
 
     const color = parseColorField(block, vars, 'color', null);
 
@@ -1203,7 +1251,7 @@ function parseFillingBlock(block, vars) {
     let opacity = parseNumberField(block, vars, 'opacity', 0.5, false);
     if (opacity < 0) opacity = 0;
     if (opacity > 1) opacity = 1;
-    return { name, figure, line, side, circle, from, to, arc, shape, color, mode, layer, opacity, activeExpr: parseActiveExpr(block) };
+    return { name, figure, line, side, circle, from, to, arc, shape, color, mode, layer, opacity, func, func2, funcXmin, funcXmax, funcSegments, activeExpr: parseActiveExpr(block) };
 }
 
 function parsePunctirBlock(block, vars) {
@@ -1781,6 +1829,89 @@ function parseBooleanBlock(block, vars) {
     return { name, op, parts, color, opacity, wireframe, active, activeExpr, showInfo, hideSource, textColor, textSize };
 }
 
+// new Truncate — усечение вершин тела (как «усечённый куб», «усечённый тетраэдр» и т.п.):
+// каждая вершина source среза́ется плоскостью, проходящей через точки на её рёбрах на
+// расстоянии fraction (0..0.5) от вершины к соседям. Работает для ЛЮБОГО тела (Primitive,
+// Section, Boolean, Hull, Minkowski — не только для правильных многогранников).
+function parseTruncateBlock(block, vars) {
+    const name = parseStringField(block, vars, 'name');
+    if (!name) return null;
+
+    const sourceMatch = block.match(/(?:^|[^A-Za-z0-9_])source\s*=\s*"?([a-zA-Z_][a-zA-Z0-9_]*)"?/);
+    if (!sourceMatch) return null;
+    const source = sourceMatch[1];
+
+    let fraction = parseNumberField(block, vars, 'fraction', 0.3, false);
+    if (isNaN(fraction)) fraction = 0.3;
+    fraction = Math.max(0.01, Math.min(0.5, fraction));
+
+    const color = parseColorField(block, vars, 'color', null);
+    let opacity = parseNumberField(block, vars, 'opacity', 1, false);
+    if (isNaN(opacity)) opacity = 1;
+    opacity = Math.max(0, Math.min(1, opacity));
+    const wireframe = parseBoolField(block, vars, 'wireframe', false);
+    const active = parseBoolField(block, vars, 'active', true);
+    const activeExpr = parseActiveExpr(block);
+    const showInfo = parseBoolField(block, vars, 'showInfo', false);
+    const hideSource = parseBoolField(block, vars, 'hideSource', true);
+    const textColor = parseColorField(block, vars, 'textColor', null);
+    const textSize = parseNumberField(block, vars, 'textSize', 1, false);
+
+    return { name, source, fraction, color, opacity, wireframe, active, activeExpr, showInfo, hideSource, textColor, textSize };
+}
+
+// new Hull — выпуклая оболочка объединённых вершин parts (одного или нескольких тел/точек).
+// Полезно само по себе (напр. оболочка вокруг облака точек) и как строительный блок для
+// Minkowski (сумма Минковского двух выпуклых тел = оболочка попарных сумм их вершин).
+function parseHullBlock(block, vars) {
+    const name = parseStringField(block, vars, 'name');
+    if (!name) return null;
+
+    const parts = parseNameListField(block, 'parts');
+    if (!parts || parts.length < 1) return null;
+
+    const color = parseColorField(block, vars, 'color', null);
+    let opacity = parseNumberField(block, vars, 'opacity', 1, false);
+    if (isNaN(opacity)) opacity = 1;
+    opacity = Math.max(0, Math.min(1, opacity));
+    const wireframe = parseBoolField(block, vars, 'wireframe', false);
+    const active = parseBoolField(block, vars, 'active', true);
+    const activeExpr = parseActiveExpr(block);
+    const showInfo = parseBoolField(block, vars, 'showInfo', false);
+    const hideSource = parseBoolField(block, vars, 'hideSource', true);
+    const textColor = parseColorField(block, vars, 'textColor', null);
+    const textSize = parseNumberField(block, vars, 'textSize', 1, false);
+
+    return { name, parts, color, opacity, wireframe, active, activeExpr, showInfo, hideSource, textColor, textSize };
+}
+
+// new Minkowski — сумма Минковского parts (>=2 тел): A ⊕ B = { a + b : a ∈ A, b ∈ B }.
+// Точна для ВЫПУКЛЫХ тел (тогда это ровно оболочка попарных сумм вершин — стандартный факт
+// выпуклой геометрии); для невыпуклых тел (напр. Torus) даёт оболочку суммы, то есть
+// приближение сверху, а не точную (тоже невыпуклую) сумму Минковского — это отдельная,
+// значительно более сложная вычислительная задача.
+function parseMinkowskiBlock(block, vars) {
+    const name = parseStringField(block, vars, 'name');
+    if (!name) return null;
+
+    const parts = parseNameListField(block, 'parts');
+    if (!parts || parts.length < 2) return null;
+
+    const color = parseColorField(block, vars, 'color', null);
+    let opacity = parseNumberField(block, vars, 'opacity', 1, false);
+    if (isNaN(opacity)) opacity = 1;
+    opacity = Math.max(0, Math.min(1, opacity));
+    const wireframe = parseBoolField(block, vars, 'wireframe', false);
+    const active = parseBoolField(block, vars, 'active', true);
+    const activeExpr = parseActiveExpr(block);
+    const showInfo = parseBoolField(block, vars, 'showInfo', false);
+    const hideSource = parseBoolField(block, vars, 'hideSource', true);
+    const textColor = parseColorField(block, vars, 'textColor', null);
+    const textSize = parseNumberField(block, vars, 'textSize', 1, false);
+
+    return { name, parts, color, opacity, wireframe, active, activeExpr, showInfo, hideSource, textColor, textSize };
+}
+
 // ---- Углы, специфичные для 3D (new Angle3D) ----
 // В отличие от new Angle (плоский угол «вершина + два ребра», общий с 2D), эти четыре
 // типа не сводятся к простому углу между двумя векторами из одной вершины — они
@@ -1795,7 +1926,7 @@ function parseBooleanBlock(block, vars) {
 //                в каждой грани — «настоящий» угол (0°, 180°), может быть тупым.
 // Вершины/точки задаются либо именем существующей Point (тогда угол пересчитывается каждый
 // кадр и следует за перетаскиванием — как у new Angle), либо литералом (x, y, z).
-const ANGLE3D_TYPES = ['lineLine', 'linePlane', 'planePlane', 'dihedral'];
+const ANGLE3D_TYPES = ['lineLine', 'linePlane', 'planePlane', 'dihedral', 'pointAngle', 'vectorVector', 'solid'];
 function parseVertexRef3D(raw, vars) {
     if (raw === undefined || raw === null) return null;
     let s = String(raw).trim();
@@ -1854,13 +1985,37 @@ function parseAngle3DBlock(block, vars) {
         if (plane1 && plane1.length === 3 && plane2 && plane2.length === 3) {
             refs = { a: plane1[0], b: plane1[1], c: plane1[2], d: plane2[0], e: plane2[1], f: plane2[2] };
         }
-    } else { // dihedral
+    } else if (type === 'dihedral') {
         const edge = parseVertexRefListField3D(block, vars, 'edge');
         const point1 = parseVertexRefField3D(block, vars, 'point1');
         const point2 = parseVertexRefField3D(block, vars, 'point2');
         if (edge && edge.length === 2 && point1 && point2) {
             refs = { a: edge[0], b: edge[1], c: point1, d: point2 };
         }
+    } else if (type === 'pointAngle') {
+        // Самый распространённый бытовой случай — угол ABC по трём точкам (вершина B,
+        // лучи к A и C), без необходимости заранее строить отдельные Line3D — раньше в 3D
+        // такого удобного варианта не было вовсе, только через lineLine.
+        const vertex = parseVertexRefField3D(block, vars, 'vertex');
+        const point1 = parseVertexRefField3D(block, vars, 'point1');
+        const point2 = parseVertexRefField3D(block, vars, 'point2');
+        if (vertex && point1 && point2) {
+            refs = { a: vertex, b: point1, c: point2 };
+        }
+    } else if (type === 'vectorVector') {
+        // Угол между двумя ИМЕНОВАННЫМИ векторами (draw Vector) — в отличие от lineLine,
+        // векторы направленные: показывается настоящий угол между направлениями (0..180°),
+        // без принудительного приведения к острому (у lineLine линии ненаправленные, поэтому
+        // там всегда берётся угол <= 90°; см. computeAngle3D).
+        const vec1M = block.match(/(?:^|[^A-Za-z0-9_])vec1\s*=\s*"?([a-zA-Z_][a-zA-Z0-9_]*)"?/);
+        const vec2M = block.match(/(?:^|[^A-Za-z0-9_])vec2\s*=\s*"?([a-zA-Z_][a-zA-Z0-9_]*)"?/);
+        if (vec1M && vec2M) refs = { vec1: vec1M[1], vec2: vec2M[1] };
+    } else if (type === 'solid') {
+        // Телесный угол (стерадианы) — сколько "видно" из вершины через многоугольник rays
+        // (>=3 точек). Раньше в 3D телесных углов не было вовсе — только плоские.
+        const vertex = parseVertexRefField3D(block, vars, 'vertex');
+        const rays = parseVertexRefListField3D(block, vars, 'rays');
+        if (vertex && rays && rays.length >= 3) refs = { vertex: vertex, rays: rays };
     }
     if (!refs) return null;
 
@@ -2066,10 +2221,20 @@ function parseCurveBlock(block, vars) {
     const active = parseBoolField(block, vars, 'active', true);
     const layer = parseNumberField(block, vars, 'layer', 20, false);
     const collisionFields = parseGeneralCollisionFields(block, vars, false);
+    // Дифференциальная геометрия САМОЙ кривой (не путать с torsion в bettiNumbers/homology —
+    // это про группы гомологий симплициальных комплексов, а тут — кручение пространственной
+    // кривой). Только для 3D-кривых (нужен z(t) либо 3D control points): colorBy красит линию
+    // по кривизне/кручению (численно, центральными разностями), showFrenet рисует репер Френе
+    // (T/N/B) в нескольких точках вдоль кривой — см. gcCurveDerivatives3D в generate3D.
+    const colorByM = block.match(/(?:^|[^A-Za-z0-9_])colorBy\s*=\s*"?(none|curvature|torsion)"?/);
+    const colorBy = colorByM ? colorByM[1] : 'none';
+    const showFrenet = parseBoolField(block, vars, 'showFrenet', false);
+    const frenetCount = parseNumberField(block, vars, 'frenetCount', 8, false);
+    const frenetScale = parseNumberField(block, vars, 'frenetScale', null, false);
 
     return {
         name, type, controlPoints, xExpr, yExpr, zExpr, segments, color, thickness, active, activeExpr: parseActiveExpr(block), layer,
-        centerName, a: curveA, b: curveB, radius: curveRadius, turns, ...collisionFields
+        centerName, a: curveA, b: curveB, radius: curveRadius, turns, colorBy, showFrenet, frenetCount, frenetScale, ...collisionFields
     };
 }
 
@@ -2111,8 +2276,11 @@ function parseSurfaceBlock(block, vars) {
     const name = parseStringField(block, vars, 'name');
     if (!name) return null;
 
+    // type = "implicit" — неявная поверхность f(x, y, z) = level (marching cubes, только 3D);
+    // f ссылается на обычную функцию трёх переменных (func f(x, y, z) = ...;), как и funcName
+    // у heightfield-поверхностей ссылается на функцию двух переменных.
     let type = 'heightfield';
-    const typeMatch = block.match(/type\s*=\s*"?(heightfield|parametric)"?/);
+    const typeMatch = block.match(/type\s*=\s*"?(heightfield|parametric|implicit)"?/);
     if (typeMatch) type = typeMatch[1];
 
     const fMatch = block.match(/f\s*=\s*"([^"]*)"/);
@@ -2135,11 +2303,17 @@ function parseSurfaceBlock(block, vars) {
     const xmax = parseNumberField(block, vars, 'xmax', 5, false);
     const ymin = parseNumberField(block, vars, 'ymin', -5, false);
     const ymax = parseNumberField(block, vars, 'ymax', 5, false);
+    // zmin/zmax — только для implicit (третье измерение вокселя marching cubes); для
+    // heightfield/parametric не используется, но парсится всегда единообразно.
+    const zmin = parseNumberField(block, vars, 'zmin', -5, false);
+    const zmax = parseNumberField(block, vars, 'zmax', 5, false);
     // umin/umax/vmin/vmax — область определения параметров u, v для параметрической поверхности
     const umin = parseNumberField(block, vars, 'umin', -5, false);
     const umax = parseNumberField(block, vars, 'umax', 5, false);
     const vmin = parseNumberField(block, vars, 'vmin', -5, false);
     const vmax = parseNumberField(block, vars, 'vmax', 5, false);
+    // grid — сторона сетки; для heightfield/parametric до 80, для implicit клэмпится ниже
+    // (до 40) из-за кубической стоимости marching cubes (n^3 вызовов f за кадр).
     const grid = parseNumberField(block, vars, 'grid', 20, false);
     let mode = 'contour';
     const modeMatch = block.match(/mode\s*=\s*"?(contour|3d)"?/);
@@ -2157,7 +2331,7 @@ function parseSurfaceBlock(block, vars) {
     if (opacity < 0) opacity = 0;
     if (opacity > 1) opacity = 1;
 
-    return { name, type, funcName, xExpr, yExpr, zExpr, xmin, xmax, ymin, ymax, umin, umax, vmin, vmax, grid, mode, color, opacity, active, activeExpr: parseActiveExpr(block), layer, angle, levels, level };
+    return { name, type, funcName, xExpr, yExpr, zExpr, xmin, xmax, ymin, ymax, zmin, zmax, umin, umax, vmin, vmax, grid, mode, color, opacity, active, activeExpr: parseActiveExpr(block), layer, angle, levels, level };
 }
 
 // draw Chart — диаграммы: scatter / line строятся в координатах поля,
@@ -2339,6 +2513,91 @@ function parseFormulaBlock(block, vars) {
     return { name, posXExpr, posYExpr, latexExpr, size, color, bg, align, display, active, layer };
 }
 
+// draw Distribution — готовые визуализации распределений вероятностей, без необходимости
+// вручную писать func f(x) = normalPdf(x, mu, sigma); и draw Function поверх неё.
+// type = normal (кривая плотности, mu/sigma) | uniform (mu/sigma заменяются на a/b) |
+// exponential (lambda) — непрерывные, рисуются кривой с заливкой под ней;
+// type = binomial (n, p) | poisson (lambda) — дискретные, рисуются столбцами по k = 0..kmax.
+// highlightFrom/highlightTo — необязательная подсветка области другим цветом: для непрерывных
+// это P(highlightFrom <= X <= highlightTo) (заливка под частью кривой), для дискретных —
+// столбцы k из диапазона [highlightFrom, highlightTo] закрашиваются highlightColor.
+function parseDistributionBlock(block, vars) {
+    const name = parseStringField(block, vars, 'name');
+    if (!name) return null;
+
+    let type = 'normal';
+    const typeMatch = block.match(/(?:^|[^A-Za-z0-9_])type\s*=\s*"?(normal|binomial|poisson|uniform|exponential)"?/);
+    if (typeMatch) type = typeMatch[1];
+
+    // Параметры распределения — набор полей зависит от типа, лишние поля просто игнорируются.
+    const mu = parseNumberField(block, vars, 'mu', 0, false);
+    const sigma = parseNumberField(block, vars, 'sigma', 1, false);
+    const n = parseNumberField(block, vars, 'n', 20, false);
+    const p = parseNumberField(block, vars, 'p', 0.5, false);
+    const lambda = parseNumberField(block, vars, 'lambda', 4, false);
+    const a = parseNumberField(block, vars, 'a', 0, false);
+    const b = parseNumberField(block, vars, 'b', 1, false);
+
+    if (type === 'normal' && !(sigma > 0)) return null;
+    if (type === 'binomial' && (!(n >= 0) || !(p >= 0 && p <= 1))) return null;
+    if (type === 'poisson' && !(lambda >= 0)) return null;
+    if (type === 'uniform' && !(b > a)) return null;
+    if (type === 'exponential' && !(lambda > 0)) return null;
+
+    // xmin/xmax (непрерывные типы) и kmax (дискретные типы) — необязательные переопределения;
+    // если не заданы, разумные значения по умолчанию вычисляются ниже из параметров распределения.
+    const hasXmin = /(?:^|[^A-Za-z0-9_])xmin\s*=/.test(block);
+    const hasXmax = /(?:^|[^A-Za-z0-9_])xmax\s*=/.test(block);
+    let xmin = hasXmin ? parseNumberField(block, vars, 'xmin', null, false) : null;
+    let xmax = hasXmax ? parseNumberField(block, vars, 'xmax', null, false) : null;
+    const hasKmax = /(?:^|[^A-Za-z0-9_])kmax\s*=/.test(block);
+    let kmax = hasKmax ? parseNumberField(block, vars, 'kmax', null, false) : null;
+    const segments = parseNumberField(block, vars, 'segments', 200, false);
+
+    if (type === 'normal') {
+        if (xmin === null) xmin = mu - 4 * sigma;
+        if (xmax === null) xmax = mu + 4 * sigma;
+    } else if (type === 'uniform') {
+        const pad = (b - a) * 0.25 || 1;
+        if (xmin === null) xmin = a - pad;
+        if (xmax === null) xmax = b + pad;
+    } else if (type === 'exponential') {
+        if (xmin === null) xmin = 0;
+        if (xmax === null) xmax = 6 / lambda;
+    } else if (type === 'binomial') {
+        if (kmax === null) kmax = Math.round(n);
+    } else if (type === 'poisson') {
+        if (kmax === null) kmax = Math.max(10, Math.ceil(lambda + 4 * Math.sqrt(lambda)) + 3);
+    }
+
+    const color = parseColorField(block, vars, 'color', null);
+    const thickness = parseNumberField(block, vars, 'thickness', 2, false);
+    let opacity = parseNumberField(block, vars, 'opacity', 1, false);
+    if (opacity < 0) opacity = 0;
+    if (opacity > 1) opacity = 1;
+    const filled = parseBoolField(block, vars, 'filled', true);
+
+    const hasHFrom = /(?:^|[^A-Za-z0-9_])highlightFrom\s*=/.test(block);
+    const hasHTo = /(?:^|[^A-Za-z0-9_])highlightTo\s*=/.test(block);
+    const highlightFrom = hasHFrom ? parseNumberField(block, vars, 'highlightFrom', null, false) : null;
+    const highlightTo = hasHTo ? parseNumberField(block, vars, 'highlightTo', null, false) : null;
+    const highlightColor = parseColorField(block, vars, 'highlightColor', '#e07a5f');
+    let highlightOpacity = parseNumberField(block, vars, 'highlightOpacity', 0.5, false);
+    if (highlightOpacity < 0) highlightOpacity = 0;
+    if (highlightOpacity > 1) highlightOpacity = 1;
+
+    const active = parseBoolField(block, vars, 'active', true);
+    const layer = parseNumberField(block, vars, 'layer', 20, false);
+
+    return {
+        name, type, mu, sigma, n, p, lambda, a, b,
+        xmin, xmax, kmax, segments,
+        color, thickness, opacity, filled,
+        highlightFrom, highlightTo, highlightColor, highlightOpacity,
+        active, layer,
+    };
+}
+
 // draw Locus — геометрическое место точек: параметр driver пробегает [0,1],
 // на каждом шаге сцена пересчитывается и запоминается положение точки point.
 //   draw Locus { name = "L", point = M, driver = P, samples = 240 };
@@ -2393,13 +2652,41 @@ function parseRegionBlock(block, vars) {
     const border = parseBoolField(block, vars, 'border', true);
     const active = parseBoolField(block, vars, 'active', true);
     const layer = parseNumberField(block, vars, 'layer', 5, false);
+    // 3D-альтернатива (билборд-панель): та же неявная область f(x,y) <op> level, только
+    // растровая маска рисуется на отдельной панели в 3D-пространстве (pos = (x,y,z)), а не
+    // поверх основной 2D-сцены. Настоящий объёмный аналог (область в пространстве, заданная
+    // f(x,y,z) <op> level, через marching cubes) — отдельная, более крупная задача.
+    let dim = '2D', pos3D = null, rotate3D = null, billboard = true;
+    const posMatch = block.match(/(?:^|[^A-Za-z0-9_])pos\s*=\s*\(([^)]*)\)/);
+    if (posMatch) {
+        const parts = posMatch[1].split(',').map(s => s.trim());
+        if (parts.length === 3) {
+            try {
+                pos3D = {
+                    x: evaluateNumericExpression(parts[0], vars),
+                    y: evaluateNumericExpression(parts[1], vars),
+                    z: evaluateNumericExpression(parts[2], vars),
+                };
+                dim = '3D';
+            } catch (e) { pos3D = null; }
+        }
+    }
+    if (dim === '3D') {
+        rotate3D = parseXYZField(block, vars, 'rotate', { x: 0, y: 0, z: 0 });
+        billboard = parseBoolField(block, vars, 'billboard', true);
+    }
     return {
         name, funcName: fM[1], op: opM ? opM[1] : '<',
         level: parseNumberField(block, vars, 'level', 0, false),
         func2Name: f2M ? f2M[1] : null, op2: op2M ? op2M[1] : '<',
         level2: parseNumberField(block, vars, 'level2', 0, false),
         combine: combineM ? combineM[1] : 'and',
-        color, opacity, quality, border, active, layer
+        color, opacity, quality, border, active, activeExpr: parseActiveExpr(block), layer,
+        dim, pos3D, rotate3D, billboard,
+        panelWidth: parseNumberField(block, vars, 'panelWidth', 8, false),
+        panelHeight: parseNumberField(block, vars, 'panelHeight', 8, false),
+        rangeX: parseNumberField(block, vars, 'rangeX', 6, false),
+        rangeY: parseNumberField(block, vars, 'rangeY', 6, false),
     };
 }
 
@@ -2498,13 +2785,36 @@ function parseIFSBlock(block, vars) {
     if (!name) return null;
     const mapsExpr = captureExprField(block, 'maps');
     if (mapsExpr === null) return null;
+    // 3D-альтернатива: если задан pos = (x, y, z) (литеральные координаты, как у Primitive),
+    // отображения интерпретируются как 3D-аффинные — [a,b,c, d,e,f, g,h,i, tx,ty,tz, p]
+    // (матрица 3x3 + перенос + вероятность), а не 2D [a,b,c,d,e,f,p]. Это настоящее облако
+    // точек в 3D-пространстве (THREE.Points), а не билборд — например, 3D-папоротник или
+    // тетраэдр Серпинского в 3D можно построить именно так.
+    let dim = '2D', pos3D = null;
+    const posMatch = block.match(/(?:^|[^A-Za-z0-9_])pos\s*=\s*\(([^)]*)\)/);
+    if (posMatch) {
+        const parts = posMatch[1].split(',').map(s => s.trim());
+        if (parts.length === 3) {
+            try {
+                pos3D = {
+                    x: evaluateNumericExpression(parts[0], vars),
+                    y: evaluateNumericExpression(parts[1], vars),
+                    z: evaluateNumericExpression(parts[2], vars),
+                };
+                dim = '3D';
+            } catch (e) { pos3D = null; }
+        }
+    }
     return {
         name, mapsExpr,
         iterations: parseNumberField(block, vars, 'iterations', 40000, false),
         color: parseColorField(block, vars, 'color', '#1b5e20'),
         pointSize: parseNumberField(block, vars, 'pointSize', 1, false),
         active: parseBoolField(block, vars, 'active', true),
-        layer: parseNumberField(block, vars, 'layer', 14, false)
+        activeExpr: parseActiveExpr(block),
+        layer: parseNumberField(block, vars, 'layer', 14, false),
+        dim, pos3D,
+        scale: parseNumberField(block, vars, 'scale', 1, false),
     };
 }
 
@@ -2513,6 +2823,30 @@ function parseAutomatonBlock(block, vars) {
     const name = parseStringField(block, vars, 'name');
     if (!name) return null;
     const typeM = block.match(/(?:^|[^A-Za-z0-9_])type\s*=\s*"?(elementary|life)"?/);
+    const posMatch2D = block.match(/(?:^|[^A-Za-z0-9_])pos\s*=\s*\(([^)]*)\)/);
+    // 3D-альтернатива (билборд-панель): если pos — три ЛИТЕРАЛЬНЫХ числа, автомат (elementary
+    // или life) рисуется на отдельной панели в 3D; если два — прежнее 2D-поведение (pos как
+    // два динамических выражения в координатах поля).
+    let dim = '2D', pos3D = null, rotate3D = null, billboard = true, posXExpr = '0', posYExpr = '0';
+    if (posMatch2D) {
+        const parts = posMatch2D[1].split(',').map(s => s.trim());
+        if (parts.length === 3) {
+            try {
+                pos3D = {
+                    x: evaluateNumericExpression(parts[0], vars),
+                    y: evaluateNumericExpression(parts[1], vars),
+                    z: evaluateNumericExpression(parts[2], vars),
+                };
+                dim = '3D';
+            } catch (e) { pos3D = null; }
+        } else if (parts.length === 2) {
+            posXExpr = parts[0].trim(); posYExpr = parts[1].trim();
+        }
+    }
+    if (dim === '3D') {
+        rotate3D = parseXYZField(block, vars, 'rotate', { x: 0, y: 0, z: 0 });
+        billboard = parseBoolField(block, vars, 'billboard', true);
+    }
     return {
         name, type: typeM ? typeM[1] : 'elementary',
         rule: parseNumberField(block, vars, 'rule', 30, false),
@@ -2521,11 +2855,14 @@ function parseAutomatonBlock(block, vars) {
         cellSize: parseNumberField(block, vars, 'cellSize', 0.25, false),
         initExpr: captureExprField(block, 'init'),
         generationExpr: captureExprField(block, 'generation'),
-        posXExpr: (block.match(/(?:^|[^A-Za-z0-9_])pos\s*=\s*\(([^)]*)\)/) ? splitTopLevelList(block.match(/(?:^|[^A-Za-z0-9_])pos\s*=\s*\(([^)]*)\)/)[1])[0].trim() : '0'),
-        posYExpr: (block.match(/(?:^|[^A-Za-z0-9_])pos\s*=\s*\(([^)]*)\)/) ? splitTopLevelList(block.match(/(?:^|[^A-Za-z0-9_])pos\s*=\s*\(([^)]*)\)/)[1])[1].trim() : '0'),
+        posXExpr, posYExpr,
         color: parseColorField(block, vars, 'color', '#212121'),
         active: parseBoolField(block, vars, 'active', true),
-        layer: parseNumberField(block, vars, 'layer', 16, false)
+        activeExpr: parseActiveExpr(block),
+        layer: parseNumberField(block, vars, 'layer', 16, false),
+        dim, pos3D, rotate3D, billboard,
+        panelWidth: parseNumberField(block, vars, 'panelWidth', 8, false),
+        panelHeight: parseNumberField(block, vars, 'panelHeight', 8, false),
     };
 }
 
@@ -2535,6 +2872,25 @@ function parseVoronoiBlock(block, vars) {
     if (!name) return null;
     const sitesExpr = captureExprField(block, 'sites');
     const modeM = block.match(/(?:^|[^A-Za-z0-9_])mode\s*=\s*"?(voronoi|delaunay|hull)"?/);
+    // 3D: voronoi — точные выпуклые ячейки (последовательное отсечение полупространствами-
+    // бисекторами каждой пары сайтов, клип по боксу rangeX/Y/Z); delaunay — тетраэдризация
+    // (перебор четвёрок точек с проверкой пустоты описанной сферы, см. glDelaunay3D); hull —
+    // выпуклая оболочка через convexHull3D (та же функция, что и у new Hull).
+    let dim = '2D', pos3D = null;
+    const posMatch = block.match(/(?:^|[^A-Za-z0-9_])pos\s*=\s*\(([^)]*)\)/);
+    if (posMatch) {
+        const parts = posMatch[1].split(',').map(s => s.trim());
+        if (parts.length === 3) {
+            try {
+                pos3D = {
+                    x: evaluateNumericExpression(parts[0], vars),
+                    y: evaluateNumericExpression(parts[1], vars),
+                    z: evaluateNumericExpression(parts[2], vars),
+                };
+                dim = '3D';
+            } catch (e) { pos3D = null; }
+        }
+    }
     return {
         name, sitesExpr, mode: modeM ? modeM[1] : 'voronoi',
         quality: parseNumberField(block, vars, 'quality', 3, false),
@@ -2543,7 +2899,13 @@ function parseVoronoiBlock(block, vars) {
         filled: parseBoolField(block, vars, 'filled', true),
         opacity: parseNumberField(block, vars, 'opacity', 0.45, false),
         active: parseBoolField(block, vars, 'active', true),
-        layer: parseNumberField(block, vars, 'layer', 8, false)
+        activeExpr: parseActiveExpr(block),
+        layer: parseNumberField(block, vars, 'layer', 8, false),
+        dim, pos3D,
+        rangeX: parseNumberField(block, vars, 'rangeX', 8, false),
+        rangeY: parseNumberField(block, vars, 'rangeY', 8, false),
+        rangeZ: parseNumberField(block, vars, 'rangeZ', 8, false),
+        resolution: parseNumberField(block, vars, 'resolution', 18, false),
     };
 }
 
@@ -2596,27 +2958,88 @@ function parseComplexBlock(block, vars) {
     const fM = block.match(/(?:^|[^A-Za-z0-9_])f\s*=\s*"([^"]*)"/);
     if (!fM) return null;
     const modeM = block.match(/(?:^|[^A-Za-z0-9_])mode\s*=\s*"?(domain|phase|modulus)"?/);
+    // 3D-альтернатива (билборд-панель): та же раскраска области (domain coloring), только
+    // область обзора задаётся явно через centerRe/centerIm/scale (в панели нет камеры/
+    // pixelToField, как и у draw Fractal).
+    let dim = '2D', pos3D = null, rotate3D = null, billboard = true;
+    const posMatch = block.match(/(?:^|[^A-Za-z0-9_])pos\s*=\s*\(([^)]*)\)/);
+    if (posMatch) {
+        const parts = posMatch[1].split(',').map(s => s.trim());
+        if (parts.length === 3) {
+            try {
+                pos3D = {
+                    x: evaluateNumericExpression(parts[0], vars),
+                    y: evaluateNumericExpression(parts[1], vars),
+                    z: evaluateNumericExpression(parts[2], vars),
+                };
+                dim = '3D';
+            } catch (e) { pos3D = null; }
+        }
+    }
+    if (dim === '3D') {
+        rotate3D = parseXYZField(block, vars, 'rotate', { x: 0, y: 0, z: 0 });
+        billboard = parseBoolField(block, vars, 'billboard', true);
+    }
     return {
         name, funcName: fM[1], mode: modeM ? modeM[1] : 'domain',
         quality: parseNumberField(block, vars, 'quality', 2, false),
         contours: parseBoolField(block, vars, 'contours', true),
         opacity: parseNumberField(block, vars, 'opacity', 1, false),
         active: parseBoolField(block, vars, 'active', true),
-        layer: parseNumberField(block, vars, 'layer', -90, false)
+        activeExpr: parseActiveExpr(block),
+        layer: parseNumberField(block, vars, 'layer', -90, false),
+        dim, pos3D, rotate3D, billboard,
+        panelWidth: parseNumberField(block, vars, 'panelWidth', 8, false),
+        panelHeight: parseNumberField(block, vars, 'panelHeight', 8, false),
+        centerRe: parseNumberField(block, vars, 'centerRe', 0, false),
+        centerIm: parseNumberField(block, vars, 'centerIm', 0, false),
+        scale: parseNumberField(block, vars, 'scale', 3, false),
     };
 }
 
-// draw Hyperbolic — геометрия Лобачевского в модели Пуанкаре (круг или полуплоскость).
-// Умеет: границу абсолюта, геодезические между точками, правильное замощение {p,q}.
+// draw Hyperbolic — геометрия Лобачевского в модели Пуанкаре (круг/полуплоскость в 2D,
+// шар/полупространство в 3D). Умеет: границу абсолюта, геодезические между точками, правильное
+// замощение {p,q} (только 2D). Для работы с изометриями и расстоянием из скриптов — builtin-
+// функции hypDistance/hypTranslate/mobiusTransform (2D) и hypDistance3D/hypTranslate3D (3D, шар).
 function parseHyperbolicBlock(block, vars) {
     const name = parseStringField(block, vars, 'name');
     if (!name) return null;
-    const modelM = block.match(/(?:^|[^A-Za-z0-9_])model\s*=\s*"?(disk|halfplane)"?/);
+    const modelM = block.match(/(?:^|[^A-Za-z0-9_])model\s*=\s*"?(disk|halfplane|ball|halfspace)"?/);
     const tilingM = block.match(/(?:^|[^A-Za-z0-9_])tiling\s*=\s*"\{?\s*(\d+)\s*,\s*(\d+)\s*\}?"/);
     const geodesicsExpr = captureExprField(block, 'geodesics');
     const pointsExpr = captureExprField(block, 'points');
+    // 3D-альтернатива: шар Пуанкаре (Poincaré ball model, model = "ball", по умолчанию для 3D)
+    // ИЛИ модель полупространства (model = "halfspace") — прямой 3D-аналог модели полуплоскости:
+    // граница абсолюта — плоскость z = 0, "внутренность" — z > 0; геодезические — вертикальные
+    // отрезки (если xy совпадают) либо полуокружности в вертикальной плоскости через обе точки
+    // (см. gcHypGeodesicHalfSpace3D). pos = (x,y,z) — центр шара/начало координат полупространства
+    // в сцене. geodesics/points — тройки [x,y,z]: внутри единичного шара для model="ball", либо
+    // произвольные точки с z > 0 для model="halfspace". Правильное замощение {p,q} — понятие
+    // специфичное для 2D-мозаик; настоящий 3D-аналог — соты {p,q,r} — требует групп отражений
+    // в гиперболическом 3-пространстве и НЕ реализован (см. итоговое резюме); при dim=3D
+    // tiling просто игнорируется.
+    let dim = '2D', pos3D = null;
+    const posMatch = block.match(/(?:^|[^A-Za-z0-9_])pos\s*=\s*\(([^)]*)\)/);
+    if (posMatch) {
+        const parts = posMatch[1].split(',').map(s => s.trim());
+        if (parts.length === 3) {
+            try {
+                pos3D = {
+                    x: evaluateNumericExpression(parts[0], vars),
+                    y: evaluateNumericExpression(parts[1], vars),
+                    z: evaluateNumericExpression(parts[2], vars),
+                };
+                dim = '3D';
+            } catch (e) { pos3D = null; }
+        }
+    }
+    // "halfplane"/"halfspace" — синонимы (полуплоскость-модель по смыслу одна и та же что в 2D,
+    // что в 3D, просто у неё на одно измерение больше); по умолчанию — disk в 2D, ball в 3D.
+    let model = modelM ? modelM[1] : (dim === '3D' ? 'ball' : 'disk');
+    if (model === 'halfplane' || model === 'halfspace') model = (dim === '3D') ? 'halfspace' : 'halfplane';
+    else if (dim === '3D') model = 'ball';
     return {
-        name, model: modelM ? modelM[1] : 'disk',
+        name, model,
         tilingP: tilingM ? parseInt(tilingM[1], 10) : 0,
         tilingQ: tilingM ? parseInt(tilingM[2], 10) : 0,
         depth: parseNumberField(block, vars, 'depth', 3, false),
@@ -2627,7 +3050,9 @@ function parseHyperbolicBlock(block, vars) {
         tileColor: parseColorField(block, vars, 'tileColor', '#5b8db8'),
         thickness: parseNumberField(block, vars, 'thickness', 1.4, false),
         active: parseBoolField(block, vars, 'active', true),
-        layer: parseNumberField(block, vars, 'layer', 12, false)
+        activeExpr: parseActiveExpr(block),
+        layer: parseNumberField(block, vars, 'layer', 12, false),
+        dim, pos3D,
     };
 }
 
@@ -2650,7 +3075,39 @@ function parseFractalBlock(block, vars) {
     const opacity = parseNumberField(block, vars, 'opacity', 1, false);
     const active = parseBoolField(block, vars, 'active', true);
     const layer = parseNumberField(block, vars, 'layer', -100, false);
-    return { name, type, cReExpr, cImExpr, maxIter, quality, palette, opacity, active, layer };
+    // 3D-альтернатива (билборд-панель): та же растровая математика Мандельброта/Жюлиа/
+    // Burning Ship (см. drawFractal в generate2D), но область обзора задаётся явно через
+    // centerRe/centerIm/scale, а не через камеру сцены (в 3D-панели нет pixelToField).
+    // Настоящий объёмный фрактал (Mandelbulb и т.п., через рэймарчинг) — другая техника
+    // рендеринга и отдельная, более крупная задача (см. итоговое резюме).
+    let dim = '2D', pos3D = null, rotate3D = null, billboard = true;
+    const posMatch = block.match(/(?:^|[^A-Za-z0-9_])pos\s*=\s*\(([^)]*)\)/);
+    if (posMatch) {
+        const parts = posMatch[1].split(',').map(s => s.trim());
+        if (parts.length === 3) {
+            try {
+                pos3D = {
+                    x: evaluateNumericExpression(parts[0], vars),
+                    y: evaluateNumericExpression(parts[1], vars),
+                    z: evaluateNumericExpression(parts[2], vars),
+                };
+                dim = '3D';
+            } catch (e) { pos3D = null; }
+        }
+    }
+    if (dim === '3D') {
+        rotate3D = parseXYZField(block, vars, 'rotate', { x: 0, y: 0, z: 0 });
+        billboard = parseBoolField(block, vars, 'billboard', true);
+    }
+    return {
+        name, type, cReExpr, cImExpr, maxIter, quality, palette, opacity, active,
+        activeExpr: parseActiveExpr(block), layer, dim, pos3D, rotate3D, billboard,
+        panelWidth: parseNumberField(block, vars, 'panelWidth', 8, false),
+        panelHeight: parseNumberField(block, vars, 'panelHeight', 8, false),
+        centerRe: parseNumberField(block, vars, 'centerRe', type === 'julia' ? 0 : -0.5, false),
+        centerIm: parseNumberField(block, vars, 'centerIm', 0, false),
+        scale: parseNumberField(block, vars, 'scale', 1.5, false),
+    };
 }
 
 // draw Image — асинхронно загружаемое растровое изображение (Задача 3)
@@ -2743,6 +3200,64 @@ function parseHistogramBlock(block, vars) {
     return { name, dataExpr, bins, color, active, activeExpr: parseActiveExpr(block), layer, dim, pos3D, rotate3D, billboard, panelWidth, panelHeight };
 }
 
+// draw Scatter3D — настоящая 3D-статистика: облако точек с РЕАЛЬНЫМИ x,y,z-координатами
+// (не билборд-панель с растровым 2D-графиком, как у draw Chart{type=scatter, pos=(x,y,z)} —
+// там это плоская текстура, натянутая на плоскость в 3D; тут — фактическое облако точек
+// в THREE.Points, которое можно вращать/разглядывать с любой стороны, с настоящей глубиной).
+// data — выражение мини-языка, дающее массив [x,y,z] или [x,y,z,value] (4-й элемент — для
+// colorBy="value"). pos — смещение всего облака в мировых координатах сцены.
+function parseScatter3DBlock(block, vars) {
+    const name = parseStringField(block, vars, 'name');
+    if (!name) return null;
+    const dataExpr = captureExprField(block, 'data');
+    if (dataExpr === null) return null;
+    const pos3D = parseXYZField(block, vars, 'pos', { x: 0, y: 0, z: 0 });
+    const pointSize = parseNumberField(block, vars, 'pointSize', 0.25, false);
+    const color = parseColorField(block, vars, 'color', '#4a90d9');
+    const colorByM = block.match(/(?:^|[^A-Za-z0-9_])colorBy\s*=\s*"?(none|value|z)"?/);
+    const colorBy = colorByM ? colorByM[1] : 'none';
+    const showBox = parseBoolField(block, vars, 'showBox', true);
+    const active = parseBoolField(block, vars, 'active', true);
+    const layer = parseNumberField(block, vars, 'layer', 20, false);
+    return { name, dataExpr, pos3D, pointSize, color, colorBy, showBox, active, activeExpr: parseActiveExpr(block), layer };
+}
+
+// draw Histogram3D — настоящая 3D-статистика: двумерная гистограмма (совместное распределение
+// x, y) в виде столбиков в 3D — не путать с draw Histogram{pos=(x,y,z)}, у которого "3D" — это
+// та же самая одномерная растровая гистограмма на billboard-панели. Здесь data — выражение,
+// дающее массив пар [x, y]; плоскость XY разбивается на сетку binsX × binsY, высота столбика —
+// количество точек в ячейке. Диапазон x/y берётся из самих данных автоматически на каждый
+// пересчёт (данные могут меняться в Update), если xmin/xmax/ymin/ymax не заданы явно.
+function parseHistogram3DBlock(block, vars) {
+    const name = parseStringField(block, vars, 'name');
+    if (!name) return null;
+    const dataExpr = captureExprField(block, 'data');
+    if (dataExpr === null) return null;
+    const binsX = parseNumberField(block, vars, 'binsX', 8, false);
+    const binsY = parseNumberField(block, vars, 'binsY', 8, false);
+    const pos3D = parseXYZField(block, vars, 'pos', { x: 0, y: 0, z: 0 });
+    const width = parseNumberField(block, vars, 'width', 10, false);
+    const depth = parseNumberField(block, vars, 'depth', 10, false);
+    const heightScale = parseNumberField(block, vars, 'heightScale', 5, false);
+    // Явный диапазон данных (необязателен) — если не задан, считается автоматически из
+    // фактических данных при каждом пересчёте (см. gcRebuildHistogram3D).
+    const xmin = parseNumberField(block, vars, 'xmin', null, false);
+    const xmax = parseNumberField(block, vars, 'xmax', null, false);
+    const ymin = parseNumberField(block, vars, 'ymin', null, false);
+    const ymax = parseNumberField(block, vars, 'ymax', null, false);
+    const color = parseColorField(block, vars, 'color', '#4a90d9');
+    const colorByM = block.match(/(?:^|[^A-Za-z0-9_])colorBy\s*=\s*"?(none|count)"?/);
+    const colorBy = colorByM ? colorByM[1] : 'count';
+    const showAxes = parseBoolField(block, vars, 'showAxes', true);
+    const active = parseBoolField(block, vars, 'active', true);
+    const layer = parseNumberField(block, vars, 'layer', 20, false);
+    return {
+        name, dataExpr, binsX, binsY, pos3D, width, depth, heightScale,
+        xmin, xmax, ymin, ymax, color, colorBy, showAxes,
+        active, activeExpr: parseActiveExpr(block), layer,
+    };
+}
+
 // draw Field — векторное поле (Задача 4): P(x,y), Q(x,y)
 function parseFieldBlock(block, vars) {
     const name = parseStringField(block, vars, 'name');
@@ -2766,6 +3281,49 @@ function parseFieldBlock(block, vars) {
     const active = parseBoolField(block, vars, 'active', true);
     const layer = parseNumberField(block, vars, 'layer', 10, false);
     return { name, pExpr: pMatch[1], qExpr: qMatch[1], rExpr, xmin, xmax, ymin, ymax, zmin, zmax, grid, scale, color, active, activeExpr: parseActiveExpr(block), layer };
+}
+
+// draw TensorField — тензорное поле ранга 2 (симметричный 3x3-тензор T(x,y,z): напряжения,
+// деформации, диффузии, инерции и т.п. — все они по построению симметричны, поэтому здесь
+// поддержан только симметричный случай — это позволяет всегда получить вещественные собственные
+// значения и ортогональные собственные векторы методом Якоби). Задаётся 6 независимыми
+// компонентами (Txx, Tyy, Tzz — обязательны; Txy, Txz, Tyz — по умолчанию 0). Визуализация —
+// эллипсоид-глиф в каждом узле сетки: полуоси вдоль собственных векторов, длины — |собственные
+// значения| (тот же принцип, что и в diffusion tensor imaging). Только 3D — рангу 2 тензора
+// в 2D-сцене естественнее соответствовал бы эллипс, но это отдельная, менее востребованная
+// визуализация, и здесь не реализована.
+function parseTensorFieldBlock(block, vars) {
+    const name = parseStringField(block, vars, 'name');
+    if (!name) return null;
+    const txxM = block.match(/(?:^|[,{])\s*Txx\s*=\s*"([^"]*)"/);
+    const tyyM = block.match(/(?:^|[,{])\s*Tyy\s*=\s*"([^"]*)"/);
+    const tzzM = block.match(/(?:^|[,{])\s*Tzz\s*=\s*"([^"]*)"/);
+    if (!txxM || !tyyM || !tzzM) return null;
+    const txyM = block.match(/(?:^|[,{])\s*Txy\s*=\s*"([^"]*)"/);
+    const txzM = block.match(/(?:^|[,{])\s*Txz\s*=\s*"([^"]*)"/);
+    const tyzM = block.match(/(?:^|[,{])\s*Tyz\s*=\s*"([^"]*)"/);
+    const xmin = parseNumberField(block, vars, 'xmin', -10, false);
+    const xmax = parseNumberField(block, vars, 'xmax', 10, false);
+    const ymin = parseNumberField(block, vars, 'ymin', -10, false);
+    const ymax = parseNumberField(block, vars, 'ymax', 10, false);
+    const zmin = parseNumberField(block, vars, 'zmin', -10, false);
+    const zmax = parseNumberField(block, vars, 'zmax', 10, false);
+    // grid — узлов на ось; уже при 5 (по умолчанию) получается 6^3 = 216 эллипсоидов, поэтому
+    // потолок ниже, чем у векторного поля (там просто стрелки, тут — полноценные меши).
+    const grid = parseNumberField(block, vars, 'grid', 4, false);
+    const scale = parseNumberField(block, vars, 'scale', 1, false);
+    const color = parseColorField(block, vars, 'color', '#4a90d9');
+    const colorByM = block.match(/(?:^|[^A-Za-z0-9_])colorBy\s*=\s*"?(none|trace)"?/);
+    const colorBy = colorByM ? colorByM[1] : 'none';
+    const active = parseBoolField(block, vars, 'active', true);
+    const layer = parseNumberField(block, vars, 'layer', 10, false);
+    return {
+        name,
+        txxExpr: txxM[1], tyyExpr: tyyM[1], tzzExpr: tzzM[1],
+        txyExpr: txyM ? txyM[1] : '0', txzExpr: txzM ? txzM[1] : '0', tyzExpr: tyzM ? tyzM[1] : '0',
+        xmin, xmax, ymin, ymax, zmin, zmax, grid, scale, color, colorBy,
+        active, activeExpr: parseActiveExpr(block), layer,
+    };
 }
 
 // draw Trajectory — интегральная кривая векторного поля (Задача 4), RK4.
@@ -2968,6 +3526,9 @@ function parseCommands(codeBlock, vars) {
     const primitives = [];
     const sections = [];
     const booleans = [];
+    const truncations = [];
+    const hulls = [];
+    const minkowskis = [];
     const angles3D = [];
     const clusters = [];
     const angles = [];
@@ -2993,6 +3554,7 @@ function parseCommands(codeBlock, vars) {
     const drawGraphs = [];
     const drawFractals = [];
     const drawFormulas = [];
+    const drawDistributions = [];
     const drawLoci = [];
     const drawTraces = [];
     const drawRegions = [];
@@ -3008,6 +3570,9 @@ function parseCommands(codeBlock, vars) {
     const drawVoronois = [];
     const drawFouriers = [];
     const drawDiagrams = [];
+    const drawTensorFields = [];
+    const drawScatter3Ds = [];
+    const drawHistogram3Ds = [];
     const errors = [];
 
     // Все объектные блоки извлекаются балансным сканером (findHeaderedBlocks):
@@ -3035,6 +3600,9 @@ function parseCommands(codeBlock, vars) {
         { header: '\\bnew\\s+Primitive\\b',    label: 'Primitive',       parse: parsePrimitiveBlock,    target: primitives,      fixedDim: '3D', err: 'пропущены обязательные поля (name, type — один из: ' + PRIMITIVE_TYPES.join(', ') + ')' },
         { header: '\\bnew\\s+Section\\b',      label: 'Section',         parse: parseSectionBlock,      target: sections,        fixedDim: '3D', err: 'пропущены обязательные поля (name, source)', trackPos: true },
         { header: '\\bnew\\s+Boolean\\b',      label: 'Boolean',         parse: parseBooleanBlock,      target: booleans,        fixedDim: '3D', err: 'пропущены обязательные поля (name, op — union/intersect/subtract, parts — минимум 2 элемента)', trackPos: true },
+        { header: '\\bnew\\s+Truncate\\b',     label: 'Truncate',        parse: parseTruncateBlock,     target: truncations,     fixedDim: '3D', err: 'пропущены обязательные поля (name, source)', trackPos: true },
+        { header: '\\bnew\\s+Hull\\b',         label: 'Hull',            parse: parseHullBlock,         target: hulls,           fixedDim: '3D', err: 'пропущены обязательные поля (name, parts — минимум 1 элемент)', trackPos: true },
+        { header: '\\bnew\\s+Minkowski\\b',    label: 'Minkowski',       parse: parseMinkowskiBlock,    target: minkowskis,      fixedDim: '3D', err: 'пропущены обязательные поля (name, parts — минимум 2 элемента)', trackPos: true },
         { header: '\\bnew\\s+Angle3D\\b',      label: 'Angle3D',         parse: parseAngle3DBlock,      target: angles3D,        fixedDim: '3D', err: 'пропущены обязательные поля (name, type — один из: ' + ANGLE3D_TYPES.join(', ') + ', и соответствующие точки/линии/плоскости)' },
         { header: '\\bnew\\s+Claster(2D|3D)?\\b',      label: 'Claster',         parse: parseClasterBlock,      target: clusters,        dual: true, infer: true, err: 'пропущены обязательные поля (name, elements)' },
         { header: '\\bnew\\s+Angle\\b',        label: 'Angle',           parse: parseAngleBlock,        target: angles,          fixedDim: '2D', err: 'пропущены обязательные поля (name, lines)' },
@@ -3043,7 +3611,7 @@ function parseCommands(codeBlock, vars) {
         { header: '\\bdraw\\s+Vector(2D|3D)?\\b',      label: 'draw Vector',     parse: parseVectorBlock,       target: drawVectors,     dual: true, infer: true, err: 'пропущены обязательные поля (edge)' },
         { header: '\\bdraw\\s+InfLine\\b',     label: 'draw InfLine',    parse: parseInfLineBlock,      target: drawInfLines,    err: 'пропущены обязательные поля (line)' },
         { header: '\\bdraw\\s+InfPlane\\b',    label: 'draw InfPlane',   parse: parseInfPlaneBlock,     target: drawInfPlanes,   fixedDim: '3D', err: 'пропущены обязательные поля (name и figure/points)' },
-        { header: '\\bdraw\\s+Filling(2D|3D)?\\b',     label: 'draw Filling',    parse: parseFillingBlock,      target: drawFillings,    dual: true, infer: true, err: 'пропущены обязательные поля (figure или line+side или circle+from+to)' },
+        { header: '\\bdraw\\s+Filling(2D|3D)?\\b',     label: 'draw Filling',    parse: parseFillingBlock,      target: drawFillings,    dual: true, infer: true, err: 'пропущены обязательные поля (figure, или line+side, или circle+from+to, или func — площадь под графиком/между графиками)' },
         { header: '\\bdraw\\s+Punctir\\b',     label: 'draw Punctir',    parse: parsePunctirBlock,      target: drawPunctirs,    err: 'пропущены обязательные поля (line)' },
         { header: '\\bdraw\\s+Text(2D|3D)?\\b',        label: 'draw Text',       parse: parseDrawTextBlock,     target: drawTexts,       dual: true, infer: true, err: 'пропущены обязательные поля (name, pos)' },
         { header: '\\bnew\\s+UI\\b',           label: 'UI',              parse: parseUIBlock,           target: uiElements,      err: 'пропущены обязательные поля (type и его параметры)' },
@@ -3058,23 +3626,27 @@ function parseCommands(codeBlock, vars) {
         { header: '\\bdraw\\s+Field(2D|3D)?\\b',       label: 'draw Field',      parse: parseFieldBlock,        target: drawFields,      dual: true, infer: true, err: 'пропущены обязательные поля (name, P, Q)' },
         { header: '\\bdraw\\s+Trajectory(2D|3D)?\\b',  label: 'draw Trajectory', parse: parseTrajectoryBlock,   target: drawTrajectories,dual: true, infer: true, err: 'пропущены обязательные поля (name, start, и один из: system / field / P+Q)' },
         { header: '\\bdraw\\s+Graph\\b',       label: 'draw Graph',      parse: parseGraphDrawBlock,    target: drawGraphs,      err: 'пропущены обязательные поля (name, graph)' },
-        { header: '\\bdraw\\s+Fractal\\b',     label: 'draw Fractal',    parse: parseFractalBlock,      target: drawFractals,    fixedDim: '2D', err: 'пропущены обязательные поля (name; для julia — cRe и cIm)' },
+        { header: '\\bdraw\\s+Fractal\\b',     label: 'draw Fractal',    parse: parseFractalBlock,      target: drawFractals,    err: 'пропущены обязательные поля (name; для julia — cRe и cIm)' },
         { header: '\\bdraw\\s+Formula\\b',     label: 'draw Formula',    parse: parseFormulaBlock,      target: drawFormulas,    fixedDim: '2D', err: 'пропущены обязательные поля (name, pos, latex)' },
+        { header: '\\bdraw\\s+Distribution\\b',label: 'draw Distribution',parse: parseDistributionBlock,target: drawDistributions,fixedDim: '2D', err: 'пропущено обязательное поле (name) или некорректные параметры распределения (type — normal/binomial/poisson/uniform/exponential)' },
         { header: '\\bdraw\\s+Locus\\b',       label: 'draw Locus',      parse: parseLocusBlock,        target: drawLoci,        fixedDim: '2D', err: 'пропущены обязательные поля (name, point, driver)' },
-        { header: '\\bdraw\\s+Trace\\b',       label: 'draw Trace',      parse: parseTraceBlock,        target: drawTraces,      fixedDim: '2D', err: 'пропущены обязательные поля (name, point)' },
-        { header: '\\bdraw\\s+Region\\b',      label: 'draw Region',     parse: parseRegionBlock,       target: drawRegions,     fixedDim: '2D', err: 'пропущены обязательные поля (name, f)' },
+        { header: '\\bdraw\\s+Trace\\b',       label: 'draw Trace',      parse: parseTraceBlock,        target: drawTraces,      err: 'пропущены обязательные поля (name, point)' },
+        { header: '\\bdraw\\s+Region\\b',      label: 'draw Region',     parse: parseRegionBlock,       target: drawRegions,     err: 'пропущены обязательные поля (name, f)' },
         { header: '\\bdraw\\s+Chart\\b',       label: 'draw Chart',      parse: parseChartBlock,        target: drawCharts,      err: 'пропущены обязательные поля (name, data)' },
         { header: '\\bdraw\\s+Tree\\b',        label: 'draw Tree',       parse: parseTreeBlock,         target: drawTrees,       err: 'пропущены обязательные поля (name, data)' },
         { header: '\\bdraw\\s+Table\\b',       label: 'draw Table',      parse: parseTableBlock,        target: drawTables,      err: 'пропущены обязательные поля (name, data)' },
-        { header: '\\bdraw\\s+Complex\\b',     label: 'draw Complex',    parse: parseComplexBlock,      target: drawComplexes,   fixedDim: '2D', err: 'пропущены обязательные поля (name, f)' },
-        { header: '\\bdraw\\s+Hyperbolic\\b',  label: 'draw Hyperbolic', parse: parseHyperbolicBlock,   target: drawHyperbolics,  fixedDim: '2D', err: 'пропущено обязательное поле (name)' },
+        { header: '\\bdraw\\s+Complex\\b',     label: 'draw Complex',    parse: parseComplexBlock,      target: drawComplexes,   err: 'пропущены обязательные поля (name, f)' },
+        { header: '\\bdraw\\s+Hyperbolic\\b',  label: 'draw Hyperbolic', parse: parseHyperbolicBlock,   target: drawHyperbolics,  err: 'пропущено обязательное поле (name)' },
         { header: '\\bdraw\\s+Bifurcation\\b', label: 'draw Bifurcation', parse: parseBifurcationBlock, target: drawBifurcations, err: 'пропущены обязательные поля (name, f)' },
         { header: '\\bdraw\\s+Cobweb\\b', label: 'draw Cobweb', parse: parseCobwebBlock, target: drawCobwebs, err: 'пропущены обязательные поля (name, f)' },
-        { header: '\\bdraw\\s+IFS\\b', label: 'draw IFS', parse: parseIFSBlock, target: drawIFSs, fixedDim: '2D', err: 'пропущены обязательные поля (name, maps)' },
-        { header: '\\bdraw\\s+Automaton\\b', label: 'draw Automaton', parse: parseAutomatonBlock, target: drawAutomata, fixedDim: '2D', err: 'пропущено обязательное поле (name)' },
-        { header: '\\bdraw\\s+Voronoi\\b', label: 'draw Voronoi', parse: parseVoronoiBlock, target: drawVoronois, fixedDim: '2D', err: 'пропущено обязательное поле (name)' },
+        { header: '\\bdraw\\s+IFS\\b', label: 'draw IFS', parse: parseIFSBlock, target: drawIFSs, err: 'пропущены обязательные поля (name, maps)' },
+        { header: '\\bdraw\\s+Automaton\\b', label: 'draw Automaton', parse: parseAutomatonBlock, target: drawAutomata, err: 'пропущено обязательное поле (name)' },
+        { header: '\\bdraw\\s+Voronoi\\b', label: 'draw Voronoi', parse: parseVoronoiBlock, target: drawVoronois, err: 'пропущено обязательное поле (name)' },
         { header: '\\bdraw\\s+Fourier\\b', label: 'draw Fourier', parse: parseFourierBlock, target: drawFouriers, fixedDim: '2D', err: 'пропущены обязательные поля (name, path)' },
-        { header: '\\bdraw\\s+Diagram\\b', label: 'draw Diagram', parse: parseDiagramBlock, target: drawDiagrams, fixedDim: '2D', err: 'пропущены обязательные поля (name, nodes)' }
+        { header: '\\bdraw\\s+Diagram\\b', label: 'draw Diagram', parse: parseDiagramBlock, target: drawDiagrams, fixedDim: '2D', err: 'пропущены обязательные поля (name, nodes)' },
+        { header: '\\bdraw\\s+TensorField\\b', label: 'draw TensorField', parse: parseTensorFieldBlock, target: drawTensorFields, fixedDim: '3D', err: 'пропущены обязательные поля (name, Txx, Tyy, Tzz)' },
+        { header: '\\bdraw\\s+Scatter3D\\b', label: 'draw Scatter3D', parse: parseScatter3DBlock, target: drawScatter3Ds, fixedDim: '3D', err: 'пропущено обязательное поле (name, data)' },
+        { header: '\\bdraw\\s+Histogram3D\\b', label: 'draw Histogram3D', parse: parseHistogram3DBlock, target: drawHistogram3Ds, fixedDim: '3D', err: 'пропущено обязательное поле (name, data)' }
     ];
     for (const def of blockDefs) {
         for (const b of findHeaderedBlocks(codeBlock, def.header)) {
@@ -3132,6 +3704,7 @@ function parseCommands(codeBlock, vars) {
     }
     for (let d of drawFillings) {
         if (d.dim) continue;
+        if (d.func) { d.dim = '2D'; continue; } // draw Function существует только в 2D
         if (d.circle || d.arc) { d.dim = '2D'; continue; } // Circle/Arc всегда 2D
         if (d.figure) { const fg = figures.find(f => f.name === d.figure); d.dim = (fg && fg.dim) || '2D'; continue; }
         if (d.line) { const ln = lines.find(l => l.name === d.line); d.dim = (ln && ln.dim) || '2D'; continue; }
@@ -3167,15 +3740,23 @@ function parseCommands(codeBlock, vars) {
         }
         d.dim = dim || '2D';
     }
+    // draw Trace: раньше был жёстко только 2D; теперь наследует dim от точки point —
+    // если это Point3D, след накапливается и рисуется прямо в 3D-пространстве.
+    for (let d of drawTraces) {
+        if (d.dim) continue;
+        const pt = points.find(p => p.name === d.pointName);
+        d.dim = (pt && pt.dim) || '2D';
+    }
     for (let d of drawTexts) {
         if (d.dim) continue;
         d.dim = d.zGiven ? '3D' : '2D';
     }
     for (let d of drawSurfaces) {
         if (d.dim) continue;
-        // parametric всегда требует x(u,v)/y(u,v)/z(u,v) — по построению это 3D-поверхность.
-        // heightfield различает 2D/3D через существующее поле mode ("contour" | "3d").
-        d.dim = (d.type === 'parametric') ? '3D' : ((d.mode === '3d') ? '3D' : '2D');
+        // parametric (x(u,v)/y(u,v)/z(u,v)) и implicit (f(x,y,z) = level, marching cubes) —
+        // по построению всегда 3D-поверхности. heightfield различает 2D/3D через поле mode
+        // ("contour" | "3d").
+        d.dim = (d.type === 'parametric' || d.type === 'implicit') ? '3D' : ((d.mode === '3d') ? '3D' : '2D');
     }
     for (let d of drawFields) {
         if (d.dim) continue;
@@ -3274,28 +3855,34 @@ function parseCommands(codeBlock, vars) {
     const derivedOps = [
         ...sections.map(s => ({ ...s, kind: 'section' })),
         ...booleans.map(b => ({ ...b, kind: 'boolean' })),
+        ...truncations.map(t => ({ ...t, kind: 'truncate' })),
+        ...hulls.map(h => ({ ...h, kind: 'hull' })),
+        ...minkowskis.map(m => ({ ...m, kind: 'minkowski' })),
     ].sort((a, b) => a.__pos - b.__pos);
 
     {
         const primitiveNames = new Set(primitives.map(p => p.name));
         const posByName = new Map();
         for (const op of derivedOps) posByName.set(op.name, op.__pos);
+        const singleSourceKinds = { section: 'Section', truncate: 'Truncate' };
+        const multiPartsKinds = { boolean: 'Boolean', hull: 'Hull', minkowski: 'Minkowski' };
         for (const op of derivedOps) {
-            const refs = (op.kind === 'section') ? [op.source] : op.parts;
-            const label = (op.kind === 'section') ? 'Section' : 'Boolean';
-            if (op.kind === 'section' && op.source === op.name) {
-                errors.push({ line: '--', message: `Section "${op.name}" не может ссылаться сам на себя` });
+            const isSingle = !!singleSourceKinds[op.kind];
+            const refs = isSingle ? [op.source] : op.parts;
+            const label = isSingle ? singleSourceKinds[op.kind] : multiPartsKinds[op.kind];
+            if (isSingle && op.source === op.name) {
+                errors.push({ line: '--', message: `${label} "${op.name}" не может ссылаться сам на себя` });
                 continue;
             }
-            if (op.kind === 'boolean' && op.parts.includes(op.name)) {
-                errors.push({ line: '--', message: `Boolean "${op.name}" не может ссылаться сам на себя` });
+            if (!isSingle && op.parts.includes(op.name)) {
+                errors.push({ line: '--', message: `${label} "${op.name}" не может ссылаться сам на себя` });
                 continue;
             }
             for (const refName of refs) {
                 if (primitiveNames.has(refName)) continue;
                 if (posByName.has(refName)) {
                     if (posByName.get(refName) >= op.__pos) {
-                        errors.push({ line: '--', message: `${label} "${op.name}" ссылается на "${refName}", объявленный позже (Section/Boolean должны ссылаться только на ранее объявленные Primitive/Section/Boolean)` });
+                        errors.push({ line: '--', message: `${label} "${op.name}" ссылается на "${refName}", объявленный позже (Section/Boolean/Truncate/Hull/Minkowski должны ссылаться только на ранее объявленные Primitive/Section/Boolean/Truncate/Hull/Minkowski)` });
                     }
                     continue;
                 }
@@ -3455,8 +4042,8 @@ function parseCommands(codeBlock, vars) {
         drawAngles, drawEqually, drawVectors, drawInfLines, drawInfPlanes, drawFillings, drawPunctirs, drawTexts,
         uiElements, circles, arcs, ellipses, curves, drawFunctions, drawSurfaces, drawImages,
         drawHistograms, drawFields, drawTrajectories, drawGraphs, drawFractals,
-        drawFormulas, drawLoci, drawTraces, drawRegions, drawCharts, drawTrees, drawTables,
-        drawComplexes, drawHyperbolics, drawBifurcations, drawCobwebs, drawIFSs, drawAutomata, drawVoronois, drawFouriers, drawDiagrams, errors
+        drawFormulas, drawDistributions, drawLoci, drawTraces, drawRegions, drawCharts, drawTrees, drawTables,
+        drawComplexes, drawHyperbolics, drawBifurcations, drawCobwebs, drawIFSs, drawAutomata, drawVoronois, drawFouriers, drawDiagrams, drawTensorFields, drawScatter3Ds, drawHistogram3Ds, errors
     };
 }
 
@@ -3468,11 +4055,10 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
                     drawFormulasData, drawLociData, drawTracesData, drawRegionsData,
                     drawChartsData, drawTreesData, drawTablesData, drawComplexesData, drawHyperbolicsData,
                     drawBifurcationsData, drawCobwebsData, drawIFSsData, drawAutomataData, drawVoronoisData, drawFouriersData, drawDiagramsData,
-                    funcsData, procsData, userVars, startCodes, updateCodes) {
+                    funcsData, procsData, userVars, startCodes, updateCodes, drawDistributionsData) {
     try {
-        const title = params.title || '';
-        const undertitle = params.undertitle || '';
         const description = params.description || '';
+        const descAlign = ['left', 'center', 'right'].includes(params['description align']) ? params['description align'] : 'left';
 
         // Тема оформления (по умолчанию — тёмная); задаёт цвет фона, рамки и цвета "по умолчанию",
         // если автор явно не указал их в конфиге. Явно указанные значения всегда в приоритете
@@ -3485,24 +4071,15 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
         const fieldColor = params['field color'] || theme.fieldColor;
         const frameColor = params['frame color'] || theme.frameColor;
         const frameWidth = (typeof params['frame width'] === 'number') ? params['frame width'] : 1;
-        const titleColor = params['title color'] || theme.titleColor;
-        const titleSize = (typeof params['title size'] === 'number') ? params['title size'] : 1.3;
-        const subColor = params['undertitle color'] || theme.subColor;
-        const subSize = (typeof params['undertitle size'] === 'number') ? params['undertitle size'] : 0.7;
         const descColor = params['description color'] || theme.descColor;
         const descSize = (typeof params['description size'] === 'number') ? params['description size'] : 0.85;
-        const footerColor = params['footer color'] || theme.footerColor;
-        const footerSize = (typeof params['footer size'] === 'number') ? params['footer size'] : 0.65;
 
         // Явные переопределения цвета автором примера — при смене темы из iframe эти
         // значения не должны затираться пресетом.
         const themeOverrides = {
             field: !!params['field color'],
             frame: !!params['frame color'],
-            title: !!params['title color'],
-            sub: !!params['undertitle color'],
             desc: !!params['description color'],
-            footer: !!params['footer color'],
         };
         const themesJson = jsonForScript(THEME_PRESETS);
         const themeNameJson = jsonForScript(themeName);
@@ -3533,7 +4110,8 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
         const gridColor2D = params['grid color'] || 'rgba(128,128,128,0.25)';
         const axesColor2D = params['axes color'] || 'rgba(128,128,128,0.7)';
 
-        const footer = params.footer ? escapeHtml(params.footer) : `Поле ${fieldWidth}×${fieldHeight} · Перетаскивайте точки, линии и окружности`;
+        const descriptionJson = jsonForScript(description);
+        const descAlignJson = jsonForScript(descAlign);
 
         const pointsJson = jsonForScript(pointsData);
         const linesJson = jsonForScript(linesData);
@@ -3564,6 +4142,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
         const varsJson = jsonForScript(userVars);
         const drawFractalsJson = jsonForScript(drawFractalsData || []);
         const drawFormulasJson = jsonForScript(drawFormulasData || []);
+        const drawDistributionsJson = jsonForScript(drawDistributionsData || []);
         const drawLociJson = jsonForScript(drawLociData || []);
         const drawTracesJson = jsonForScript(drawTracesData || []);
         const drawRegionsJson = jsonForScript(drawRegionsData || []);
@@ -3591,7 +4170,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '<head>\n',
             '  <meta charset="UTF-8">\n',
             '  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">\n',
-            '  <title>', title, '</title>\n',
+            '  <title>GMS</title>\n',
             // KaTeX через CDN (абсолютные URL — работают в файле, открытом откуда угодно, включая blob URL)
             '  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">\n',
             '  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"><\/script>\n',
@@ -3599,12 +4178,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '    :root {\n',
             '      --gc-field:', fieldColor, ';\n',
             '      --gc-frame:', frameColor, ';\n',
-            '      --gc-title:', titleColor, ';\n',
-            '      --gc-sub:', subColor, ';\n',
             '      --gc-desc:', descColor, ';\n',
-            '      --gc-desc-bg:', theme.panelBg, ';\n',
-            '      --gc-footer:', footerColor, ';\n',
-            '      --gc-footer-border:', theme.footerBorder, ';\n',
             '      --gc-control-bg:', theme.controlBg, ';\n',
             '      --gc-control-border:', theme.controlBorder, ';\n',
             '      --gc-control-text:', theme.controlText, ';\n',
@@ -3624,12 +4198,20 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '      touch-action:pan-x pan-y;\n',
             '    }\n',
             '    .container { max-width:1000px; width:100%; background:transparent; }\n',
-            '    .title { font-family:\'Montserrat\',\'Arial Black\',sans-serif; font-weight:900; font-size:', String(titleSize), 'rem; letter-spacing:0.05em; text-transform:uppercase; text-align:center; margin-bottom:0.3rem; color:var(--gc-title); }\n',
-            '    .sub { text-align:center; font-size:', String(subSize), 'rem; margin-bottom:1rem; color:var(--gc-sub); }\n',
             '    .canvas-wrapper { border:', String(frameWidth), 'px solid var(--gc-frame); display:block; width:100%; max-width:800px; margin:0 auto; background:var(--gc-field); cursor:default; position:relative; overflow:hidden; }\n',
             '    canvas { background:transparent; display:block; margin:0 auto; width:100%; height:auto; border:none; touch-action:none; }\n',
-            '    .info-panel { font-size:', String(descSize), 'rem; margin-top:0.6rem; font-family:monospace; text-align:center; background:var(--gc-desc-bg); padding:8px; border-radius:4px; line-height:1.5; color:var(--gc-desc); }\n',
-            '    .footer { margin-top:0.8rem; font-size:', String(footerSize), 'rem; text-align:center; border-top:1px solid var(--gc-footer-border); padding-top:0.5rem; color:var(--gc-footer); }\n',
+            // .info-panel — обычный читаемый текст под холстом (не моноширинный и без
+            // «плашки»-фона, как было раньше): обычный шрифт страницы, нормальная межстрочная
+            // высота; выравнивание берётся из description align (по умолчанию слева) и может
+            // переопределяться по блокам через ::align=... фенсы (см. gcRenderDescriptionHtml).
+            '    .info-panel { font-size:', String(descSize), 'rem; margin-top:0.8rem; line-height:1.6; color:var(--gc-desc); }\n',
+            '    .info-panel p { margin:0 0 0.6em 0; }\n',
+            '    .info-panel p:last-child { margin-bottom:0; }\n',
+            '    .info-panel h1, .info-panel h2, .info-panel h3, .info-panel h4 { margin:0.7em 0 0.35em 0; font-weight:700; line-height:1.3; }\n',
+            '    .info-panel h1:first-child, .info-panel h2:first-child, .info-panel h3:first-child, .info-panel h4:first-child { margin-top:0; }\n',
+            '    .info-panel h1 { font-size:1.5em; } .info-panel h2 { font-size:1.25em; } .info-panel h3 { font-size:1.1em; } .info-panel h4 { font-size:1em; }\n',
+            '    .info-panel a { color:var(--gc-accent); text-decoration:underline; }\n',
+            '    .info-panel code { font-family:\'Consolas\',monospace; background:rgba(128,128,128,0.15); padding:0.1em 0.35em; border-radius:3px; font-size:0.9em; }\n',
             '    .controls { display:flex; flex-wrap:wrap; gap:12px; justify-content:center; margin-top:12px; }\n',
             '    .controls button {\n',
             '      padding:4px 12px;\n',
@@ -3666,9 +4248,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '    .controls input.no-stepper::-webkit-outer-spin-button { -webkit-appearance:none; margin:0; }\n',
             '    .controls input.no-stepper { -moz-appearance:textfield; }\n',
             '    @media (max-width:700px) {\n',
-            '      .title { font-size:1rem; }\n',
-            '      .sub { font-size:0.6rem; }\n',
-            '      .info-panel { font-size:0.7rem; }\n',
+            '      .info-panel { font-size:0.8rem; }\n',
             '      .controls { gap:8px; }\n',
             '      .controls input[type="number"], .controls input[type="text"] { width:80px; }\n',
             '    }\n',
@@ -3676,16 +4256,13 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '</head>\n',
             '<body>\n',
             '<div class="container">\n',
-            '  <div class="title">', title, '</div>\n',
-            '  <div class="sub">', undertitle, '</div>\n',
             '  <div class="canvas-wrapper">\n',
             '    <canvas id="mainCanvas"></canvas>\n',
             '    <div id="formulaOverlay" style="position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; overflow:hidden; z-index:10;"></div>\n',
             '    <div id="uiOverlay" style="position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; overflow:hidden; z-index:11;"></div>\n',
             '  </div>\n',
             '  <div class="controls" id="uiContainer"></div>\n',
-            '  <div class="info-panel" id="infoText">', description, '</div>\n',
-            '  <div class="footer">', footer, '</div>\n',
+            '  <div class="info-panel" id="infoText"></div>\n',
             '</div>\n',
             '<script>\n',
             '  (function() {\n',
@@ -3702,6 +4279,13 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '    const GC_THEMES = ', themesJson, ';\n',
             '    const GC_THEME_OVERRIDES = ', themeOverridesJson, ';\n',
             '    let gcThemeName = ', themeNameJson, ';\n',
+            '    // Текст под холстом — см. gcRenderDescriptionHtml/updateDescription ниже:\n',
+            '    // {выражение} внутри подставляется значением из живых переменных каждый кадр,\n',
+            '    // поддерживается лёгкий markdown (# заголовки, **жирный**, *курсив*, `код`,\n',
+            '    // [текст](ссылка)), выравнивание/отступы через ::align=center indent=2 ... ::\n',
+            '    // блоки, и формулы KaTeX \\( ... \\) / \\[ ... \\] — тоже с {переменными} внутри.\n',
+            '    const GC_DESCRIPTION_RAW = ', descriptionJson, ';\n',
+            '    const GC_DESCRIPTION_ALIGN = ', descAlignJson, ';\n',
             '    function __gcDefaultColor() {\n',
             '      const t = GC_THEMES[gcThemeName] || GC_THEMES.dark;\n',
             '      return t.defaultColor;\n',
@@ -3710,12 +4294,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '      const root = document.documentElement.style;\n',
             '      if (!GC_THEME_OVERRIDES.field) root.setProperty(\'--gc-field\', t.fieldColor);\n',
             '      if (!GC_THEME_OVERRIDES.frame) root.setProperty(\'--gc-frame\', t.frameColor);\n',
-            '      if (!GC_THEME_OVERRIDES.title) root.setProperty(\'--gc-title\', t.titleColor);\n',
-            '      if (!GC_THEME_OVERRIDES.sub) root.setProperty(\'--gc-sub\', t.subColor);\n',
             '      if (!GC_THEME_OVERRIDES.desc) root.setProperty(\'--gc-desc\', t.descColor);\n',
-            '      if (!GC_THEME_OVERRIDES.footer) root.setProperty(\'--gc-footer\', t.footerColor);\n',
-            '      root.setProperty(\'--gc-desc-bg\', t.panelBg);\n',
-            '      root.setProperty(\'--gc-footer-border\', t.footerBorder);\n',
             '      root.setProperty(\'--gc-control-bg\', t.controlBg);\n',
             '      root.setProperty(\'--gc-control-border\', t.controlBorder);\n',
             '      root.setProperty(\'--gc-control-text\', t.controlText);\n',
@@ -3765,6 +4344,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '    const drawGraphsData = ', drawGraphsJson, ';\n',
             '    const drawFractalsData = ', drawFractalsJson, ';\n',
             '    const drawFormulasData = ', drawFormulasJson, ';\n',
+            '    const drawDistributionsData = ', drawDistributionsJson, ';\n',
             '    const drawLociData = ', drawLociJson, ';\n',
             '    const drawTracesData = ', drawTracesJson, ';\n',
             '    const drawRegionsData = ', drawRegionsJson, ';\n',
@@ -3832,6 +4412,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '    let lines = [];\n',
             '    let drawFractals = [];\n',
             '    let drawFormulas = [];\n',
+            '    let drawDistributions = [];\n',
             '    let drawLoci = [];\n',
             '    let drawTraces = [];\n',
             '    let drawRegions = [];\n',
@@ -4724,6 +5305,18 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '          const toPt = points.find(p => p.name === d.to);\n',
             '          if (!c || !fromPt || !toPt) return null;\n',
             '          return { name: d.name, kind: \'circleSector\', circle: c, fromPoint: fromPt, toPoint: toPt, shape: d.shape || \'sector\', color: d.color || __gcDefaultColor(), layer: (d.layer !== undefined && d.layer !== null) ? d.layer : 30, opacity: (d.opacity === undefined || d.opacity === null) ? 0.5 : d.opacity, active: true };\n',
+            '        }\n',
+            '        if (d.func) {\n',
+            '          // Площадь под графиком (func2 не задан — нижняя граница это ось X, y=0)\n',
+            '          // либо между двумя графиками (func и func2) на общем участке x.\n',
+            '          const g1 = drawFunctions.find(g => g.name === d.func);\n',
+            '          if (!g1) return null;\n',
+            '          const g2 = d.func2 ? drawFunctions.find(g => g.name === d.func2) : null;\n',
+            '          if (d.func2 && !g2) return null;\n',
+            '          const xmin = (d.funcXmin !== undefined && d.funcXmin !== null) ? d.funcXmin : g1.xmin;\n',
+            '          const xmax = (d.funcXmax !== undefined && d.funcXmax !== null) ? d.funcXmax : g1.xmax;\n',
+            '          const segments = Math.max(2, (d.funcSegments !== undefined && d.funcSegments !== null) ? d.funcSegments : (g1.segments || 100));\n',
+            '          return { name: d.name, kind: \'funcArea\', graph: g1, graph2: g2, xmin: xmin, xmax: xmax, segments: segments, color: d.color || __gcDefaultColor(), layer: (d.layer !== undefined && d.layer !== null) ? d.layer : 30, opacity: (d.opacity === undefined || d.opacity === null) ? 0.5 : d.opacity, active: true };\n',
             '        }\n',
             '        const fig = figures.find(f => f.name === d.figure);\n',
             '        if (!fig) return null;\n',
@@ -6040,6 +6633,9 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '    // позиционируемом по координатам поля на каждом кадре.\n',
             '    function initDrawFormulas() {\n',
             '        drawFormulas = drawFormulasData.map(d => ({ ...d, _el: null, _lastTex: null }));\n',
+            '    }\n',
+            '    function initDrawDistributions() {\n',
+            '        drawDistributions = drawDistributionsData.map(d => ({ ...d, active: d.active !== false }));\n',
             '    }\n',
             '    function updateFormulas() {\n',
             '        if (typeof uiOverlay === \'undefined\' || !uiOverlay) return;\n',
@@ -7513,6 +8109,11 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '            ctx.restore();\n',
             '            return;\n',
             '        }\n',
+            '        if (d.kind === \'funcArea\') {\n',
+            '            drawFuncAreaFilling(d);\n',
+            '            ctx.restore();\n',
+            '            return;\n',
+            '        }\n',
             '        const fig = d.figure;\n',
             '        if (!fig || !fig.points || fig.points.length < 3) { ctx.restore(); return; }\n',
             '        const mode = d.mode || \'full\';\n',
@@ -7542,6 +8143,172 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '            ctx.drawImage(fillingOffCanvas, 0, 0);\n',
             '        } else {\n',
             '            ctx.fill(path, \'nonzero\');\n',
+            '        }\n',
+            '        ctx.restore();\n',
+            '    }\n',
+            '\n',
+            '    // Заливка площади под графиком draw Function (d.graph) — до оси X, если d.graph2 не\n',
+            '    // задан, иначе до второго графика d.graph2. ctx.fillStyle/globalAlpha уже выставлены\n',
+            '    // вызывающим drawFilling(). Область считается на диапазоне [d.xmin, d.xmax] (взятом\n',
+            '    // из самого draw Function либо переопределённом в draw Filling — см. initDrawFillings);\n',
+            '    // "живое" продление диапазона (extend = true у draw Function) здесь не отслеживается —\n',
+            '    // площадь всегда считается на фиксированном интервале.\n',
+            '    function drawFuncAreaFilling(d) {\n',
+            '        const g1 = d.graph, g2 = d.graph2;\n',
+            '        if (!g1 || !GL_USER_FUNCS[g1.funcName]) return;\n',
+            '        if (g2 && !GL_USER_FUNCS[g2.funcName]) return;\n',
+            '        const xmin = d.xmin, xmax = d.xmax;\n',
+            '        if (!(xmax > xmin)) return;\n',
+            '        const n = Math.max(2, d.segments || 100);\n',
+            '        const pts1 = [], pts2 = [];\n',
+            '        for (let i = 0; i <= n; i++) {\n',
+            '            const x = xmin + (xmax - xmin) * i / n;\n',
+            '            let y1; try { y1 = glCallUserFunc(g1.funcName, [x]); } catch (e) { y1 = NaN; }\n',
+            '            pts1.push((typeof y1 === \'number\' && isFinite(y1)) ? { x, y: y1 } : null);\n',
+            '            if (g2) {\n',
+            '                let y2; try { y2 = glCallUserFunc(g2.funcName, [x]); } catch (e) { y2 = NaN; }\n',
+            '                pts2.push((typeof y2 === \'number\' && isFinite(y2)) ? { x, y: y2 } : null);\n',
+            '            } else {\n',
+            '                pts2.push({ x, y: 0 });\n',
+            '            }\n',
+            '        }\n',
+            '        // Заливаем каждый непрерывный отрезок отдельно: разрыв (одна из функций не\n',
+            '        // определена, либо скачок похож на вертикальную асимптоту — та же эвристика,\n',
+            '        // что и в drawFunctionGraph) не должен превращаться в одну сплошную заливку\n',
+            '        // через весь холст.\n',
+            '        let segStart = -1;\n',
+            '        let prevPix1 = null, prevPix2 = null;\n',
+            '        for (let i = 0; i <= n; i++) {\n',
+            '            const has = pts1[i] && pts2[i];\n',
+            '            let pix1 = null, pix2 = null, jump = false;\n',
+            '            if (has) {\n',
+            '                pix1 = fieldToPixel(pts1[i].x, pts1[i].y);\n',
+            '                pix2 = fieldToPixel(pts2[i].x, pts2[i].y);\n',
+            '                if (prevPix1 && (Math.abs(pix1.y - prevPix1.y) > height * 3 || Math.abs(pix2.y - prevPix2.y) > height * 3)) jump = true;\n',
+            '            }\n',
+            '            if (has && !jump) {\n',
+            '                if (segStart === -1) segStart = i;\n',
+            '            } else {\n',
+            '                if (segStart !== -1 && i - 1 > segStart) fillFuncAreaSegment(pts1, pts2, segStart, i - 1);\n',
+            '                segStart = has ? i : -1;\n',
+            '            }\n',
+            '            prevPix1 = has ? pix1 : null;\n',
+            '            prevPix2 = has ? pix2 : null;\n',
+            '        }\n',
+            '        if (segStart !== -1 && n > segStart) fillFuncAreaSegment(pts1, pts2, segStart, n);\n',
+            '    }\n',
+            '\n',
+            '    function fillFuncAreaSegment(pts1, pts2, start, end) {\n',
+            '        const path = new Path2D();\n',
+            '        let p = fieldToPixel(pts1[start].x, pts1[start].y);\n',
+            '        path.moveTo(p.x, p.y);\n',
+            '        for (let i = start + 1; i <= end; i++) { p = fieldToPixel(pts1[i].x, pts1[i].y); path.lineTo(p.x, p.y); }\n',
+            '        for (let i = end; i >= start; i--) { p = fieldToPixel(pts2[i].x, pts2[i].y); path.lineTo(p.x, p.y); }\n',
+            '        path.closePath();\n',
+            '        ctx.fill(path, \'nonzero\');\n',
+            '    }\n',
+            '\n',
+            '    // draw Distribution — готовые визуализации распределений вероятностей.\n',
+            '    // normal/uniform/exponential: непрерывная кривая плотности (+ заливка под ней);\n',
+            '    // binomial/poisson: столбцы вероятностей по k = 0..kmax.\n',
+            '    function distributionPdf(d, x) {\n',
+            '        if (d.type === \'normal\') {\n',
+            '            const z = (x - d.mu) / d.sigma;\n',
+            '            return Math.exp(-z * z / 2) / (d.sigma * Math.sqrt(2 * Math.PI));\n',
+            '        }\n',
+            '        if (d.type === \'uniform\') return (x >= d.a && x <= d.b) ? 1 / (d.b - d.a) : 0;\n',
+            '        if (d.type === \'exponential\') return (x >= 0) ? d.lambda * Math.exp(-d.lambda * x) : 0;\n',
+            '        return 0;\n',
+            '    }\n',
+            '    function distributionPmf(d, k) {\n',
+            '        if (d.type === \'binomial\') return glBinom(d.n, k) * Math.pow(d.p, k) * Math.pow(1 - d.p, d.n - k);\n',
+            '        if (d.type === \'poisson\') return Math.exp(-d.lambda) * Math.pow(d.lambda, k) / glFactorial(k);\n',
+            '        return 0;\n',
+            '    }\n',
+            '    function drawDistribution(d) {\n',
+            '        if (d.type === \'binomial\' || d.type === \'poisson\') drawDistributionBars(d);\n',
+            '        else drawDistributionCurve(d);\n',
+            '    }\n',
+            '    // Закрашивает область между кривой (заданной непрерывными отрезками pts, с null\n',
+            '    // в местах разрыва) и осью Y=0 — та же идея сегментов, что и у draw Filling { func }.\n',
+            '    function fillCurveAgainstZero(pts, n) {\n',
+            '        let segStart = -1;\n',
+            '        for (let i = 0; i <= n; i++) {\n',
+            '            const has = !!pts[i];\n',
+            '            if (has) { if (segStart === -1) segStart = i; }\n',
+            '            else { if (segStart !== -1 && i - 1 > segStart) fillZeroSegment(pts, segStart, i - 1); segStart = -1; }\n',
+            '        }\n',
+            '        if (segStart !== -1 && n > segStart) fillZeroSegment(pts, segStart, n);\n',
+            '    }\n',
+            '    function fillZeroSegment(pts, start, end) {\n',
+            '        const path = new Path2D();\n',
+            '        let p = fieldToPixel(pts[start].x, 0);\n',
+            '        path.moveTo(p.x, p.y);\n',
+            '        for (let i = start; i <= end; i++) { p = fieldToPixel(pts[i].x, pts[i].y); path.lineTo(p.x, p.y); }\n',
+            '        p = fieldToPixel(pts[end].x, 0);\n',
+            '        path.lineTo(p.x, p.y);\n',
+            '        path.closePath();\n',
+            '        ctx.fill(path, \'nonzero\');\n',
+            '    }\n',
+            '    function drawDistributionCurve(d) {\n',
+            '        const xmin = d.xmin, xmax = d.xmax;\n',
+            '        if (!(xmax > xmin)) return;\n',
+            '        const n = Math.max(2, d.segments || 200);\n',
+            '        const pts = [];\n',
+            '        for (let i = 0; i <= n; i++) {\n',
+            '            const x = xmin + (xmax - xmin) * i / n;\n',
+            '            let y; try { y = distributionPdf(d, x); } catch (e) { y = NaN; }\n',
+            '            pts.push((typeof y === \'number\' && isFinite(y)) ? { x, y } : null);\n',
+            '        }\n',
+            '        ctx.save();\n',
+            '        if (d.filled) {\n',
+            '            ctx.globalAlpha = ((d.opacity === undefined || d.opacity === null) ? 1 : d.opacity) * 0.35;\n',
+            '            ctx.fillStyle = d.color || __gcDefaultColor();\n',
+            '            fillCurveAgainstZero(pts, n);\n',
+            '        }\n',
+            '        // Подсветка P(highlightFrom <= X <= highlightTo) — отдельная более узкая заливка поверх основной.\n',
+            '        if (d.highlightFrom !== null && d.highlightFrom !== undefined && d.highlightTo !== null && d.highlightTo !== undefined && d.highlightTo > d.highlightFrom) {\n',
+            '            const hi = Math.max(xmin, d.highlightFrom), ha = Math.min(xmax, d.highlightTo);\n',
+            '            if (ha > hi) {\n',
+            '                const m = Math.max(2, Math.round(n * (ha - hi) / (xmax - xmin)) || 2);\n',
+            '                const hpts = [];\n',
+            '                for (let i = 0; i <= m; i++) {\n',
+            '                    const x = hi + (ha - hi) * i / m;\n',
+            '                    let y; try { y = distributionPdf(d, x); } catch (e) { y = NaN; }\n',
+            '                    hpts.push((typeof y === \'number\' && isFinite(y)) ? { x, y } : null);\n',
+            '                }\n',
+            '                ctx.globalAlpha = (d.highlightOpacity === undefined || d.highlightOpacity === null) ? 0.5 : d.highlightOpacity;\n',
+            '                ctx.fillStyle = d.highlightColor || \'#e07a5f\';\n',
+            '                fillCurveAgainstZero(hpts, m);\n',
+            '            }\n',
+            '        }\n',
+            '        ctx.globalAlpha = 1;\n',
+            '        ctx.strokeStyle = d.color || __gcDefaultColor();\n',
+            '        ctx.lineWidth = d.thickness || 2;\n',
+            '        ctx.lineCap = \'round\';\n',
+            '        ctx.beginPath();\n',
+            '        let started = false;\n',
+            '        for (const pt of pts) {\n',
+            '            if (!pt) { started = false; continue; }\n',
+            '            const pix = fieldToPixel(pt.x, pt.y);\n',
+            '            if (!started) { ctx.moveTo(pix.x, pix.y); started = true; } else { ctx.lineTo(pix.x, pix.y); }\n',
+            '        }\n',
+            '        ctx.stroke();\n',
+            '        ctx.restore();\n',
+            '    }\n',
+            '    function drawDistributionBars(d) {\n',
+            '        const kmax = Math.max(0, Math.round(d.kmax));\n',
+            '        const barHalfWidth = 0.35;\n',
+            '        ctx.save();\n',
+            '        for (let k = 0; k <= kmax; k++) {\n',
+            '            let prob; try { prob = distributionPmf(d, k); } catch (e) { prob = NaN; }\n',
+            '            if (!(typeof prob === \'number\' && isFinite(prob)) || prob <= 0) continue;\n',
+            '            const isHi = d.highlightFrom !== null && d.highlightFrom !== undefined && d.highlightTo !== null && d.highlightTo !== undefined && k >= d.highlightFrom && k <= d.highlightTo;\n',
+            '            ctx.globalAlpha = isHi ? ((d.highlightOpacity === undefined || d.highlightOpacity === null) ? 0.5 : d.highlightOpacity) : ((d.opacity === undefined || d.opacity === null) ? 1 : d.opacity);\n',
+            '            ctx.fillStyle = isHi ? (d.highlightColor || \'#e07a5f\') : (d.color || __gcDefaultColor());\n',
+            '            const pTop = fieldToPixel(k - barHalfWidth, prob);\n',
+            '            const pBot = fieldToPixel(k + barHalfWidth, 0);\n',
+            '            ctx.fillRect(Math.min(pTop.x, pBot.x), Math.min(pTop.y, pBot.y), Math.abs(pBot.x - pTop.x), Math.abs(pBot.y - pTop.y));\n',
             '        }\n',
             '        ctx.restore();\n',
             '    }\n',
@@ -7586,6 +8353,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '\n',
             '    function drawFull() {\n',
             '      try { updateFormulas(); } catch (e) { glLog(\'warn\', \'draw Formula: \' + e.message); }\n',
+            '      try { updateDescription(); } catch (e) { glLog(\'warn\', \'описание: \' + e.message); }\n',
             '      ctx.clearRect(0, 0, width, height);\n',
               '      if (SHOW_GRID_X || SHOW_GRID_Y || SHOW_AXIS_X || SHOW_AXIS_Y) drawSceneGridAxes();\n',
             '      updateCircles();\n',
@@ -7599,7 +8367,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '        anyVisible = lines.length > 0 || circles.length > 0 || ellipses.length > 0 || arcs.length > 0 || curves.length > 0 || figures.length > 0 ||\n',
             '          drawFunctions.length > 0 || drawSurfaces.length > 0 || drawFractals.length > 0 || drawImages.length > 0 || drawHistograms.length > 0 ||\n',
             '          drawFields.length > 0 || drawTrajectories.length > 0 || drawGraphs.length > 0 || drawTexts.length > 0 || drawFillings.length > 0 ||\n',
-            '          drawRegions.length > 0 || drawLoci.length > 0 || drawTraces.length > 0 || drawFormulas.length > 0 ||\n',
+            '          drawRegions.length > 0 || drawLoci.length > 0 || drawTraces.length > 0 || drawFormulas.length > 0 || drawDistributions.length > 0 ||\n',
             '          drawCharts.length > 0 || drawTrees.length > 0 || drawTables.length > 0 ||\n',
             '          drawComplexes.length > 0 || drawHyperbolics.length > 0 ||\n',
             '          drawBifurcations.length > 0 || drawCobwebs.length > 0 || drawIFSs.length > 0 || drawAutomata.length > 0 || drawVoronois.length > 0 || drawFouriers.length > 0 || drawDiagrams.length > 0;\n',
@@ -7771,6 +8539,11 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '      for (let d of drawFillings) {\n',
             '        if (!d.active) continue;\n',
             '        push(d.layer, () => drawFilling(d));\n',
+            '      }\n',
+            '\n',
+            '      for (let d of drawDistributions) {\n',
+            '        if (!d.active) continue;\n',
+            '        push(d.layer, () => drawDistribution(d));\n',
             '      }\n',
             '\n',
             '      for (let p of points) {\n',
@@ -9575,6 +10348,74 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '    }\n',
             '\n',
             `
+    // ===== Экспорт анимации в видео (Задача 3) =====
+    // Сцены со Start/Update/слайдерами до сих пор можно было выгрузить только как один
+    // статический PNG-кадр (exportImage) или как весь интерактивный HTML. Записываем сам
+    // canvas через нативный MediaRecorder поверх canvas.captureStream() — без сторонних
+    // библиотек кодирования (GIF потребовал бы JS-энкодер и лишний вес; WebM/MediaRecorder
+    // умеет писать видео сам браузер). Итоговый файл — .webm, который открывается в любом
+    // современном плеере/браузере и может быть перекодирован в mp4/gif внешними инструментами
+    // при необходимости.
+    let glActiveRecorder = null;
+    function glPickVideoMimeType() {
+        const candidates = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
+        for (const c of candidates) {
+            if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(c)) return c;
+        }
+        return 'video/webm';
+    }
+    function glDownloadRecordedVideo(chunks, mimeType, filename) {
+        if (!chunks.length) { glLog('warn', 'Запись видео: не получено ни одного кадра'); return; }
+        const blob = new Blob(chunks, { type: mimeType });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        const name = (filename ? String(filename) : 'export') + (String(filename || '').endsWith('.webm') ? '' : '.webm');
+        a.href = url; a.download = name;
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 2000);
+    }
+    // startRecording/stopRecording — ручное управление (например, из двух кнопок UI:
+    // action = "startRecording('demo.webm')" / action = "stopRecording()"), длительность
+    // не ограничена — запись идёт, пока явно не остановлена.
+    function glStartRecording(filename) {
+        if (typeof MediaRecorder === 'undefined' || !canvas.captureStream) {
+            glLog('warn', 'Запись видео не поддерживается этим браузером');
+            return false;
+        }
+        if (glActiveRecorder && glActiveRecorder.recorder.state === 'recording') {
+            glLog('warn', 'Запись уже идёт — сначала вызовите stopRecording()');
+            return false;
+        }
+        const mimeType = glPickVideoMimeType();
+        const stream = canvas.captureStream(30);
+        const chunks = [];
+        let recorder;
+        try { recorder = new MediaRecorder(stream, { mimeType }); }
+        catch (e) { glLog('warn', 'Не удалось начать запись: ' + e.message); return false; }
+        recorder.ondataavailable = (e) => { if (e.data && e.data.size > 0) chunks.push(e.data); };
+        recorder.onstop = () => { glDownloadRecordedVideo(chunks, mimeType, filename); };
+        recorder.start();
+        glActiveRecorder = { recorder, filename };
+        return true;
+    }
+    function glStopRecording() {
+        if (!glActiveRecorder || glActiveRecorder.recorder.state === 'inactive') {
+            glLog('warn', 'Запись видео не запущена');
+            return false;
+        }
+        glActiveRecorder.recorder.stop();
+        glActiveRecorder = null;
+        return true;
+    }
+    // exportVideo — запись фиксированной длительности одним вызовом (например, из
+    // action кнопки: action = "exportVideo('demo.webm', 6)" запишет 6 секунд и сам скачает файл).
+    function glExportVideo(filename, durationSeconds) {
+        const dur = (typeof durationSeconds === 'number' && durationSeconds > 0) ? durationSeconds : 5;
+        if (!glStartRecording(filename)) return false;
+        setTimeout(() => { glStopRecording(); }, dur * 1000);
+        return true;
+    }
+
     // ===== Мини-язык для Start/Update/действий кнопок/выражений текста =====
     // Вместо eval() сырого JS: set <путь> = <выражение>; if (...) {...} else {...}; repeat (N) {...}; wait(сек);
     // for (x in points) {...}; vector v = [1,2,3]; matrix m = [[1,2],[3,4]]; intersection(type, a, b)
@@ -9656,6 +10497,13 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             }, 'image/png');
             return true;
         },
+        // Задача 3: экспорт анимации (Start/Update, слайдеры) в видео — см. glExportVideo/
+        // glStartRecording/glStopRecording выше. exportVideo — запись фиксированной длины;
+        // startRecording/stopRecording — запись произвольной длины, управляемая вручную
+        // (например, из двух кнопок UI).
+        exportVideo: (filename, durationSeconds) => glExportVideo(filename, durationSeconds),
+        startRecording: (filename) => glStartRecording(filename),
+        stopRecording: () => glStopRecording(),
         // Задача 2: сохранение/восстановление прогресса (позиции свободных точек, пользовательские переменные, камера)
         saveState: () => {
             const state = { points: [], vars: {}, camera: { zoom: camera.zoom, offsetX: camera.offsetX, offsetY: camera.offsetY } };
@@ -13111,6 +13959,97 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '      }\n',
             '    }\n',
             '\n',
+            '    // ---- Текст под холстом: {выражение} → живые переменные, лёгкий markdown, KaTeX ----\n',
+            '    function gcFormatValue(v) {\n',
+            '      if (typeof v === \'number\') { if (!isFinite(v)) return String(v); return String(Math.round(v * 10000) / 10000); }\n',
+            '      if (v === undefined || v === null) return \'\';\n',
+            '      return String(v);\n',
+            '    }\n',
+            '    function gcSubstitutePlaceholders(text, evalFn) {\n',
+            '      return String(text).replace(/\\{([^{}]+)\\}/g, function(m, expr) {\n',
+            '        try { return gcFormatValue(evalFn(expr.trim())); } catch (e) { return \'\'; }\n',
+            '      });\n',
+            '    }\n',
+            '    function gcMdInline(s) {\n',
+            '      s = s.replace(/\\[([^\\]]+)\\]\\(([^)\\s]+)\\)/g, \'<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>\');\n',
+            '      s = s.replace(/\\*\\*([^*]+)\\*\\*/g, \'<b>$1</b>\');\n',
+            '      s = s.replace(/(^|[^*])\\*([^*\\n]+)\\*(?!\\*)/g, \'$1<i>$2</i>\');\n',
+            '      s = s.replace(/`([^`]+)`/g, \'<code>$1</code>\');\n',
+            '      return s;\n',
+            '    }\n',
+            '    function gcMdBlock(text) {\n',
+            '      const lines = text.split(\'\\n\');\n',
+            '      const htmlParts = [];\n',
+            '      let para = [];\n',
+            '      function flushPara() { if (!para.length) return; htmlParts.push(\'<p>\' + gcMdInline(para.join(\'<br>\')) + \'</p>\'); para = []; }\n',
+            '      for (const raw of lines) {\n',
+            '        const trimmed = raw.trim();\n',
+            '        if (trimmed === \'\') { flushPara(); continue; }\n',
+            '        const h = trimmed.match(/^(#{1,4})\\s+(.*)$/);\n',
+            '        if (h) { flushPara(); const level = h[1].length; htmlParts.push(\'<h\' + level + \'>\' + gcMdInline(h[2]) + \'</h\' + level + \'>\'); continue; }\n',
+            '        para.push(trimmed);\n',
+            '      }\n',
+            '      flushPara();\n',
+            '      return htmlParts.join(\'\');\n',
+            '    }\n',
+            '    function gcRenderMathSegments(s) {\n',
+            '      const placeholders = [];\n',
+            '      function stash(html) { const idx = placeholders.length; placeholders.push(html); return \'\\u0000\' + idx + \'\\u0001\'; }\n',
+            '      function renderTex(tex, display) {\n',
+            '        try { return (typeof katex !== \'undefined\') ? katex.renderToString(tex, { throwOnError: false, displayMode: display }) : tex; }\n',
+            '        catch (e) { return tex; }\n',
+            '      }\n',
+            '      let out = s.replace(/\\\\\\[([\\s\\S]+?)\\\\\\]/g, function(m, tex) { return stash(renderTex(tex, true)); });\n',
+            '      out = out.replace(/\\\\\\(([\\s\\S]+?)\\\\\\)/g, function(m, tex) { return stash(renderTex(tex, false)); });\n',
+            '      return { text: out, placeholders: placeholders };\n',
+            '    }\n',
+            '    function gcRestoreMathSegments(html, placeholders) {\n',
+            '      return html.replace(/\\u0000(\\d+)\\u0001/g, function(m, i) { return placeholders[Number(i)]; });\n',
+            '    }\n',
+            '    function gcParseFenceAttrs(attrStr) {\n',
+            '      const attrs = {};\n',
+            '      const re = /(align|indent)\\s*=\\s*"?([a-zA-Z0-9.]+)"?/g;\n',
+            '      let am; while ((am = re.exec(attrStr))) attrs[am[1]] = am[2];\n',
+            '      return attrs;\n',
+            '    }\n',
+            '    // Раскладка текста под холстом: сначала защищаем формулы KaTeX плейсхолдерами\n',
+            '    // (чтобы LaTeX не искажался разметкой ниже), затем разбираем ::align=... indent=...\n',
+            '    // блоки (::  ...  :: — задают выравнивание/отступ отдельного куска текста), внутри\n',
+            '    // каждого — лёгкий markdown (заголовки/жирный/курсив/код/ссылки), в конце — вставляем\n',
+            '    // отрендеренные формулы обратно.\n',
+            '    function gcRenderDescriptionHtml(raw, defaultAlign) {\n',
+            '      if (!raw) return \'\';\n',
+            '      const mathRes = gcRenderMathSegments(String(raw));\n',
+            '      const src = mathRes.text;\n',
+            '      const fenceRe = /^::([^\\n]*)\\n([\\s\\S]*?)\\n::[ \\t]*$/gm;\n',
+            '      let out = \'\', lastIndex = 0, m;\n',
+            '      function renderPlain(chunk) { if (!chunk.trim()) return \'\'; return \'<div style="text-align:\' + (defaultAlign || \'left\') + \'">\' + gcMdBlock(chunk) + \'</div>\'; }\n',
+            '      while ((m = fenceRe.exec(src))) {\n',
+            '        if (m.index > lastIndex) out += renderPlain(src.slice(lastIndex, m.index));\n',
+            '        const attrs = gcParseFenceAttrs(m[1]);\n',
+            '        const align = attrs.align || defaultAlign || \'left\';\n',
+            '        const indent = attrs.indent ? (parseFloat(attrs.indent) + \'em\') : \'0\';\n',
+            '        out += \'<div style="text-align:\' + align + \';padding-left:\' + indent + \'">\' + gcMdBlock(m[2]) + \'</div>\';\n',
+            '        lastIndex = fenceRe.lastIndex;\n',
+            '      }\n',
+            '      if (lastIndex < src.length) out += renderPlain(src.slice(lastIndex));\n',
+            '      return gcRestoreMathSegments(out, mathRes.placeholders);\n',
+            '    }\n',
+            '    let __gcLastDescRendered = null;\n',
+            '    function updateDescription() {\n',
+            '      // В совмещённой 2D+3D сцене за #infoText отвечает 3D-скрипт (updateDescription3D)\n',
+            '      // — оба читают одни и те же переменные (через синхронизирующий Proxy, см.\n',
+            '      // generate3D), так что дублировать перерисовку тут незачем.\n',
+            '      if (typeof window.__gcCombined !== \'undefined\' && window.__gcCombined) return;\n',
+            '      if (!infoPanel || !GC_DESCRIPTION_RAW) return;\n',
+            '      let substituted;\n',
+            '      try { substituted = gcSubstitutePlaceholders(GC_DESCRIPTION_RAW, function(expr) { return evaluate(expr); }); }\n',
+            '      catch (e) { substituted = GC_DESCRIPTION_RAW; }\n',
+            '      if (substituted === __gcLastDescRendered) return;\n',
+            '      __gcLastDescRendered = substituted;\n',
+            '      infoPanel.innerHTML = gcRenderDescriptionHtml(substituted, GC_DESCRIPTION_ALIGN);\n',
+            '    }\n',
+            '\n',
             '    function createUI() {\n',
             '        uiContainer.innerHTML = \'\';\n',
             '        for (let ui of uiData) {\n',
@@ -13259,7 +14198,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             // читает его оттуда вместо собственных часов.
             '    let Update = async function() { elapsedTime = (performance.now() - glStartTime) / 1000; window.__gcElapsedTime = elapsedTime; await glRun(updateCode); };\n',
             '\n',
-            '    initUserFuncs(); initPoints(); initLines(); initCircles(); initArcs(); initEllipses(); initCurves(); initDrawFunctions(); initDrawSurfaces(); initDrawImages(); initDrawHistograms(); initDrawFields(); initDrawTrajectories(); initDrawGraphs(); initDrawFractals(); initDrawLoci(); initDrawFormulas(); initFigures(); initClusters(); initAngles();\n',
+            '    initUserFuncs(); initPoints(); initLines(); initCircles(); initArcs(); initEllipses(); initCurves(); initDrawFunctions(); initDrawSurfaces(); initDrawImages(); initDrawHistograms(); initDrawFields(); initDrawTrajectories(); initDrawGraphs(); initDrawFractals(); initDrawLoci(); initDrawFormulas(); initDrawDistributions(); initFigures(); initClusters(); initAngles();\n',
             '    initDrawAngles(); initDrawEqually(); initDrawVectors(); initDrawInfLines(); initDrawFillings(); initDrawPunctirs();\n',
             '    initDrawTexts();\n',
             '    for (let coll of [points, lines, circles, ellipses, arcs, curves, figures, drawFunctions, drawSurfaces, drawImages, drawFillings, drawTexts, drawVectors, drawInfLines, drawPunctirs, drawEqually, drawAngles, drawHistograms, drawFields, drawTrajectories, drawGraphs]) {\n',
@@ -13287,6 +14226,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '    for (let d of drawLoci) { window[d.name] = d; }\n',
             '    for (let d of drawTraces) { window[d.name] = d; }\n',
             '    for (let d of drawFormulas) { window[d.name] = d; }\n',
+            '    for (let d of drawDistributions) { window[d.name] = d; }\n',
             '    for (let d of drawCharts) { window[d.name] = d; }\n',
             '    for (let d of drawTrees) { window[d.name] = d; }\n',
             '    for (let d of drawTables) { window[d.name] = d; }\n',
@@ -13331,55 +14271,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '      runUpdate();\n',
             '    }\n',
             '\n',
-            '    // ---- Рендеринг формул KaTeX (ручной) ----\n',
-    '    function renderKaTeX(text) {\n',
-    '      if (typeof katex === \'undefined\') return text;\n',
-    '      text = text.replace(/\\\\\\\\/g, \'\\\\\');\n',
-    '      return text.replace(/\\\\\\(([\\s\\S]*?)\\\\\\)/g, function(match, p1) {\n',
-    '        return katex.renderToString(p1, {throwOnError: false});\n',
-    '      }).replace(/\\\\\\[([\\s\\S]*?)\\\\\\]/g, function(match, p1) {\n',
-    '        return katex.renderToString(p1, {throwOnError: false, displayMode: true});\n',
-    '      });\n',
-    '    }\n',
-    '    function renderInfoText() {\n',
-    '      var infoText = document.getElementById(\'infoText\');\n',
-    '      if (infoText) {\n',
-    '        infoText.innerHTML = renderKaTeX(infoText.innerHTML);\n',
-    '      }\n',
-    '    }\n',
-    '    // Если KaTeX не загрузился с CDN (например, iframe без доступа в интернет —\n',
-    '    // песочница и т.п.), просим родительское окно предоставить файлы напрямую:\n',
-    '    //   родитель может прислать { type: \'geocompiler-provide-katex\', css, js } в ответ\n',
-    '    //   на { type: \'geocompiler-request-katex\' } — работает без CDN.\n',
-    '    if (typeof katex === \'undefined\' && window.parent && window.parent !== window) {\n',
-    '      window.addEventListener(\'message\', function(ev) {\n',
-    '        var data = ev.data;\n',
-    '        if (!data || data.type !== \'geocompiler-provide-katex\') return;\n',
-    '        if (typeof katex !== \'undefined\') return;\n',
-    '        try {\n',
-    '          if (data.css) { var st = document.createElement(\'style\'); st.textContent = data.css; document.head.appendChild(st); }\n',
-    '          if (data.js) { (0, eval)(data.js); }\n',
-    '          if (typeof katex !== \'undefined\') { renderInfoText(); markSceneChanged(); draw(); }\n',
-    '        } catch (err) { console.error(\'Не удалось применить KaTeX от родительского окна:\', err); }\n',
-    '      });\n',
-    '      window.parent.postMessage({ type: \'geocompiler-request-katex\' }, \'*\');\n',
-    '    }\n',
-    '    if (typeof katex !== \'undefined\') {\n',
-    '      renderInfoText();\n',
-    '    } else {\n',
-    '      // ждём загрузку KaTeX\n',
-    '      var checkInterval = setInterval(function() {\n',
-    '        if (typeof katex !== \'undefined\') {\n',
-    '          clearInterval(checkInterval);\n',
-    '          renderInfoText();\n',
-    '          // также перерендерим формулы в overlay при необходимости\n',
-    '          markSceneChanged();\n',
-    '          draw();\n',
-    '        }\n',
-    '      }, 50);\n',
-    '      // запасной таймаут, чтобы не висело вечно\n',
-    '      setTimeout(function() { clearInterval(checkInterval); }, 5000);\n',
-    '    }\n',
+
             '    window.__gc2D_canvas = canvas;\n',
             '    window.__gc2D_isActive = function() { return dragMode !== null || isPanning; };\n',
             '  })();\n',
@@ -13399,11 +14291,10 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
 // оси, сетка, точки, отрезки, плоские многоугольники (грани многогранников).
 // Остальные типы объектов (углы, поля, поверхности, графики и т.д.) подключаются
 // на следующих этапах; здесь они молча игнорируются, если встречаются в 3D-сцене.
-function generate3D(params, pointsData, linesData, figuresData, clustersData, drawFillingsData, anglesData, drawAnglesData, drawVectorsData, drawSurfacesData, drawFieldsData, curvesData, drawTrajectoriesData, drawTextsData, uiData, drawInfPlanesData, funcsData, procsData, userVars, startCodes, updateCodes, primitivesData, derivedOpsData, angles3DData, drawInfLinesData, drawImagesData, drawPunctirsData, drawEquallyData, drawHistogramsData, drawChartsData, drawTreesData, drawTablesData, drawGraphsData, drawCobwebsData, drawBifurcationsData) {
+function generate3D(params, pointsData, linesData, figuresData, clustersData, drawFillingsData, anglesData, drawAnglesData, drawVectorsData, drawSurfacesData, drawFieldsData, curvesData, drawTrajectoriesData, drawTextsData, uiData, drawInfPlanesData, funcsData, procsData, userVars, startCodes, updateCodes, primitivesData, derivedOpsData, angles3DData, drawInfLinesData, drawImagesData, drawPunctirsData, drawEquallyData, drawHistogramsData, drawChartsData, drawTreesData, drawTablesData, drawGraphsData, drawCobwebsData, drawBifurcationsData, drawTracesData, drawRegionsData, drawFractalsData, drawComplexesData, drawIFSsData, drawAutomataData, drawHyperbolicsData, drawVoronoisData, drawTensorFieldsData, drawScatter3DsData, drawHistogram3DsData) {
     try {
-        const title = params.title || '';
-        const undertitle = params.undertitle || '';
         const description = params.description || '';
+        const descAlign = ['left', 'center', 'right'].includes(params['description align']) ? params['description align'] : 'left';
 
         const themeName = (params.theme === 'light' || params.theme === 'dark') ? params.theme : 'dark';
         const theme = THEME_PRESETS[themeName];
@@ -13414,17 +14305,13 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
         const fieldColor = params['field color'] || theme.fieldColor;
         const frameColor = params['frame color'] || theme.frameColor;
         const frameWidth = (typeof params['frame width'] === 'number') ? params['frame width'] : 1;
-        const titleColor = params['title color'] || theme.titleColor;
-        const titleSize = (typeof params['title size'] === 'number') ? params['title size'] : 1.3;
-        const subColor = params['undertitle color'] || theme.subColor;
-        const subSize = (typeof params['undertitle size'] === 'number') ? params['undertitle size'] : 0.7;
         const descColor = params['description color'] || theme.descColor;
         const descSize = (typeof params['description size'] === 'number') ? params['description size'] : 0.85;
-        const footerColor = params['footer color'] || theme.footerColor;
-        const footerSize = (typeof params['footer size'] === 'number') ? params['footer size'] : 0.65;
 
         const themesJson = jsonForScript(THEME_PRESETS);
         const themeNameJson = jsonForScript(themeName);
+        const descriptionJson = jsonForScript(description);
+        const descAlignJson = jsonForScript(descAlign);
 
         const canRotateCamera = params['can rotate camera'] !== false;
         const cameraProjection = (params['camera projection'] === 'orthographic') ? 'orthographic' : 'perspective';
@@ -13451,7 +14338,7 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
         const gridSize = (typeof params['grid size'] === 'number') ? params['grid size'] : Math.max(fieldWidth, fieldHeight, fieldDepth);
         const gridAdaptive3D = params['grid adaptive'] !== false;
 
-        const footer = params.footer ? escapeHtml(params.footer) : `Сцена ${fieldWidth}×${fieldHeight}×${fieldDepth} · Вращайте камеру мышью, колесо — зум · перетаскивайте интерактивные точки · пространство: 3D`;
+
 
         const pointsJson = jsonForScript(pointsData);
         const linesJson = jsonForScript(linesData);
@@ -13479,6 +14366,17 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
         const graphsJson = jsonForScript(drawGraphsData || []);
         const cobwebsJson = jsonForScript(drawCobwebsData || []);
         const bifurcationsJson = jsonForScript(drawBifurcationsData || []);
+        const tracesJson = jsonForScript(drawTracesData || []);
+        const regionsJson = jsonForScript(drawRegionsData || []);
+        const fractalsJson = jsonForScript(drawFractalsData || []);
+        const complexesJson = jsonForScript(drawComplexesData || []);
+        const ifssJson = jsonForScript(drawIFSsData || []);
+        const automataJson = jsonForScript(drawAutomataData || []);
+        const hyperbolicsJson = jsonForScript(drawHyperbolicsData || []);
+        const tensorFieldsJson = jsonForScript(drawTensorFieldsData || []);
+        const scatter3DsJson = jsonForScript(drawScatter3DsData || []);
+        const histogram3DsJson = jsonForScript(drawHistogram3DsData || []);
+        const voronoisJson = jsonForScript(drawVoronoisData || []);
         const primitivesJson = jsonForScript(primitivesData || []);
         const derivedOpsJson = jsonForScript(derivedOpsData || []);
         const angles3DJson = jsonForScript(angles3DData || []);
@@ -13496,18 +14394,20 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '<head>\n',
             '  <meta charset="UTF-8">\n',
             '  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">\n',
-            '  <title>', title, '</title>\n',
+            '  <title>GMS</title>\n',
             '  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"><\/script>\n',
+            // KaTeX через CDN — раньше подключался только в комбинированной 2D+3D сборке
+            // (combineHtml2D3D); самостоятельная 3D-сцена формулы/описание с KaTeX не рендерила
+            // вообще (полагалась только на сообщение от родительского окна). Теперь подключаем
+            // напрямую, как и в 2D — тот же путь, что и в комбинированном режиме, поэтому его
+            // повторное добавление там (см. combineHtml2D3D) безвредно, просто не сработает дважды.
+            '  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">\n',
+            '  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"><\/script>\n',
             ' <' + 'style>\n',
             '    :root {\n',
             '      --gc-field:', fieldColor, ';\n',
             '      --gc-frame:', frameColor, ';\n',
-            '      --gc-title:', titleColor, ';\n',
-            '      --gc-sub:', subColor, ';\n',
             '      --gc-desc:', descColor, ';\n',
-            '      --gc-desc-bg:', theme.panelBg, ';\n',
-            '      --gc-footer:', footerColor, ';\n',
-            '      --gc-footer-border:', theme.footerBorder, ';\n',
             '      --gc-control-bg:', theme.controlBg, ';\n',
             '      --gc-control-border:', theme.controlBorder, ';\n',
             '      --gc-control-text:', theme.controlText, ';\n',
@@ -13527,8 +14427,6 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '      touch-action:pan-x pan-y;\n',
             '    }\n',
             '    .container { max-width:1000px; width:100%; background:transparent; }\n',
-            '    .title { font-family:\'Montserrat\',\'Arial Black\',sans-serif; font-weight:900; font-size:', String(titleSize), 'rem; letter-spacing:0.05em; text-transform:uppercase; text-align:center; margin-bottom:0.3rem; color:var(--gc-title); }\n',
-            '    .sub { text-align:center; font-size:', String(subSize), 'rem; margin-bottom:1rem; color:var(--gc-sub); }\n',
             '    .canvas-wrapper { border:', String(frameWidth), 'px solid var(--gc-frame); display:block; width:100%; max-width:800px; aspect-ratio:5/3; margin:0 auto; background:var(--gc-field); cursor:grab; position:relative; overflow:hidden; }\n',
             '    .canvas-wrapper.dragging-cam { cursor:grabbing; }\n',
             '    .canvas-wrapper.dragging-point { cursor:pointer; }\n',
@@ -13551,12 +14449,18 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '    }\n',
             '    .controls label { font-size:0.85rem; color:var(--gc-control-text); }\n',
             '    .controls .ui-item { display:flex; align-items:center; gap:6px; }\n',
-            '    .info-panel { font-size:', String(descSize), 'rem; margin-top:0.6rem; font-family:monospace; text-align:center; background:var(--gc-desc-bg); padding:8px; border-radius:4px; line-height:1.5; color:var(--gc-desc); }\n',
-            '    .footer { margin-top:0.8rem; font-size:', String(footerSize), 'rem; text-align:center; border-top:1px solid var(--gc-footer-border); padding-top:0.5rem; color:var(--gc-footer); }\n',
+            // .info-panel — тот же обычный читаемый текст, что и в 2D (см. generate2D):
+            // без моноширинного шрифта и фоновой «плашки», нормальный шрифт страницы.
+            '    .info-panel { font-size:', String(descSize), 'rem; margin-top:0.8rem; line-height:1.6; color:var(--gc-desc); }\n',
+            '    .info-panel p { margin:0 0 0.6em 0; }\n',
+            '    .info-panel p:last-child { margin-bottom:0; }\n',
+            '    .info-panel h1, .info-panel h2, .info-panel h3, .info-panel h4 { margin:0.7em 0 0.35em 0; font-weight:700; line-height:1.3; }\n',
+            '    .info-panel h1:first-child, .info-panel h2:first-child, .info-panel h3:first-child, .info-panel h4:first-child { margin-top:0; }\n',
+            '    .info-panel h1 { font-size:1.5em; } .info-panel h2 { font-size:1.25em; } .info-panel h3 { font-size:1.1em; } .info-panel h4 { font-size:1em; }\n',
+            '    .info-panel a { color:var(--gc-accent); text-decoration:underline; }\n',
+            '    .info-panel code { font-family:\'Consolas\',monospace; background:rgba(128,128,128,0.15); padding:0.1em 0.35em; border-radius:3px; font-size:0.9em; }\n',
             '    @media (max-width:700px) {\n',
-            '      .title { font-size:1rem; }\n',
-            '      .sub { font-size:0.6rem; }\n',
-            '      .info-panel { font-size:0.7rem; }\n',
+            '      .info-panel { font-size:0.8rem; }\n',
             '      .controls { gap:8px; }\n',
             '      .controls input[type="number"], .controls input[type="text"] { width:80px; }\n',
             '    }\n',
@@ -13564,8 +14468,6 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '</head>\n',
             '<body>\n',
             '<div class="container">\n',
-            '  <div class="title">', title, '</div>\n',
-            '  <div class="sub">', undertitle, '</div>\n',
             '  <div class="canvas-wrapper" id="canvasWrapper">\n',
             '    <canvas id="mainCanvas"></canvas>\n',
             '    <div id="labelLayer"></div>\n',
@@ -13573,19 +14475,21 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '    <div id="uiOverlay"></div>\n',
             '  </div>\n',
             '  <div class="controls" id="uiContainer"></div>\n',
-            '  <div class="info-panel" id="infoText">', description, '</div>\n',
-            '  <div class="footer">', footer, '</div>\n',
+            '  <div class="info-panel" id="infoText"></div>\n',
             '</div>\n',
             '<script>\n',
             '(function() {\n',
             '  const THEMES = ', themesJson, ';\n',
             '  let themeName = ', themeNameJson, ';\n',
+            '  const GC_DESCRIPTION_RAW = ', descriptionJson, ';\n',
+            '  const GC_DESCRIPTION_ALIGN = ', descAlignJson, ';\n',
             '  const wrapper = document.getElementById(\'canvasWrapper\');\n',
             '  const canvas = document.getElementById(\'mainCanvas\');\n',
             '  const labelLayer = document.getElementById(\'labelLayer\');\n',
             '  const textLayer = document.getElementById(\'textLayer\');\n',
             '  const uiOverlay = document.getElementById(\'uiOverlay\');\n',
             '  const uiContainer = document.getElementById(\'uiContainer\');\n',
+            '  const infoText = document.getElementById(\'infoText\');\n',
             '\n',
             '  const pointsData = ', pointsJson, ';\n',
             '  const linesData = ', linesJson, ';\n',
@@ -13613,6 +14517,17 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '  const graphsData = ', graphsJson, ';\n',
             '  const cobwebsData = ', cobwebsJson, ';\n',
             '  const bifurcationsData = ', bifurcationsJson, ';\n',
+            '  const tracesData = ', tracesJson, ';\n',
+            '  const regionsData = ', regionsJson, ';\n',
+            '  const fractalsData = ', fractalsJson, ';\n',
+            '  const complexesData = ', complexesJson, ';\n',
+            '  const ifssData = ', ifssJson, ';\n',
+            '  const automataData = ', automataJson, ';\n',
+            '  const hyperbolicsData = ', hyperbolicsJson, ';\n',
+            '  const drawTensorFieldsData = ', tensorFieldsJson, ';\n',
+            '  const drawScatter3DsData = ', scatter3DsJson, ';\n',
+            '  const drawHistogram3DsData = ', histogram3DsJson, ';\n',
+            '  const voronoisData = ', voronoisJson, ';\n',
             '  const primitivesData = ', primitivesJson, ';\n',
             '  const derivedOpsData = ', derivedOpsJson, ';\n',
             '  const angles3DData = ', angles3DJson, ';\n',
@@ -14197,7 +15112,183 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '    }\n',
             '    return { tris: tris, area: area };\n',
             '  }\n',
-            '  // ---- Единый (в порядке объявления в файле) проход по Section/Boolean ----\n',
+            '  // ---- Truncate / Hull / Minkowski: работают поверх того же представления "мешок\n',
+            '  // треугольников" (tris), что и Section/Boolean выше. ----\n',
+            '  function extractUniqueVerticesTris(tris) {\n',
+            '    const EPS = 1e-4;\n',
+            '    function key(v) { return Math.round(v.x / EPS) + \'_\' + Math.round(v.y / EPS) + \'_\' + Math.round(v.z / EPS); }\n',
+            '    const map = new Map();\n',
+            '    for (const t of tris) for (const v of t) { const k = key(v); if (!map.has(k)) map.set(k, v.clone()); }\n',
+            '    return Array.from(map.values());\n',
+            '  }\n',
+            '  function buildVertexAdjacency(tris) {\n',
+            '    const EPS = 1e-4;\n',
+            '    function key(v) { return Math.round(v.x / EPS) + \'_\' + Math.round(v.y / EPS) + \'_\' + Math.round(v.z / EPS); }\n',
+            '    const posByKey = new Map();\n',
+            '    const edgeInfo = new Map(); // ключ ребра -> { verts: [a,b], normals: [n1, n2?] }\n',
+            '    function edgeKeyOf(a, b) { return a < b ? a + \'|\' + b : b + \'|\' + a; }\n',
+            '    for (const t of tris) {\n',
+            '      const ks = t.map(function (v) { const k = key(v); if (!posByKey.has(k)) posByKey.set(k, v.clone()); return k; });\n',
+            '      const normal = new THREE.Vector3().subVectors(t[1], t[0]).cross(new THREE.Vector3().subVectors(t[2], t[0]));\n',
+            '      if (normal.lengthSq() > 1e-14) normal.normalize();\n',
+            '      for (let i = 0; i < 3; i++) {\n',
+            '        const a = ks[i], b = ks[(i + 1) % 3];\n',
+            '        if (a === b) continue;\n',
+            '        const ek = edgeKeyOf(a, b);\n',
+            '        if (!edgeInfo.has(ek)) edgeInfo.set(ek, { verts: [a, b], normals: [] });\n',
+            '        edgeInfo.get(ek).normals.push(normal);\n',
+            '      }\n',
+            '    }\n',
+            '    // "Настоящее" ребро многогранника — то, где две смежные треугольные грани НЕ\n',
+            '    // копланарны. Если копланарны (нормали совпадают) — это диагональ плоской грани,\n',
+            '      // появившаяся из-за триангуляции (например, куб/призма триангулируются по 2\n',
+            '    // треугольника на грань), а не настоящее ребро тела — усекать вдоль неё нельзя.\n',
+            '    const adj = new Map();\n',
+            '    for (const info of edgeInfo.values()) {\n',
+            '      let isReal = true;\n',
+            '      if (info.normals.length === 2) { if (info.normals[0].dot(info.normals[1]) > 1 - 1e-6) isReal = false; }\n',
+            '      if (!isReal) continue;\n',
+            '      const a = info.verts[0], b = info.verts[1];\n',
+            '      if (!adj.has(a)) adj.set(a, new Set());\n',
+            '      if (!adj.has(b)) adj.set(b, new Set());\n',
+            '      adj.get(a).add(b); adj.get(b).add(a);\n',
+            '    }\n',
+            '    return { posByKey: posByKey, adj: adj };\n',
+            '  }\n',
+            '  // Приводит ориентацию треугольников крышки в соответствие с уже имеющимся kept:\n',
+            '  // общее (граничное) ребро крышки и kept должно проходиться в ПРОТИВОПОЛОЖНых\n',
+            '  // направлениях (иначе многообразие останется несогласованным, и объём через теорему\n',
+            '  // о дивергенции посчитается неверно, хотя площадь при этом окажется правильной —\n',
+            '  // именно так и проявлялся баг: у capFromLoop/chainBoundaryLoops нет достаточно\n',
+            '  // надёжного способа заранее угадать нужную сторону для fan-триангуляции по разным\n',
+            '  // геометриям тел, поэтому здесь мы просто ПРОВЕРЯЕМ результат по факту и переворачиваем\n',
+            '  // при необходимости, а не полагаемся на эвристику знака нормали.\n',
+            '  function fixCapOrientation(capTris, keptTris) {\n',
+            '    if (!capTris.length) return capTris;\n',
+            '    const EPS = 1e-4;\n',
+            '    function key(v) { return Math.round(v.x / EPS) + \'_\' + Math.round(v.y / EPS) + \'_\' + Math.round(v.z / EPS); }\n',
+            '    const keptDirected = new Set();\n',
+            '    for (const t of keptTris) for (let i = 0; i < 3; i++) keptDirected.add(key(t[i]) + \'->\' + key(t[(i + 1) % 3]));\n',
+            '    // У треугольника крышки [centroid, pts[i], pts[i+1]] общее с kept ребро — именно\n',
+            '    // (pts[i], pts[i+1]), т.е. вершины с индексами 1 и 2 (индекс 0 — сам центроид,\n',
+            '    // внутренняя точка веера, у kept с ним общих рёбер нет).\n',
+            '    for (const t of capTris) {\n',
+            '      const ek = key(t[1]) + \'->\' + key(t[2]);\n',
+            '      if (keptDirected.has(ek)) return capTris.map(function (tt) { return [tt[0], tt[2], tt[1]]; });\n',
+            '      const ekRev = key(t[2]) + \'->\' + key(t[1]);\n',
+            '      if (keptDirected.has(ekRev)) return capTris;\n',
+            '    }\n',
+            '    return capTris;\n',
+            '  }\n',
+            '  // Усечение вершин: каждая вершина V с соседями N1..Nk (k>=3) срезается плоскостью,\n',
+            '  // проходящей через точки Ni\' = V + (Ni - V)*fraction — точки на рёбрах у самой вершины.\n',
+            '  // Плоскость строится по этим точкам методом Ньютона (тот же приём, что и в capFromLoop),\n',
+            '  // затем срез выполняется той же clipTrianglesByPlane/chainBoundaryLoops/capFromLoop,\n',
+            '  // что и у Section — только применяется последовательно ко ВСЕМ вершинам исходника,\n',
+            '  // а ориентация крышки на каждом шаге подтверждается fixCapOrientation.\n',
+            '  function truncateTris(tris, fraction) {\n',
+            '    const g = buildVertexAdjacency(tris);\n',
+            '    let cur = tris;\n',
+            '    for (const entry of g.posByKey) {\n',
+            '      const vpos = entry[1];\n',
+            '      const neighKeys = Array.from(g.adj.get(entry[0]) || []);\n',
+            '      if (neighKeys.length < 3) continue;\n',
+            '      const cutPts = neighKeys.map(function (nk) { return vpos.clone().lerp(g.posByKey.get(nk), fraction); });\n',
+            '      const centroid = new THREE.Vector3();\n',
+            '      for (const p of cutPts) centroid.add(p);\n',
+            '      centroid.divideScalar(cutPts.length);\n',
+            '      const n = new THREE.Vector3();\n',
+            '      for (let i = 0; i < cutPts.length; i++) {\n',
+            '        const a = cutPts[i], b = cutPts[(i + 1) % cutPts.length];\n',
+            '        n.x += (a.y - b.y) * (a.z + b.z); n.y += (a.z - b.z) * (a.x + b.x); n.z += (a.x - b.x) * (a.y + b.y);\n',
+            '      }\n',
+            '      if (n.lengthSq() < 1e-12) continue;\n',
+            '      n.normalize();\n',
+            '      const towardVertex = new THREE.Vector3().subVectors(vpos, centroid);\n',
+            '      if (n.dot(towardVertex) < 0) n.multiplyScalar(-1);\n',
+            '      const offsetW = n.dot(centroid);\n',
+            '      const clip = clipTrianglesByPlane(cur, n, offsetW, -1); // keep = сторона ПРОТИВ вершины (срезаем уголок с vpos)\n',
+            '      const loops = chainBoundaryLoops(clip.boundaryEdges);\n',
+            '      let capTris = [];\n',
+            '      for (const loop of loops) capTris = capTris.concat(capFromLoop(loop, n).tris);\n',
+            '      capTris = fixCapOrientation(capTris, clip.kept);\n',
+            '      cur = clip.kept.concat(capTris);\n',
+            '    }\n',
+            '    return cur;\n',
+            '  }\n',
+            '  // Инкрементальная 3D выпуклая оболочка (классический алгоритм: стартовый тетраэдр,\n',
+            '  // затем по очереди добавляем точки, удаляя "видимые" грани и зашивая дыру новыми гранями\n',
+            '  // к точкам горизонта). Используется и для new Hull напрямую, и как основа new Minkowski\n',
+            '  // (сумма Минковского выпуклых тел = оболочка попарных сумм вершин — стандартный факт).\n',
+            '  function convexHull3D(points) {\n',
+            '    const EPS = 1e-7;\n',
+            '    const pts = [];\n',
+            '    { const seen = new Set(); for (const p of points) { const k = Math.round(p.x / 1e-5) + \'_\' + Math.round(p.y / 1e-5) + \'_\' + Math.round(p.z / 1e-5); if (seen.has(k)) continue; seen.add(k); pts.push(p); } }\n',
+            '    if (pts.length < 4) return [];\n',
+            '    let i1 = 1, maxD = -1;\n',
+            '    for (let i = 1; i < pts.length; i++) { const d = pts[0].distanceToSquared(pts[i]); if (d > maxD) { maxD = d; i1 = i; } }\n',
+            '    if (maxD < EPS) return [];\n',
+            '    const i0 = 0;\n',
+            '    const dirLine = new THREE.Vector3().subVectors(pts[i1], pts[i0]).normalize();\n',
+            '    let i2 = -1, maxDist2 = -1;\n',
+            '    for (let i = 0; i < pts.length; i++) {\n',
+            '      if (i === i0 || i === i1) continue;\n',
+            '      const v = new THREE.Vector3().subVectors(pts[i], pts[i0]);\n',
+            '      const proj = v.clone().projectOnVector(dirLine);\n',
+            '      const d = v.clone().sub(proj).lengthSq();\n',
+            '      if (d > maxDist2) { maxDist2 = d; i2 = i; }\n',
+            '    }\n',
+            '    if (i2 < 0 || maxDist2 < EPS) return [];\n',
+            '    const normal0 = new THREE.Vector3().subVectors(pts[i1], pts[i0]).cross(new THREE.Vector3().subVectors(pts[i2], pts[i0])).normalize();\n',
+            '    const planeW0 = normal0.dot(pts[i0]);\n',
+            '    let i3 = -1, maxDist3 = -1;\n',
+            '    for (let i = 0; i < pts.length; i++) {\n',
+            '      if (i === i0 || i === i1 || i === i2) continue;\n',
+            '      const d = Math.abs(normal0.dot(pts[i]) - planeW0);\n',
+            '      if (d > maxDist3) { maxDist3 = d; i3 = i; }\n',
+            '    }\n',
+            '    if (i3 < 0 || maxDist3 < EPS) return []; // все точки компланарны — объёмной оболочки нет\n',
+            '    const interiorRef = new THREE.Vector3().add(pts[i0]).add(pts[i1]).add(pts[i2]).add(pts[i3]).multiplyScalar(0.25);\n',
+            '    function makeFace(a, b, c) {\n',
+            '      const n = new THREE.Vector3().subVectors(pts[b], pts[a]).cross(new THREE.Vector3().subVectors(pts[c], pts[a]));\n',
+            '      n.normalize();\n',
+            '      const f = { a: a, b: b, c: c, normal: n, w: n.dot(pts[a]) };\n',
+            '      if (f.normal.dot(interiorRef) - f.w > 0) { const tmp = f.b; f.b = f.c; f.c = tmp; f.normal.multiplyScalar(-1); f.w = -f.w; }\n',
+            '      return f;\n',
+            '    }\n',
+            '    let faces = [makeFace(i0, i1, i2), makeFace(i0, i1, i3), makeFace(i0, i2, i3), makeFace(i1, i2, i3)];\n',
+            '    const used = new Set([i0, i1, i2, i3]);\n',
+            '    for (let i = 0; i < pts.length; i++) {\n',
+            '      if (used.has(i)) continue;\n',
+            '      const p = pts[i];\n',
+            '      const visible = [];\n',
+            '      for (const f of faces) { if (f.normal.dot(p) - f.w > EPS) visible.push(f); }\n',
+            '      if (!visible.length) continue;\n',
+            '      const edgeCount = new Map();\n',
+            '      function edgeKey(x, y) { return x < y ? x + \'_\' + y : y + \'_\' + x; }\n',
+            '      for (const f of visible) { const es = [[f.a, f.b], [f.b, f.c], [f.c, f.a]]; for (const e of es) { const k = edgeKey(e[0], e[1]); edgeCount.set(k, (edgeCount.get(k) || 0) + 1); } }\n',
+            '      const horizon = [];\n',
+            '      for (const f of visible) { const es = [[f.a, f.b], [f.b, f.c], [f.c, f.a]]; for (const e of es) { if (edgeCount.get(edgeKey(e[0], e[1])) === 1) horizon.push(e); } }\n',
+            '      const visibleSet = new Set(visible);\n',
+            '      faces = faces.filter(function (f) { return !visibleSet.has(f); });\n',
+            '      for (const e of horizon) faces.push(makeFace(e[0], e[1], i));\n',
+            '      used.add(i);\n',
+            '    }\n',
+            '    return faces.map(function (f) { return [pts[f.a].clone(), pts[f.b].clone(), pts[f.c].clone()]; });\n',
+            '  }\n',
+            '  function minkowskiSumOf(trisList) {\n',
+            '    let accVerts = extractUniqueVerticesTris(trisList[0]);\n',
+            '    let accTris = null;\n',
+            '    for (let i = 1; i < trisList.length; i++) {\n',
+            '      const bVerts = extractUniqueVerticesTris(trisList[i]);\n',
+            '      const summed = [];\n',
+            '      for (const a of accVerts) for (const b of bVerts) summed.push(new THREE.Vector3().addVectors(a, b));\n',
+            '      accTris = convexHull3D(summed);\n',
+            '      accVerts = extractUniqueVerticesTris(accTris);\n',
+            '    }\n',
+            '    return accTris || [];\n',
+            '  }\n',
+  // ---- Единый (в порядке объявления в файле) проход по Section/Boolean ----\n',
             '  const derivedFallbackColor = \'', theme.accent, '\';\n',
             '  const derivedObjs = [];\n',
             '  function findDerivedTriSource(name) {\n',
@@ -14269,7 +15360,7 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '        active: opData.active !== false, activeExpr: opData.activeExpr, hiddenByDerived: false,\n',
             '        area: cutArea, volume: metrics.volume, colorHex: color,\n',
             '      });\n',
-            '    } else {\n',
+            '    } else if (opData.kind === \'boolean\') {\n',
             '      let acc = null;\n',
             '      let firstColor = null;\n',
             '      let ok = true;\n',
@@ -14302,6 +15393,66 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '      if (opData.hideSource !== false) { for (const pName of opData.parts) markHiddenByDerived(pName); }\n',
             '      derivedObjs.push({\n',
             '        name: opData.name, kind: \'boolean\', triangles: acc, mesh: mesh, capMesh: null, label: label,\n',
+            '        active: opData.active !== false, activeExpr: opData.activeExpr, hiddenByDerived: false,\n',
+            '        area: metrics.area, volume: metrics.volume, colorHex: color,\n',
+            '      });\n',
+            '    } else if (opData.kind === \'truncate\') {\n',
+            '      const src = findDerivedTriSource(opData.source);\n',
+            '      if (!src) continue;\n',
+            '      const acc = truncateTris(src.tris, opData.fraction);\n',
+            '      const metrics = trianglesVolumeArea(acc);\n',
+            '      const color = opData.color || src.colorHex || derivedFallbackColor;\n',
+            '      let mesh = null;\n',
+            '      if (acc.length) {\n',
+            '        const geo = trianglesToBufferGeometry(acc);\n',
+            '        const mat = new THREE.MeshStandardMaterial({ color: color, roughness: 0.45, metalness: 0.05, wireframe: !!opData.wireframe, transparent: opData.opacity < 1, opacity: (typeof opData.opacity === \'number\') ? opData.opacity : 1, side: THREE.DoubleSide });\n',
+            '        mesh = new THREE.Mesh(geo, mat);\n',
+            '        mesh.visible = opData.active !== false;\n',
+            '        scene.add(mesh);\n',
+            '      }\n',
+            '      let label = null;\n',
+            '      if (opData.showInfo) {\n',
+            '        label = document.createElement(\'div\');\n',
+            '        label.className = \'gc3-label\';\n',
+            '        label.style.color = opData.textColor || color;\n',
+            '        label.style.fontSize = (0.8 * (opData.textSize || 1)) + \'rem\';\n',
+            '        label.textContent = opData.name + \': S = \' + fmtMetric(metrics.area) + \', V = \' + fmtMetric(metrics.volume);\n',
+            '        labelLayer.appendChild(label);\n',
+            '      }\n',
+            '      if (opData.hideSource !== false) markHiddenByDerived(opData.source);\n',
+            '      derivedObjs.push({\n',
+            '        name: opData.name, kind: \'truncate\', triangles: acc, mesh: mesh, capMesh: null, label: label,\n',
+            '        active: opData.active !== false, activeExpr: opData.activeExpr, hiddenByDerived: false,\n',
+            '        area: metrics.area, volume: metrics.volume, colorHex: color,\n',
+            '      });\n',
+            '    } else if (opData.kind === \'hull\' || opData.kind === \'minkowski\') {\n',
+            '      const srcs = opData.parts.map(function (pn) { return findDerivedTriSource(pn); });\n',
+            '      if (srcs.some(function (s) { return !s; })) continue;\n',
+            '      const acc = (opData.kind === \'hull\')\n',
+            '        ? convexHull3D(srcs.reduce(function (all, s) { return all.concat(extractUniqueVerticesTris(s.tris)); }, []))\n',
+            '        : minkowskiSumOf(srcs.map(function (s) { return s.tris; }));\n',
+            '      const metrics = trianglesVolumeArea(acc);\n',
+            '      const color = opData.color || srcs[0].colorHex || derivedFallbackColor;\n',
+            '      let mesh = null;\n',
+            '      if (acc.length) {\n',
+            '        const geo = trianglesToBufferGeometry(acc);\n',
+            '        const mat = new THREE.MeshStandardMaterial({ color: color, roughness: 0.45, metalness: 0.05, wireframe: !!opData.wireframe, transparent: opData.opacity < 1, opacity: (typeof opData.opacity === \'number\') ? opData.opacity : 1, side: THREE.DoubleSide });\n',
+            '        mesh = new THREE.Mesh(geo, mat);\n',
+            '        mesh.visible = opData.active !== false;\n',
+            '        scene.add(mesh);\n',
+            '      }\n',
+            '      let label = null;\n',
+            '      if (opData.showInfo) {\n',
+            '        label = document.createElement(\'div\');\n',
+            '        label.className = \'gc3-label\';\n',
+            '        label.style.color = opData.textColor || color;\n',
+            '        label.style.fontSize = (0.8 * (opData.textSize || 1)) + \'rem\';\n',
+            '        label.textContent = opData.name + \': S = \' + fmtMetric(metrics.area) + \', V = \' + fmtMetric(metrics.volume);\n',
+            '        labelLayer.appendChild(label);\n',
+            '      }\n',
+            '      if (opData.hideSource !== false) { for (const pName of opData.parts) markHiddenByDerived(pName); }\n',
+            '      derivedObjs.push({\n',
+            '        name: opData.name, kind: opData.kind, triangles: acc, mesh: mesh, capMesh: null, label: label,\n',
             '        active: opData.active !== false, activeExpr: opData.activeExpr, hiddenByDerived: false,\n',
             '        area: metrics.area, volume: metrics.volume, colorHex: color,\n',
             '      });\n',
@@ -14497,22 +15648,43 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '      }\n',
             '      d1 = v1; d2 = v2;\n',
             '      V = def.vertexOverride ? resolveVertexRef3D(def.vertexOverride) : A;\n',
-            '    } else { // dihedral\n',
+            '    } else if (def.type === \'dihedral\') {\n',
             '      const B = resolveVertexRef3D(r.b);\n',
             '      const edgeDir = new THREE.Vector3().subVectors(B, A);\n',
             '      if (edgeDir.lengthSq() < 1e-10) return null;\n',
             '      edgeDir.normalize();\n',
             '      const P1 = resolveVertexRef3D(r.c), P2 = resolveVertexRef3D(r.d);\n',
-            '      const v1 = perpComponent3D(new THREE.Vector3().subVectors(P1, A), edgeDir);\n',
-            '      const v2 = perpComponent3D(new THREE.Vector3().subVectors(P2, A), edgeDir);\n',
-            '      if (v1.lengthSq() < 1e-10 || v2.lengthSq() < 1e-10) return null;\n',
-            '      v1.normalize(); v2.normalize();\n',
-            '      d1 = v1; d2 = v2;\n',
+            '      const v1d = perpComponent3D(new THREE.Vector3().subVectors(P1, A), edgeDir);\n',
+            '      const v2d = perpComponent3D(new THREE.Vector3().subVectors(P2, A), edgeDir);\n',
+            '      if (v1d.lengthSq() < 1e-10 || v2d.lengthSq() < 1e-10) return null;\n',
+            '      v1d.normalize(); v2d.normalize();\n',
+            '      d1 = v1d; d2 = v2d;\n',
             '      V = def.vertexOverride ? resolveVertexRef3D(def.vertexOverride) : A;\n',
+            '    } else if (def.type === \'pointAngle\') {\n',
+            '      // Самый обычный "угол ABC" по трём точкам: вершина A, лучи к точкам r.b и r.c.\n',
+            '      const P1 = resolveVertexRef3D(r.b), P2 = resolveVertexRef3D(r.c);\n',
+            '      d1 = new THREE.Vector3().subVectors(P1, A);\n',
+            '      d2 = new THREE.Vector3().subVectors(P2, A);\n',
+            '      if (d1.lengthSq() < 1e-10 || d2.lengthSq() < 1e-10) return null;\n',
+            '      d1.normalize(); d2.normalize();\n',
+            '      V = def.vertexOverride ? resolveVertexRef3D(def.vertexOverride) : A;\n',
+            '    } else if (def.type === \'vectorVector\') {\n',
+            '      // Угол между направлениями двух ИМЕНОВАННЫХ draw Vector — направленный, поэтому,\n',
+            '      // в отличие от lineLine, здесь НЕТ принудительного приведения ко острому углу.\n',
+            '      const vo1 = vectorObjs.find(function(v) { return v.name === r.vec1; });\n',
+            '      const vo2 = vectorObjs.find(function(v) { return v.name === r.vec2; });\n',
+            '      if (!vo1 || !vo2) return null;\n',
+            '      const a1 = vo1.line.a.mesh.position, b1 = vo1.line.b.mesh.position;\n',
+            '      const a2 = vo2.line.a.mesh.position, b2 = vo2.line.b.mesh.position;\n',
+            '      d1 = new THREE.Vector3().subVectors(b1, a1).multiplyScalar(vo1.direct);\n',
+            '      d2 = new THREE.Vector3().subVectors(b2, a2).multiplyScalar(vo2.direct);\n',
+            '      if (d1.lengthSq() < 1e-10 || d2.lengthSq() < 1e-10) return null;\n',
+            '      d1.normalize(); d2.normalize();\n',
+            '      V = def.vertexOverride ? resolveVertexRef3D(def.vertexOverride) : new THREE.Vector3().lerpVectors(a1, b1, vo1.t);\n',
             '    }\n',
             '    return { V: V, d1: d1, d2: d2 };\n',
             '  }\n',
-            '  const angle3DObjs = angles3DData.map(function (d) {\n',
+            '  const angle3DObjs = angles3DData.filter(function(d) { return d.type !== \'solid\'; }).map(function (d) {\n',
             '    const arcColor = d.arccolor || \'', theme.defaultColor, '\';\n',
             '    const measureColor = d.measurecolor || \'', theme.defaultColor, '\';\n',
             '    const arcGeo = new THREE.BufferGeometry();\n',
@@ -14582,6 +15754,106 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '        ao.label.style.display = \'\';\n',
             '      } else {\n',
             '        ao.label.style.display = \'none\';\n',
+            '      }\n',
+            '    }\n',
+            '  }\n',
+            '\n',
+            '  // ---------- Телесный угол (new Angle3D { type = solid }) — сколько "видно" из\n',
+            '  // вершины через многоугольник rays (>=3 лучей), измеряется в стерадианах, а не в\n',
+            '  // градусах. Раньше в 3D телесных углов не было вовсе — только плоские. Величина\n',
+            '  // считается формулой Ван Остерома-Стрэки (Van Oosterom-Strackee) для веера\n',
+            '  // треугольников (луч[0], луч[i], луч[i+1]); визуализация — полупрозрачный\n',
+            '  // сферический "колпак" (веер треугольников на сфере radius вокруг вершины) плюс\n',
+            '  // контур по дугам между соседними лучами. ----------\n',
+            '  function gcSolidAngleTriangle(a, b, c) {\n',
+            '    const numerator = a.dot(new THREE.Vector3().crossVectors(b, c));\n',
+            '    const denom = 1 + a.dot(b) + b.dot(c) + c.dot(a);\n',
+            '    return 2 * Math.atan2(numerator, denom);\n',
+            '  }\n',
+            '  function computeSolidAngle3D(def) {\n',
+            '    const r = def.refs;\n',
+            '    const V = resolveVertexRef3D(r.vertex);\n',
+            '    const dirs = [];\n',
+            '    for (const ref of r.rays) {\n',
+            '      const P = resolveVertexRef3D(ref);\n',
+            '      const d = new THREE.Vector3().subVectors(P, V);\n',
+            '      if (d.lengthSq() < 1e-10) return null;\n',
+            '      dirs.push(d.normalize());\n',
+            '    }\n',
+            '    let total = 0;\n',
+            '    for (let i = 1; i < dirs.length - 1; i++) total += gcSolidAngleTriangle(dirs[0], dirs[i], dirs[i + 1]);\n',
+            '    return { V: V, dirs: dirs, steradians: Math.abs(total) };\n',
+            '  }\n',
+            '  const solidAngleObjs = angles3DData.filter(function(d) { return d.type === \'solid\'; }).map(function(d) {\n',
+            '    const arcColor = d.arccolor || \'', theme.defaultColor, '\';\n',
+            '    const measureColor = d.measurecolor || \'', theme.defaultColor, '\';\n',
+            '    const capGeo = new THREE.BufferGeometry();\n',
+            '    const capMat = new THREE.MeshBasicMaterial({ color: arcColor, transparent: true, opacity: 0.35, side: THREE.DoubleSide, depthWrite: false });\n',
+            '    const capMesh = new THREE.Mesh(capGeo, capMat);\n',
+            '    scene.add(capMesh);\n',
+            '    const edgeGeo = new THREE.BufferGeometry();\n',
+            '    const edgeMat = new THREE.LineBasicMaterial({ color: arcColor });\n',
+            '    const edgeMesh = new THREE.LineSegments(edgeGeo, edgeMat);\n',
+            '    scene.add(edgeMesh);\n',
+            '    let label = null;\n',
+            '    if (d.showMeasure) {\n',
+            '      label = document.createElement(\'div\');\n',
+            '      label.className = \'gc3-label\';\n',
+            '      label.style.color = measureColor;\n',
+            '      labelLayer.appendChild(label);\n',
+            '    }\n',
+            '    return { name: d.name, def: d, capMesh: capMesh, edgeMesh: edgeMesh, label: label, active: d.active !== false, activeExpr: d.activeExpr, measure: 0, labelPos: new THREE.Vector3() };\n',
+            '  });\n',
+            '  function updateSolidAngleObj(so) {\n',
+            '    const def = so.def;\n',
+            '    const res = computeSolidAngle3D(def);\n',
+            '    if (!res) { so.capMesh.visible = false; so.edgeMesh.visible = false; if (so.label) so.label.style.display = \'none\'; return; }\n',
+            '    so.capMesh.visible = true; so.edgeMesh.visible = true;\n',
+            '    const V = res.V, dirs = res.dirs;\n',
+            '    so.measure = res.steradians;\n',
+            '    const rad = (typeof def.radius === \'number\' && def.radius > 0) ? def.radius : 1;\n',
+            '    // Веер треугольников для заливки "колпака"\n',
+            '    const fanPos = [];\n',
+            '    for (let i = 1; i < dirs.length - 1; i++) {\n',
+            '      const p0 = V.clone().addScaledVector(dirs[0], rad);\n',
+            '      const p1 = V.clone().addScaledVector(dirs[i], rad);\n',
+            '      const p2 = V.clone().addScaledVector(dirs[i + 1], rad);\n',
+            '      fanPos.push(p0.x, p0.y, p0.z, p1.x, p1.y, p1.z, p2.x, p2.y, p2.z);\n',
+            '    }\n',
+            '    so.capMesh.geometry.setAttribute(\'position\', new THREE.Float32BufferAttribute(fanPos, 3));\n',
+            '    so.capMesh.geometry.computeVertexNormals();\n',
+            '    so.capMesh.geometry.computeBoundingSphere();\n',
+            '    // Контур: дуги (slerp) между каждой соседней парой лучей, включая замыкание\n',
+            '    const edgePos = [];\n',
+            '    const N = 12;\n',
+            '    for (let i = 0; i < dirs.length; i++) {\n',
+            '      const da = dirs[i], db = dirs[(i + 1) % dirs.length];\n',
+            '      const dot = Math.max(-1, Math.min(1, da.dot(db)));\n',
+            '      const theta = Math.acos(dot);\n',
+            '      let prev = null;\n',
+            '      for (let k = 0; k <= N; k++) {\n',
+            '        const s = k / N;\n',
+            '        let dir;\n',
+            '        if (theta < 1e-6) dir = da.clone();\n',
+            '        else { const a = Math.sin((1 - s) * theta) / Math.sin(theta), b = Math.sin(s * theta) / Math.sin(theta); dir = da.clone().multiplyScalar(a).add(db.clone().multiplyScalar(b)); }\n',
+            '        const pt = V.clone().addScaledVector(dir, rad);\n',
+            '        if (prev) edgePos.push(prev.x, prev.y, prev.z, pt.x, pt.y, pt.z);\n',
+            '        prev = pt;\n',
+            '      }\n',
+            '    }\n',
+            '    so.edgeMesh.geometry.setAttribute(\'position\', new THREE.Float32BufferAttribute(edgePos, 3));\n',
+            '    so.edgeMesh.geometry.computeBoundingSphere();\n',
+            '    if (so.label) {\n',
+            '      if (def.showMeasure) {\n',
+            '        let centroid = new THREE.Vector3();\n',
+            '        dirs.forEach(function(d) { centroid.add(d); });\n',
+            '        if (centroid.lengthSq() < 1e-8) centroid = dirs[0].clone(); else centroid.normalize();\n',
+            '        so.labelPos.copy(V).addScaledVector(centroid, rad * 1.3);\n',
+            '        const val = def.fractions ? Math.round(so.measure * 1000) / 1000 : Math.round(so.measure * 100) / 100;\n',
+            '        so.label.textContent = def.name + \': \' + val + \' ср\';\n',
+            '        so.label.style.display = \'\';\n',
+            '      } else {\n',
+            '        so.label.style.display = \'none\';\n',
             '      }\n',
             '    }\n',
             '  }\n',
@@ -14782,6 +16054,32 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '    sqrt: Math.sqrt, abs: Math.abs, exp: Math.exp, log: Math.log, log2: Math.log2, log10: Math.log10,\n',
             '    min: Math.min, max: Math.max, pow: Math.pow, floor: Math.floor, ceil: Math.ceil, round: Math.round,\n',
             '    sign: Math.sign, sinh: Math.sinh, cosh: Math.cosh, tanh: Math.tanh, hypot: Math.hypot,\n',
+            '    // === Геометрия Лобачевского (модель шара Пуанкаре) — 3D-аналог hypDistance/hypTranslate\n',
+            '    // из 2D (см. G3_BUILTINS в generate2D). Точки — массивы [x,y,z] внутри единичного шара;\n',
+            '    // результат hypTranslate3D тоже [x,y,z] — его нельзя проиндексировать внутри выражений\n',
+            '    // g3 (в этом мини-языке нет v[i]), но можно передать целиком дальше, например прямо\n',
+            '    // элементом массива geodesics/points: points = [hypTranslate3D(a, p1), ...].\n',
+            '    hypDistance3D: function(a, b) {\n',
+            '      const dx = a[0] - b[0], dy = a[1] - b[1], dz = a[2] - b[2];\n',
+            '      const d2 = dx * dx + dy * dy + dz * dz;\n',
+            '      const na2 = a[0] * a[0] + a[1] * a[1] + a[2] * a[2];\n',
+            '      const nb2 = b[0] * b[0] + b[1] * b[1] + b[2] * b[2];\n',
+            '      const n1 = 1 - na2, n2 = 1 - nb2;\n',
+            '      if (n1 <= 0 || n2 <= 0) return Infinity;\n',
+            '      return Math.acosh(1 + 2 * d2 / (n1 * n2));\n',
+            '    },\n',
+            '    // Изометрия шара Пуанкаре, переводящая точку a в центр (0,0,0) — формула сложения\n',
+            '    // Мёбиуса (-a) ⊕ z из теории гировекторных пространств; при z-компоненте = 0 совпадает\n',
+            '    // с 2D-формулой (z-a)/(1-conj(a)z) из hypTranslate поточечно (проверено численно).\n',
+            '    hypTranslate3D: function(a, z) {\n',
+            '      const ax = -a[0], ay = -a[1], az = -a[2];\n',
+            '      const dot = ax * z[0] + ay * z[1] + az * z[2];\n',
+            '      const na2 = ax * ax + ay * ay + az * az;\n',
+            '      const nz2 = z[0] * z[0] + z[1] * z[1] + z[2] * z[2];\n',
+            '      const denom = 1 + 2 * dot + na2 * nz2;\n',
+            '      const cA = (1 + 2 * dot + nz2) / denom, cZ = (1 - na2) / denom;\n',
+            '      return [cA * ax + cZ * z[0], cA * ay + cZ * z[1], cA * az + cZ * z[2]];\n',
+            '    },\n',
             '  };\n',
             '  // Сигнал возврата значения из Function/Void — исключение, перехватываемое в месте\n',
             '  // вызова (в g3Eval, case \'call\'), т.к. return может быть на любой глубине if. ----------\n',
@@ -14877,11 +16175,41 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '      case \'expr\': g3Eval(s.expr, ctx); break;\n',
             '    }\n',
             '  }\n',
+            '  // Минимальная поддержка комплексных чисел — нужна для draw Complex (раскраска\n',
+            '  // области, Function f(z) вида z*z+c). Портировано из glComplex*/glBinaryOp в\n',
+            '  // generate2D, но только базовая арифметика (+,-,*,/,^) — этого достаточно для\n',
+            '  // типичных формул f(z); полный numeric-стек 2D (рациональные, bigint, векторы,\n',
+            '  // матрицы) в 3D не переносился.\n',
+            '  function g3Complex(re, im) { return { __type: \'complex\', re: re, im: im === undefined ? 0 : im }; }\n',
+            '  function g3IsComplex(x) { return x !== null && typeof x === \'object\' && x.__type === \'complex\'; }\n',
+            '  function g3ToComplex(x) { return g3IsComplex(x) ? x : g3Complex(typeof x === \'number\' ? x : NaN, 0); }\n',
+            '  function g3ComplexAdd(a, b) { a = g3ToComplex(a); b = g3ToComplex(b); return g3Complex(a.re + b.re, a.im + b.im); }\n',
+            '  function g3ComplexSub(a, b) { a = g3ToComplex(a); b = g3ToComplex(b); return g3Complex(a.re - b.re, a.im - b.im); }\n',
+            '  function g3ComplexMul(a, b) { a = g3ToComplex(a); b = g3ToComplex(b); return g3Complex(a.re * b.re - a.im * b.im, a.re * b.im + a.im * b.re); }\n',
+            '  function g3ComplexDiv(a, b) {\n',
+            '    a = g3ToComplex(a); b = g3ToComplex(b);\n',
+            '    const d = b.re * b.re + b.im * b.im;\n',
+            '    return g3Complex((a.re * b.re + a.im * b.im) / d, (a.im * b.re - a.re * b.im) / d);\n',
+            '  }\n',
+            '  function g3ComplexAbs(z) { z = g3ToComplex(z); return Math.hypot(z.re, z.im); }\n',
+            '  function g3ComplexArg(z) { z = g3ToComplex(z); return Math.atan2(z.im, z.re); }\n',
+            '  function g3ComplexPow(a, b) {\n',
+            '    a = g3ToComplex(a);\n',
+            '    if (typeof b === \'number\' && Number.isInteger(b) && b >= 0 && b <= 64) {\n',
+            '      let res = g3Complex(1, 0); for (let i = 0; i < b; i++) res = g3ComplexMul(res, a); return res;\n',
+            '    }\n',
+            '    const r = g3ComplexAbs(a), th = g3ComplexArg(a);\n',
+            '    b = g3ToComplex(b);\n',
+            '    const lnr = Math.log(r || 1e-300);\n',
+            '    const newR = Math.exp(b.re * lnr - b.im * th);\n',
+            '    const newTh = b.im * lnr + b.re * th;\n',
+            '    return g3Complex(newR * Math.cos(newTh), newR * Math.sin(newTh));\n',
+            '  }\n',
             '  function g3Eval(node, ctx) {\n',
             '    switch (node.type) {\n',
             '      case \'num\': return node.value;\n',
             '      case \'array\': return node.items.map(function(it) { return g3Eval(it, ctx); });\n',
-            '      case \'neg\': return -g3Eval(node.value, ctx);\n',
+            '      case \'neg\': { const v = g3Eval(node.value, ctx); return g3IsComplex(v) ? g3Complex(-v.re, -v.im) : -v; }\n',
             '      case \'not\': return !g3Eval(node.value, ctx);\n',
             '      case \'ident\':\n',
             '        if (node.name in ctx) return ctx[node.name];\n',
@@ -14909,6 +16237,12 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '      }\n',
             '      case \'bin\': {\n',
             '        const a = g3Eval(node.left, ctx), b = g3Eval(node.right, ctx);\n',
+            '        if (g3IsComplex(a) || g3IsComplex(b)) {\n',
+            '          if (node.op === \'+\') return g3ComplexAdd(a, b); if (node.op === \'-\') return g3ComplexSub(a, b);\n',
+            '          if (node.op === \'*\') return g3ComplexMul(a, b); if (node.op === \'/\') return g3ComplexDiv(a, b);\n',
+            '          if (node.op === \'^\') return g3ComplexPow(a, b);\n',
+            '          return NaN;\n',
+            '        }\n',
             '        if (node.op === \'+\') return a + b; if (node.op === \'-\') return a - b;\n',
             '        if (node.op === \'*\') return a * b; if (node.op === \'/\') return a / b;\n',
             '        if (node.op === \'%\') return a % b; if (node.op === \'^\') return Math.pow(a, b);\n',
@@ -14934,6 +16268,97 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '    return NaN;\n',
             '  }\n',
             '  function g3SafeParse(src) { try { return g3Parse(src); } catch (e) { console.warn(\'Ошибка разбора выражения:\', src, e); return null; } }\n',
+            '  // ---- Текст под холстом: {выражение} → живые переменные, лёгкий markdown, KaTeX ----\n',
+            '  // Тот же движок разметки, что и в 2D (см. generate2D); отличается только способ\n',
+            '  // вычисления {expr} — здесь через g3Parse/g3Eval (3D-мини-язык), с кэшем разобранных\n',
+            '  // AST по тексту выражения, т.к. вызывается каждый кадр из animate().\n',
+            '  function gcFormatValue(v) {\n',
+            '    if (typeof v === \'number\') { if (!isFinite(v)) return String(v); return String(Math.round(v * 10000) / 10000); }\n',
+            '    if (v === undefined || v === null) return \'\';\n',
+            '    return String(v);\n',
+            '  }\n',
+            '  const G3_DESC_AST_CACHE = new Map();\n',
+            '  function gcEvalPlaceholder3D(expr) {\n',
+            '    let ast = G3_DESC_AST_CACHE.get(expr);\n',
+            '    if (ast === undefined) { ast = g3SafeParse(expr); G3_DESC_AST_CACHE.set(expr, ast); }\n',
+            '    if (!ast) return \'\';\n',
+            '    return g3Eval(ast, {});\n',
+            '  }\n',
+            '  function gcSubstitutePlaceholders(text, evalFn) {\n',
+            '    return String(text).replace(/\\{([^{}]+)\\}/g, function(m, expr) {\n',
+            '      try { return gcFormatValue(evalFn(expr.trim())); } catch (e) { return \'\'; }\n',
+            '    });\n',
+            '  }\n',
+            '  function gcMdInline(s) {\n',
+            '    s = s.replace(/\\[([^\\]]+)\\]\\(([^)\\s]+)\\)/g, \'<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>\');\n',
+            '    s = s.replace(/\\*\\*([^*]+)\\*\\*/g, \'<b>$1</b>\');\n',
+            '    s = s.replace(/(^|[^*])\\*([^*\\n]+)\\*(?!\\*)/g, \'$1<i>$2</i>\');\n',
+            '    s = s.replace(/`([^`]+)`/g, \'<code>$1</code>\');\n',
+            '    return s;\n',
+            '  }\n',
+            '  function gcMdBlock(text) {\n',
+            '    const lines = text.split(\'\\n\');\n',
+            '    const htmlParts = [];\n',
+            '    let para = [];\n',
+            '    function flushPara() { if (!para.length) return; htmlParts.push(\'<p>\' + gcMdInline(para.join(\'<br>\')) + \'</p>\'); para = []; }\n',
+            '    for (const raw of lines) {\n',
+            '      const trimmed = raw.trim();\n',
+            '      if (trimmed === \'\') { flushPara(); continue; }\n',
+            '      const h = trimmed.match(/^(#{1,4})\\s+(.*)$/);\n',
+            '      if (h) { flushPara(); const level = h[1].length; htmlParts.push(\'<h\' + level + \'>\' + gcMdInline(h[2]) + \'</h\' + level + \'>\'); continue; }\n',
+            '      para.push(trimmed);\n',
+            '    }\n',
+            '    flushPara();\n',
+            '    return htmlParts.join(\'\');\n',
+            '  }\n',
+            '  function gcRenderMathSegments(s) {\n',
+            '    const placeholders = [];\n',
+            '    function stash(html) { const idx = placeholders.length; placeholders.push(html); return \'\\u0000\' + idx + \'\\u0001\'; }\n',
+            '    function renderTex(tex, display) {\n',
+            '      try { return (typeof katex !== \'undefined\') ? katex.renderToString(tex, { throwOnError: false, displayMode: display }) : tex; }\n',
+            '      catch (e) { return tex; }\n',
+            '    }\n',
+            '    let out = s.replace(/\\\\\\[([\\s\\S]+?)\\\\\\]/g, function(m, tex) { return stash(renderTex(tex, true)); });\n',
+            '    out = out.replace(/\\\\\\(([\\s\\S]+?)\\\\\\)/g, function(m, tex) { return stash(renderTex(tex, false)); });\n',
+            '    return { text: out, placeholders: placeholders };\n',
+            '  }\n',
+            '  function gcRestoreMathSegments(html, placeholders) {\n',
+            '    return html.replace(/\\u0000(\\d+)\\u0001/g, function(m, i) { return placeholders[Number(i)]; });\n',
+            '  }\n',
+            '  function gcParseFenceAttrs(attrStr) {\n',
+            '    const attrs = {};\n',
+            '    const re = /(align|indent)\\s*=\\s*"?([a-zA-Z0-9.]+)"?/g;\n',
+            '    let am; while ((am = re.exec(attrStr))) attrs[am[1]] = am[2];\n',
+            '    return attrs;\n',
+            '  }\n',
+            '  function gcRenderDescriptionHtml(raw, defaultAlign) {\n',
+            '    if (!raw) return \'\';\n',
+            '    const mathRes = gcRenderMathSegments(String(raw));\n',
+            '    const src = mathRes.text;\n',
+            '    const fenceRe = /^::([^\\n]*)\\n([\\s\\S]*?)\\n::[ \\t]*$/gm;\n',
+            '    let out = \'\', lastIndex = 0, m;\n',
+            '    function renderPlain(chunk) { if (!chunk.trim()) return \'\'; return \'<div style="text-align:\' + (defaultAlign || \'left\') + \'">\' + gcMdBlock(chunk) + \'</div>\'; }\n',
+            '    while ((m = fenceRe.exec(src))) {\n',
+            '      if (m.index > lastIndex) out += renderPlain(src.slice(lastIndex, m.index));\n',
+            '      const attrs = gcParseFenceAttrs(m[1]);\n',
+            '      const align = attrs.align || defaultAlign || \'left\';\n',
+            '      const indent = attrs.indent ? (parseFloat(attrs.indent) + \'em\') : \'0\';\n',
+            '      out += \'<div style="text-align:\' + align + \';padding-left:\' + indent + \'">\' + gcMdBlock(m[2]) + \'</div>\';\n',
+            '      lastIndex = fenceRe.lastIndex;\n',
+            '    }\n',
+            '    if (lastIndex < src.length) out += renderPlain(src.slice(lastIndex));\n',
+            '    return gcRestoreMathSegments(out, mathRes.placeholders);\n',
+            '  }\n',
+            '  let __gcLastDescRendered3D = null;\n',
+            '  function updateDescription3D() {\n',
+            '    if (!infoText || !GC_DESCRIPTION_RAW) return;\n',
+            '    let substituted;\n',
+            '    try { substituted = gcSubstitutePlaceholders(GC_DESCRIPTION_RAW, gcEvalPlaceholder3D); }\n',
+            '    catch (e) { substituted = GC_DESCRIPTION_RAW; }\n',
+            '    if (substituted === __gcLastDescRendered3D) return;\n',
+            '    __gcLastDescRendered3D = substituted;\n',
+            '    infoText.innerHTML = gcRenderDescriptionHtml(substituted, GC_DESCRIPTION_ALIGN);\n',
+            '  }\n',
             '  // Единая точка вызова функции по имени с готовыми значениями аргументов (а не AST) —\n',
             '  // нужна там, где функция вызывается не через выражение с \'(\' (draw Surface { f = "..." },\n',
             '  // action кнопок и т.п.), а по имени напрямую. Работает одинаково для простых\n',
@@ -14963,14 +16388,33 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '    return g3CallNamed(name, argsObj);\n',
             '  }\n',
             '\n',
-            '  // ---------- draw Surface: f(x, y) (через func) либо параметрическая x(u,v), y(u,v), z(u,v).\n',
+            '  // ---------- draw Surface: f(x, y) (через func), параметрическая x(u,v), y(u,v), z(u,v)\n',
+            '  // либо неявная f(x, y, z) = level (type = "implicit", marching cubes — см. ниже).\n',
             '  // Пересчитывается каждый кадр — поэтому поверхность может зависеть от переменных,\n',
             '  // изменяемых в Update (то есть быть анимированной), как и остальные объекты сцены. ----------\n',
             '  const surfaceObjs = drawSurfacesData.map(function(d) {\n',
             '    if (d.active === false && !d.activeExpr) return null;\n',
-            '    const n = Math.max(2, Math.min(80, Math.round(d.grid || 20)));\n',
             '    const color = d.color || \'', theme.accent, '\';\n',
             '    const opacity = (d.opacity === undefined || d.opacity === null) ? 0.85 : d.opacity;\n',
+            '    if (d.type === \'implicit\') {\n',
+            '      // Топология (число треугольников) неявной поверхности меняется от кадра к кадру,\n',
+            '      // поэтому геометрия у неё не фиксированная сетка, как у heightfield/parametric,\n',
+            '      // а полностью пересобирается в updateImplicitSurfaceMesh — здесь только пустышка.\n',
+            '      const geo0 = new THREE.BufferGeometry();\n',
+            '      const mat0 = new THREE.MeshStandardMaterial({ color: color, roughness: 0.6, transparent: opacity < 1, opacity: opacity, side: THREE.DoubleSide, depthWrite: true });\n',
+            '      const mesh0 = new THREE.Mesh(geo0, mat0);\n',
+            '      scene.add(mesh0);\n',
+            '      const res = Math.max(3, Math.min(40, Math.round(d.grid || 24)));\n',
+            '      return {\n',
+            '        name: d.name, mesh: mesh0, type: \'implicit\', activeExpr: d.activeExpr, active: d.active !== false,\n',
+            '        funcName: d.funcName, res: res,\n',
+            '        xmin: d.xmin, xmax: d.xmax, ymin: d.ymin, ymax: d.ymax,\n',
+            '        zmin: (d.zmin === undefined || d.zmin === null) ? -5 : d.zmin,\n',
+            '        zmax: (d.zmax === undefined || d.zmax === null) ? 5 : d.zmax,\n',
+            '        isolevel: (d.level === undefined || d.level === null) ? 0 : d.level,\n',
+            '      };\n',
+            '    }\n',
+            '    const n = Math.max(2, Math.min(80, Math.round(d.grid || 20)));\n',
             '    const geo = new THREE.BufferGeometry();\n',
             '    const idx = [];\n',
             '    for (let j = 0; j < n; j++) { for (let i = 0; i < n; i++) { const a0 = j * (n + 1) + i, b0 = a0 + 1, c0 = a0 + (n + 1), d0 = c0 + 1; idx.push(a0, c0, b0, b0, c0, d0); } }\n',
@@ -14991,6 +16435,7 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '  }).filter(function(x) { return x !== null; });\n',
             '\n',
             '  function updateSurfaceMesh(so) {\n',
+            '    if (so.type === \'implicit\') { updateImplicitSurfaceMesh(so); return; }\n',
             '    const n = so.n;\n',
             '    const pos = so.mesh.geometry.attributes.position.array;\n',
             '    let k = 0;\n',
@@ -15021,6 +16466,432 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '    so.mesh.geometry.attributes.position.needsUpdate = true;\n',
             '    so.mesh.geometry.computeVertexNormals();\n',
             '    so.mesh.geometry.computeBoundingSphere();\n',
+            '  }\n',
+            '\n',
+            '  // ---------- draw Surface (type = implicit): изоповерхность f(x, y, z) = level.\n',
+            '  // Классический marching cubes (Lorensen/Cline, 1987) со стандартными таблицами\n',
+            '  // конфигураций куба (Bourke/Bloyd, 256 случаев по 8 битам знака f-isolevel в вершинах,\n',
+            '  // до 5 треугольников на кубик). Сетка кубов пересчитывается каждый кадр, как и\n',
+            '  // остальные поверхности, поэтому f может зависеть от переменных, меняющихся в Update.\n',
+            '  // Нормали в вершинах — не усреднённые по граням, а из аналитического градиента f\n',
+            '  // (центральные разности по узлам сетки, интерполированные вдоль того же ребра куба,\n',
+            '  // что и позиция), поэтому поверхность выглядит гладкой без склейки вершин. ----------\n',
+            '  const G3_MC_EDGE = [\n',
+            '    0,265,515,778,1030,1295,1541,1804,2060,2309,2575,2822,3082,3331,3593,3840,\n',
+            '    400,153,915,666,1430,1183,1941,1692,2460,2197,2975,2710,3482,3219,3993,3728,\n',
+            '    560,825,51,314,1590,1855,1077,1340,2620,2869,2111,2358,3642,3891,3129,3376,\n',
+            '    928,681,419,170,1958,1711,1445,1196,2988,2725,2479,2214,4010,3747,3497,3232,\n',
+            '    1120,1385,1635,1898,102,367,613,876,3180,3429,3695,3942,2154,2403,2665,2912,\n',
+            '    1520,1273,2035,1786,502,255,1013,764,3580,3317,4095,3830,2554,2291,3065,2800,\n',
+            '    1616,1881,1107,1370,598,863,85,348,3676,3925,3167,3414,2650,2899,2137,2384,\n',
+            '    1984,1737,1475,1226,966,719,453,204,4044,3781,3535,3270,3018,2755,2505,2240,\n',
+            '    2240,2505,2755,3018,3270,3535,3781,4044,204,453,719,966,1226,1475,1737,1984,\n',
+            '    2384,2137,2899,2650,3414,3167,3925,3676,348,85,863,598,1370,1107,1881,1616,\n',
+            '    2800,3065,2291,2554,3830,4095,3317,3580,764,1013,255,502,1786,2035,1273,1520,\n',
+            '    2912,2665,2403,2154,3942,3695,3429,3180,876,613,367,102,1898,1635,1385,1120,\n',
+            '    3232,3497,3747,4010,2214,2479,2725,2988,1196,1445,1711,1958,170,419,681,928,\n',
+            '    3376,3129,3891,3642,2358,2111,2869,2620,1340,1077,1855,1590,314,51,825,560,\n',
+            '    3728,3993,3219,3482,2710,2975,2197,2460,1692,1941,1183,1430,666,915,153,400,\n',
+            '    3840,3593,3331,3082,2822,2575,2309,2060,1804,1541,1295,1030,778,515,265,0,\n',
+            '  ];\n',
+            '  const G3_MC_TRI = [\n',
+            '    -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    0,8,3,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    0,1,9,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    1,8,3,9,8,1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    1,2,10,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    0,8,3,1,2,10,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    9,2,10,0,2,9,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    2,8,3,2,10,8,10,9,8,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    3,11,2,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    0,11,2,8,11,0,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    1,9,0,2,3,11,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    1,11,2,1,9,11,9,8,11,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    3,10,1,11,10,3,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    0,10,1,0,8,10,8,11,10,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    3,9,0,3,11,9,11,10,9,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    9,8,10,10,8,11,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    4,7,8,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    4,3,0,7,3,4,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    0,1,9,8,4,7,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    4,1,9,4,7,1,7,3,1,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    1,2,10,8,4,7,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    3,4,7,3,0,4,1,2,10,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    9,2,10,9,0,2,8,4,7,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    2,10,9,2,9,7,2,7,3,7,9,4,-1,-1,-1,-1,\n',
+            '    8,4,7,3,11,2,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    11,4,7,11,2,4,2,0,4,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    9,0,1,8,4,7,2,3,11,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    4,7,11,9,4,11,9,11,2,9,2,1,-1,-1,-1,-1,\n',
+            '    3,10,1,3,11,10,7,8,4,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    1,11,10,1,4,11,1,0,4,7,11,4,-1,-1,-1,-1,\n',
+            '    4,7,8,9,0,11,9,11,10,11,0,3,-1,-1,-1,-1,\n',
+            '    4,7,11,4,11,9,9,11,10,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    9,5,4,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    9,5,4,0,8,3,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    0,5,4,1,5,0,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    8,5,4,8,3,5,3,1,5,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    1,2,10,9,5,4,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    3,0,8,1,2,10,4,9,5,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    5,2,10,5,4,2,4,0,2,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    2,10,5,3,2,5,3,5,4,3,4,8,-1,-1,-1,-1,\n',
+            '    9,5,4,2,3,11,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    0,11,2,0,8,11,4,9,5,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    0,5,4,0,1,5,2,3,11,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    2,1,5,2,5,8,2,8,11,4,8,5,-1,-1,-1,-1,\n',
+            '    10,3,11,10,1,3,9,5,4,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    4,9,5,0,8,1,8,10,1,8,11,10,-1,-1,-1,-1,\n',
+            '    5,4,0,5,0,11,5,11,10,11,0,3,-1,-1,-1,-1,\n',
+            '    5,4,8,5,8,10,10,8,11,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    9,7,8,5,7,9,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    9,3,0,9,5,3,5,7,3,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    0,7,8,0,1,7,1,5,7,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    1,5,3,3,5,7,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    9,7,8,9,5,7,10,1,2,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    10,1,2,9,5,0,5,3,0,5,7,3,-1,-1,-1,-1,\n',
+            '    8,0,2,8,2,5,8,5,7,10,5,2,-1,-1,-1,-1,\n',
+            '    2,10,5,2,5,3,3,5,7,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    7,9,5,7,8,9,3,11,2,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    9,5,7,9,7,2,9,2,0,2,7,11,-1,-1,-1,-1,\n',
+            '    2,3,11,0,1,8,1,7,8,1,5,7,-1,-1,-1,-1,\n',
+            '    11,2,1,11,1,7,7,1,5,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    9,5,8,8,5,7,10,1,3,10,3,11,-1,-1,-1,-1,\n',
+            '    5,7,0,5,0,9,7,11,0,1,0,10,11,10,0,-1,\n',
+            '    11,10,0,11,0,3,10,5,0,8,0,7,5,7,0,-1,\n',
+            '    11,10,5,7,11,5,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    10,6,5,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    0,8,3,5,10,6,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    9,0,1,5,10,6,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    1,8,3,1,9,8,5,10,6,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    1,6,5,2,6,1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    1,6,5,1,2,6,3,0,8,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    9,6,5,9,0,6,0,2,6,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    5,9,8,5,8,2,5,2,6,3,2,8,-1,-1,-1,-1,\n',
+            '    2,3,11,10,6,5,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    11,0,8,11,2,0,10,6,5,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    0,1,9,2,3,11,5,10,6,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    5,10,6,1,9,2,9,11,2,9,8,11,-1,-1,-1,-1,\n',
+            '    6,3,11,6,5,3,5,1,3,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    0,8,11,0,11,5,0,5,1,5,11,6,-1,-1,-1,-1,\n',
+            '    3,11,6,0,3,6,0,6,5,0,5,9,-1,-1,-1,-1,\n',
+            '    6,5,9,6,9,11,11,9,8,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    5,10,6,4,7,8,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    4,3,0,4,7,3,6,5,10,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    1,9,0,5,10,6,8,4,7,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    10,6,5,1,9,7,1,7,3,7,9,4,-1,-1,-1,-1,\n',
+            '    6,1,2,6,5,1,4,7,8,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    1,2,5,5,2,6,3,0,4,3,4,7,-1,-1,-1,-1,\n',
+            '    8,4,7,9,0,5,0,6,5,0,2,6,-1,-1,-1,-1,\n',
+            '    7,3,9,7,9,4,3,2,9,5,9,6,2,6,9,-1,\n',
+            '    3,11,2,7,8,4,10,6,5,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    5,10,6,4,7,2,4,2,0,2,7,11,-1,-1,-1,-1,\n',
+            '    0,1,9,4,7,8,2,3,11,5,10,6,-1,-1,-1,-1,\n',
+            '    9,2,1,9,11,2,9,4,11,7,11,4,5,10,6,-1,\n',
+            '    8,4,7,3,11,5,3,5,1,5,11,6,-1,-1,-1,-1,\n',
+            '    5,1,11,5,11,6,1,0,11,7,11,4,0,4,11,-1,\n',
+            '    0,5,9,0,6,5,0,3,6,11,6,3,8,4,7,-1,\n',
+            '    6,5,9,6,9,11,4,7,9,7,11,9,-1,-1,-1,-1,\n',
+            '    10,4,9,6,4,10,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    4,10,6,4,9,10,0,8,3,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    10,0,1,10,6,0,6,4,0,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    8,3,1,8,1,6,8,6,4,6,1,10,-1,-1,-1,-1,\n',
+            '    1,4,9,1,2,4,2,6,4,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    3,0,8,1,2,9,2,4,9,2,6,4,-1,-1,-1,-1,\n',
+            '    0,2,4,4,2,6,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    8,3,2,8,2,4,4,2,6,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    10,4,9,10,6,4,11,2,3,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    0,8,2,2,8,11,4,9,10,4,10,6,-1,-1,-1,-1,\n',
+            '    3,11,2,0,1,6,0,6,4,6,1,10,-1,-1,-1,-1,\n',
+            '    6,4,1,6,1,10,4,8,1,2,1,11,8,11,1,-1,\n',
+            '    9,6,4,9,3,6,9,1,3,11,6,3,-1,-1,-1,-1,\n',
+            '    8,11,1,8,1,0,11,6,1,9,1,4,6,4,1,-1,\n',
+            '    3,11,6,3,6,0,0,6,4,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    6,4,8,11,6,8,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    7,10,6,7,8,10,8,9,10,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    0,7,3,0,10,7,0,9,10,6,7,10,-1,-1,-1,-1,\n',
+            '    10,6,7,1,10,7,1,7,8,1,8,0,-1,-1,-1,-1,\n',
+            '    10,6,7,10,7,1,1,7,3,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    1,2,6,1,6,8,1,8,9,8,6,7,-1,-1,-1,-1,\n',
+            '    2,6,9,2,9,1,6,7,9,0,9,3,7,3,9,-1,\n',
+            '    7,8,0,7,0,6,6,0,2,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    7,3,2,6,7,2,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    2,3,11,10,6,8,10,8,9,8,6,7,-1,-1,-1,-1,\n',
+            '    2,0,7,2,7,11,0,9,7,6,7,10,9,10,7,-1,\n',
+            '    1,8,0,1,7,8,1,10,7,6,7,10,2,3,11,-1,\n',
+            '    11,2,1,11,1,7,10,6,1,6,7,1,-1,-1,-1,-1,\n',
+            '    8,9,6,8,6,7,9,1,6,11,6,3,1,3,6,-1,\n',
+            '    0,9,1,11,6,7,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    7,8,0,7,0,6,3,11,0,11,6,0,-1,-1,-1,-1,\n',
+            '    7,11,6,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    7,6,11,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    3,0,8,11,7,6,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    0,1,9,11,7,6,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    8,1,9,8,3,1,11,7,6,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    10,1,2,6,11,7,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    1,2,10,3,0,8,6,11,7,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    2,9,0,2,10,9,6,11,7,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    6,11,7,2,10,3,10,8,3,10,9,8,-1,-1,-1,-1,\n',
+            '    7,2,3,6,2,7,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    7,0,8,7,6,0,6,2,0,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    2,7,6,2,3,7,0,1,9,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    1,6,2,1,8,6,1,9,8,8,7,6,-1,-1,-1,-1,\n',
+            '    10,7,6,10,1,7,1,3,7,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    10,7,6,1,7,10,1,8,7,1,0,8,-1,-1,-1,-1,\n',
+            '    0,3,7,0,7,10,0,10,9,6,10,7,-1,-1,-1,-1,\n',
+            '    7,6,10,7,10,8,8,10,9,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    6,8,4,11,8,6,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    3,6,11,3,0,6,0,4,6,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    8,6,11,8,4,6,9,0,1,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    9,4,6,9,6,3,9,3,1,11,3,6,-1,-1,-1,-1,\n',
+            '    6,8,4,6,11,8,2,10,1,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    1,2,10,3,0,11,0,6,11,0,4,6,-1,-1,-1,-1,\n',
+            '    4,11,8,4,6,11,0,2,9,2,10,9,-1,-1,-1,-1,\n',
+            '    10,9,3,10,3,2,9,4,3,11,3,6,4,6,3,-1,\n',
+            '    8,2,3,8,4,2,4,6,2,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    0,4,2,4,6,2,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    1,9,0,2,3,4,2,4,6,4,3,8,-1,-1,-1,-1,\n',
+            '    1,9,4,1,4,2,2,4,6,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    8,1,3,8,6,1,8,4,6,6,10,1,-1,-1,-1,-1,\n',
+            '    10,1,0,10,0,6,6,0,4,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    4,6,3,4,3,8,6,10,3,0,3,9,10,9,3,-1,\n',
+            '    10,9,4,6,10,4,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    4,9,5,7,6,11,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    0,8,3,4,9,5,11,7,6,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    5,0,1,5,4,0,7,6,11,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    11,7,6,8,3,4,3,5,4,3,1,5,-1,-1,-1,-1,\n',
+            '    9,5,4,10,1,2,7,6,11,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    6,11,7,1,2,10,0,8,3,4,9,5,-1,-1,-1,-1,\n',
+            '    7,6,11,5,4,10,4,2,10,4,0,2,-1,-1,-1,-1,\n',
+            '    3,4,8,3,5,4,3,2,5,10,5,2,11,7,6,-1,\n',
+            '    7,2,3,7,6,2,5,4,9,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    9,5,4,0,8,6,0,6,2,6,8,7,-1,-1,-1,-1,\n',
+            '    3,6,2,3,7,6,1,5,0,5,4,0,-1,-1,-1,-1,\n',
+            '    6,2,8,6,8,7,2,1,8,4,8,5,1,5,8,-1,\n',
+            '    9,5,4,10,1,6,1,7,6,1,3,7,-1,-1,-1,-1,\n',
+            '    1,6,10,1,7,6,1,0,7,8,7,0,9,5,4,-1,\n',
+            '    4,0,10,4,10,5,0,3,10,6,10,7,3,7,10,-1,\n',
+            '    7,6,10,7,10,8,5,4,10,4,8,10,-1,-1,-1,-1,\n',
+            '    6,9,5,6,11,9,11,8,9,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    3,6,11,0,6,3,0,5,6,0,9,5,-1,-1,-1,-1,\n',
+            '    0,11,8,0,5,11,0,1,5,5,6,11,-1,-1,-1,-1,\n',
+            '    6,11,3,6,3,5,5,3,1,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    1,2,10,9,5,11,9,11,8,11,5,6,-1,-1,-1,-1,\n',
+            '    0,11,3,0,6,11,0,9,6,5,6,9,1,2,10,-1,\n',
+            '    11,8,5,11,5,6,8,0,5,10,5,2,0,2,5,-1,\n',
+            '    6,11,3,6,3,5,2,10,3,10,5,3,-1,-1,-1,-1,\n',
+            '    5,8,9,5,2,8,5,6,2,3,8,2,-1,-1,-1,-1,\n',
+            '    9,5,6,9,6,0,0,6,2,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    1,5,8,1,8,0,5,6,8,3,8,2,6,2,8,-1,\n',
+            '    1,5,6,2,1,6,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    1,3,6,1,6,10,3,8,6,5,6,9,8,9,6,-1,\n',
+            '    10,1,0,10,0,6,9,5,0,5,6,0,-1,-1,-1,-1,\n',
+            '    0,3,8,5,6,10,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    10,5,6,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    11,5,10,7,5,11,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    11,5,10,11,7,5,8,3,0,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    5,11,7,5,10,11,1,9,0,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    10,7,5,10,11,7,9,8,1,8,3,1,-1,-1,-1,-1,\n',
+            '    11,1,2,11,7,1,7,5,1,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    0,8,3,1,2,7,1,7,5,7,2,11,-1,-1,-1,-1,\n',
+            '    9,7,5,9,2,7,9,0,2,2,11,7,-1,-1,-1,-1,\n',
+            '    7,5,2,7,2,11,5,9,2,3,2,8,9,8,2,-1,\n',
+            '    2,5,10,2,3,5,3,7,5,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    8,2,0,8,5,2,8,7,5,10,2,5,-1,-1,-1,-1,\n',
+            '    9,0,1,5,10,3,5,3,7,3,10,2,-1,-1,-1,-1,\n',
+            '    9,8,2,9,2,1,8,7,2,10,2,5,7,5,2,-1,\n',
+            '    1,3,5,3,7,5,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    0,8,7,0,7,1,1,7,5,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    9,0,3,9,3,5,5,3,7,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    9,8,7,5,9,7,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    5,8,4,5,10,8,10,11,8,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    5,0,4,5,11,0,5,10,11,11,3,0,-1,-1,-1,-1,\n',
+            '    0,1,9,8,4,10,8,10,11,10,4,5,-1,-1,-1,-1,\n',
+            '    10,11,4,10,4,5,11,3,4,9,4,1,3,1,4,-1,\n',
+            '    2,5,1,2,8,5,2,11,8,4,5,8,-1,-1,-1,-1,\n',
+            '    0,4,11,0,11,3,4,5,11,2,11,1,5,1,11,-1,\n',
+            '    0,2,5,0,5,9,2,11,5,4,5,8,11,8,5,-1,\n',
+            '    9,4,5,2,11,3,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    2,5,10,3,5,2,3,4,5,3,8,4,-1,-1,-1,-1,\n',
+            '    5,10,2,5,2,4,4,2,0,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    3,10,2,3,5,10,3,8,5,4,5,8,0,1,9,-1,\n',
+            '    5,10,2,5,2,4,1,9,2,9,4,2,-1,-1,-1,-1,\n',
+            '    8,4,5,8,5,3,3,5,1,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    0,4,5,1,0,5,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    8,4,5,8,5,3,9,0,5,0,3,5,-1,-1,-1,-1,\n',
+            '    9,4,5,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    4,11,7,4,9,11,9,10,11,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    0,8,3,4,9,7,9,11,7,9,10,11,-1,-1,-1,-1,\n',
+            '    1,10,11,1,11,4,1,4,0,7,4,11,-1,-1,-1,-1,\n',
+            '    3,1,4,3,4,8,1,10,4,7,4,11,10,11,4,-1,\n',
+            '    4,11,7,9,11,4,9,2,11,9,1,2,-1,-1,-1,-1,\n',
+            '    9,7,4,9,11,7,9,1,11,2,11,1,0,8,3,-1,\n',
+            '    11,7,4,11,4,2,2,4,0,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    11,7,4,11,4,2,8,3,4,3,2,4,-1,-1,-1,-1,\n',
+            '    2,9,10,2,7,9,2,3,7,7,4,9,-1,-1,-1,-1,\n',
+            '    9,10,7,9,7,4,10,2,7,8,7,0,2,0,7,-1,\n',
+            '    3,7,10,3,10,2,7,4,10,1,10,0,4,0,10,-1,\n',
+            '    1,10,2,8,7,4,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    4,9,1,4,1,7,7,1,3,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    4,9,1,4,1,7,0,8,1,8,7,1,-1,-1,-1,-1,\n',
+            '    4,0,3,7,4,3,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    4,8,7,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    9,10,8,10,11,8,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    3,0,9,3,9,11,11,9,10,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    0,1,10,0,10,8,8,10,11,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    3,1,10,11,3,10,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    1,2,11,1,11,9,9,11,8,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    3,0,9,3,9,11,1,2,9,2,11,9,-1,-1,-1,-1,\n',
+            '    0,2,11,8,0,11,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    3,2,11,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    2,3,8,2,8,10,10,8,9,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    9,10,2,0,9,2,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    2,3,8,2,8,10,0,1,8,1,10,8,-1,-1,-1,-1,\n',
+            '    1,10,2,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    1,3,8,9,1,8,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    0,9,1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    0,3,8,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,\n',
+            '    -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,\n',
+            '  ];\n',
+            '\n',
+            '  // Сэмплирует f(x, y, z) на сетке (res+1)^3 в пределах бокса поверхности; неконечные\n',
+            '  // (NaN/undefined, например при делении на 0 в f) значения заменяются большим числом,\n',
+            '  // заведомо "снаружи" (f >= level), чтобы не портить интерполяцию соседних кубов. ----------\n',
+            '  function g3ImplicitField(so) {\n',
+            '    const res = so.res, N = res + 1;\n',
+            '    const xs = new Float64Array(N), ys = new Float64Array(N), zs = new Float64Array(N);\n',
+            '    for (let i = 0; i < N; i++) xs[i] = so.xmin + (so.xmax - so.xmin) * i / res;\n',
+            '    for (let j = 0; j < N; j++) ys[j] = so.ymin + (so.ymax - so.ymin) * j / res;\n',
+            '    for (let k = 0; k < N; k++) zs[k] = so.zmin + (so.zmax - so.zmin) * k / res;\n',
+            '    const F = new Float64Array(N * N * N);\n',
+            '    const idx = function(i, j, k) { return i + j * N + k * N * N; };\n',
+            '    for (let k = 0; k < N; k++) {\n',
+            '      for (let j = 0; j < N; j++) {\n',
+            '        for (let i = 0; i < N; i++) {\n',
+            '          let v;\n',
+            '          try { v = g3CallNamed(so.funcName, { x: xs[i], y: ys[j], z: zs[k] }); } catch (e) { v = undefined; }\n',
+            '          if (typeof v !== \'number\' || !isFinite(v)) v = so.isolevel + 1e6;\n',
+            '          F[idx(i, j, k)] = v;\n',
+            '        }\n',
+            '      }\n',
+            '    }\n',
+            '    return { xs: xs, ys: ys, zs: zs, F: F, N: N, idx: idx };\n',
+            '  }\n',
+            '\n',
+            '  // Градиент f в узлах сетки центральными разностями (односторонними на границе бокса) —\n',
+            '  // считается один раз на весь объём, затем интерполируется вдоль рёбер как и позиция;\n',
+            '  // даёт гладкое (Gouraud) освещение поверхности без сварки вершин соседних треугольников.\n',
+            '  function g3ImplicitGradients(field) {\n',
+            '    const N = field.N, F = field.F, idx = field.idx;\n',
+            '    const hx = (field.xs[N - 1] - field.xs[0]) / (N - 1) || 1;\n',
+            '    const hy = (field.ys[N - 1] - field.ys[0]) / (N - 1) || 1;\n',
+            '    const hz = (field.zs[N - 1] - field.zs[0]) / (N - 1) || 1;\n',
+            '    const Gx = new Float64Array(N * N * N), Gy = new Float64Array(N * N * N), Gz = new Float64Array(N * N * N);\n',
+            '    for (let k = 0; k < N; k++) {\n',
+            '      for (let j = 0; j < N; j++) {\n',
+            '        for (let i = 0; i < N; i++) {\n',
+            '          const c = idx(i, j, k);\n',
+            '          const im = i > 0 ? i - 1 : i, ip = i < N - 1 ? i + 1 : i;\n',
+            '          const jm = j > 0 ? j - 1 : j, jp = j < N - 1 ? j + 1 : j;\n',
+            '          const km = k > 0 ? k - 1 : k, kp = k < N - 1 ? k + 1 : k;\n',
+            '          const dxN = (ip - im) || 1, dyN = (jp - jm) || 1, dzN = (kp - km) || 1;\n',
+            '          Gx[c] = (F[idx(ip, j, k)] - F[idx(im, j, k)]) / (dxN * hx);\n',
+            '          Gy[c] = (F[idx(i, jp, k)] - F[idx(i, jm, k)]) / (dyN * hy);\n',
+            '          Gz[c] = (F[idx(i, j, kp)] - F[idx(i, j, km)]) / (dzN * hz);\n',
+            '        }\n',
+            '      }\n',
+            '    }\n',
+            '    return { Gx: Gx, Gy: Gy, Gz: Gz };\n',
+            '  }\n',
+            '\n',
+            '  // Marching cubes по одному вокселю: 8 углов нумеруются двоичными битами (dx=бит0,\n',
+            '  // dy=бит1, dz=бит2), cubeindex собирается по тому же соглашению "f < isolevel = внутри",\n',
+            '  // что и в канонических таблицах Bourke/Bloyd; edge{N} — привычная нумерация 12 рёбер\n',
+            '  // куба (0-3 нижняя грань, 4-7 верхняя, 8-11 вертикальные). ----------\n',
+            '  function g3MarchingCubes(so) {\n',
+            '    const field = g3ImplicitField(so);\n',
+            '    const grad = g3ImplicitGradients(field);\n',
+            '    const N = field.N, F = field.F, idx = field.idx;\n',
+            '    const isol = so.isolevel;\n',
+            '    const positions = [];\n',
+            '    const normals = [];\n',
+            '    const cVal = new Float64Array(8);\n',
+            '    const cx = new Float64Array(8), cy = new Float64Array(8), cz = new Float64Array(8);\n',
+            '    const gx = new Float64Array(8), gy = new Float64Array(8), gz = new Float64Array(8);\n',
+            '    const ev = new Float64Array(36), en = new Float64Array(36);\n',
+            '    function interp(a, b, off) {\n',
+            '      let t = (isol - cVal[a]) / (cVal[b] - cVal[a]);\n',
+            '      if (!isFinite(t)) t = 0.5;\n',
+            '      ev[off] = cx[a] + (cx[b] - cx[a]) * t;\n',
+            '      ev[off + 1] = cy[a] + (cy[b] - cy[a]) * t;\n',
+            '      ev[off + 2] = cz[a] + (cz[b] - cz[a]) * t;\n',
+            '      en[off] = gx[a] + (gx[b] - gx[a]) * t;\n',
+            '      en[off + 1] = gy[a] + (gy[b] - gy[a]) * t;\n',
+            '      en[off + 2] = gz[a] + (gz[b] - gz[a]) * t;\n',
+            '    }\n',
+            '    for (let k = 0; k < N - 1; k++) {\n',
+            '      for (let j = 0; j < N - 1; j++) {\n',
+            '        for (let i = 0; i < N - 1; i++) {\n',
+            '          for (let b = 0; b < 8; b++) {\n',
+            '            const ci = i + (b & 1), cj = j + ((b >> 1) & 1), ck = k + ((b >> 2) & 1);\n',
+            '            const id = idx(ci, cj, ck);\n',
+            '            cVal[b] = F[id]; cx[b] = field.xs[ci]; cy[b] = field.ys[cj]; cz[b] = field.zs[ck];\n',
+            '            gx[b] = grad.Gx[id]; gy[b] = grad.Gy[id]; gz[b] = grad.Gz[id];\n',
+            '          }\n',
+            '          let cubeindex = 0;\n',
+            '          if (cVal[0] < isol) cubeindex |= 1;\n',
+            '          if (cVal[1] < isol) cubeindex |= 2;\n',
+            '          if (cVal[3] < isol) cubeindex |= 4;\n',
+            '          if (cVal[2] < isol) cubeindex |= 8;\n',
+            '          if (cVal[4] < isol) cubeindex |= 16;\n',
+            '          if (cVal[5] < isol) cubeindex |= 32;\n',
+            '          if (cVal[7] < isol) cubeindex |= 64;\n',
+            '          if (cVal[6] < isol) cubeindex |= 128;\n',
+            '          const bits = G3_MC_EDGE[cubeindex];\n',
+            '          if (bits === 0) continue;\n',
+            '          if (bits & 1) interp(0, 1, 0);\n',
+            '          if (bits & 2) interp(1, 3, 3);\n',
+            '          if (bits & 4) interp(3, 2, 6);\n',
+            '          if (bits & 8) interp(0, 2, 9);\n',
+            '          if (bits & 16) interp(4, 5, 12);\n',
+            '          if (bits & 32) interp(5, 7, 15);\n',
+            '          if (bits & 64) interp(7, 6, 18);\n',
+            '          if (bits & 128) interp(4, 6, 21);\n',
+            '          if (bits & 256) interp(0, 4, 24);\n',
+            '          if (bits & 512) interp(1, 5, 27);\n',
+            '          if (bits & 1024) interp(3, 7, 30);\n',
+            '          if (bits & 2048) interp(2, 6, 33);\n',
+            '          const baseTri = cubeindex * 16;\n',
+            '          for (let t = 0; G3_MC_TRI[baseTri + t] !== -1; t += 3) {\n',
+            '            for (let vv = 0; vv < 3; vv++) {\n',
+            '              const e = G3_MC_TRI[baseTri + t + vv], o = e * 3;\n',
+            '              positions.push(ev[o], ev[o + 1], ev[o + 2]);\n',
+            '              let nx = en[o], ny = en[o + 1], nz = en[o + 2];\n',
+            '              const nl = Math.sqrt(nx * nx + ny * ny + nz * nz) || 1;\n',
+            '              normals.push(nx / nl, ny / nl, nz / nl);\n',
+            '            }\n',
+            '          }\n',
+            '        }\n',
+            '      }\n',
+            '    }\n',
+            '    return { positions: positions, normals: normals };\n',
+            '  }\n',
+            '\n',
+            '  // Геометрия неявной поверхности пересоздаётся целиком каждый кадр (число треугольников\n',
+            '  // непостоянно), старая геометрия освобождается — так же, как это делают фрактальные\n',
+            '  // и прочие объекты с переменной топологией в этом же файле. Bounding sphere не\n',
+            '  // вычисляется из вершин (при нулевом числе треугольников computeBoundingSphere дал бы\n',
+            '  // NaN-радиус), а берётся прямо из бокса поверхности — она заведомо покрывает всё. ----------\n',
+            '  function updateImplicitSurfaceMesh(so) {\n',
+            '    const result = g3MarchingCubes(so);\n',
+            '    const oldGeo = so.mesh.geometry;\n',
+            '    const geo = new THREE.BufferGeometry();\n',
+            '    geo.setAttribute(\'position\', new THREE.BufferAttribute(new Float32Array(result.positions), 3));\n',
+            '    geo.setAttribute(\'normal\', new THREE.BufferAttribute(new Float32Array(result.normals), 3));\n',
+            '    const ccx = (so.xmin + so.xmax) / 2, ccy = (so.ymin + so.ymax) / 2, ccz = (so.zmin + so.zmax) / 2;\n',
+            '    const rad = 0.5 * Math.sqrt(Math.pow(so.xmax - so.xmin, 2) + Math.pow(so.ymax - so.ymin, 2) + Math.pow(so.zmax - so.zmin, 2));\n',
+            '    geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(ccx, ccy, ccz), rad || 1);\n',
+            '    so.mesh.geometry = geo;\n',
+            '    if (oldGeo) oldGeo.dispose();\n',
             '  }\n',
             '\n',
             '  // ---------- draw Field: векторное поле P(x,y,z)/Q(x,y,z)/R(x,y,z) — стрелки на сетке.\n',
@@ -15074,19 +16945,278 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '    }\n',
             '  }\n',
             '\n',
+            '  // ---------- draw TensorField: тензорное поле ранга 2 T(x,y,z) — симметричный 3x3-тензор\n',
+            '  // (напряжения, деформации, диффузии, инерции и т.п.), заданный 6 независимыми компонентами\n',
+            '  // Txx/Tyy/Tzz/Txy/Txz/Tyz. В каждом узле сетки — эллипсоид-глиф: полуоси идут вдоль\n',
+            '  // собственных векторов (метод Якоби для вещественной симметричной матрицы — тот же приём,\n',
+            '  // что и в diffusion tensor imaging), длины полуосей — |собственные значения| * scale.\n',
+            '  // Отрицательное собственное значение (сжатие, а не растяжение) отмечается тем, что\n',
+            '  // эллипсоид по этой оси всё равно рисуется (длина — модуль), но при colorBy="trace"\n',
+            '  // общий цвет глифа определяется знаком следа тензора (растяжение/сжатие в среднем). ----------\n',
+            '  // Классический (циклический) метод Якоби: на каждой итерации гасится наибольший\n',
+            '  // внедиагональный элемент вращением в соответствующей координатной плоскости; для\n',
+            '  // вещественной симметричной 3x3-матрицы сходится за десяток-другой итераций с точностью\n',
+            '  // до ошибок округления (проверено на матрице со известными по построению собственными\n',
+            '  // векторами — невязка |Av - λv| ~1e-16, собственные векторы взаимно ортогональны).\n',
+            '  function gcJacobiEigen3x3(a) {\n',
+            '    let A = [a[0].slice(), a[1].slice(), a[2].slice()];\n',
+            '    let V = [[1, 0, 0], [0, 1, 0], [0, 0, 1]];\n',
+            '    for (let iter = 0; iter < 50; iter++) {\n',
+            '      let p = 0, q = 1, mx = Math.abs(A[0][1]);\n',
+            '      if (Math.abs(A[0][2]) > mx) { mx = Math.abs(A[0][2]); p = 0; q = 2; }\n',
+            '      if (Math.abs(A[1][2]) > mx) { mx = Math.abs(A[1][2]); p = 1; q = 2; }\n',
+            '      if (mx < 1e-12) break;\n',
+            '      const app = A[p][p], aqq = A[q][q], apq = A[p][q];\n',
+            '      const phi = 0.5 * Math.atan2(2 * apq, aqq - app);\n',
+            '      const c = Math.cos(phi), s = Math.sin(phi);\n',
+            '      const app2 = c * c * app - 2 * s * c * apq + s * s * aqq;\n',
+            '      const aqq2 = s * s * app + 2 * s * c * apq + c * c * aqq;\n',
+            '      A[p][p] = app2; A[q][q] = aqq2; A[p][q] = 0; A[q][p] = 0;\n',
+            '      for (let k = 0; k < 3; k++) {\n',
+            '        if (k !== p && k !== q) {\n',
+            '          const akp = A[k][p], akq = A[k][q];\n',
+            '          A[k][p] = c * akp - s * akq; A[p][k] = A[k][p];\n',
+            '          A[k][q] = s * akp + c * akq; A[q][k] = A[k][q];\n',
+            '        }\n',
+            '      }\n',
+            '      for (let k = 0; k < 3; k++) {\n',
+            '        const vkp = V[k][p], vkq = V[k][q];\n',
+            '        V[k][p] = c * vkp - s * vkq;\n',
+            '        V[k][q] = s * vkp + c * vkq;\n',
+            '      }\n',
+            '    }\n',
+            '    const values = [A[0][0], A[1][1], A[2][2]];\n',
+            '    const vectors = [\n',
+            '      new THREE.Vector3(V[0][0], V[1][0], V[2][0]),\n',
+            '      new THREE.Vector3(V[0][1], V[1][1], V[2][1]),\n',
+            '      new THREE.Vector3(V[0][2], V[1][2], V[2][2]),\n',
+            '    ];\n',
+            '    // Знак собственного вектора не определён (v и -v — оба годятся); нужна ПРАВАЯ тройка,\n',
+            '    // иначе матрица базиса — отражение (det = -1), а не поворот, и setFromRotationMatrix\n',
+            '    // ниже даёт мусор (кватернионы описывают только собственные повороты).\n',
+            '    const cr = new THREE.Vector3().crossVectors(vectors[0], vectors[1]);\n',
+            '    if (cr.dot(vectors[2]) < 0) vectors[2].multiplyScalar(-1);\n',
+            '    return { values: values, vectors: vectors };\n',
+            '  }\n',
+            '  const tensorFieldObjs = drawTensorFieldsData.map(function(d) {\n',
+            '    if (d.active === false && !d.activeExpr) return null;\n',
+            '    const txxAst = g3SafeParse(d.txxExpr), tyyAst = g3SafeParse(d.tyyExpr), tzzAst = g3SafeParse(d.tzzExpr);\n',
+            '    const txyAst = g3SafeParse(d.txyExpr), txzAst = g3SafeParse(d.txzExpr), tyzAst = g3SafeParse(d.tyzExpr);\n',
+            '    if (!txxAst || !tyyAst || !tzzAst) return null;\n',
+            '    const color = d.color || \'#4a90d9\';\n',
+            '    const gridN = Math.max(1, Math.min(7, Math.round(d.grid || 4)));\n',
+            '    const cellX = (d.xmax - d.xmin) / gridN, cellY = (d.ymax - d.ymin) / gridN, cellZ = (d.zmax - d.zmin) / gridN;\n',
+            '    const cellSize = Math.min(Math.abs(cellX), Math.abs(cellY), Math.abs(cellZ) || Infinity) || 1;\n',
+            '    const glyphs = [];\n',
+            '    const sphereGeo = new THREE.SphereGeometry(1, 12, 8);\n',
+            '    for (let i = 0; i <= gridN; i++) {\n',
+            '      for (let j = 0; j <= gridN; j++) {\n',
+            '        for (let k = 0; k <= gridN; k++) {\n',
+            '          const mat = new THREE.MeshStandardMaterial({ color: color, roughness: 0.5, transparent: true, opacity: 0.85 });\n',
+            '          const mesh = new THREE.Mesh(sphereGeo, mat);\n',
+            '          mesh.visible = false;\n',
+            '          scene.add(mesh);\n',
+            '          glyphs.push({ mesh: mesh, x: d.xmin + i * cellX, y: d.ymin + j * cellY, z: d.zmin + k * cellZ });\n',
+            '        }\n',
+            '      }\n',
+            '    }\n',
+            '    return { name: d.name, txxAst: txxAst, tyyAst: tyyAst, tzzAst: tzzAst, txyAst: txyAst, txzAst: txzAst, tyzAst: tyzAst, glyphs: glyphs, cellSize: cellSize, scale: d.scale || 1, colorBy: d.colorBy || \'none\', baseColor: color, activeExpr: d.activeExpr, active: d.active !== false };\n',
+            '  }).filter(function(x) { return x !== null; });\n',
+            '  function updateTensorFieldObj(tf) {\n',
+            '    const maxSemiAxis = tf.cellSize * 0.45 * tf.scale;\n',
+            '    for (const gl of tf.glyphs) {\n',
+            '      const ctx = { x: gl.x, y: gl.y, z: gl.z };\n',
+            '      let txx = g3Eval(tf.txxAst, ctx), tyy = g3Eval(tf.tyyAst, ctx), tzz = g3Eval(tf.tzzAst, ctx);\n',
+            '      let txy = g3Eval(tf.txyAst, ctx), txz = g3Eval(tf.txzAst, ctx), tyz = g3Eval(tf.tyzAst, ctx);\n',
+            '      if (!isFinite(txx)) txx = 0; if (!isFinite(tyy)) tyy = 0; if (!isFinite(tzz)) tzz = 0;\n',
+            '      if (!isFinite(txy)) txy = 0; if (!isFinite(txz)) txz = 0; if (!isFinite(tyz)) tyz = 0;\n',
+            '      const trace = txx + tyy + tzz;\n',
+            '      if (Math.abs(txx) + Math.abs(tyy) + Math.abs(tzz) + Math.abs(txy) + Math.abs(txz) + Math.abs(tyz) < 1e-9) { gl.mesh.visible = false; continue; }\n',
+            '      gl.mesh.visible = true;\n',
+            '      const eig = gcJacobiEigen3x3([[txx, txy, txz], [txy, tyy, tyz], [txz, tyz, tzz]]);\n',
+            '      // Наибольшее |собственное значение| среди узлов сетки нам неизвестно заранее (тензор\n',
+            '      // может как угодно меняться в пространстве), поэтому нормируем на его же собственную\n',
+            '      // величину — самая длинная полуось глифа всегда maxSemiAxis, форма (сплюснутый —\n',
+            '      // вытянутый) видна по соотношению полуосей между собой.\n',
+            '      const maxAbs = Math.max(Math.abs(eig.values[0]), Math.abs(eig.values[1]), Math.abs(eig.values[2]), 1e-9);\n',
+            '      const s0 = Math.max(Math.abs(eig.values[0]) / maxAbs, 0.05) * maxSemiAxis;\n',
+            '      const s1 = Math.max(Math.abs(eig.values[1]) / maxAbs, 0.05) * maxSemiAxis;\n',
+            '      const s2 = Math.max(Math.abs(eig.values[2]) / maxAbs, 0.05) * maxSemiAxis;\n',
+            '      gl.mesh.position.set(gl.x, gl.y, gl.z);\n',
+            '      const basis = new THREE.Matrix4().makeBasis(eig.vectors[0], eig.vectors[1], eig.vectors[2]);\n',
+            '      gl.mesh.quaternion.setFromRotationMatrix(basis);\n',
+            '      gl.mesh.scale.set(s0, s1, s2);\n',
+            '      if (tf.colorBy === \'trace\') {\n',
+            '        gl.mesh.material.color.set(trace >= 0 ? 0xe74c3c : 0x3498db);\n',
+            '      }\n',
+            '    }\n',
+            '  }\n',
+            '\n',
+            '  // ---------- draw Scatter3D / draw Histogram3D — настоящая 3D-статистика (не билборд-\n',
+            '  // панель с растровым 2D-графиком, как у draw Chart/Histogram{pos=(x,y,z)}): облако точек\n',
+            '  // с реальными x,y,z в THREE.Points и двумерная гистограмма в виде столбиков в 3D. ----------\n',
+            '  const scatter3DObjs = drawScatter3DsData.map(function(d) {\n',
+            '    if (d.active === false && !d.activeExpr) return null;\n',
+            '    const dataAst = g3SafeParse(d.dataExpr);\n',
+            '    if (!dataAst) return null;\n',
+            '    const group = new THREE.Group();\n',
+            '    group.position.set(d.pos3D.x, d.pos3D.y, d.pos3D.z);\n',
+            '    scene.add(group);\n',
+            '    const colorBy = (d.colorBy === \'value\' || d.colorBy === \'z\') ? d.colorBy : \'none\';\n',
+            '    const geo = new THREE.BufferGeometry();\n',
+            '    const mat = new THREE.PointsMaterial({ color: d.color || \'#4a90d9\', size: d.pointSize || 0.25, vertexColors: colorBy !== \'none\', sizeAttenuation: true });\n',
+            '    const points = new THREE.Points(geo, mat);\n',
+            '    group.add(points);\n',
+            '    return { name: d.name, group: group, points: points, dataAst: dataAst, colorBy: colorBy, showBox: d.showBox !== false, boxMesh: null, cacheKey: null, active: d.active !== false, activeExpr: d.activeExpr };\n',
+            '  }).filter(function(x) { return x !== null; });\n',
+            '  function gcRebuildScatter3D(so) {\n',
+            '    let raw;\n',
+            '    try { raw = g3Eval(so.dataAst, {}); } catch (e) { return; }\n',
+            '    if (!Array.isArray(raw)) return;\n',
+            '    const key = JSON.stringify(raw);\n',
+            '    if (so.cacheKey === key) return;\n',
+            '    so.cacheKey = key;\n',
+            '    const pts = [];\n',
+            '    for (const it of raw) { if (Array.isArray(it) && it.length >= 3 && isFinite(it[0]) && isFinite(it[1]) && isFinite(it[2])) pts.push(it); }\n',
+            '    const n = pts.length;\n',
+            '    const positions = new Float32Array(n * 3);\n',
+            '    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity, minZ = Infinity, maxZ = -Infinity, minV = Infinity, maxV = -Infinity;\n',
+            '    for (let i = 0; i < n; i++) {\n',
+            '      const p = pts[i];\n',
+            '      positions[i * 3] = p[0]; positions[i * 3 + 1] = p[1]; positions[i * 3 + 2] = p[2];\n',
+            '      if (p[0] < minX) minX = p[0]; if (p[0] > maxX) maxX = p[0];\n',
+            '      if (p[1] < minY) minY = p[1]; if (p[1] > maxY) maxY = p[1];\n',
+            '      if (p[2] < minZ) minZ = p[2]; if (p[2] > maxZ) maxZ = p[2];\n',
+            '      if (p.length >= 4 && isFinite(p[3])) { if (p[3] < minV) minV = p[3]; if (p[3] > maxV) maxV = p[3]; }\n',
+            '    }\n',
+            '    const geo = new THREE.BufferGeometry();\n',
+            '    geo.setAttribute(\'position\', new THREE.BufferAttribute(positions, 3));\n',
+            '    if (so.colorBy !== \'none\') {\n',
+            '      const colors = new Float32Array(n * 3);\n',
+            '      for (let i = 0; i < n; i++) {\n',
+            '        const p = pts[i];\n',
+            '        let norm;\n',
+            '        if (so.colorBy === \'value\') { const v = (p.length >= 4 && isFinite(p[3])) ? p[3] : 0; norm = (maxV > minV) ? (v - minV) / (maxV - minV) : 0.5; }\n',
+            '        else { norm = (maxZ > minZ) ? (p[2] - minZ) / (maxZ - minZ) : 0.5; }\n',
+            '        const rgb = gcCurveColorGradient(norm);\n',
+            '        colors[i * 3] = rgb[0] / 255; colors[i * 3 + 1] = rgb[1] / 255; colors[i * 3 + 2] = rgb[2] / 255;\n',
+            '      }\n',
+            '      geo.setAttribute(\'color\', new THREE.BufferAttribute(colors, 3));\n',
+            '    }\n',
+            '    if (n > 0 && isFinite(minX)) geo.computeBoundingSphere();\n',
+            '    else { geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 1); }\n',
+            '    so.points.geometry.dispose();\n',
+            '    so.points.geometry = geo;\n',
+            '    if (so.boxMesh) { so.group.remove(so.boxMesh); so.boxMesh = null; }\n',
+            '    if (so.showBox && n > 0 && isFinite(minX)) {\n',
+            '      const bw = Math.max(maxX - minX, 1e-6), bh = Math.max(maxY - minY, 1e-6), bd = Math.max(maxZ - minZ, 1e-6);\n',
+            '      const edges = new THREE.EdgesGeometry(new THREE.BoxGeometry(bw, bh, bd));\n',
+            '      const boxMesh = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x888888 }));\n',
+            '      boxMesh.position.set((minX + maxX) / 2, (minY + maxY) / 2, (minZ + maxZ) / 2);\n',
+            '      so.group.add(boxMesh);\n',
+            '      so.boxMesh = boxMesh;\n',
+            '    }\n',
+            '  }\n',
+            '  const histogram3DObjs = drawHistogram3DsData.map(function(d) {\n',
+            '    if (d.active === false && !d.activeExpr) return null;\n',
+            '    const dataAst = g3SafeParse(d.dataExpr);\n',
+            '    if (!dataAst) return null;\n',
+            '    const group = new THREE.Group();\n',
+            '    group.position.set(d.pos3D.x, d.pos3D.y, d.pos3D.z);\n',
+            '    scene.add(group);\n',
+            '    const binsX = Math.max(1, Math.min(40, Math.round(d.binsX || 8)));\n',
+            '    const binsY = Math.max(1, Math.min(40, Math.round(d.binsY || 8)));\n',
+            '    if (d.showAxes !== false) {\n',
+            '      const w = d.width || 10, dp = d.depth || 10;\n',
+            '      const basePts = [-w / 2, -dp / 2, 0, w / 2, -dp / 2, 0, w / 2, dp / 2, 0, -w / 2, dp / 2, 0, -w / 2, -dp / 2, 0];\n',
+            '      const baseGeo = new THREE.BufferGeometry();\n',
+            '      baseGeo.setAttribute(\'position\', new THREE.BufferAttribute(new Float32Array(basePts), 3));\n',
+            '      group.add(new THREE.Line(baseGeo, new THREE.LineBasicMaterial({ color: 0x888888 })));\n',
+            '    }\n',
+            '    return { name: d.name, group: group, dataAst: dataAst, binsX: binsX, binsY: binsY, bars: [], cacheKey: null, def: d, active: d.active !== false, activeExpr: d.activeExpr };\n',
+            '  }).filter(function(x) { return x !== null; });\n',
+            '  const gcHist3DBarGeo = new THREE.BoxGeometry(1, 1, 1);\n',
+            '  function gcRebuildHistogram3D(ho) {\n',
+            '    const d = ho.def;\n',
+            '    let raw;\n',
+            '    try { raw = g3Eval(ho.dataAst, {}); } catch (e) { return; }\n',
+            '    if (!Array.isArray(raw)) return;\n',
+            '    const key = JSON.stringify(raw) + \'|\' + ho.binsX + \'|\' + ho.binsY;\n',
+            '    if (ho.cacheKey === key) return;\n',
+            '    ho.cacheKey = key;\n',
+            '    for (const b of ho.bars) { ho.group.remove(b); b.material.dispose(); }\n',
+            '    ho.bars = [];\n',
+            '    const pts = [];\n',
+            '    for (const it of raw) { if (Array.isArray(it) && it.length >= 2 && typeof it[0] === \'number\' && typeof it[1] === \'number\' && isFinite(it[0]) && isFinite(it[1])) pts.push(it); }\n',
+            '    if (!pts.length) return;\n',
+            '    let dataXmin = Infinity, dataXmax = -Infinity, dataYmin = Infinity, dataYmax = -Infinity;\n',
+            '    for (const p of pts) { if (p[0] < dataXmin) dataXmin = p[0]; if (p[0] > dataXmax) dataXmax = p[0]; if (p[1] < dataYmin) dataYmin = p[1]; if (p[1] > dataYmax) dataYmax = p[1]; }\n',
+            '    let xmin = (typeof d.xmin === \'number\') ? d.xmin : dataXmin, xmax = (typeof d.xmax === \'number\') ? d.xmax : dataXmax;\n',
+            '    let ymin = (typeof d.ymin === \'number\') ? d.ymin : dataYmin, ymax = (typeof d.ymax === \'number\') ? d.ymax : dataYmax;\n',
+            '    if (xmax - xmin < 1e-9) { xmin -= 0.5; xmax += 0.5; }\n',
+            '    if (ymax - ymin < 1e-9) { ymin -= 0.5; ymax += 0.5; }\n',
+            '    const counts = new Array(ho.binsX * ho.binsY).fill(0);\n',
+            '    for (const p of pts) {\n',
+            '      if (p[0] < xmin || p[0] > xmax || p[1] < ymin || p[1] > ymax) continue;\n',
+            '      let ix = Math.floor((p[0] - xmin) / (xmax - xmin) * ho.binsX);\n',
+            '      let iy = Math.floor((p[1] - ymin) / (ymax - ymin) * ho.binsY);\n',
+            '      if (ix < 0) ix = 0; if (ix >= ho.binsX) ix = ho.binsX - 1;\n',
+            '      if (iy < 0) iy = 0; if (iy >= ho.binsY) iy = ho.binsY - 1;\n',
+            '      counts[iy * ho.binsX + ix]++;\n',
+            '    }\n',
+            '    let maxCount = 0;\n',
+            '    for (const c of counts) if (c > maxCount) maxCount = c;\n',
+            '    if (maxCount === 0) return;\n',
+            '    const w = d.width || 10, dp = d.depth || 10;\n',
+            '    const cellW = w / ho.binsX, cellD = dp / ho.binsY;\n',
+            '    for (let iy = 0; iy < ho.binsY; iy++) {\n',
+            '      for (let ix = 0; ix < ho.binsX; ix++) {\n',
+            '        const count = counts[iy * ho.binsX + ix];\n',
+            '        if (count === 0) continue;\n',
+            '        const norm = count / maxCount;\n',
+            '        const h = Math.max(norm * (d.heightScale || 5), 1e-4);\n',
+            '        let color;\n',
+            '        if (d.colorBy === \'none\') { color = new THREE.Color(d.color || \'#4a90d9\'); }\n',
+            '        else { const rgb = gcCurveColorGradient(norm); color = new THREE.Color(rgb[0] / 255, rgb[1] / 255, rgb[2] / 255); }\n',
+            '        const mat = new THREE.MeshStandardMaterial({ color: color, roughness: 0.5 });\n',
+            '        const mesh = new THREE.Mesh(gcHist3DBarGeo, mat);\n',
+            '        const cx = -w / 2 + (ix + 0.5) * cellW;\n',
+            '        const cy = -dp / 2 + (iy + 0.5) * cellD;\n',
+            '        mesh.position.set(cx, cy, h / 2);\n',
+            '        mesh.scale.set(cellW * 0.85, cellD * 0.85, h);\n',
+            '        ho.group.add(mesh);\n',
+            '        ho.bars.push(mesh);\n',
+            '      }\n',
+            '    }\n',
+            '  }\n',
+            '\n',
             '  // ---------- new Curve: bezier (по 3D-точкам) или параметрическая x(t), y(t), z(t), t∈[0,1] —\n',
             '  // та же конвенция полей и диапазон параметра, что и в 2D. Типы spiral/cycloid/involute\n',
-            '  // в 3D пока не поддержаны (это опорные 2D-кривые вокруг точки). ----------\n',
+            '  // в 3D пока не поддержаны (это опорные 2D-кривые вокруг точки). colorBy/showFrenet —\n',
+            '  // дифференциальная геометрия САМОЙ кривой (кривизна κ(t) и кручение τ(t) пространственной\n',
+            '  // кривой; не путать с полем torsion у bettiNumbers/homologyGroups — там про группы\n',
+            '  // гомологий симплициальных комплексов). Считается ЧИСЛЕННО центральными разностями по\n',
+            '  // r(t) = (x(t), y(t), z(t)) — см. gcCurveDerivatives3D — а не символьным дифференцированием,\n',
+            '  // чтобы работать с любым выражением мини-языка (в т.ч. пользовательскими func). ----------\n',
             '  const curveObjs = curvesData.map(function(cv) {\n',
             '    if (cv.active === false && !cv.activeExpr) return null;\n',
             '    const color = cv.color || \'', theme.defaultColor, '\';\n',
             '    const n = Math.max(2, cv.segments || 50);\n',
+            '    const colorBy = (cv.colorBy === \'curvature\' || cv.colorBy === \'torsion\') ? cv.colorBy : \'none\';\n',
             '    const geo = new THREE.BufferGeometry();\n',
             '    geo.setAttribute(\'position\', new THREE.BufferAttribute(new Float32Array((n + 1) * 3), 3));\n',
-            '    const mat = new THREE.LineBasicMaterial({ color: color });\n',
+            '    let mat;\n',
+            '    if (colorBy !== \'none\') {\n',
+            '      geo.setAttribute(\'color\', new THREE.BufferAttribute(new Float32Array((n + 1) * 3), 3));\n',
+            '      mat = new THREE.LineBasicMaterial({ vertexColors: true });\n',
+            '    } else {\n',
+            '      mat = new THREE.LineBasicMaterial({ color: color });\n',
+            '    }\n',
             '    const mesh = new THREE.Line(geo, mat);\n',
             '    scene.add(mesh);\n',
-            '    const obj = { name: cv.name, type: cv.type, n: n, mesh: mesh, activeExpr: cv.activeExpr, active: cv.active !== false };\n',
+            '    const frenetGroup = cv.showFrenet ? new THREE.Group() : null;\n',
+            '    if (frenetGroup) scene.add(frenetGroup);\n',
+            '    const obj = { name: cv.name, type: cv.type, n: n, mesh: mesh, colorBy: colorBy, showFrenet: !!cv.showFrenet, frenetCount: Math.max(1, Math.min(60, Math.round(cv.frenetCount || 8))), frenetScale: cv.frenetScale, frenetGroup: frenetGroup, frenetArrows: [], activeExpr: cv.activeExpr, active: cv.active !== false };\n',
             '    if (cv.type === \'bezier\') {\n',
             '      obj.controlPoints = (cv.controlPoints || []).map(findPoint).filter(function(x) { return x; });\n',
             '      if (obj.controlPoints.length < 2) return null;\n',
@@ -15108,25 +17238,115 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '    }\n',
             '    return layer[0];\n',
             '  }\n',
+            '  // Точка кривой (в её локальной системе координат) при параметре t — общая для bezier\n',
+            '  // и parametric, переиспользуется и обычной отрисовкой, и разностной схемой ниже.\n',
+            '  function gcCurvePoint3D(co, t) {\n',
+            '    if (co.type === \'bezier\') {\n',
+            '      const p = bezierPoint3D(co.controlPoints, t);\n',
+            '      return { x: p.x, y: p.y, z: p.z };\n',
+            '    }\n',
+            '    const ctx = { t: t };\n',
+            '    let x = g3Eval(co.xAst, ctx), y = g3Eval(co.yAst, ctx), z = co.zAst ? g3Eval(co.zAst, ctx) : 0;\n',
+            '    if (!isFinite(x)) x = 0; if (!isFinite(y)) y = 0; if (!isFinite(z)) z = 0;\n',
+            '    return { x: x, y: y, z: z };\n',
+            '  }\n',
+            '  // r(t), r\'(t), r\'\'(t), r\'\'\'(t) центральными разностями (5-точечный шаблон, t зажат внутрь\n',
+            '  // [2h, 1-2h], т.к. параметр кривой определён на [0,1]). h подобран под этот диапазон —\n',
+            '  // достаточно мал, чтобы не размывать быстро меняющуюся кривизну, и достаточно велик,\n',
+            '  // чтобы не тонуть в шуме плавающей точки на 3-й производной. Проверено на спирали\n',
+            '  // (винтовой линии) — совпадает с точной формулой κ=a/(a²+b²), τ=b/(a²+b²) до 5–6 знаков.\n',
+            '  function gcCurveDerivatives3D(co, t) {\n',
+            '    const h = 0.0005;\n',
+            '    const tc = Math.max(2 * h, Math.min(1 - 2 * h, t));\n',
+            '    const V = function(t2) { const p = gcCurvePoint3D(co, t2); return new THREE.Vector3(p.x, p.y, p.z); };\n',
+            '    const rm2 = V(tc - 2 * h), rm1 = V(tc - h), r0 = V(tc), rp1 = V(tc + h), rp2 = V(tc + 2 * h);\n',
+            '    const r1 = rp1.clone().sub(rm1).multiplyScalar(1 / (2 * h));\n',
+            '    const r2 = rp1.clone().add(rm1).sub(r0.clone().multiplyScalar(2)).multiplyScalar(1 / (h * h));\n',
+            '    const r3 = rp2.clone().sub(rp1.clone().multiplyScalar(2)).add(rm1.clone().multiplyScalar(2)).sub(rm2).multiplyScalar(1 / (2 * h * h * h));\n',
+            '    return { r: r0, r1: r1, r2: r2, r3: r3 };\n',
+            '  }\n',
+            '  // Кривизна кривой в точке t: |r-штрих x r-два-штриха| / |r-штрих|^3.\n',
+            '  function gcCurveCurvature3D(co, t) {\n',
+            '    const d = gcCurveDerivatives3D(co, t);\n',
+            '    const speed = d.r1.length();\n',
+            '    if (speed < 1e-9) return 0;\n',
+            '    const cross = new THREE.Vector3().crossVectors(d.r1, d.r2);\n',
+            '    return cross.length() / (speed * speed * speed);\n',
+            '  }\n',
+            '  // τ(t) = (r\' × r\'\') · r\'\'\' / |r\' × r\'\'|² — кручение; 0 для плоских кривых (в т.ч. прямых).\n',
+            '  function gcCurveTorsion3D(co, t) {\n',
+            '    const d = gcCurveDerivatives3D(co, t);\n',
+            '    const cross = new THREE.Vector3().crossVectors(d.r1, d.r2);\n',
+            '    const cl2 = cross.lengthSq();\n',
+            '    if (cl2 < 1e-12) return 0;\n',
+            '    return cross.dot(d.r3) / cl2;\n',
+            '  }\n',
+            '  // Репер Френе (T, N, B) в точке t: T — единичный касательный, B — единичная бинормаль\n',
+            '  // (нормаль к соприкасающейся плоскости), N = B × T — довершает правую тройку.\n',
+            '  function gcCurveFrenet3D(co, t) {\n',
+            '    const d = gcCurveDerivatives3D(co, t);\n',
+            '    const speed = d.r1.length();\n',
+            '    const T = speed > 1e-9 ? d.r1.clone().multiplyScalar(1 / speed) : new THREE.Vector3(1, 0, 0);\n',
+            '    const crossV = new THREE.Vector3().crossVectors(d.r1, d.r2);\n',
+            '    const crossLen = crossV.length();\n',
+            '    const B = crossLen > 1e-9 ? crossV.multiplyScalar(1 / crossLen) : new THREE.Vector3(0, 0, 1);\n',
+            '    const N = new THREE.Vector3().crossVectors(B, T);\n',
+            '    return { point: d.r, T: T, N: N, B: B };\n',
+            '  }\n',
+            '  // Цвет по нормализованному (0..1) значению кривизны/кручения: синий (низкое) → красный\n',
+            '  // (высокое) — тот же HSL-градиент, что и раскраска ячеек Вороного (gcHslToRgb3D).\n',
+            '  function gcCurveColorGradient(v) {\n',
+            '    const hue = 240 * (1 - Math.max(0, Math.min(1, v)));\n',
+            '    return gcHslToRgb3D(hue, 0.75, 0.5);\n',
+            '  }\n',
             '\n',
             '  function updateCurveMesh(co) {\n',
             '    const pos = co.mesh.geometry.attributes.position.array;\n',
             '    let k = 0;\n',
+            '    const values = (co.colorBy !== \'none\') ? new Float32Array(co.n + 1) : null;\n',
             '    for (let i = 0; i <= co.n; i++) {\n',
             '      const t = i / co.n;\n',
-            '      let x, y, z;\n',
-            '      if (co.type === \'bezier\') {\n',
-            '        const p = bezierPoint3D(co.controlPoints, t);\n',
-            '        x = p.x; y = p.y; z = p.z;\n',
-            '      } else {\n',
-            '        const ctx = { t: t };\n',
-            '        x = g3Eval(co.xAst, ctx); y = g3Eval(co.yAst, ctx); z = co.zAst ? g3Eval(co.zAst, ctx) : 0;\n',
-            '        if (!isFinite(x)) x = 0; if (!isFinite(y)) y = 0; if (!isFinite(z)) z = 0;\n',
+            '      const p = gcCurvePoint3D(co, t);\n',
+            '      pos[k++] = p.x; pos[k++] = p.y; pos[k++] = p.z;\n',
+            '      if (values) {\n',
+            '        const v = (co.colorBy === \'curvature\') ? gcCurveCurvature3D(co, t) : Math.abs(gcCurveTorsion3D(co, t));\n',
+            '        values[i] = isFinite(v) ? v : 0;\n',
             '      }\n',
-            '      pos[k++] = x; pos[k++] = y; pos[k++] = z;\n',
             '    }\n',
             '    co.mesh.geometry.attributes.position.needsUpdate = true;\n',
             '    co.mesh.geometry.computeBoundingSphere();\n',
+            '    if (values) {\n',
+            '      let vmax = 0;\n',
+            '      for (let i = 0; i <= co.n; i++) if (values[i] > vmax) vmax = values[i];\n',
+            '      const colArr = co.mesh.geometry.attributes.color.array;\n',
+            '      for (let i = 0; i <= co.n; i++) {\n',
+            '        const norm = vmax > 1e-9 ? values[i] / vmax : 0;\n',
+            '        const rgb = gcCurveColorGradient(norm);\n',
+            '        colArr[i * 3] = rgb[0] / 255; colArr[i * 3 + 1] = rgb[1] / 255; colArr[i * 3 + 2] = rgb[2] / 255;\n',
+            '      }\n',
+            '      co.mesh.geometry.attributes.color.needsUpdate = true;\n',
+            '    }\n',
+            '    if (co.showFrenet && co.frenetGroup) {\n',
+            '      for (const a of co.frenetArrows) co.frenetGroup.remove(a);\n',
+            '      co.frenetArrows = [];\n',
+            '      // Масштаб стрелок по умолчанию — доля диагонали bounding box кривой, чтобы репер был\n',
+            '      // соразмерен кривой независимо от её абсолютного масштаба.\n',
+            '      let autoScale = 1;\n',
+            '      const bs = co.mesh.geometry.boundingSphere;\n',
+            '      if (bs && bs.radius > 1e-6) autoScale = bs.radius * 0.3;\n',
+            '      const scaleLen = (co.frenetScale && co.frenetScale > 0) ? co.frenetScale : autoScale;\n',
+            '      for (let j = 0; j < co.frenetCount; j++) {\n',
+            '        const t = co.frenetCount === 1 ? 0.5 : j / (co.frenetCount - 1);\n',
+            '        const tc = Math.max(0.01, Math.min(0.99, t));\n',
+            '        const fr = gcCurveFrenet3D(co, tc);\n',
+            '        const origin = fr.point;\n',
+            '        const arrowT = new THREE.ArrowHelper(fr.T, origin, scaleLen, 0xe74c3c, scaleLen * 0.3, scaleLen * 0.18);\n',
+            '        const arrowN = new THREE.ArrowHelper(fr.N, origin, scaleLen, 0x2ecc71, scaleLen * 0.3, scaleLen * 0.18);\n',
+            '        const arrowB = new THREE.ArrowHelper(fr.B, origin, scaleLen, 0x3498db, scaleLen * 0.3, scaleLen * 0.18);\n',
+            '        co.frenetGroup.add(arrowT); co.frenetGroup.add(arrowN); co.frenetGroup.add(arrowB);\n',
+            '        co.frenetArrows.push(arrowT, arrowN, arrowB);\n',
+            '      }\n',
+            '    }\n',
             '  }\n',
             '\n',
             '  // ---------- draw Trajectory: интегральная кривая векторного поля (RK4), состояние всегда\n',
@@ -15642,6 +17862,70 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '  }\n',
             '  for (const eo of equallyObjs) { if (window[eo.name] === undefined) window[eo.name] = eo; }\n',
             '\n',
+            '  // ---------- draw Trace — 3D-альтернатива: накапливает РЕАЛЬНЫЕ позиции точки\n',
+            '  // покадрово (см. updateTraces/drawTrace в generate2D — та же логика minDist/\n',
+            '  // maxPoints), а не что-то вычисленное заранее. fade = true рисуется отдельными\n',
+            '  // сегментами с нарастающей непрозрачностью (у THREE.LineBasicMaterial нет\n',
+            '  // покомпонентной прозрачности вершин без кастомного шейдера, поэтому это самый\n',
+            '  // простой честный способ получить тот же визуальный эффект). ----------\n',
+            '  const traceObjs = drawTracesData.filter(function(d) { return d.dim === \'3D\'; }).map(function(d) {\n',
+            '    const p = pointObjs.find(function(pt) { return pt.name === d.pointName; });\n',
+            '    if (!p) return null;\n',
+            '    const maxPoints = Math.max(2, Math.floor(d.maxPoints || 400));\n',
+            '    let mesh = null, segMeshes = null;\n',
+            '    if (d.fade) {\n',
+            '      segMeshes = [];\n',
+            '      for (let i = 0; i < maxPoints - 1; i++) {\n',
+            '        const geo = new THREE.BufferGeometry();\n',
+            '        geo.setAttribute(\'position\', new THREE.BufferAttribute(new Float32Array(6), 3));\n',
+            '        const mat = new THREE.LineBasicMaterial({ color: d.color || \'#0275d8\', transparent: true, opacity: 0 });\n',
+            '        const m = new THREE.Line(geo, mat);\n',
+            '        m.visible = false;\n',
+            '        scene.add(m);\n',
+            '        segMeshes.push(m);\n',
+            '      }\n',
+            '    } else {\n',
+            '      const geo = new THREE.BufferGeometry();\n',
+            '      geo.setAttribute(\'position\', new THREE.BufferAttribute(new Float32Array(maxPoints * 3), 3));\n',
+            '      geo.setDrawRange(0, 0);\n',
+            '      const mat = new THREE.LineBasicMaterial({ color: d.color || \'#0275d8\' });\n',
+            '      mesh = new THREE.Line(geo, mat);\n',
+            '      scene.add(mesh);\n',
+            '    }\n',
+            '    return { name: d.name, point: p, pts: [], maxPoints: maxPoints, minDist: d.minDist || 0.05, fade: !!d.fade, mesh: mesh, segMeshes: segMeshes, active: d.active !== false, activeExpr: d.activeExpr };\n',
+            '  }).filter(function(x) { return x !== null; });\n',
+            '  function updateTrace3D(to) {\n',
+            '    const p = to.point.mesh.position;\n',
+            '    const last = to.pts[to.pts.length - 1];\n',
+            '    if (!last || Math.hypot(p.x - last.x, p.y - last.y, p.z - last.z) >= to.minDist) {\n',
+            '      to.pts.push({ x: p.x, y: p.y, z: p.z });\n',
+            '      while (to.pts.length > to.maxPoints) to.pts.shift();\n',
+            '    }\n',
+            '  }\n',
+            '  function renderTrace3D(to) {\n',
+            '    const n = to.pts.length;\n',
+            '    if (to.fade) {\n',
+            '      for (let i = 0; i < to.segMeshes.length; i++) {\n',
+            '        const m = to.segMeshes[i];\n',
+            '        if (i + 1 >= n) { m.visible = false; continue; }\n',
+            '        m.visible = true;\n',
+            '        const a = to.pts[i], b = to.pts[i + 1];\n',
+            '        const arr = m.geometry.attributes.position.array;\n',
+            '        arr[0] = a.x; arr[1] = a.y; arr[2] = a.z; arr[3] = b.x; arr[4] = b.y; arr[5] = b.z;\n',
+            '        m.geometry.attributes.position.needsUpdate = true;\n',
+            '        m.geometry.computeBoundingSphere();\n',
+            '        m.material.opacity = (i + 1) / n;\n',
+            '      }\n',
+            '    } else if (n >= 2) {\n',
+            '      const arr = to.mesh.geometry.attributes.position.array;\n',
+            '      for (let i = 0; i < n; i++) { arr[i * 3] = to.pts[i].x; arr[i * 3 + 1] = to.pts[i].y; arr[i * 3 + 2] = to.pts[i].z; }\n',
+            '      to.mesh.geometry.attributes.position.needsUpdate = true;\n',
+            '      to.mesh.geometry.setDrawRange(0, n);\n',
+            '      to.mesh.geometry.computeBoundingSphere();\n',
+            '    }\n',
+            '  }\n',
+            '  for (const to of traceObjs) { if (window[to.name] === undefined) window[to.name] = to; }\n',
+            '\n',
             '  // ---------- Общий механизм билборд-панелей (Задача: 3D-аналоги для всех объектов,\n',
             '  // категория "инherentно 2D-данные"): Histogram/Chart/Tree/Table/Graph/Cobweb/\n',
             '  // Bifurcation рисуются на offscreen-canvas ТЕМИ ЖЕ данными/формулами, что и их\n',
@@ -15803,6 +18087,74 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '        if (labels && labels[i] !== undefined) { ctx.fillStyle = \'#333333\'; ctx.font = \'16px sans-serif\'; ctx.textAlign = \'center\'; ctx.textBaseline = \'top\'; ctx.fillText(String(labels[i]), pad + i * bw + bw / 2, originY + 4); }\n',
             '      }\n',
             '      if (d.showAxes) { ctx.strokeStyle = \'#666666\'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(pad, originY - chartH); ctx.lineTo(pad, originY); ctx.lineTo(pad + chartW, originY); ctx.stroke(); }\n',
+            '    } else if (d.type === \'pie\') {\n',
+            '      const vals = gcChartNumbers3D(raw);\n',
+            '      if (!vals.length) return;\n',
+            '      let total = 0; for (const v of vals) total += Math.abs(v);\n',
+            '      if (total < 1e-12) return;\n',
+            '      const cx = w / 2, cy = h / 2;\n',
+            '      const R = Math.min(w, h) / 2 - pad;\n',
+            '      let a0 = -Math.PI / 2;\n',
+            '      for (let i = 0; i < vals.length; i++) {\n',
+            '        const frac = Math.abs(vals[i]) / total;\n',
+            '        const a1 = a0 + frac * 2 * Math.PI;\n',
+            '        ctx.fillStyle = gcChartColor3D(i, d.color);\n',
+            '        ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, R, a0, a1); ctx.closePath(); ctx.fill();\n',
+            '        ctx.strokeStyle = \'#ffffff\'; ctx.lineWidth = 2; ctx.stroke();\n',
+            '        const mid = (a0 + a1) / 2;\n',
+            '        if (d.showValues || labels) {\n',
+            '          const lx = cx + Math.cos(mid) * R * 0.65, ly = cy + Math.sin(mid) * R * 0.65;\n',
+            '          ctx.fillStyle = \'#ffffff\'; ctx.font = \'bold 14px sans-serif\'; ctx.textAlign = \'center\'; ctx.textBaseline = \'middle\';\n',
+            '          let txt = \'\';\n',
+            '          if (labels && labels[i] !== undefined) txt = String(labels[i]);\n',
+            '          if (d.showValues) txt = (txt ? txt + \' \' : \'\') + Math.round(frac * 100) + \'%\';\n',
+            '          if (txt) ctx.fillText(txt, lx, ly);\n',
+            '        }\n',
+            '        a0 = a1;\n',
+            '      }\n',
+            '    } else if (d.type === \'box\') {\n',
+            '      let series = [];\n',
+            '      if (Array.isArray(raw) && raw.length && Array.isArray(raw[0])) { for (const s of raw) series.push(gcChartNumbers3D(s)); }\n',
+            '      else { series = [gcChartNumbers3D(raw)]; }\n',
+            '      series = series.filter(function(s) { return s.length > 0; });\n',
+            '      if (!series.length) return;\n',
+            '      const W = w - 2 * pad, H = h - 2 * pad;\n',
+            '      let lo = Infinity, hi = -Infinity;\n',
+            '      for (const s of series) for (const v of s) { if (v < lo) lo = v; if (v > hi) hi = v; }\n',
+            '      if (!isFinite(lo) || hi - lo < 1e-12) hi = lo + 1;\n',
+            '      const padV = (hi - lo) * 0.1; lo -= padV; hi += padV;\n',
+            '      const originYb = h - pad;\n',
+            '      const toY = function(v) { return originYb - ((v - lo) / (hi - lo)) * H; };\n',
+            '      const slotW = W / series.length;\n',
+            '      for (let s = 0; s < series.length; s++) {\n',
+            '        const a = series[s].slice().sort(function(p, q) { return p - q; });\n',
+            '        const qf = function(f) { const pos = (a.length - 1) * f, l = Math.floor(pos), h2 = Math.ceil(pos); return a[l] + (a[h2] - a[l]) * (pos - l); };\n',
+            '        const q1 = qf(0.25), med = qf(0.5), q3 = qf(0.75);\n',
+            '        const iqr = q3 - q1;\n',
+            '        let wLo = q1 - 1.5 * iqr, wHi = q3 + 1.5 * iqr;\n',
+            '        let loW = Infinity, hiW = -Infinity;\n',
+            '        for (const v of a) { if (v >= wLo && v < loW) loW = v; if (v <= wHi && v > hiW) hiW = v; }\n',
+            '        if (!isFinite(loW)) loW = a[0];\n',
+            '        if (!isFinite(hiW)) hiW = a[a.length - 1];\n',
+            '        const cx = pad + slotW * (s + 0.5);\n',
+            '        const bw = slotW * 0.5;\n',
+            '        ctx.strokeStyle = \'#37474f\'; ctx.lineWidth = 1.5; ctx.fillStyle = gcChartColor3D(s, d.color);\n',
+            '        ctx.beginPath(); ctx.rect(cx - bw / 2, toY(q3), bw, Math.max(1, toY(q1) - toY(q3))); ctx.fill(); ctx.stroke();\n',
+            '        ctx.beginPath(); ctx.moveTo(cx - bw / 2, toY(med)); ctx.lineTo(cx + bw / 2, toY(med)); ctx.lineWidth = 2.5; ctx.stroke();\n',
+            '        ctx.lineWidth = 1.5;\n',
+            '        ctx.beginPath();\n',
+            '        ctx.moveTo(cx, toY(q3)); ctx.lineTo(cx, toY(hiW));\n',
+            '        ctx.moveTo(cx - bw / 4, toY(hiW)); ctx.lineTo(cx + bw / 4, toY(hiW));\n',
+            '        ctx.moveTo(cx, toY(q1)); ctx.lineTo(cx, toY(loW));\n',
+            '        ctx.moveTo(cx - bw / 4, toY(loW)); ctx.lineTo(cx + bw / 4, toY(loW));\n',
+            '        ctx.stroke();\n',
+            '        ctx.fillStyle = \'#e8590c\';\n',
+            '        for (const v of a) { if (v < loW || v > hiW) { ctx.beginPath(); ctx.arc(cx, toY(v), 3, 0, 2 * Math.PI); ctx.fill(); } }\n',
+            '        if (labels && labels[s] !== undefined) {\n',
+            '          ctx.fillStyle = \'#333333\'; ctx.font = \'12px sans-serif\'; ctx.textAlign = \'center\'; ctx.textBaseline = \'top\';\n',
+            '          ctx.fillText(String(labels[s]), cx, originYb + 4);\n',
+            '        }\n',
+            '      }\n',
             '    } else {\n',
             '      ctx.fillStyle = \'#999999\'; ctx.font = \'18px sans-serif\'; ctx.textAlign = \'center\'; ctx.textBaseline = \'middle\';\n',
             '      ctx.fillText(\'Тип "\' + d.type + \'" пока не поддержан в 3D\', w / 2, h / 2);\n',
@@ -16137,6 +18489,665 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '  }\n',
             '  for (const bo of bifurcationObjs) { if (window[bo.name] === undefined) window[bo.name] = bo; }\n',
             '\n',
+            '  // draw Region — 3D-альтернатива: та же растровая маска неравенства f(x,y) <op> level\n',
+            '  // (см. drawRegion/glRegionTest в generate2D), только область [-rangeX/2..rangeX/2] x\n',
+            '  // [-rangeY/2..rangeY/2] — локальные координаты панели, не координаты сцены. Настоящий\n',
+            '  // объёмный 3D-аналог (f(x,y,z) <op> level через marching cubes) не реализован —\n',
+            '  // это отдельная, более крупная задача (см. итоговое резюме).\n',
+            '  function gcRegionTest3D(op, v, level) {\n',
+            '    if (typeof v !== \'number\' || !isFinite(v)) return false;\n',
+            '    if (op === \'<\') return v < level;\n',
+            '    if (op === \'<=\') return v <= level;\n',
+            '    if (op === \'>\') return v > level;\n',
+            '    return v >= level;\n',
+            '  }\n',
+            '  const regionObjs = drawRegionsData.filter(function(d) { return d.dim === \'3D\' && d.pos3D; }).map(function(d) {\n',
+            '    const panel = gcMakeCanvasPanel(256, 256, d.panelWidth || 8, d.panelHeight || 8, d.pos3D, d.rotate3D, d.billboard);\n',
+            '    return { name: d.name, panel: panel, def: d, active: d.active !== false, activeExpr: d.activeExpr, drawn: false };\n',
+            '  });\n',
+            '  function gcDrawRegionPanel(ro) {\n',
+            '    const d = ro.def, ctx = ro.panel.ctx, w = ro.panel.canvas.width, h = ro.panel.canvas.height;\n',
+            '    if (ro.drawn) { ro.panel.texture.needsUpdate = true; return; } // область статична для скомпилированных f/op/level — считаем один раз\n',
+            '    ctx.clearRect(0, 0, w, h);\n',
+            '    if (!G3_FUNCS[d.funcName]) { ro.panel.texture.needsUpdate = true; return; }\n',
+            '    const img = ctx.createImageData(w, h);\n',
+            '    const data = img.data;\n',
+            '    const rgb = gcHexToRgb3D(d.color || \'#4a90d9\');\n',
+            '    const has2 = !!(d.func2Name && G3_FUNCS[d.func2Name]);\n',
+            '    const rangeX = d.rangeX || 6, rangeY = d.rangeY || 6;\n',
+            '    const alpha = Math.round(255 * Math.max(0, Math.min(1, (d.opacity === undefined || d.opacity === null) ? 0.35 : d.opacity)));\n',
+            '    for (let py = 0; py < h; py++) {\n',
+            '      const fy = rangeY * (0.5 - (py + 0.5) / h);\n',
+            '      for (let px = 0; px < w; px++) {\n',
+            '        const fx = rangeX * ((px + 0.5) / w - 0.5);\n',
+            '        let ok;\n',
+            '        try {\n',
+            '          ok = gcRegionTest3D(d.op, g3CallPositional(d.funcName, [fx, fy]), d.level);\n',
+            '          if (has2) {\n',
+            '            const ok2 = gcRegionTest3D(d.op2, g3CallPositional(d.func2Name, [fx, fy]), d.level2);\n',
+            '            ok = (d.combine === \'or\') ? (ok || ok2) : (ok && ok2);\n',
+            '          }\n',
+            '        } catch (e) { ok = false; }\n',
+            '        if (ok) { const i4 = (py * w + px) * 4; data[i4] = rgb.r; data[i4 + 1] = rgb.g; data[i4 + 2] = rgb.b; data[i4 + 3] = alpha; }\n',
+            '      }\n',
+            '    }\n',
+            '    ctx.putImageData(img, 0, 0);\n',
+            '    ro.panel.texture.needsUpdate = true;\n',
+            '    ro.drawn = true;\n',
+            '  }\n',
+            '  for (const ro of regionObjs) { if (window[ro.name] === undefined) window[ro.name] = ro; }\n',
+            '\n',
+            '  // draw Fractal — 3D-альтернатива: та же escape-time математика Мандельброта/\n',
+            '  // Жюлиа/Burning Ship (см. drawFractal в generate2D), но область обзора задаётся\n',
+            '  // явно через centerRe/centerIm/scale (в панели нет камеры сцены). Для julia\n',
+            '  // (cRe/cIm — выражения, могут зависеть от переменных) перерисовываем только когда\n',
+            '  // значения реально изменились — как и в 2D (ключ кэша), иначе пересчитывать\n',
+            '  // escape-time на весь кадр было бы слишком дорого.\n',
+            '  function gcHslToRgb3D(h, s, l) {\n',
+            '    const c = (1 - Math.abs(2 * l - 1)) * s;\n',
+            '    const hp = (((h % 360) + 360) % 360) / 60;\n',
+            '    const x = c * (1 - Math.abs(hp % 2 - 1));\n',
+            '    let r = 0, g = 0, b = 0;\n',
+            '    if (hp < 1) { r = c; g = x; } else if (hp < 2) { r = x; g = c; }\n',
+            '    else if (hp < 3) { g = c; b = x; } else if (hp < 4) { g = x; b = c; }\n',
+            '    else if (hp < 5) { r = x; b = c; } else { r = c; b = x; }\n',
+            '    const m = l - c / 2;\n',
+            '    return [Math.round(255 * (r + m)), Math.round(255 * (g + m)), Math.round(255 * (b + m))];\n',
+            '  }\n',
+            '  function gcFractalPalette3D(name, t) {\n',
+            '    if (name === \'gray\') { const v = Math.round(255 * t); return [v, v, v]; }\n',
+            '    if (name === \'fire\') return [Math.round(255 * Math.min(1, t * 2.2)), Math.round(255 * Math.max(0, Math.min(1, t * 2 - 0.45))), Math.round(255 * Math.max(0, t * 4 - 3))];\n',
+            '    if (name === \'rainbow\') return gcHslToRgb3D(360 * t, 0.9, 0.5);\n',
+            '    return [Math.round(15 + 90 * t), Math.round(45 + 160 * t), Math.round(110 + 145 * t)];\n',
+            '  }\n',
+            '  const fractalObjs = drawFractalsData.filter(function(d) { return d.dim === \'3D\' && d.pos3D; }).map(function(d) {\n',
+            '    const q = Math.max(1, Math.floor(d.quality || 2));\n',
+            '    const panel = gcMakeCanvasPanel(Math.floor(384 / q) * q, Math.floor(384 / q) * q, d.panelWidth || 8, d.panelHeight || 8, d.pos3D, d.rotate3D, d.billboard);\n',
+            '    let cReAst = null, cImAst = null;\n',
+            '    if (d.cReExpr) { try { cReAst = g3Parse(d.cReExpr); } catch (e) {} }\n',
+            '    if (d.cImExpr) { try { cImAst = g3Parse(d.cImExpr); } catch (e) {} }\n',
+            '    return { name: d.name, panel: panel, cReAst: cReAst, cImAst: cImAst, def: d, cacheKey: null, active: d.active !== false, activeExpr: d.activeExpr };\n',
+            '  });\n',
+            '  function gcDrawFractalPanel(fo) {\n',
+            '    const d = fo.def, ctx = fo.panel.ctx, w = fo.panel.canvas.width, h = fo.panel.canvas.height;\n',
+            '    let cRe = -0.7, cIm = 0.27015;\n',
+            '    if (d.type === \'julia\') {\n',
+            '      if (fo.cReAst) { try { const v = g3Eval(fo.cReAst, {}); if (typeof v === \'number\' && isFinite(v)) cRe = v; } catch (e) {} }\n',
+            '      if (fo.cImAst) { try { const v = g3Eval(fo.cImAst, {}); if (typeof v === \'number\' && isFinite(v)) cIm = v; } catch (e) {} }\n',
+            '    }\n',
+            '    const key = [d.type, cRe.toFixed(6), cIm.toFixed(6), d.maxIter, d.palette].join(\'|\');\n',
+            '    if (fo.cacheKey === key) { fo.panel.texture.needsUpdate = true; return; }\n',
+            '    const maxIter = Math.max(5, Math.floor(d.maxIter || 80));\n',
+            '    const centerRe = d.centerRe, centerIm = d.centerIm, scale = d.scale || 1.5;\n',
+            '    const aspect = w / h;\n',
+            '    const halfX = scale * aspect, halfY = scale;\n',
+            '    const img = ctx.createImageData(w, h);\n',
+            '    const data = img.data;\n',
+            '    for (let py = 0; py < h; py++) {\n',
+            '      const y0 = centerIm + halfY - 2 * halfY * (py + 0.5) / h;\n',
+            '      for (let px = 0; px < w; px++) {\n',
+            '        const x0 = centerRe - halfX + 2 * halfX * (px + 0.5) / w;\n',
+            '        let zx, zy, cx, cy;\n',
+            '        if (d.type === \'julia\') { zx = x0; zy = y0; cx = cRe; cy = cIm; } else { zx = 0; zy = 0; cx = x0; cy = y0; }\n',
+            '        let iter = 0;\n',
+            '        while (iter < maxIter && zx * zx + zy * zy <= 4) {\n',
+            '          let nx, ny;\n',
+            '          if (d.type === \'burningship\') { const ax = Math.abs(zx), ay = Math.abs(zy); nx = ax * ax - ay * ay + cx; ny = 2 * ax * ay + cy; }\n',
+            '          else { nx = zx * zx - zy * zy + cx; ny = 2 * zx * zy + cy; }\n',
+            '          zx = nx; zy = ny; iter++;\n',
+            '        }\n',
+            '        const idx = (py * w + px) * 4;\n',
+            '        if (iter >= maxIter) { data[idx] = 0; data[idx + 1] = 0; data[idx + 2] = 0; data[idx + 3] = 255; }\n',
+            '        else {\n',
+            '          const mag = Math.sqrt(zx * zx + zy * zy);\n',
+            '          const smooth = iter + 1 - Math.log(Math.log(Math.max(mag, 1.0000001))) / Math.LN2;\n',
+            '          const t = Math.min(0.999, Math.max(0, smooth / maxIter));\n',
+            '          const rgb = gcFractalPalette3D(d.palette, t);\n',
+            '          data[idx] = rgb[0]; data[idx + 1] = rgb[1]; data[idx + 2] = rgb[2]; data[idx + 3] = 255;\n',
+            '        }\n',
+            '      }\n',
+            '    }\n',
+            '    ctx.putImageData(img, 0, 0);\n',
+            '    fo.panel.texture.needsUpdate = true;\n',
+            '    fo.cacheKey = key;\n',
+            '  }\n',
+            '  for (const fo of fractalObjs) { if (window[fo.name] === undefined) window[fo.name] = fo; }\n',
+            '\n',
+            '  // draw Complex — 3D-альтернатива: раскраска области (domain coloring), портирована\n',
+            '  // из drawComplexDomain в generate2D — оттенок = arg f(z), светлота = |f(z)| (или\n',
+            '  // режимы modulus/phase). f вызывается через g3CallPositional с одним аргументом —\n',
+            '  // комплексным числом (g3Complex), см. добавленную выше минимальную арифметику\n',
+            '  // комплексных чисел в g3Eval.\n',
+            '  const complexObjs = drawComplexesData.filter(function(d) { return d.dim === \'3D\' && d.pos3D; }).map(function(d) {\n',
+            '    const panel = gcMakeCanvasPanel(320, 320, d.panelWidth || 8, d.panelHeight || 8, d.pos3D, d.rotate3D, d.billboard);\n',
+            '    return { name: d.name, panel: panel, def: d, active: d.active !== false, activeExpr: d.activeExpr, drawn: false };\n',
+            '  });\n',
+            '  function gcDrawComplexPanel(co) {\n',
+            '    const d = co.def, ctx = co.panel.ctx, w = co.panel.canvas.width, h = co.panel.canvas.height;\n',
+            '    if (co.drawn) { co.panel.texture.needsUpdate = true; return; }\n',
+            '    if (!G3_FUNCS[d.funcName]) { co.panel.texture.needsUpdate = true; return; }\n',
+            '    const img = ctx.createImageData(w, h);\n',
+            '    const data = img.data;\n',
+            '    const centerRe = d.centerRe, centerIm = d.centerIm, scale = d.scale || 3;\n',
+            '    const aspect = w / h, halfX = scale * aspect, halfY = scale;\n',
+            '    for (let py = 0; py < h; py++) {\n',
+            '      const zy = centerIm + halfY - 2 * halfY * (py + 0.5) / h;\n',
+            '      for (let px = 0; px < w; px++) {\n',
+            '        const zx = centerRe - halfX + 2 * halfX * (px + 0.5) / w;\n',
+            '        let val;\n',
+            '        try { val = g3CallPositional(d.funcName, [g3Complex(zx, zy)]); } catch (e) { val = null; }\n',
+            '        const i4 = (py * w + px) * 4;\n',
+            '        if (val === null || val === undefined) { data[i4 + 3] = 0; continue; }\n',
+            '        const c = g3ToComplex(val);\n',
+            '        if (!isFinite(c.re) || !isFinite(c.im)) { data[i4 + 3] = 0; continue; }\n',
+            '        const mod = Math.hypot(c.re, c.im);\n',
+            '        const arg = Math.atan2(c.im, c.re);\n',
+            '        let hue = (arg * 180 / Math.PI + 360) % 360, light = 0.5, sat = 0.95;\n',
+            '        if (d.mode === \'modulus\') { hue = 0; sat = 0; light = 1 - 1 / (1 + mod * 0.3); }\n',
+            '        else if (d.mode === \'phase\') { light = 0.5; }\n',
+            '        else {\n',
+            '          const lg = Math.log2(mod + 1e-12);\n',
+            '          const frac = lg - Math.floor(lg);\n',
+            '          light = 0.28 + 0.5 * (1 - 1 / (1 + mod * 0.5));\n',
+            '          if (d.contours) light *= (0.82 + 0.18 * frac);\n',
+            '        }\n',
+            '        const rgb = gcHslToRgb3D(hue, sat, Math.max(0, Math.min(1, light)));\n',
+            '        data[i4] = rgb[0]; data[i4 + 1] = rgb[1]; data[i4 + 2] = rgb[2]; data[i4 + 3] = 255;\n',
+            '      }\n',
+            '    }\n',
+            '    ctx.putImageData(img, 0, 0);\n',
+            '    co.panel.texture.needsUpdate = true;\n',
+            '    co.drawn = true;\n',
+            '  }\n',
+            '  for (const co of complexObjs) { if (window[co.name] === undefined) window[co.name] = co; }\n',
+            '\n',
+            '  // draw IFS — 3D-альтернатива: НАСТОЯЩЕЕ облако точек в 3D (не билборд), через\n',
+            '  // THREE.Points. Отображения — 3D-аффинные [a,b,c, d,e,f, g,h,i, tx,ty,tz, p]\n',
+            '  // (матрица 3x3 + перенос + вероятность) вместо 2D [a,b,c,d,e,f,p] — см.\n',
+            '  // parseIFSBlock. Игра хаоса (chaos game) считается один раз и кэшируется по\n',
+            '  // JSON отображений — как и в 2D, пересчитывать на весь кадр было бы дорого.\n',
+            '  const ifsObjs = drawIFSsData.filter(function(d) { return d.dim === \'3D\' && d.pos3D; }).map(function(d) {\n',
+            '    const geo = new THREE.BufferGeometry();\n',
+            '    const mat = new THREE.PointsMaterial({ color: d.color || \'#1b5e20\', size: Math.max(0.01, (d.pointSize || 1) * 0.02), sizeAttenuation: true, transparent: true, opacity: 0.85 });\n',
+            '    const mesh = new THREE.Points(geo, mat);\n',
+            '    mesh.position.set(d.pos3D.x, d.pos3D.y, d.pos3D.z);\n',
+            '    scene.add(mesh);\n',
+            '    let mapsAst = null;\n',
+            '    try { mapsAst = g3Parse(d.mapsExpr); } catch (e) { console.warn(\'Ошибка в maps для draw IFS "\' + d.name + \'":\', e); }\n',
+            '    return { name: d.name, mesh: mesh, mapsAst: mapsAst, def: d, cacheKey: null, active: d.active !== false, activeExpr: d.activeExpr };\n',
+            '  });\n',
+            '  function gcBuildIFS3D(io) {\n',
+            '    const d = io.def;\n',
+            '    if (!io.mapsAst) return;\n',
+            '    let maps;\n',
+            '    try { maps = g3Eval(io.mapsAst, {}); } catch (e) { return; }\n',
+            '    if (!Array.isArray(maps) || !maps.length) return;\n',
+            '    const key = JSON.stringify(maps) + \'|\' + d.iterations;\n',
+            '    if (io.cacheKey === key) return;\n',
+            '    let total = 0;\n',
+            '    for (const m of maps) total += (m.length > 12 ? m[12] : 1);\n',
+            '    const cum = []; let acc = 0;\n',
+            '    for (const m of maps) { acc += (m.length > 12 ? m[12] : 1) / total; cum.push(acc); }\n',
+            '    const iters = Math.max(1000, Math.min(400000, Math.floor(d.iterations)));\n',
+            '    const scale = d.scale || 1;\n',
+            '    const positions = new Float32Array(iters * 3);\n',
+            '    let count = 0, x = 0, y = 0, z = 0;\n',
+            '    for (let i = 0; i < iters; i++) {\n',
+            '      const u = Math.random();\n',
+            '      let k = 0;\n',
+            '      while (k < cum.length - 1 && u > cum[k]) k++;\n',
+            '      const m = maps[k];\n',
+            '      const nx = m[0] * x + m[1] * y + m[2] * z + m[9];\n',
+            '      const ny = m[3] * x + m[4] * y + m[5] * z + m[10];\n',
+            '      const nz = m[6] * x + m[7] * y + m[8] * z + m[11];\n',
+            '      x = nx; y = ny; z = nz;\n',
+            '      if (i < 20) continue; // даём аттрактору установиться — как в 2D\n',
+            '      positions[count * 3] = x * scale; positions[count * 3 + 1] = y * scale; positions[count * 3 + 2] = z * scale;\n',
+            '      count++;\n',
+            '    }\n',
+            '    io.mesh.geometry.setAttribute(\'position\', new THREE.BufferAttribute(positions, 3));\n',
+            '    io.mesh.geometry.setDrawRange(0, count);\n',
+            '    io.mesh.geometry.computeBoundingSphere();\n',
+            '    io.cacheKey = key;\n',
+            '  }\n',
+            '  for (const io of ifsObjs) { if (window[io.name] === undefined) window[io.name] = io; }\n',
+            '\n',
+            '  // draw Automaton — 3D-альтернатива (билборд-панель): elementary (правило\n',
+            '  // Вольфрама) и life (Conway) — тот же алгоритм, что в drawAutomaton в generate2D,\n',
+            '  // только рисуется на canvas панели вместо основного холста. Настоящий воксельный\n',
+            '  // 3D-автомат (собственные 3D-правила Жизни) — другая, более крупная задача: у\n',
+            '  // "Жизни" нет единственного канонического 3D-обобщения правил.\n',
+            '  const automatonObjs = drawAutomataData.filter(function(d) { return d.dim === \'3D\' && d.pos3D; }).map(function(d) {\n',
+            '    const panel = gcMakeCanvasPanel(384, 384, d.panelWidth || 8, d.panelHeight || 8, d.pos3D, d.rotate3D, d.billboard);\n',
+            '    let genAst = null, initAst = null;\n',
+            '    if (d.generationExpr) { try { genAst = g3Parse(d.generationExpr); } catch (e) {} }\n',
+            '    if (d.initExpr) { try { initAst = g3Parse(d.initExpr); } catch (e) {} }\n',
+            '    return { name: d.name, panel: panel, genAst: genAst, initAst: initAst, def: d, gridCache: null, gridKey: null, active: d.active !== false, activeExpr: d.activeExpr };\n',
+            '  });\n',
+            '  function gcDrawAutomatonPanel(ao) {\n',
+            '    const d = ao.def, ctx = ao.panel.ctx, w = ao.panel.canvas.width, h = ao.panel.canvas.height;\n',
+            '    ctx.clearRect(0, 0, w, h);\n',
+            '    ctx.fillStyle = \'rgba(255,255,255,0.92)\'; ctx.fillRect(0, 0, w, h);\n',
+            '    ao.panel.texture.needsUpdate = true;\n',
+            '    ctx.fillStyle = d.color || \'#212121\';\n',
+            '    if (d.type === \'life\') {\n',
+            '      let grid = null;\n',
+            '      if (ao.genAst) { try { grid = g3Eval(ao.genAst, {}); } catch (e) { grid = null; } }\n',
+            '      if (!Array.isArray(grid) || !grid.length) return;\n',
+            '      const rows = grid.length;\n',
+            '      let cols = 0;\n',
+            '      for (const row of grid) if (Array.isArray(row) && row.length > cols) cols = row.length;\n',
+            '      if (!cols) return;\n',
+            '      const cw = w / cols, ch = h / rows;\n',
+            '      for (let r = 0; r < rows; r++) {\n',
+            '        const row = grid[r];\n',
+            '        if (!Array.isArray(row)) continue;\n',
+            '        for (let c = 0; c < row.length; c++) { if (row[c]) ctx.fillRect(c * cw, r * ch, Math.max(1, cw), Math.max(1, ch)); }\n',
+            '      }\n',
+            '      return;\n',
+            '    }\n',
+            '    const cells = Math.max(3, Math.floor(d.cells));\n',
+            '    const steps = Math.max(1, Math.floor(d.steps));\n',
+            '    const rule = Math.max(0, Math.min(255, Math.floor(d.rule)));\n',
+            '    const key = [rule, cells, steps, d.initExpr].join(\'|\');\n',
+            '    if (ao.gridKey !== key) {\n',
+            '      let row = new Uint8Array(cells);\n',
+            '      let initArr = null;\n',
+            '      if (ao.initAst) { try { initArr = g3Eval(ao.initAst, {}); } catch (e) { initArr = null; } }\n',
+            '      if (Array.isArray(initArr)) { for (let i = 0; i < Math.min(cells, initArr.length); i++) row[i] = initArr[i] ? 1 : 0; }\n',
+            '      else { row[Math.floor(cells / 2)] = 1; }\n',
+            '      const hist = [row];\n',
+            '      for (let s = 1; s < steps; s++) {\n',
+            '        const next = new Uint8Array(cells);\n',
+            '        for (let i = 0; i < cells; i++) {\n',
+            '          const l = row[(i - 1 + cells) % cells], c = row[i], r2 = row[(i + 1) % cells];\n',
+            '          const idx = (l << 2) | (c << 1) | r2;\n',
+            '          next[i] = (rule >> idx) & 1;\n',
+            '        }\n',
+            '        hist.push(next); row = next;\n',
+            '      }\n',
+            '      ao.gridCache = hist; ao.gridKey = key;\n',
+            '    }\n',
+            '    const hist = ao.gridCache;\n',
+            '    const cw = w / cells, ch = h / hist.length;\n',
+            '    for (let s = 0; s < hist.length; s++) {\n',
+            '      const row = hist[s];\n',
+            '      for (let i = 0; i < row.length; i++) { if (row[i]) ctx.fillRect(i * cw, s * ch, Math.max(1, cw), Math.max(1, ch)); }\n',
+            '    }\n',
+            '  }\n',
+            '  for (const ao of automatonObjs) { if (window[ao.name] === undefined) window[ao.name] = ao; }\n',
+            '\n',
+            '  // ---------- draw Hyperbolic — 3D-альтернативы: model = "ball" — шар Пуанкаре\n',
+            '  // (Poincaré ball model), прямой 3D-аналог диска; model = "halfspace" — полупространство\n',
+            '  // z > 0, прямой 3D-аналог полуплоскости. Настоящая геометрия (не билборд): геодезические\n',
+            '  // — дуги окружностей в подходящей вертикальной/через-центр плоскости, построенные ТОЙ ЖЕ\n',
+            '  // 2D-математикой (glHypGeodesicCircle и т.п. из generate2D для шара; та же идея, что и\n',
+            '  // 2D-полуплоскости — для полупространства), просто в локальном базисе этой плоскости,\n',
+            '  // а затем отображённые обратно в 3D. Замощение {p,q} (2D-мозаика) — специфичное для 2D\n',
+            '  // понятие: настоящий 3D-аналог замощения — соты {p,q,r} в гиперболическом 3-пространстве,\n',
+            '  // требующие групп отражений — отдельная, гораздо более крупная задача (см. итоговое\n',
+            '  // резюме). ----------\n',
+            '  function gcHypCircum3_2D(a, b, c) {\n',
+            '    const d = 2 * (a.x * (b.y - c.y) + b.x * (c.y - a.y) + c.x * (a.y - b.y));\n',
+            '    if (Math.abs(d) < 1e-12) return null;\n',
+            '    const ux = ((a.x * a.x + a.y * a.y) * (b.y - c.y) + (b.x * b.x + b.y * b.y) * (c.y - a.y) + (c.x * c.x + c.y * c.y) * (a.y - b.y)) / d;\n',
+            '    const uy = ((a.x * a.x + a.y * a.y) * (c.x - b.x) + (b.x * b.x + b.y * b.y) * (a.x - c.x) + (c.x * c.x + c.y * c.y) * (b.x - a.x)) / d;\n',
+            '    return { x: ux, y: uy, r: Math.hypot(a.x - ux, a.y - uy) };\n',
+            '  }\n',
+            '  function gcHypGeodesicCircle2D(z1, z2) {\n',
+            '    const n1 = z1.x * z1.x + z1.y * z1.y;\n',
+            '    if (n1 < 1e-12) return null;\n',
+            '    const inv = { x: z1.x / n1, y: z1.y / n1 };\n',
+            '    const cross = z1.x * z2.y - z1.y * z2.x;\n',
+            '    if (Math.abs(cross) < 1e-12) return null;\n',
+            '    return gcHypCircum3_2D(z1, z2, inv);\n',
+            '  }\n',
+            '  // Геодезическая дуга между двумя точками ЕДИНИЧНОГО шара (|a|,|b| < 1) — сначала\n',
+            '  // строим ортонормированный базис e1,e2 плоскости (0,a,b), сводим задачу к 2D-диску\n',
+            '  // в этом базисе, затем поднимаем результат обратно в 3D.\n',
+            '  function gcHypGeodesicArcUnit3D(a, b) {\n',
+            '    const steps = 24;\n',
+            '    const na = Math.hypot(a.x, a.y, a.z);\n',
+            '    const lerp = function() { const pts = []; for (let i = 0; i <= steps; i++) { const t = i / steps; pts.push({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t, z: a.z + (b.z - a.z) * t }); } return pts; };\n',
+            '    if (na < 1e-9) return lerp(); // геодезическая через центр — прямая\n',
+            '    const e1 = { x: a.x / na, y: a.y / na, z: a.z / na };\n',
+            '    const dot = b.x * e1.x + b.y * e1.y + b.z * e1.z;\n',
+            '    const perp = { x: b.x - dot * e1.x, y: b.y - dot * e1.y, z: b.z - dot * e1.z };\n',
+            '    const np = Math.hypot(perp.x, perp.y, perp.z);\n',
+            '    if (np < 1e-9) return lerp(); // a,b на одном диаметре — тоже прямая\n',
+            '    const e2 = { x: perp.x / np, y: perp.y / np, z: perp.z / np };\n',
+            '    const z1 = { x: na, y: 0 }, z2 = { x: dot, y: np };\n',
+            '    const circ = gcHypGeodesicCircle2D(z1, z2);\n',
+            '    const to3D = function(lx, ly) { return { x: lx * e1.x + ly * e2.x, y: lx * e1.y + ly * e2.y, z: lx * e1.z + ly * e2.z }; };\n',
+            '    const pts = [];\n',
+            '    if (!circ) { for (let i = 0; i <= steps; i++) { const t = i / steps; pts.push(to3D(z1.x + (z2.x - z1.x) * t, z1.y + (z2.y - z1.y) * t)); } return pts; }\n',
+            '    let a1 = Math.atan2(z1.y - circ.y, z1.x - circ.x), a2 = Math.atan2(z2.y - circ.y, z2.x - circ.x);\n',
+            '    let diff = a2 - a1;\n',
+            '    while (diff > Math.PI) diff -= 2 * Math.PI;\n',
+            '    while (diff < -Math.PI) diff += 2 * Math.PI;\n',
+            '    for (let i = 0; i <= steps; i++) { const t = i / steps; const ang = a1 + diff * t; pts.push(to3D(circ.x + circ.r * Math.cos(ang), circ.y + circ.r * Math.sin(ang))); }\n',
+            '    return pts;\n',
+            '  }\n',
+            '  // Геодезическая между двумя точками P, Q модели ПОЛУПРОСТРАНСТВА (P.z, Q.z > 0):\n',
+            '  // если проекции на плоскость z=0 совпадают — вертикальный отрезок (геодезические,\n',
+            '  // уходящие в "бесконечно удалённую" точку границы); иначе — полуокружность в вертикальной\n',
+            '  // плоскости, проходящей через P и Q, с центром на границе z=0 — тот же самый 2D-случай\n',
+            '  // модели полуплоскости (см. drawHyperbolic в generate2D), только в локальных координатах\n',
+            '  // (расстояние вдоль горизонтали, высота z) этой плоскости.\n',
+            '  function gcHypGeodesicHalfSpace3D(P, Q) {\n',
+            '    const steps = 24;\n',
+            '    const dx = Q.x - P.x, dy = Q.y - P.y;\n',
+            '    const horiz = Math.hypot(dx, dy);\n',
+            '    const pts = [];\n',
+            '    if (horiz < 1e-9) {\n',
+            '      for (let i = 0; i <= steps; i++) { const t = i / steps; pts.push({ x: P.x, y: P.y, z: P.z + (Q.z - P.z) * t }); }\n',
+            '      return pts;\n',
+            '    }\n',
+            '    const dirx = dx / horiz, diry = dy / horiz;\n',
+            '    const A = { x: 0, y: P.z }, B = { x: horiz, y: Q.z };\n',
+            '    const c = (A.x * A.x + A.y * A.y - B.x * B.x - B.y * B.y) / (2 * (A.x - B.x));\n',
+            '    const r = Math.hypot(A.x - c, A.y);\n',
+            '    const a1 = Math.atan2(A.y, A.x - c), a2 = Math.atan2(B.y, B.x - c);\n',
+            '    for (let i = 0; i <= steps; i++) {\n',
+            '      const t = i / steps;\n',
+            '      const ang = a1 + (a2 - a1) * t;\n',
+            '      const s = c + r * Math.cos(ang), z = r * Math.sin(ang);\n',
+            '      pts.push({ x: P.x + s * dirx, y: P.y + s * diry, z: z });\n',
+            '    }\n',
+            '    return pts;\n',
+            '  }\n',
+            '  const hyperbolicObjs = drawHyperbolicsData.filter(function(d) { return d.dim === \'3D\' && d.pos3D; }).map(function(d) {\n',
+            '    const group = new THREE.Group();\n',
+            '    group.position.set(d.pos3D.x, d.pos3D.y, d.pos3D.z);\n',
+            '    scene.add(group);\n',
+            '    let sphereMesh = null;\n',
+            '    if (d.showBoundary) {\n',
+            '      const rad = d.radius || 8;\n',
+            '      if (d.model === \'halfspace\') {\n',
+            '        // Граница абсолюта — плоскость z = 0 (сетка-плоскость, а не сфера); "внутренность" — z > 0.\n',
+            '        const geo = new THREE.PlaneGeometry(rad * 4, rad * 4, 8, 8);\n',
+            '        const mat = new THREE.MeshBasicMaterial({ color: d.color || \'#2c3e50\', wireframe: true, transparent: true, opacity: 0.35 });\n',
+            '        sphereMesh = new THREE.Mesh(geo, mat);\n',
+            '      } else {\n',
+            '        const geo = new THREE.SphereGeometry(rad, 24, 16);\n',
+            '        const mat = new THREE.MeshBasicMaterial({ color: d.color || \'#2c3e50\', wireframe: true, transparent: true, opacity: 0.35 });\n',
+            '        sphereMesh = new THREE.Mesh(geo, mat);\n',
+            '      }\n',
+            '      group.add(sphereMesh);\n',
+            '    }\n',
+            '    let geodesicsAst = null, pointsAst = null;\n',
+            '    if (d.geodesicsExpr) { try { geodesicsAst = g3Parse(d.geodesicsExpr); } catch (e) {} }\n',
+            '    if (d.pointsExpr) { try { pointsAst = g3Parse(d.pointsExpr); } catch (e) {} }\n',
+            '    return { name: d.name, group: group, sphereMesh: sphereMesh, geodesicsAst: geodesicsAst, pointsAst: pointsAst, def: d, geodesicMeshes: [], pointMeshes: [], builtKey: null, active: d.active !== false, activeExpr: d.activeExpr };\n',
+            '  });\n',
+            '  function gcRebuildHyperbolic3D(ho) {\n',
+            '    const d = ho.def;\n',
+            '    let geodesics = null, pts = null;\n',
+            '    if (ho.geodesicsAst) { try { geodesics = g3Eval(ho.geodesicsAst, {}); } catch (e) { geodesics = null; } }\n',
+            '    if (ho.pointsAst) { try { pts = g3Eval(ho.pointsAst, {}); } catch (e) { pts = null; } }\n',
+            '    const key = JSON.stringify(geodesics) + \'|\' + JSON.stringify(pts);\n',
+            '    if (ho.builtKey === key) return;\n',
+            '    ho.builtKey = key;\n',
+            '    ho.geodesicMeshes.forEach(function(m) { ho.group.remove(m); });\n',
+            '    ho.pointMeshes.forEach(function(m) { ho.group.remove(m); });\n',
+            '    ho.geodesicMeshes = []; ho.pointMeshes = [];\n',
+            '    const radius = d.radius || 8;\n',
+            '    const isHalfSpace = d.model === \'halfspace\';\n',
+            '    if (Array.isArray(geodesics)) {\n',
+            '      for (const pr of geodesics) {\n',
+            '        if (!Array.isArray(pr) || pr.length < 2) continue;\n',
+            '        const A = pr[0], B = pr[1];\n',
+            '        if (!Array.isArray(A) || !Array.isArray(B) || A.length < 3 || B.length < 3) continue;\n',
+            '        // В модели шара geodesics/points — координаты ВНУТРИ единичного шара, домножаются\n',
+            '        // на radius при отрисовке; в модели полупространства это уже мировые координаты\n',
+            '        // (z > 0 — высота над границей), radius там задаёт только размер плоскости-границы.\n',
+            '        const arc = isHalfSpace\n',
+            '          ? gcHypGeodesicHalfSpace3D({ x: A[0], y: A[1], z: A[2] }, { x: B[0], y: B[1], z: B[2] })\n',
+            '          : gcHypGeodesicArcUnit3D({ x: A[0], y: A[1], z: A[2] }, { x: B[0], y: B[1], z: B[2] });\n',
+            '        const geo = new THREE.BufferGeometry();\n',
+            '        const positions = new Float32Array(arc.length * 3);\n',
+            '        const s = isHalfSpace ? 1 : radius;\n',
+            '        for (let i = 0; i < arc.length; i++) { positions[i * 3] = arc[i].x * s; positions[i * 3 + 1] = arc[i].y * s; positions[i * 3 + 2] = arc[i].z * s; }\n',
+            '        geo.setAttribute(\'position\', new THREE.BufferAttribute(positions, 3));\n',
+            '        const mesh = new THREE.Line(geo, new THREE.LineBasicMaterial({ color: d.color || \'#2c3e50\' }));\n',
+            '        ho.group.add(mesh);\n',
+            '        ho.geodesicMeshes.push(mesh);\n',
+            '      }\n',
+            '    }\n',
+            '    if (Array.isArray(pts)) {\n',
+            '      for (const P of pts) {\n',
+            '        if (!Array.isArray(P) || P.length < 3) continue;\n',
+            '        const s = isHalfSpace ? 1 : radius;\n',
+            '        const mesh = new THREE.Mesh(new THREE.SphereGeometry(radius * 0.02, 8, 6), new THREE.MeshBasicMaterial({ color: d.color || \'#2c3e50\' }));\n',
+            '        mesh.position.set(P[0] * s, P[1] * s, P[2] * s);\n',
+            '        ho.group.add(mesh);\n',
+            '        ho.pointMeshes.push(mesh);\n',
+            '      }\n',
+            '    }\n',
+            '  }\n',
+            '  for (const ho of hyperbolicObjs) { if (window[ho.name] === undefined) window[ho.name] = ho; }\n',
+            '\n',
+            '  // ---------- draw Voronoi (3D): voronoi — точные выпуклые ячейки (последовательное\n',
+            '  // отсечение бокса rangeX/Y/Z полупространствами-бисекторами каждой пары сайтов, тот же\n',
+            '  // приём clipTrianglesByPlane/chainBoundaryLoops/capFromLoop, что и у new Section/Truncate\n',
+            '  // выше); delaunay — тетраэдризация перебором четвёрок точек с проверкой пустоты описанной\n',
+            '  // сферы (glCircumSphere3D) — как и 2D-версия, но на один порядок дороже (C(n,4) вместо\n',
+            '  // C(n,3)), поэтому число сайтов для delaunay ограничено (см. G3_DELAUNAY3D_MAXN); hull —\n',
+            '  // выпуклая оболочка через уже существующую convexHull3D (та же, что у new Hull). ----------\n',
+            '  function gcReadSites3D(raw) {\n',
+            '    const out = [];\n',
+            '    if (!Array.isArray(raw)) return out;\n',
+            '    for (const it of raw) {\n',
+            '      if (Array.isArray(it) && it.length >= 3) out.push({ x: it[0], y: it[1], z: it[2] });\n',
+            '      else if (it && typeof it.x === \'number\') out.push({ x: it.x, y: it.y, z: it.z || 0 });\n',
+            '    }\n',
+            '    return out;\n',
+            '  }\n',
+            '  function gcVoronoiColor3D(i) { return gcHslToRgb3D((i * 67) % 360, 0.55, 0.55); }\n',
+            '  function gcMakeBoxTris3D(hx, hy, hz) {\n',
+            '    const V = function(x, y, z) { return new THREE.Vector3(x, y, z); };\n',
+            '    const p = [\n',
+            '      V(-hx, -hy, -hz), V(hx, -hy, -hz), V(hx, hy, -hz), V(-hx, hy, -hz),\n',
+            '      V(-hx, -hy, hz), V(hx, -hy, hz), V(hx, hy, hz), V(-hx, hy, hz)\n',
+            '    ];\n',
+            '    // 4 индекса на грань, идущие в обходе, дающем НАРУЖНУЮ нормаль (клип/крышка ниже\n',
+            '    // полагаются на согласованную ориентацию всех треугольников бокса).\n',
+            '    const faces = [[0, 3, 2, 1], [4, 5, 6, 7], [0, 1, 5, 4], [2, 3, 7, 6], [1, 2, 6, 5], [3, 0, 4, 7]];\n',
+            '    const tris = [];\n',
+            '    for (const f of faces) { tris.push([p[f[0]], p[f[1]], p[f[2]]]); tris.push([p[f[0]], p[f[2]], p[f[3]]]); }\n',
+            '    return tris;\n',
+            '  }\n',
+            '  function gcFilterDegenerateTris3D(tris) {\n',
+            '    const EPS = 1e-9;\n',
+            '    return tris.filter(function(t) { return new THREE.Vector3().subVectors(t[1], t[0]).cross(new THREE.Vector3().subVectors(t[2], t[0])).lengthSq() > EPS; });\n',
+            '  }\n',
+            '  // Ячейка Вороного сайта sites[i] в пределах бокса boxTris: последовательно отсекаем бокс\n',
+            '  // полупространством "ближе к sites[i], чем к sites[j]" для каждого j != i. Каждое отсечение\n',
+            '  // — та же операция clip+cap, что использует new Section/Truncate (см. выше по файлу);\n',
+            '  // после всех отсечений остаётся ТОЧНЫЙ выпуклый многогранник ячейки (не приближение).\n',
+            '  function gcVoronoiCell3D(boxTris, sites, i) {\n',
+            '    let cur = boxTris;\n',
+            '    const A = sites[i];\n',
+            '    for (let j = 0; j < sites.length; j++) {\n',
+            '      if (j === i) continue;\n',
+            '      const B = sites[j];\n',
+            '      const nvec = new THREE.Vector3(B.x - A.x, B.y - A.y, B.z - A.z);\n',
+            '      if (nvec.lengthSq() < 1e-12) continue; // совпадающие сайты — бисектор не определён\n',
+            '      nvec.normalize();\n',
+            '      const w = nvec.x * (A.x + B.x) / 2 + nvec.y * (A.y + B.y) / 2 + nvec.z * (A.z + B.z) / 2;\n',
+            '      const clip = clipTrianglesByPlane(cur, nvec, w, -1);\n',
+            '      if (!clip.kept.length) { cur = []; break; }\n',
+            '      const loops = chainBoundaryLoops(clip.boundaryEdges);\n',
+            '      let capTris = [];\n',
+            '      for (const loop of loops) capTris = capTris.concat(capFromLoop(loop, nvec).tris);\n',
+            '      capTris = fixCapOrientation(capTris, clip.kept);\n',
+            '      cur = clip.kept.concat(capTris);\n',
+            '      if (!cur.length) break;\n',
+            '    }\n',
+            '    return cur;\n',
+            '  }\n',
+            '  function trisToGeometry3D(tris) {\n',
+            '    const positions = new Float32Array(tris.length * 9);\n',
+            '    let k = 0;\n',
+            '    for (const t of tris) { for (let v = 0; v < 3; v++) { positions[k++] = t[v].x; positions[k++] = t[v].y; positions[k++] = t[v].z; } }\n',
+            '    const geo = new THREE.BufferGeometry();\n',
+            '    geo.setAttribute(\'position\', new THREE.BufferAttribute(positions, 3));\n',
+            '    geo.computeVertexNormals();\n',
+            '    return geo;\n',
+            '  }\n',
+            '  // Решение системы 3x3 методом Гаусса с выбором ведущего элемента — нужно для описанной\n',
+            '  // сферы тетраэдра (glCircumSphere3D); прямые формулы Крамера с ручным раскрытием\n',
+            '  // определителей легче перепутать местами, метод Гаусса нагляднее и надёжнее.\n',
+            '  function gcSolve3x3(A, r) {\n',
+            '    const m = [A[0].slice(), A[1].slice(), A[2].slice()];\n',
+            '    const b = r.slice();\n',
+            '    for (let col = 0; col < 3; col++) {\n',
+            '      let piv = col;\n',
+            '      for (let row = col + 1; row < 3; row++) { if (Math.abs(m[row][col]) > Math.abs(m[piv][col])) piv = row; }\n',
+            '      if (Math.abs(m[piv][col]) < 1e-12) return null;\n',
+            '      if (piv !== col) { const tm = m[piv]; m[piv] = m[col]; m[col] = tm; const tb = b[piv]; b[piv] = b[col]; b[col] = tb; }\n',
+            '      for (let row = 0; row < 3; row++) {\n',
+            '        if (row === col) continue;\n',
+            '        const f = m[row][col] / m[col][col];\n',
+            '        for (let k = col; k < 3; k++) m[row][k] -= f * m[col][k];\n',
+            '        b[row] -= f * b[col];\n',
+            '      }\n',
+            '    }\n',
+            '    return [b[0] / m[0][0], b[1] / m[1][1], b[2] / m[2][2]];\n',
+            '  }\n',
+            '  // Центр и радиус описанной сферы тетраэдра (p0..p3): точка, равноудалённая от всех четырёх\n',
+            '  // вершин. Решаем 2*(pk - p0)·c = |pk|^2 - |p0|^2 для k = 1, 2, 3 (3 уравнения, 3 неизвестных).\n',
+            '  // null — если точки компланарны (сфера не определена).\n',
+            '  function glCircumSphere3D(p0, p1, p2, p3) {\n',
+            '    const a = { x: p1.x - p0.x, y: p1.y - p0.y, z: p1.z - p0.z };\n',
+            '    const b = { x: p2.x - p0.x, y: p2.y - p0.y, z: p2.z - p0.z };\n',
+            '    const c = { x: p3.x - p0.x, y: p3.y - p0.y, z: p3.z - p0.z };\n',
+            '    const da = (a.x * a.x + a.y * a.y + a.z * a.z) / 2;\n',
+            '    const db = (b.x * b.x + b.y * b.y + b.z * b.z) / 2;\n',
+            '    const dc = (c.x * c.x + c.y * c.y + c.z * c.z) / 2;\n',
+            '    const sol = gcSolve3x3([[a.x, a.y, a.z], [b.x, b.y, b.z], [c.x, c.y, c.z]], [da, db, dc]);\n',
+            '    if (!sol) return null;\n',
+            '    return { x: p0.x + sol[0], y: p0.y + sol[1], z: p0.z + sol[2], r: Math.sqrt(sol[0] * sol[0] + sol[1] * sol[1] + sol[2] * sol[2]) };\n',
+            '  }\n',
+            '  // Триангуляция Делоне в 3D (тетраэдризация) полным перебором четвёрок точек с проверкой\n',
+            '  // "пустой описанной сферы" — прямой 3D-аналог glDelaunay (2D) чуть выше в этом файле, только\n',
+            '  // C(n,4) вместо C(n,3) четвёрок и сфера вместо окружности. Дороже на порядок, поэтому число\n',
+            '  // сайтов, участвующих в переборе, ограничено — при большем числе сайтов лишние отбрасываются\n',
+            '  // (с предупреждением в консоль), а не считаются молча слишком долго.\n',
+            '  const G3_DELAUNAY3D_MAXN = 30;\n',
+            '  function glDelaunay3D(sites) {\n',
+            '    const n = sites.length;\n',
+            '    const m = Math.min(n, G3_DELAUNAY3D_MAXN);\n',
+            '    if (n > m) console.warn(\'draw Voronoi (mode=delaunay, 3D): используются только первые \' + m + \' из \' + n + \' сайтов (перебор четвёрок точек становится слишком дорогим).\');\n',
+            '    const tets = [];\n',
+            '    for (let i = 0; i < m; i++) {\n',
+            '      for (let j = i + 1; j < m; j++) {\n',
+            '        for (let k = j + 1; k < m; k++) {\n',
+            '          for (let l = k + 1; l < m; l++) {\n',
+            '            const cc = glCircumSphere3D(sites[i], sites[j], sites[k], sites[l]);\n',
+            '            if (!cc) continue;\n',
+            '            let empty = true;\n',
+            '            for (let s = 0; s < m; s++) {\n',
+            '              if (s === i || s === j || s === k || s === l) continue;\n',
+            '              const dx = sites[s].x - cc.x, dy = sites[s].y - cc.y, dz = sites[s].z - cc.z;\n',
+            '              if (Math.sqrt(dx * dx + dy * dy + dz * dz) < cc.r - 1e-7) { empty = false; break; }\n',
+            '            }\n',
+            '            if (empty) tets.push([i, j, k, l]);\n',
+            '          }\n',
+            '        }\n',
+            '      }\n',
+            '    }\n',
+            '    return tets;\n',
+            '  }\n',
+            '  const voronoiObjs = drawVoronoisData.filter(function(d) { return d.dim === \'3D\' && d.pos3D; }).map(function(d) {\n',
+            '    const group = new THREE.Group();\n',
+            '    group.position.set(d.pos3D.x, d.pos3D.y, d.pos3D.z);\n',
+            '    scene.add(group);\n',
+            '    let sitesAst = null;\n',
+            '    try { sitesAst = g3Parse(d.sitesExpr); } catch (e) { console.warn(\'Ошибка в sites для draw Voronoi "\' + d.name + \'":\', e); }\n',
+            '    return { name: d.name, mesh: group, sitesAst: sitesAst, def: d, cacheKey: null, cellMeshes: [], siteMeshes: [], active: d.active !== false, activeExpr: d.activeExpr };\n',
+            '  });\n',
+            '  function gcClearVoronoiMeshes3D(vo) {\n',
+            '    for (const m of vo.cellMeshes) { vo.mesh.remove(m); if (m.geometry) m.geometry.dispose(); }\n',
+            '    vo.cellMeshes = [];\n',
+            '    for (const m of vo.siteMeshes) { vo.mesh.remove(m); if (m.geometry) m.geometry.dispose(); }\n',
+            '    vo.siteMeshes = [];\n',
+            '  }\n',
+            '  function gcBuildVoronoi3D(vo) {\n',
+            '    const d = vo.def;\n',
+            '    if (!vo.sitesAst) return;\n',
+            '    let raw;\n',
+            '    try { raw = g3Eval(vo.sitesAst, {}); } catch (e) { return; }\n',
+            '    const sites = gcReadSites3D(raw);\n',
+            '    if (!sites.length) return;\n',
+            '    const key = JSON.stringify(sites) + \'|\' + d.mode + \'|\' + d.resolution + \'|\' + d.rangeX + \'|\' + d.rangeY + \'|\' + d.rangeZ + \'|\' + d.showSites + \'|\' + d.filled + \'|\' + d.color + \'|\' + d.opacity;\n',
+            '    if (vo.cacheKey === key) return;\n',
+            '    vo.cacheKey = key;\n',
+            '    gcClearVoronoiMeshes3D(vo);\n',
+            '    const halfX = (d.rangeX || 8) / 2, halfY = (d.rangeY || 8) / 2, halfZ = (d.rangeZ || 8) / 2;\n',
+            '    const opacity = (d.opacity === undefined || d.opacity === null) ? 0.45 : d.opacity;\n',
+            '    const baseColor = d.color || \'#37474f\';\n',
+            '    if (d.mode === \'hull\') {\n',
+            '      const pts = sites.map(function(s) { return new THREE.Vector3(s.x, s.y, s.z); });\n',
+            '      const tris = gcFilterDegenerateTris3D(convexHull3D(pts));\n',
+            '      if (tris.length) {\n',
+            '        const geo = trisToGeometry3D(tris);\n',
+            '        const showFill = d.filled !== false;\n',
+            '        const mat = new THREE.MeshStandardMaterial({ color: baseColor, roughness: 0.6, transparent: true, opacity: showFill ? opacity : 0, side: THREE.DoubleSide, depthWrite: showFill });\n',
+            '        const mesh = new THREE.Mesh(geo, mat);\n',
+            '        vo.mesh.add(mesh); vo.cellMeshes.push(mesh);\n',
+            '        const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geo, 15), new THREE.LineBasicMaterial({ color: baseColor }));\n',
+            '        vo.mesh.add(edges); vo.cellMeshes.push(edges);\n',
+            '      }\n',
+            '    } else if (d.mode === \'delaunay\') {\n',
+            '      const tets = glDelaunay3D(sites);\n',
+            '      const edgeSet = new Set();\n',
+            '      const linePos = [];\n',
+            '      function addEdge(i, j) {\n',
+            '        const k = i < j ? i + \'_\' + j : j + \'_\' + i;\n',
+            '        if (edgeSet.has(k)) return;\n',
+            '        edgeSet.add(k);\n',
+            '        linePos.push(sites[i].x, sites[i].y, sites[i].z, sites[j].x, sites[j].y, sites[j].z);\n',
+            '      }\n',
+            '      for (const t of tets) { addEdge(t[0], t[1]); addEdge(t[0], t[2]); addEdge(t[0], t[3]); addEdge(t[1], t[2]); addEdge(t[1], t[3]); addEdge(t[2], t[3]); }\n',
+            '      if (linePos.length) {\n',
+            '        const geo = new THREE.BufferGeometry();\n',
+            '        geo.setAttribute(\'position\', new THREE.BufferAttribute(new Float32Array(linePos), 3));\n',
+            '        const mesh = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ color: baseColor }));\n',
+            '        vo.mesh.add(mesh); vo.cellMeshes.push(mesh);\n',
+            '      }\n',
+            '    } else {\n',
+            '      // voronoi (по умолчанию): точные выпуклые ячейки клипом бокса бисекторами.\n',
+            '      const box = gcMakeBoxTris3D(halfX, halfY, halfZ);\n',
+            '      const showFill = d.filled !== false;\n',
+            '      for (let i = 0; i < sites.length; i++) {\n',
+            '        const cellTris = gcFilterDegenerateTris3D(gcVoronoiCell3D(box, sites, i));\n',
+            '        if (!cellTris.length) continue;\n',
+            '        const geo = trisToGeometry3D(cellTris);\n',
+            '        const rgb = gcVoronoiColor3D(i);\n',
+            '        const col = new THREE.Color(rgb[0] / 255, rgb[1] / 255, rgb[2] / 255);\n',
+            '        if (showFill) {\n',
+            '          const mat = new THREE.MeshStandardMaterial({ color: col, roughness: 0.6, transparent: true, opacity: opacity, side: THREE.DoubleSide, depthWrite: false });\n',
+            '          const mesh = new THREE.Mesh(geo, mat);\n',
+            '          vo.mesh.add(mesh); vo.cellMeshes.push(mesh);\n',
+            '        }\n',
+            '        const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geo, 15), new THREE.LineBasicMaterial({ color: baseColor }));\n',
+            '        vo.mesh.add(edges); vo.cellMeshes.push(edges);\n',
+            '      }\n',
+            '    }\n',
+            '    if (d.showSites) {\n',
+            '      const sr = Math.max(halfX, halfY, halfZ) * 0.025;\n',
+            '      for (const s of sites) {\n',
+            '        const mesh2 = new THREE.Mesh(new THREE.SphereGeometry(sr, 10, 8), new THREE.MeshBasicMaterial({ color: 0x000000 }));\n',
+            '        mesh2.position.set(s.x, s.y, s.z);\n',
+            '        vo.mesh.add(mesh2);\n',
+            '        vo.siteMeshes.push(mesh2);\n',
+            '      }\n',
+            '    }\n',
+            '  }\n',
+            '  for (const vo of voronoiObjs) { if (window[vo.name] === undefined) window[vo.name] = vo; }\n',
+            '\n',
+            '\n',
             '  // ---------- draw Image — 3D-альтернатива: pos = (x, y, z) вместо ссылки на точку\n',
             '  // (см. parseImageBlock). billboard = true (по умолчанию) — плоскость с текстурой\n',
             '  // всегда развёрнута к камере (используется THREE.Sprite — это его штатное поведение,\n',
@@ -16237,6 +19248,9 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '  for (const vo of vectorObjs) { if (window[vo.name] === undefined) window[vo.name] = vo; }\n',
             '  for (const so of surfaceObjs) { if (window[so.name] === undefined) window[so.name] = so; }\n',
             '  for (const fo of fieldObjs) { if (window[fo.name] === undefined) window[fo.name] = fo; }\n',
+            '  for (const tf of tensorFieldObjs) { if (window[tf.name] === undefined) window[tf.name] = tf; }\n',
+            '  for (const so of scatter3DObjs) { if (window[so.name] === undefined) window[so.name] = so; }\n',
+            '  for (const ho of histogram3DObjs) { if (window[ho.name] === undefined) window[ho.name] = ho; }\n',
             '  for (const co of curveObjs) { if (window[co.name] === undefined) window[co.name] = co; }\n',
             '  for (const to of trajectoryObjs) { if (window[to.name] === undefined) window[to.name] = to; }\n',
             '  for (const txo of textObjs) { if (window[txo.name] === undefined) window[txo.name] = txo; }\n',
@@ -16244,6 +19258,7 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '  for (const pr of primitiveObjs) { if (window[pr.name] === undefined) window[pr.name] = pr; }\n',
             '  for (const dr of derivedObjs) { if (window[dr.name] === undefined) window[dr.name] = dr; }\n',
             '  for (const a3 of angle3DObjs) { if (window[a3.name] === undefined) window[a3.name] = a3; }\n',
+            '  for (const so of solidAngleObjs) { if (window[so.name] === undefined) window[so.name] = so; }\n',
             '\n',
             '  // ---------- Проекция подписей точек и углов в 2D-слой поверх canvas ----------\n',
             '  function updateLabels() {\n',
@@ -16276,6 +19291,15 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '      const sy = (-v.y * 0.5 + 0.5) * rect.height;\n',
             '      a3.label.style.left = sx + \'px\';\n',
             '      a3.label.style.top = sy + \'px\';\n',
+            '    }\n',
+            '    for (const so of solidAngleObjs) {\n',
+            '      if (!so.label || so.label.style.display === \'none\' || !so.active) { if (so.label) so.label.style.display = \'none\'; continue; }\n',
+            '      const v = so.labelPos.clone().project(camera);\n',
+            '      if (v.z > 1) { so.label.style.display = \'none\'; continue; }\n',
+            '      const sx = (v.x * 0.5 + 0.5) * rect.width;\n',
+            '      const sy = (-v.y * 0.5 + 0.5) * rect.height;\n',
+            '      so.label.style.left = sx + \'px\';\n',
+            '      so.label.style.top = sy + \'px\';\n',
             '    }\n',
             '    for (const pr of primitiveObjs) {\n',
             '      if (!pr.label) continue;\n',
@@ -16493,6 +19517,7 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '      ? window.__gcElapsedTime\n',
             '      : (performance.now() - glStartTime3D) / 1000;\n',
             '    updateGridLOD();\n',
+            '    try { updateDescription3D(); } catch (e) { console.warn(\'описание:\', e); }\n',
             '    clusters.forEach(applyClusterTransform3D);\n',
             '    for (const p of pointObjs) { p.active = g3IsActive(p.activeExpr, p.active); p.mesh.visible = p.active; }\n',
             '    for (const pr of primitiveObjs) { pr.active = g3IsActive(pr.activeExpr, pr.active); pr.mesh.visible = pr.active && !pr.hiddenByDerived; }\n',
@@ -16508,6 +19533,11 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '    for (const lo of infLineObjs) { const vis = g3IsActive(lo.activeExpr, lo.active); lo.mesh.visible = vis; if (vis) updateInfLine3D(lo); }\n',
             '    for (const pu of punctirObjs) { const vis = g3IsActive(pu.activeExpr, pu.active); pu.mesh.visible = vis; if (vis) updatePunctir3D(pu); }\n',
             '    for (const eo of equallyObjs) { const vis = g3IsActive(eo.activeExpr, eo.active); eo.meshes.forEach(function(ms) { ms.forEach(function(m) { m.visible = vis; }); }); if (vis) updateEqually3D(eo); }\n',
+            '    for (const to of traceObjs) {\n',
+            '      const vis = g3IsActive(to.activeExpr, to.active);\n',
+            '      if (to.mesh) to.mesh.visible = vis; if (to.segMeshes) to.segMeshes.forEach(function(m) { if (!vis) m.visible = false; });\n',
+            '      if (vis) { updateTrace3D(to); renderTrace3D(to); }\n',
+            '    }\n',
             '    for (const ho of histogramObjs) { const vis = g3IsActive(ho.activeExpr, ho.active); ho.panel.mesh.visible = vis; if (vis) gcDrawHistogramPanel(ho); }\n',
             '    for (const co of chartObjs) { const vis = g3IsActive(co.activeExpr, co.active); co.panel.mesh.visible = vis; if (vis) gcDrawChartPanel(co); }\n',
             '    for (const to of treeObjs) { const vis = g3IsActive(to.activeExpr, to.active); to.panel.mesh.visible = vis; if (vis) gcDrawTreePanel(to); }\n',
@@ -16515,18 +19545,36 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '    for (const go of graphObjs) { const vis = g3IsActive(go.activeExpr, go.active); go.panel.mesh.visible = vis; if (vis) gcDrawGraphPanel(go); }\n',
             '    for (const co of cobwebObjs) { const vis = g3IsActive(co.activeExpr, co.active); co.panel.mesh.visible = vis; if (vis) gcDrawCobwebPanel(co); }\n',
             '    for (const bo of bifurcationObjs) { const vis = g3IsActive(bo.activeExpr, bo.active); bo.panel.mesh.visible = vis; if (vis) gcDrawBifurcationPanel(bo); }\n',
+            '    for (const ro of regionObjs) { const vis = g3IsActive(ro.activeExpr, ro.active); ro.panel.mesh.visible = vis; if (vis) gcDrawRegionPanel(ro); }\n',
+            '    for (const fo of fractalObjs) { const vis = g3IsActive(fo.activeExpr, fo.active); fo.panel.mesh.visible = vis; if (vis) gcDrawFractalPanel(fo); }\n',
+            '    for (const cxo of complexObjs) { const vis = g3IsActive(cxo.activeExpr, cxo.active); cxo.panel.mesh.visible = vis; if (vis) gcDrawComplexPanel(cxo); }\n',
+            '    for (const io of ifsObjs) { const vis = g3IsActive(io.activeExpr, io.active); io.mesh.visible = vis; if (vis) gcBuildIFS3D(io); }\n',
+            '    for (const ao of automatonObjs) { const vis = g3IsActive(ao.activeExpr, ao.active); ao.panel.mesh.visible = vis; if (vis) gcDrawAutomatonPanel(ao); }\n',
+            '    for (const ho of hyperbolicObjs) { const vis = g3IsActive(ho.activeExpr, ho.active); ho.group.visible = vis; if (vis) gcRebuildHyperbolic3D(ho); }\n',
+            '    for (const vo of voronoiObjs) {\n',
+            '      const vis = g3IsActive(vo.activeExpr, vo.active);\n',
+            '      vo.mesh.visible = vis; vo.siteMeshes.forEach(function(m) { m.visible = vis; });\n',
+            '      if (vis) gcBuildVoronoi3D(vo);\n',
+            '    }\n',
             '    for (const io of imageObjs) { io.mesh.visible = g3IsActive(io.activeExpr, io.active); }\n',
             '    for (const so of surfaceObjs) { so.mesh.visible = g3IsActive(so.activeExpr, so.active); }\n',
-            '    for (const co of curveObjs) { co.mesh.visible = g3IsActive(co.activeExpr, co.active); }\n',
+            '    for (const co of curveObjs) { co.mesh.visible = g3IsActive(co.activeExpr, co.active); if (co.frenetGroup) co.frenetGroup.visible = co.mesh.visible; }\n',
             '    for (const to of trajectoryObjs) { to.mesh.visible = g3IsActive(to.activeExpr, to.active); }\n',
             '    for (const fo of fieldObjs) { fo.visible = g3IsActive(fo.activeExpr, fo.active); if (!fo.visible) { for (const ar of fo.arrows) ar.mesh.visible = false; } }\n',
+            '    for (const tf of tensorFieldObjs) { tf.visible = g3IsActive(tf.activeExpr, tf.active); if (!tf.visible) { for (const gl of tf.glyphs) gl.mesh.visible = false; } }\n',
+            '    for (const so of scatter3DObjs) { so.group.visible = g3IsActive(so.activeExpr, so.active); }\n',
+            '    for (const ho of histogram3DObjs) { ho.group.visible = g3IsActive(ho.activeExpr, ho.active); }\n',
             '    for (const lo of lineObjs) { updateLineMesh(lo); }\n',
             '    for (const fo of fillingObjs) { updateFillingMesh(fo); }\n',
             '    for (const vo of vectorObjs) { updateVectorMesh(vo); }\n',
             '    for (const ao of angleObjs) { updateAngleObj(ao); }\n',
             '    for (const a3 of angle3DObjs) { a3.active = g3IsActive(a3.activeExpr, a3.active); if (a3.active) updateAngle3DObj(a3); else { a3.mesh.visible = false; if (a3.label) a3.label.style.display = \'none\'; } }\n',
+            '    for (const so of solidAngleObjs) { so.active = g3IsActive(so.activeExpr, so.active); if (so.active) updateSolidAngleObj(so); else { so.capMesh.visible = false; so.edgeMesh.visible = false; if (so.label) so.label.style.display = \'none\'; } }\n',
             '    for (const so of surfaceObjs) { updateSurfaceMesh(so); }\n',
             '    for (const fo of fieldObjs) { if (fo.visible) updateFieldObj(fo); }\n',
+            '    for (const tf of tensorFieldObjs) { if (tf.visible) updateTensorFieldObj(tf); }\n',
+            '    for (const so of scatter3DObjs) { if (so.group.visible) gcRebuildScatter3D(so); }\n',
+            '    for (const ho of histogram3DObjs) { if (ho.group.visible) gcRebuildHistogram3D(ho); }\n',
             '    for (const co of curveObjs) { updateCurveMesh(co); }\n',
             '    for (const to of trajectoryObjs) { updateTrajectoryMesh(to); }\n',
             '    for (const txo of textObjs) { updateTextObj(txo); }\n',
@@ -16570,30 +19618,27 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
 
             const lines = codeForParams.split('\n');
 
-            const validKeys = ['title', 'undertitle', 'description', 'footer',
+            const validKeys = ['description', 'description align',
                                'can rotate camera', 'can zoom camera',
                                'zoom limits', 'camera start zoom', 'camera start rot',
                                'camera zoom limits', 'camera start offset',
                                'camera type', 'camera projection', 'camera fov', 'camera near', 'camera far',
                                'field width', 'field height', 'field depth', 'field color',
                                'frame color', 'frame width',
-                               'title color', 'title size',
-                               'undertitle color', 'undertitle size',
                                'description color', 'description size',
-                               'footer color', 'footer size',
                                'theme',
                                'show axes', 'show axis x', 'show axis y', 'show axis z', 'axes size',
                                'show grid', 'show grid x', 'show grid y', 'show grid z', 'grid size',
                                'grid color', 'axes color', 'grid adaptive', '2D layer',
                                'snap', 'snap grid', 'snap distance'];
-            const requiredKeys = ['title', 'undertitle', 'description'];
-            const numericKeys = ['field width', 'field height', 'field depth', 'frame width', 'title size', 'undertitle size', 'description size', 'footer size', 'camera start zoom', 'axes size', 'grid size', 'snap grid', 'snap distance', 'camera fov', 'camera near', 'camera far'];
+            const requiredKeys = [];
+            const numericKeys = ['field width', 'field height', 'field depth', 'frame width', 'description size', 'camera start zoom', 'axes size', 'grid size', 'snap grid', 'snap distance', 'camera fov', 'camera near', 'camera far'];
             // zoom limits = (min, max) дистанция камеры от центра сцены (только 3D)
             // camera start rot = (азимут, полярный угол) в градусах — начальный поворот камеры (только 3D)
             const tupleKeys = ['camera zoom limits', 'camera start offset', 'zoom limits', 'camera start rot'];
             // Цвет везде в языке пишется без кавычек (#rrggbb, как и в блоках объектов вида
             // "new Point { color = #ff0000 }") — здесь та же конвенция для цветов заголовка.
-            const colorKeys = ['field color', 'frame color', 'title color', 'undertitle color', 'description color', 'footer color'];
+            const colorKeys = ['field color', 'frame color', 'description color'];
 
             for (let rawLine of lines) {
                 lineNum++;
@@ -16639,17 +19684,20 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
                     }
                 } else if (isQuoted) {
                     let inner = value.slice(1, -1);
-                    inner = inner.replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+                    inner = gcUnescapeStringLiteral(inner);
                     parsedValue = inner;
                 } else {
                     if (key === 'theme') {
                         if (value === 'light' || value === 'dark') parsedValue = value;
                         else { errors.push({ line: lineNum, message: `theme должно быть "light" или "dark"` }); continue; }
+                    } else if (key === 'description align') {
+                        if (value === 'left' || value === 'center' || value === 'right') parsedValue = value;
+                        else { errors.push({ line: lineNum, message: `description align должно быть "left", "center" или "right"` }); continue; }
                     } else if (tupleKeys.includes(key)) {
                         const m = value.match(/^\(\s*([-\d.]+)\s*,\s*([-\d.]+)\s*\)$/);
                         if (!m) { errors.push({ line: lineNum, message: `Некорректный формат для "${key}", ожидается (a, b)` }); continue; }
                         parsedValue = [parseFloat(m[1]), parseFloat(m[2])];
-                    } else if (key === 'title' || key === 'undertitle' || key === 'description' || key === 'footer') {
+                    } else if (key === 'description') {
                         try { parsedValue = evaluateStringExpression(value, vars); } catch (e) { parsedValue = value; }
                     } else if (numericKeys.includes(key)) {
                         const num = parseFloat(value);
@@ -16731,13 +19779,8 @@ function combineHtml2D3D(html2D, html3D, layer2D) {
 
     let combined = html3D;
 
-    // KaTeX нужен 2D-движку для формул/описания — 3D его не подключает, добавляем.
-    combined = combined.replace(
-        '<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"><\/script>\n',
-        '<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"><\/script>\n' +
-        '  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">\n' +
-        '  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"><\/script>\n'
-    );
+    // KaTeX теперь подключается напрямую в generate3D (см. его <head>) — раньше только 2D
+    // грузил его через CDN, а 3D полагался на этот блок; повторное добавление здесь не нужно.
 
     // Оба холста накладываются друг на друга внутри .canvas-wrapper (у него уже position:relative).
     combined = combined.replace(
@@ -16827,8 +19870,8 @@ function combineHtml2D3D(html2D, html3D, layer2D) {
                 drawAngles, drawEqually, drawVectors, drawInfLines, drawInfPlanes, drawFillings, drawPunctirs, drawTexts,
                 uiElements, circles, arcs, ellipses, curves, drawFunctions, drawSurfaces, drawImages,
                 drawHistograms, drawFields, drawTrajectories, drawGraphs, drawFractals,
-                drawFormulas, drawLoci, drawTraces, drawRegions, drawCharts, drawTrees, drawTables,
-                drawComplexes, drawHyperbolics, drawBifurcations, drawCobwebs, drawIFSs, drawAutomata, drawVoronois, drawFouriers, drawDiagrams, errors: cmdErrors
+                drawFormulas, drawDistributions, drawLoci, drawTraces, drawRegions, drawCharts, drawTrees, drawTables,
+                drawComplexes, drawHyperbolics, drawBifurcations, drawCobwebs, drawIFSs, drawAutomata, drawVoronois, drawFouriers, drawDiagrams, drawTensorFields, drawScatter3Ds, drawHistogram3Ds, errors: cmdErrors
             } = parseCommands(removeComments(block), vars);
 
             if (cmdErrors.length > 0) {
@@ -16867,6 +19910,11 @@ function combineHtml2D3D(html2D, html3D, layer2D) {
                 }
                 for (const d of drawTraces) {
                     if (!points.find(p => p.name === d.pointName)) funcRefErrors.push(`draw Trace "${d.name}": точка "${d.pointName}" не объявлена`);
+                }
+                for (const d of drawFillings) {
+                    if (!d.func) continue;
+                    if (!drawFunctions.find(g => g.name === d.func)) funcRefErrors.push(`draw Filling "${d.name}": func ссылается на несуществующий draw Function "${d.func}"`);
+                    if (d.func2 && !drawFunctions.find(g => g.name === d.func2)) funcRefErrors.push(`draw Filling "${d.name}": func2 ссылается на несуществующий draw Function "${d.func2}"`);
                 }
                 if (funcRefErrors.length > 0) {
                     return { success: false, errors: funcRefErrors };
@@ -16910,21 +19958,21 @@ function combineHtml2D3D(html2D, html3D, layer2D) {
             const by3D = (arr) => (arr || []).filter(o => o.dim === '3D');
             const anyDim = (arr, dim) => (arr || []).some(o => o.dim === dim);
 
-            const has3D = primitives.length > 0 || derivedOps.length > 0 || angles3D.length > 0 || drawInfPlanes.length > 0 ||
+            const has3D = primitives.length > 0 || derivedOps.length > 0 || angles3D.length > 0 || drawInfPlanes.length > 0 || drawTensorFields.length > 0 || drawScatter3Ds.length > 0 || drawHistogram3Ds.length > 0 ||
                 anyDim(points, '3D') || anyDim(lines, '3D') || anyDim(figures, '3D') || anyDim(clusters, '3D') ||
                 anyDim(drawVectors, '3D') || anyDim(drawFillings, '3D') || anyDim(drawTexts, '3D') ||
                 anyDim(curves, '3D') || anyDim(drawSurfaces, '3D') || anyDim(drawFields, '3D') || anyDim(drawTrajectories, '3D') ||
-                anyDim(drawInfLines, '3D') || anyDim(drawImages, '3D') || anyDim(drawPunctirs, '3D') || anyDim(drawEqually, '3D') || anyDim(drawHistograms, '3D') || anyDim(drawCharts, '3D') || anyDim(drawTrees, '3D') || anyDim(drawTables, '3D') || anyDim(drawGraphs, '3D') || anyDim(drawCobwebs, '3D') || anyDim(drawBifurcations, '3D');
+                anyDim(drawInfLines, '3D') || anyDim(drawImages, '3D') || anyDim(drawPunctirs, '3D') || anyDim(drawEqually, '3D') || anyDim(drawHistograms, '3D') || anyDim(drawCharts, '3D') || anyDim(drawTrees, '3D') || anyDim(drawTables, '3D') || anyDim(drawGraphs, '3D') || anyDim(drawCobwebs, '3D') || anyDim(drawBifurcations, '3D') || anyDim(drawTraces, '3D') || anyDim(drawRegions, '3D') || anyDim(drawFractals, '3D') || anyDim(drawComplexes, '3D') || anyDim(drawIFSs, '3D') || anyDim(drawAutomata, '3D') || anyDim(drawHyperbolics, '3D') || anyDim(drawVoronois, '3D');
             const has2D = circles.length > 0 || arcs.length > 0 || ellipses.length > 0 || drawFunctions.length > 0 ||
-                drawFractals.length > 0 || drawFormulas.length > 0 ||
-                drawLoci.length > 0 || drawTraces.length > 0 || drawRegions.length > 0 ||
-                drawComplexes.length > 0 || drawHyperbolics.length > 0 ||
-                drawIFSs.length > 0 || drawAutomata.length > 0 || drawVoronois.length > 0 || drawFouriers.length > 0 ||
+                drawFormulas.length > 0 ||
+                drawDistributions.length > 0 ||
+                drawLoci.length > 0 ||
+                drawFouriers.length > 0 ||
                 drawDiagrams.length > 0 || angles.length > 0 || drawAngles.length > 0 ||
                 anyDim(points, '2D') || anyDim(lines, '2D') || anyDim(figures, '2D') || anyDim(clusters, '2D') ||
                 anyDim(drawVectors, '2D') || anyDim(drawFillings, '2D') || anyDim(drawTexts, '2D') ||
                 anyDim(curves, '2D') || anyDim(drawSurfaces, '2D') || anyDim(drawFields, '2D') || anyDim(drawTrajectories, '2D') ||
-                anyDim(drawInfLines, '2D') || anyDim(drawImages, '2D') || anyDim(drawPunctirs, '2D') || anyDim(drawEqually, '2D') || anyDim(drawHistograms, '2D') || anyDim(drawCharts, '2D') || anyDim(drawTrees, '2D') || anyDim(drawTables, '2D') || anyDim(drawGraphs, '2D') || anyDim(drawCobwebs, '2D') || anyDim(drawBifurcations, '2D');
+                anyDim(drawInfLines, '2D') || anyDim(drawImages, '2D') || anyDim(drawPunctirs, '2D') || anyDim(drawEqually, '2D') || anyDim(drawHistograms, '2D') || anyDim(drawCharts, '2D') || anyDim(drawTrees, '2D') || anyDim(drawTables, '2D') || anyDim(drawGraphs, '2D') || anyDim(drawCobwebs, '2D') || anyDim(drawBifurcations, '2D') || anyDim(drawTraces, '2D') || anyDim(drawRegions, '2D') || anyDim(drawFractals, '2D') || anyDim(drawComplexes, '2D') || anyDim(drawIFSs, '2D') || anyDim(drawAutomata, '2D') || anyDim(drawHyperbolics, '2D') || anyDim(drawVoronois, '2D');
 
             let html;
             if (has2D && has3D) {
@@ -16933,10 +19981,10 @@ function combineHtml2D3D(html2D, html3D, layer2D) {
                     by2D(points), by2D(lines), by2D(figures), by2D(clusters), angles,
                     drawAngles, by2D(drawEqually), by2D(drawVectors), by2D(drawInfLines), by2D(drawFillings), by2D(drawPunctirs),
                     by2D(drawTexts), uiElements, circles, arcs, ellipses, by2D(curves), drawFunctions, by2D(drawSurfaces), by2D(drawImages),
-                    by2D(drawHistograms), by2D(drawFields), by2D(drawTrajectories), by2D(drawGraphs), drawFractals,
-                    drawFormulas, drawLoci, drawTraces, drawRegions, by2D(drawCharts), by2D(drawTrees), by2D(drawTables),
-                    drawComplexes, drawHyperbolics, by2D(drawBifurcations), by2D(drawCobwebs), drawIFSs, drawAutomata, drawVoronois, drawFouriers, drawDiagrams,
-                    funcsData, procsData, vars, startCodes, updateCodes
+                    by2D(drawHistograms), by2D(drawFields), by2D(drawTrajectories), by2D(drawGraphs), by2D(drawFractals),
+                    drawFormulas, drawLoci, by2D(drawTraces), by2D(drawRegions), by2D(drawCharts), by2D(drawTrees), by2D(drawTables),
+                    by2D(drawComplexes), by2D(drawHyperbolics), by2D(drawBifurcations), by2D(drawCobwebs), by2D(drawIFSs), by2D(drawAutomata), by2D(drawVoronois), drawFouriers, drawDiagrams,
+                    funcsData, procsData, vars, startCodes, updateCodes, drawDistributions
                 );
                 const html3D = generate3D(
                     params,
@@ -16944,14 +19992,13 @@ function combineHtml2D3D(html2D, html3D, layer2D) {
                     by3D(drawSurfaces), by3D(drawFields), by3D(curves), by3D(drawTrajectories), by3D(drawTexts), [],
                     drawInfPlanes,
                     funcsData, procsData, vars, startCodes, updateCodes,
-                    primitives, derivedOps, angles3D, by3D(drawInfLines), by3D(drawImages), by3D(drawPunctirs), by3D(drawEqually), by3D(drawHistograms), by3D(drawCharts), by3D(drawTrees), by3D(drawTables), by3D(drawGraphs), by3D(drawCobwebs), by3D(drawBifurcations)
+                    primitives, derivedOps, angles3D, by3D(drawInfLines), by3D(drawImages), by3D(drawPunctirs), by3D(drawEqually), by3D(drawHistograms), by3D(drawCharts), by3D(drawTrees), by3D(drawTables), by3D(drawGraphs), by3D(drawCobwebs), by3D(drawBifurcations), by3D(drawTraces), by3D(drawRegions), by3D(drawFractals), by3D(drawComplexes), by3D(drawIFSs), by3D(drawAutomata), by3D(drawHyperbolics), by3D(drawVoronois), drawTensorFields, drawScatter3Ds, drawHistogram3Ds
                 );
                 if (!html2D || !html3D) {
                     return { success: false, errors: ['Ошибка генерации HTML'] };
                 }
                 try {
                     html = combineHtml2D3D(html2D, html3D, params['2D layer']);
-                    if (!params.footer) html = html.replace(' · пространство: 3D', '');
                 } catch (e) {
                     return { success: false, errors: [e.message] };
                 }
@@ -16962,7 +20009,7 @@ function combineHtml2D3D(html2D, html3D, layer2D) {
                     by3D(drawSurfaces), by3D(drawFields), by3D(curves), by3D(drawTrajectories), by3D(drawTexts), uiElements,
                     drawInfPlanes,
                     funcsData, procsData, vars, startCodes, updateCodes,
-                    primitives, derivedOps, angles3D, by3D(drawInfLines), by3D(drawImages), by3D(drawPunctirs), by3D(drawEqually), by3D(drawHistograms), by3D(drawCharts), by3D(drawTrees), by3D(drawTables), by3D(drawGraphs), by3D(drawCobwebs), by3D(drawBifurcations)
+                    primitives, derivedOps, angles3D, by3D(drawInfLines), by3D(drawImages), by3D(drawPunctirs), by3D(drawEqually), by3D(drawHistograms), by3D(drawCharts), by3D(drawTrees), by3D(drawTables), by3D(drawGraphs), by3D(drawCobwebs), by3D(drawBifurcations), by3D(drawTraces), by3D(drawRegions), by3D(drawFractals), by3D(drawComplexes), by3D(drawIFSs), by3D(drawAutomata), by3D(drawHyperbolics), by3D(drawVoronois), drawTensorFields, drawScatter3Ds, drawHistogram3Ds
                 );
             } else {
                 html = generate2D(
@@ -16970,10 +20017,10 @@ function combineHtml2D3D(html2D, html3D, layer2D) {
                     by2D(points), by2D(lines), by2D(figures), by2D(clusters), angles,
                     drawAngles, by2D(drawEqually), by2D(drawVectors), by2D(drawInfLines), by2D(drawFillings), by2D(drawPunctirs),
                     by2D(drawTexts), uiElements, circles, arcs, ellipses, by2D(curves), drawFunctions, by2D(drawSurfaces), by2D(drawImages),
-                    by2D(drawHistograms), by2D(drawFields), by2D(drawTrajectories), by2D(drawGraphs), drawFractals,
-                    drawFormulas, drawLoci, drawTraces, drawRegions, by2D(drawCharts), by2D(drawTrees), by2D(drawTables),
-                    drawComplexes, drawHyperbolics, by2D(drawBifurcations), by2D(drawCobwebs), drawIFSs, drawAutomata, drawVoronois, drawFouriers, drawDiagrams,
-                    funcsData, procsData, vars, startCodes, updateCodes
+                    by2D(drawHistograms), by2D(drawFields), by2D(drawTrajectories), by2D(drawGraphs), by2D(drawFractals),
+                    drawFormulas, drawLoci, by2D(drawTraces), by2D(drawRegions), by2D(drawCharts), by2D(drawTrees), by2D(drawTables),
+                    by2D(drawComplexes), by2D(drawHyperbolics), by2D(drawBifurcations), by2D(drawCobwebs), by2D(drawIFSs), by2D(drawAutomata), by2D(drawVoronois), drawFouriers, drawDiagrams,
+                    funcsData, procsData, vars, startCodes, updateCodes, drawDistributions
                 );
             }
 
