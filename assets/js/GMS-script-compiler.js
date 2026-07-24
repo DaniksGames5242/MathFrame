@@ -9,8 +9,12 @@
 
         // JSON, безопасный для вставки внутрь <script>: строка со значением "</script>"
         // иначе преждевременно закрыла бы тег и сломала весь сгенерированный HTML.
+        // Служебные поля вида __pos (смещение символа в исходнике — только для формирования
+        // "строка N, символ M" в сообщениях об ошибках компиляции, см. offsetToLineCol) не
+        // должны попадать в скомпилированные данные сцены — отфильтровываем их здесь же, в
+        // одном месте, а не точечной зачисткой каждого массива объектов по отдельности.
         function jsonForScript(value) {
-            return JSON.stringify(value)
+            return JSON.stringify(value, (key, val) => (key.startsWith('__') ? undefined : val))
                 .replace(/</g, '\\u003c')
                 .replace(/\u2028/g, '\\u2028')
                 .replace(/\u2029/g, '\\u2029');
@@ -18,7 +22,7 @@
 
         // Разбор экранирования внутри "..."-значений top-level параметров (description и т.п.)
         // — один проход по символам, а не цепочка replace(), чтобы \\n не превращалось в перевод
-        // строки дважды (после того как \\\\ уже развернулось в \\). Поддерживает \\n и \\t — 
+        // строки дважды (после того как \\\\ уже развернулось в \\). Поддерживает \\n и \\t —
         // это единственный способ вписать реальный перевод строки в description, т.к. сам разбор
         // top-level параметров построчный и настоящий перевод строки внутри значения недопустим.
         function gcUnescapeStringLiteral(inner) {
@@ -132,6 +136,12 @@
             return false;
         }
 
+        // ВАЖНО: длина результата всегда равна длине входа (комментарии заменяются на
+        // пробелы/переводы строк, а не удаляются) — это нужно, чтобы смещения символов,
+        // найденные в этом "очищенном" тексте, оставались КОРРЕКТНЫМИ позициями в исходном
+        // скрипте пользователя (см. offsetToLineCol/formatErrorWithPos) — раньше комментарии
+        // вырезались целиком, и все сообщения об ошибках после комментария указывали бы не на ту
+        // строку/символ.
         function removeComments(code) {
             let result = '';
             let inString = false;
@@ -168,16 +178,19 @@
                 }
                 if (!inLineComment && !inBlockComment && !inString && ch === '/' && i + 1 < code.length && code[i+1] === '/') {
                     inLineComment = true;
+                    result += '  ';
                     i++;
                     continue;
                 }
                 if (!inLineComment && !inBlockComment && !inString && ch === '/' && i + 1 < code.length && code[i+1] === '*') {
                     inBlockComment = true;
+                    result += '  ';
                     i++;
                     continue;
                 }
                 if (inBlockComment && ch === '*' && i + 1 < code.length && code[i+1] === '/') {
                     inBlockComment = false;
+                    result += '  ';
                     i++;
                     continue;
                 }
@@ -186,7 +199,7 @@
                     result += '\n';
                     continue;
                 }
-                if (inLineComment || inBlockComment) continue;
+                if (inLineComment || inBlockComment) { result += (ch === '\n' ? '\n' : ' '); continue; }
                 result += ch;
             }
             return result;
@@ -196,6 +209,93 @@
         // скобками; скобки внутри строк и комментариев не учитываются. Исправляет два бага:
         // 1) '};' внутри строки (например, action кнопки с мини-языком) обрывал блок раньше времени;
         // 2) вложенные { } внутри значений полей ломали нежадные regex-экстракторы.
+        // Переводит абсолютное смещение символа в исходном тексте в (строка, символ) —
+        // оба 1-based, как принято при отображении пользователю. Используется, чтобы
+        // все сообщения об ошибках указывали КОНКРЕТНОЕ место в скрипте, а не общее "где-то".
+        function offsetToLineCol(code, offset) {
+            if (typeof offset !== 'number' || offset < 0) return null;
+            let line = 1, lastNewline = -1;
+            const end = Math.min(offset, code.length);
+            for (let i = 0; i < end; i++) {
+                if (code[i] === '\n') { line++; lastNewline = i; }
+            }
+            const col = end - lastNewline;
+            return { line, col };
+        }
+        // Приписывает "(строка N, символ M)" к сообщению об ошибке, если для неё известно
+        // смещение (__pos). Без смещения сообщение возвращается как есть — оно уже
+        // сформулировано достаточно конкретно само по себе (см. diagnoseBlockIssues).
+        function formatErrorWithPos(sourceCode, message, pos) {
+            if (pos === undefined || pos === null) return message;
+            const lc = offsetToLineCol(sourceCode, pos);
+            if (!lc) return message;
+            return `${message} (строка ${lc.line}, символ ${lc.col})`;
+        }
+        // Поля, у которых по правилам языка НЕ должно быть кавычек (числа, true/false, и
+        // перечисления вроде bar/pie/line/circle без кавычек) — самая частая путаница у тех,
+        // кто по аналогии с другими полями (f = "myFunc") оборачивает в кавычки вообще всё.
+        const GMS_UNQUOTED_FIELDS = new Set([
+            'active', 'layer', 'opacity', 'size', 'thickness', 'radius', 'x', 'y', 'z',
+            'min', 'max', 'step', 'width', 'height', 'angle', 'ratio', 'ratioY', 'dx', 'dy', 't',
+            'quality', 'maxIter', 'scale', 'centerRe', 'centerIm', 'mu', 'sigma', 'n', 'p', 'lambda',
+            'a', 'b', 'xmin', 'xmax', 'ymin', 'ymax', 'zmin', 'zmax', 'segments', 'bins', 'rotate',
+            'collision', 'collisionGroup', 'collisionMargin', 'interact', 'extend', 'dynamic',
+            'pauseOnDrag', 'border', 'markers', 'regression', 'showValues', 'showAxes', 'horizontal',
+            'contours', 'directed', 'showWeights', 'labels', 'stepper', 'billboard', 'wireframe',
+            'showInfo', 'textSize', 'nodeRadius', 'levelGap', 'spacing', 'panelWidth', 'panelHeight',
+            'kmax', 'highlightFrom', 'highlightTo', 'highlightOpacity', 'filled', 'adaptiveIter',
+            'periodicityCheck', 'iterations', 'skip', 'keep', 'rmin', 'rmax', 'x0', 'level', 'level2',
+            // Поля-перечисления (enum) — в этом языке почти всегда пишутся БЕЗ кавычек
+            // (type = cube; shape = circle;), в отличие от строковых полей-ссылок вроде f = "myFunc".
+            'type', 'shape', 'mode', 'axis', 'palette', 'inputtype', 'combine',
+        ]);
+        // Лёгкий текстовый анализ содержимого блока — не полноценный парсинг, а эвристики для
+        // самых частых опечаток, чтобы вместо общего "пропущены обязательные поля" сообщение
+        // называло КОНКРЕТНУЮ причину: лишние кавычки там, где ожидалось число/true|false,
+        // пропущенная запятая в списке, несовпадающие скобки.
+        function diagnoseBlockIssues(body) {
+            const hints = [];
+            // 1) Кавычки у поля, которое должно быть без них.
+            const quotedFieldRe = /(?:^|[^A-Za-z0-9_])([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*"([^"]*)"/g;
+            let qm;
+            const seenFields = new Set();
+            while ((qm = quotedFieldRe.exec(body)) !== null) {
+                const field = qm[1];
+                if (seenFields.has(field)) continue;
+                if (GMS_UNQUOTED_FIELDS.has(field)) {
+                    seenFields.add(field);
+                    const val = qm[2];
+                    const looksBool = val === 'true' || val === 'false';
+                    const looksNum = /^-?[\d.]+$/.test(val);
+                    if (looksBool) hints.push(`поле "${field}" указано в кавычках ("${val}") — булевы значения true/false пишутся без кавычек: ${field} = ${val}`);
+                    else if (looksNum) hints.push(`поле "${field}" указано в кавычках ("${val}") — числа пишутся без кавычек: ${field} = ${val}`);
+                    else hints.push(`поле "${field}" указано в кавычках ("${val}") — в этом поле значение пишется без кавычек: ${field} = ${val}`);
+                }
+            }
+            // 2) Несовпадающее число скобок (вне строк) — быстрый проход с учётом кавычек.
+            let depthParen = 0, depthBracket = 0, inStr = false, strCh = '';
+            for (let i = 0; i < body.length; i++) {
+                const ch = body[i];
+                if (inStr) { if (ch === '\\') i++; else if (ch === strCh) inStr = false; continue; }
+                if (ch === '"' || ch === "'") { inStr = true; strCh = ch; continue; }
+                if (ch === '(') depthParen++; else if (ch === ')') depthParen--;
+                else if (ch === '[') depthBracket++; else if (ch === ']') depthBracket--;
+            }
+            if (depthParen !== 0) hints.push(`не совпадает число круглых скобок "(" и ")" — ${depthParen > 0 ? 'не хватает закрывающей ")"' : 'лишняя закрывающая ")"'}`);
+            if (depthBracket !== 0) hints.push(`не совпадает число квадратных скобок "[" и "]" — ${depthBracket > 0 ? 'не хватает закрывающей "]"' : 'лишняя закрывающая "]"'}`);
+            // 3) Пропущенная запятая внутри списка ( ... ) или [ ... ]: два "слова"/чисел подряд
+            // через пробел без разделителя — например (A B) или [1 2 3] вместо (A, B) / [1, 2, 3].
+            const listRe = /[([]([^()[\]]*)[)\]]/g;
+            let lm;
+            while ((lm = listRe.exec(body)) !== null) {
+                const inner = lm[1];
+                if (/\b(?:[a-zA-Z_][a-zA-Z0-9_]*|-?[\d.]+)\s+(?:[a-zA-Z_][a-zA-Z0-9_]*|-?[\d.]+)\b/.test(inner) && !inner.includes(',')) {
+                    hints.push('похоже, в списке в скобках пропущена запятая между элементами');
+                    break;
+                }
+            }
+            return hints;
+        }
         function findHeaderedBlocks(code, headerRegexSrc) {
             const re = new RegExp(headerRegexSrc, 'gi');
             const found = [];
@@ -328,10 +428,21 @@
             }
             return results;
         }
+        // Как и у removeComments — вырезаемый фрагмент заменяется на столько же переводов
+        // строки (без остального текста), сколько в нём было, а не удаляется целиком. Иначе
+        // номера строк для всего, что расположено ПОСЛЕ вырезанного Start/Update/Function/Void/
+        // draw-блока, начинали бы врать (см. использование в parseAndValidate для top-level
+        // параметров сцены типа "show axes = ...;").
+        function eraseSpanKeepingLines(code, start, end) {
+            const removed = code.slice(start, end);
+            let nl = 0;
+            for (let i = 0; i < removed.length; i++) if (removed[i] === '\n') nl++;
+            return code.slice(0, start) + '\n'.repeat(nl) + code.slice(end);
+        }
         function removeFuncDeclarations(code) {
             const decls = findFuncDeclarations(code).sort((a, b) => b.start - a.start);
             let result = code;
-            for (let d of decls) { result = result.substring(0, d.start) + result.substring(d.end); }
+            for (let d of decls) { result = eraseSpanKeepingLines(result, d.start, d.end); }
             return result;
         }
 
@@ -387,7 +498,7 @@
         function removeProcDeclarations(code) {
             const decls = findAllProcDeclarations(code).sort((a, b) => b.start - a.start);
             let result = code;
-            for (let d of decls) { result = result.substring(0, d.start) + result.substring(d.end); }
+            for (let d of decls) { result = eraseSpanKeepingLines(result, d.start, d.end); }
             return result;
         }
 
@@ -404,7 +515,7 @@
             const allBlocks = findBlocks(code, 'Start').concat(findBlocks(code, 'Update'));
             allBlocks.sort((a, b) => b.start - a.start);
             for (let block of allBlocks) {
-                result = result.substring(0, block.start) + result.substring(block.end);
+                result = eraseSpanKeepingLines(result, block.start, block.end);
             }
             return result;
         }
@@ -432,7 +543,7 @@ function removeObjectBlocks(code) {
     }
     spans.sort((a, b) => b.start - a.start);
     let result = code;
-    for (const s of spans) result = result.substring(0, s.start) + result.substring(s.end);
+    for (const s of spans) result = eraseSpanKeepingLines(result, s.start, s.end);
     return result;
 }
 
@@ -740,6 +851,19 @@ function removeObjectBlocks(code) {
             const t = out.trim();
             return t === '' ? null : t;
         }
+        // Для полей вроде data/labels у draw Chart/Tree/Table (ожидается массив), где по аналогии
+        // с другими строковыми полями DSL (f = "myFunc" и т.п.) человек нередко оборачивает
+        // значение в кавычки: data = "[1,2,3]". captureExprField в этом случае вернёт текст ВМЕСТЕ
+        // с кавычками, evaluate() на этапе рендера распарсит это как обычную строку (не массив),
+        // и Array.isArray(...) молча провалится — объект просто не нарисуется без единой ошибки в
+        // консоли. draw Histogram уже был так исправлен раньше; тем же приёмом чиним и остальные:
+        // если поле целиком — одна двойная кавычка, берём её СОДЕРЖИМОЕ как выражение напрямую,
+        // не оборачивая заново в строку.
+        function captureQuotableExprField(block, field) {
+            const quoted = block.match(new RegExp('(?:^|[^A-Za-z0-9_])' + field + '\\s*=\\s*"([^"]*)"'));
+            if (quoted) { const t = quoted[1].trim(); return t === '' ? null : t; }
+            return captureExprField(block, field);
+        }
         // Разбивает "A, B, (0, 0), C" по запятым верхнего уровня, не трогая запятые внутри вложенных скобок
         function splitTopLevelList(str) {
             const items = [];
@@ -834,6 +958,11 @@ function removeObjectBlocks(code) {
                 if (!typeMatch) return null;
                 const type = typeMatch[1];
 
+                // name — необязателен для обратной совместимости (раньше UI-контролы были
+                // анонимными), но без него его нельзя включить в draw Filling... то есть в
+                // new Claster { elements = (...) } — кластеры ищут элементы по имени.
+                const name = parseStringField(block, vars, 'name');
+
                 const labelMatch = block.match(/label\s*=\s*"([^"]*)"/);
                 const label = labelMatch ? labelMatch[1] : '';
 
@@ -899,7 +1028,7 @@ function removeObjectBlocks(code) {
                 const stepper = parseBoolField(block, vars, 'stepper', true);
                 const layer = parseNumberField(block, vars, 'layer', 100, false);
 
-                return { type, label, color, textcolor, active, variable, funcName, default: defaultValue, action, inputtype, min, max, step, stepper, x, y, width: uiWidth, height: uiHeight, radius, layer };
+                return { name, type, label, color, textcolor, active, activeExpr: parseActiveExpr(block), variable, funcName, default: defaultValue, action, inputtype, min, max, step, stepper, x, y, width: uiWidth, height: uiHeight, radius, layer };
             } catch (e) {
                 return null;
             }
@@ -959,11 +1088,11 @@ function removeObjectBlocks(code) {
             const measurecolor = parseColorField(block, vars, 'measurecolor', null);
 
             let radius = 1.0;
-            const radiusMatch = block.match(/radius\s*=\s*([\d.]+|[a-zA-Z_][a-zA-Z0-9_]*)/);
+            const radiusMatch = block.match(/radius\s*=\s*(-?[\d.]+(?:[eE][+-]?\d+)?|[a-zA-Z_][a-zA-Z0-9_]*)/);
             if (radiusMatch) {
                 let r = radiusMatch[1];
                 if (!isNaN(parseFloat(r))) {
-                    radius = parseFloat(r);
+                    radius = Math.abs(parseFloat(r));
                 } else if (vars[r] !== undefined) {
                     if (typeof vars[r] === 'number') radius = vars[r];
                     else radius = r;
@@ -1555,7 +1684,7 @@ function parsePunctirBlock(block, vars) {
                         transformOver: over, transformAround: around, transformCenter: center, transformExpr, transformExprY, transformDx, transformDy,
                         color: '#000000', textEnabled: false, textValue: null, textColor: '#000000',
                         dynamic: false, active: true, size: 1, shape: 'circle', textSize: 1,
-                        pauseOnDrag: true, layer: 40, hidden: true, dim: '2D',
+                        pauseOnDrag: true, layer: 40, hidden: true, dim: null,
                     });
                     if (end === 'A') pointA = nm; else pointB = nm;
                 }
@@ -2060,14 +2189,15 @@ function parseCircleBlock(block, vars) {
         if (!centerName) return null;
 
         let radius = null;
-        // Ищем радиус: число, точка по имени, или буквальные координаты (x, y)
-        const radiusRaw = block.match(/radius\s*=\s*(\([^)]*\)|"[^"]*"|[\d.]+|[a-zA-Z_][a-zA-Z0-9_]*)/);
+        // Ищем радиус: число (включая отрицательные и научную запись — см. parseNumberField),
+        // точка по имени, или буквальные координаты (x, y)
+        const radiusRaw = block.match(/radius\s*=\s*(\([^)]*\)|"[^"]*"|-?[\d.]+(?:[eE][+-]?\d+)?|[a-zA-Z_][a-zA-Z0-9_]*)/);
         if (radiusRaw) {
             const r = radiusRaw[1];
             if (!isNaN(parseFloat(r))) {
-                radius = parseFloat(r);
+                radius = Math.abs(parseFloat(r)); // отрицательное число — не ошибка, а модуль (радиус не бывает отрицательным)
             } else if (vars[r] !== undefined && typeof vars[r] === 'number') {
-                radius = vars[r];
+                radius = Math.abs(vars[r]);
             } else {
                 radius = resolvePointRef(r, vars); // имя точки (или буквальные координаты) — радиус = расстояние до неё
             }
@@ -2122,11 +2252,11 @@ function parseArcBlock(block, vars) {
     if (!centerName) return null;
 
     let radius = null;
-    const radiusRaw = block.match(/radius\s*=\s*(\([^)]*\)|"[^"]*"|[\d.]+|[a-zA-Z_][a-zA-Z0-9_]*)/);
+    const radiusRaw = block.match(/radius\s*=\s*(\([^)]*\)|"[^"]*"|-?[\d.]+(?:[eE][+-]?\d+)?|[a-zA-Z_][a-zA-Z0-9_]*)/);
     if (radiusRaw) {
         const r = radiusRaw[1];
-        if (!isNaN(parseFloat(r))) radius = parseFloat(r);
-        else if (vars[r] !== undefined && typeof vars[r] === 'number') radius = vars[r];
+        if (!isNaN(parseFloat(r))) radius = Math.abs(parseFloat(r)); // отрицательное число — не ошибка, а модуль
+        else if (vars[r] !== undefined && typeof vars[r] === 'number') radius = Math.abs(vars[r]);
         else radius = resolvePointRef(r, vars); // радиус = расстояние от центра до этой точки
     }
 
@@ -2164,7 +2294,7 @@ function parseEllipseBlock(block, vars) {
     if (type === 'ByFoci') {
         const focus1 = parsePointRefField(block, vars, 'focus1');
         const focus2 = parsePointRefField(block, vars, 'focus2');
-        const aMatch = block.match(/(?:^|[,{])\s*a\s*=\s*([^,;\n]+)/);
+        const aMatch = block.match(/(?:^|[^A-Za-z0-9_])\s*a\s*=\s*([^,;\n]+)/);
         if (!focus1 || !focus2 || !aMatch) return null;
         return { ...common, focus1, focus2, aExpr: aMatch[1].trim() };
     }
@@ -2172,8 +2302,8 @@ function parseEllipseBlock(block, vars) {
     // FromCenter (по умолчанию)
     const centerName = parsePointRefField(block, vars, 'center');
     if (!centerName) return null;
-    const aMatch = block.match(/(?:^|[,{])\s*a\s*=\s*([^,;\n]+)/);
-    const bMatch = block.match(/(?:^|[,{])\s*b\s*=\s*([^,;\n]+)/);
+    const aMatch = block.match(/(?:^|[^A-Za-z0-9_])\s*a\s*=\s*([^,;\n]+)/);
+    const bMatch = block.match(/(?:^|[^A-Za-z0-9_])\s*b\s*=\s*([^,;\n]+)/);
     if (!aMatch || !bMatch) return null;
     const rotate = parseNumberField(block, vars, 'rotate', 0, false);
     return { ...common, centerName, aExpr: aMatch[1].trim(), bExpr: bMatch[1].trim(), rotate };
@@ -2342,9 +2472,9 @@ function parseChartBlock(block, vars) {
     if (!name) return null;
     const typeM = block.match(/(?:^|[^A-Za-z0-9_])type\s*=\s*"?(scatter|line|bar|pie|box)"?/);
     const type = typeM ? typeM[1] : 'scatter';
-    const dataExpr = captureExprField(block, 'data');
+    const dataExpr = captureQuotableExprField(block, 'data');
     if (dataExpr === null) return null;
-    const labelsExpr = captureExprField(block, 'labels');
+    const labelsExpr = captureQuotableExprField(block, 'labels');
     // 3D-альтернатива (билборд-панель): pos = (x, y, z) — три ЛИТЕРАЛЬНЫХ числа (в отличие
     // от прежнего 2D pos = (exprX, exprY), где выражения пересчитываются каждый кадр — см.
     // parseImageBlock/parseHistogramBlock, та же конвенция статичной позиции для 3D-объектов).
@@ -2392,7 +2522,7 @@ function parseChartBlock(block, vars) {
 function parseTreeBlock(block, vars) {
     const name = parseStringField(block, vars, 'name');
     if (!name) return null;
-    const dataExpr = captureExprField(block, 'data');
+    const dataExpr = captureQuotableExprField(block, 'data');
     if (dataExpr === null) return null;
     let posXExpr = '0', posYExpr = '0';
     let dim = '2D', pos3D = null, rotate3D = null, billboard = true;
@@ -2437,7 +2567,7 @@ function parseTreeBlock(block, vars) {
 function parseTableBlock(block, vars) {
     const name = parseStringField(block, vars, 'name');
     if (!name) return null;
-    const dataExpr = captureExprField(block, 'data');
+    const dataExpr = captureQuotableExprField(block, 'data');
     if (dataExpr === null) return null;
     let posXExpr = '0', posYExpr = '0';
     let dim = '2D', pos3D = null, rotate3D = null, billboard = true;
@@ -3070,6 +3200,15 @@ function parseFractalBlock(block, vars) {
     if (type === 'julia' && (cReExpr === null || cImExpr === null)) return null;
     const maxIter = parseNumberField(block, vars, 'maxIter', 80, false);
     const quality = parseNumberField(block, vars, 'quality', 2, false);
+    // adaptiveIter — при приближении (маленький scale) внутренние области множества требуют
+    // намного больше итераций, иначе вместо детализированной границы получится сплошное чёрное
+    // пятно без структуры; maxIter в этом случае трактуется как МИНИМУМ, а не фиксированное
+    // число (см. drawFractal). periodicityCheck — классическая оптимизация рендера Мандельброта:
+    // если z входит в короткий цикл, точка гарантированно принадлежит множеству, и можно
+    // прекратить итерации сразу, не дожидаясь maxIter — без неё глубокий зум с адаптивным
+    // ростом итераций был бы намного медленнее именно во внутренних областях множества.
+    const adaptiveIter = parseBoolField(block, vars, 'adaptiveIter', true);
+    const periodicityCheck = parseBoolField(block, vars, 'periodicityCheck', true);
     const paletteMatch = block.match(/(?:^|[^A-Za-z0-9_])palette\s*=\s*"?(fire|ocean|gray|rainbow)"?/);
     const palette = paletteMatch ? paletteMatch[1] : 'ocean';
     const opacity = parseNumberField(block, vars, 'opacity', 1, false);
@@ -3100,13 +3239,20 @@ function parseFractalBlock(block, vars) {
         billboard = parseBoolField(block, vars, 'billboard', true);
     }
     return {
-        name, type, cReExpr, cImExpr, maxIter, quality, palette, opacity, active,
+        name, type, cReExpr, cImExpr, maxIter, quality, adaptiveIter, periodicityCheck, palette, opacity, active,
         activeExpr: parseActiveExpr(block), layer, dim, pos3D, rotate3D, billboard,
         panelWidth: parseNumberField(block, vars, 'panelWidth', 8, false),
         panelHeight: parseNumberField(block, vars, 'panelHeight', 8, false),
         centerRe: parseNumberField(block, vars, 'centerRe', type === 'julia' ? 0 : -0.5, false),
         centerIm: parseNumberField(block, vars, 'centerIm', 0, false),
         scale: parseNumberField(block, vars, 'scale', 1.5, false),
+        // Те же значения, но как СЫРОЕ выражение (не вычисленное один раз при компиляции) —
+        // используется только в 2D-рендере (см. drawFractal), чтобы centerRe/centerIm/scale
+        // можно было привязать к переменной слайдера и приближаться к деталям фрактала
+        // "вживую", перетаскивая слайдер, а не только правкой скрипта и перекомпиляцией.
+        centerReExpr: captureExprField(block, 'centerRe'),
+        centerImExpr: captureExprField(block, 'centerIm'),
+        scaleExpr: captureExprField(block, 'scale'),
     };
 }
 
@@ -3209,7 +3355,7 @@ function parseHistogramBlock(block, vars) {
 function parseScatter3DBlock(block, vars) {
     const name = parseStringField(block, vars, 'name');
     if (!name) return null;
-    const dataExpr = captureExprField(block, 'data');
+    const dataExpr = captureQuotableExprField(block, 'data');
     if (dataExpr === null) return null;
     const pos3D = parseXYZField(block, vars, 'pos', { x: 0, y: 0, z: 0 });
     const pointSize = parseNumberField(block, vars, 'pointSize', 0.25, false);
@@ -3231,7 +3377,7 @@ function parseScatter3DBlock(block, vars) {
 function parseHistogram3DBlock(block, vars) {
     const name = parseStringField(block, vars, 'name');
     if (!name) return null;
-    const dataExpr = captureExprField(block, 'data');
+    const dataExpr = captureQuotableExprField(block, 'data');
     if (dataExpr === null) return null;
     const binsX = parseNumberField(block, vars, 'binsX', 8, false);
     const binsY = parseNumberField(block, vars, 'binsY', 8, false);
@@ -3262,12 +3408,12 @@ function parseHistogram3DBlock(block, vars) {
 function parseFieldBlock(block, vars) {
     const name = parseStringField(block, vars, 'name');
     if (!name) return null;
-    const pMatch = block.match(/(?:^|[,{])\s*P\s*=\s*"([^"]*)"/);
-    const qMatch = block.match(/(?:^|[,{])\s*Q\s*=\s*"([^"]*)"/);
+    const pMatch = block.match(/(?:^|[^A-Za-z0-9_])\s*P\s*=\s*"([^"]*)"/);
+    const qMatch = block.match(/(?:^|[^A-Za-z0-9_])\s*Q\s*=\s*"([^"]*)"/);
     if (!pMatch || !qMatch) return null;
     // R — третья (вертикальная) компонента поля, только для 3D; если не задана,
     // поле считается плоским (лежащим в срезе z = 0), как и было в 2D.
-    const rMatch = block.match(/(?:^|[,{])\s*R\s*=\s*"([^"]*)"/);
+    const rMatch = block.match(/(?:^|[^A-Za-z0-9_])\s*R\s*=\s*"([^"]*)"/);
     const rExpr = rMatch ? rMatch[1] : null;
     const xmin = parseNumberField(block, vars, 'xmin', -25, false);
     const xmax = parseNumberField(block, vars, 'xmax', 25, false);
@@ -3295,13 +3441,13 @@ function parseFieldBlock(block, vars) {
 function parseTensorFieldBlock(block, vars) {
     const name = parseStringField(block, vars, 'name');
     if (!name) return null;
-    const txxM = block.match(/(?:^|[,{])\s*Txx\s*=\s*"([^"]*)"/);
-    const tyyM = block.match(/(?:^|[,{])\s*Tyy\s*=\s*"([^"]*)"/);
-    const tzzM = block.match(/(?:^|[,{])\s*Tzz\s*=\s*"([^"]*)"/);
+    const txxM = block.match(/(?:^|[^A-Za-z0-9_])\s*Txx\s*=\s*"([^"]*)"/);
+    const tyyM = block.match(/(?:^|[^A-Za-z0-9_])\s*Tyy\s*=\s*"([^"]*)"/);
+    const tzzM = block.match(/(?:^|[^A-Za-z0-9_])\s*Tzz\s*=\s*"([^"]*)"/);
     if (!txxM || !tyyM || !tzzM) return null;
-    const txyM = block.match(/(?:^|[,{])\s*Txy\s*=\s*"([^"]*)"/);
-    const txzM = block.match(/(?:^|[,{])\s*Txz\s*=\s*"([^"]*)"/);
-    const tyzM = block.match(/(?:^|[,{])\s*Tyz\s*=\s*"([^"]*)"/);
+    const txyM = block.match(/(?:^|[^A-Za-z0-9_])\s*Txy\s*=\s*"([^"]*)"/);
+    const txzM = block.match(/(?:^|[^A-Za-z0-9_])\s*Txz\s*=\s*"([^"]*)"/);
+    const tyzM = block.match(/(?:^|[^A-Za-z0-9_])\s*Tyz\s*=\s*"([^"]*)"/);
     const xmin = parseNumberField(block, vars, 'xmin', -10, false);
     const xmax = parseNumberField(block, vars, 'xmax', 10, false);
     const ymin = parseNumberField(block, vars, 'ymin', -10, false);
@@ -3340,11 +3486,11 @@ function parseTrajectoryBlock(block, vars) {
         const fieldMatch = block.match(/field\s*=\s*"([^"]*)"/);
         if (fieldMatch) fieldName = fieldMatch[1];
         if (!fieldName) {
-            const pMatch = block.match(/(?:^|[,{])\s*P\s*=\s*"([^"]*)"/);
-            const qMatch = block.match(/(?:^|[,{])\s*Q\s*=\s*"([^"]*)"/);
+            const pMatch = block.match(/(?:^|[^A-Za-z0-9_])\s*P\s*=\s*"([^"]*)"/);
+            const qMatch = block.match(/(?:^|[^A-Za-z0-9_])\s*Q\s*=\s*"([^"]*)"/);
             if (!pMatch || !qMatch) return null;
             pExpr = pMatch[1]; qExpr = qMatch[1];
-            const rMatch = block.match(/(?:^|[,{])\s*R\s*=\s*"([^"]*)"/);
+            const rMatch = block.match(/(?:^|[^A-Za-z0-9_])\s*R\s*=\s*"([^"]*)"/);
             if (rMatch) rExpr = rMatch[1];
         }
     }
@@ -3376,8 +3522,8 @@ function parseGraphDrawBlock(block, vars) {
     const showWeights = parseBoolField(block, vars, 'showWeights', true);
     const labels = parseBoolField(block, vars, 'labels', true);
     // Выражения, вычисляемые каждый кадр: списки подсвечиваемых вершин/рёбер
-    const highlightExpr = captureExprField(block, 'highlight');
-    const highlightEdgesExpr = captureExprField(block, 'highlightEdges');
+    const highlightExpr = captureQuotableExprField(block, 'highlight');
+    const highlightEdgesExpr = captureQuotableExprField(block, 'highlightEdges');
     const highlightColor = parseColorField(block, vars, 'highlightColor', '#e8590c');
     const active = parseBoolField(block, vars, 'active', true);
     const layer = parseNumberField(block, vars, 'layer', 20, false);
@@ -3594,7 +3740,7 @@ function parseCommands(codeBlock, vars) {
     // занято отдельным, самостоятельным типом объекта (угол между линиями/плоскостями в 3D,
     // с полями type/refs), и добавление суффикса 3D к обычному Angle пересеклось бы с ним.
     const blockDefs = [
-        { header: '\\bnew\\s+Point(2D|3D)?\\b',        label: 'Point',           parse: parsePointBlock,        target: points,          dual: true, err: 'пропущены обязательные поля (name, pos или line/circle/graph/...)' },
+        { header: '\\bnew\\s+Point(2D|3D)?\\b',        label: 'Point',           parse: parsePointBlock,        target: points,          dual: true, infer: true, err: 'пропущены обязательные поля (name, pos или line/circle/graph/...)' },
         { header: '\\bnew\\s+Line(2D|3D)?\\b',         label: 'Line',            parse: parseLineBlock,         target: lines,           dual: true, infer: true, err: 'пропущены обязательные поля (name, pos)' },
         { header: '\\bnew\\s+Figure(2D|3D)?\\b',       label: 'Figure',          parse: parseFigureBlock,       target: figures,         dual: true, infer: true, err: 'пропущены обязательные поля (name, elements)' },
         { header: '\\bnew\\s+Primitive\\b',    label: 'Primitive',       parse: parsePrimitiveBlock,    target: primitives,      fixedDim: '3D', err: 'пропущены обязательные поля (name, type — один из: ' + PRIMITIVE_TYPES.join(', ') + ')' },
@@ -3657,10 +3803,14 @@ function parseCommands(codeBlock, vars) {
                     else parsed.dim = def.infer ? null : '2D';
                 }
                 else if (def.fixedDim) parsed.dim = def.fixedDim;
-                if (def.trackPos) parsed.__pos = b.start;
+                parsed.__pos = b.start; // всегда — используется во всех последующих проверках ссылок для указания места ошибки
                 def.target.push(parsed);
             }
-            else errors.push({ line: '--', message: `Ошибка в блоке ${def.label}: ${def.err}` });
+            else {
+                const hints = diagnoseBlockIssues(b.body);
+                const hintText = hints.length ? ` Похоже, дело в следующем: ${hints.join('; ')}.` : '';
+                errors.push({ line: '--', message: `Ошибка в блоке ${def.label}: ${def.err}.${hintText}`, __pos: b.start });
+            }
         }
     }
 
@@ -3674,12 +3824,51 @@ function parseCommands(codeBlock, vars) {
     // как у draw Surface/Field/Trajectory) из собственных полей объекта (z(t)/R/mode/start),
     // которые и так уже различают 2D/3D-варианты. Порядок ниже важен: каждый следующий шаг
     // опирается на то, что предыдущий уже разрешил свои dim.
-    for (let l of lines) {
-        if (l.dim) continue;
-        const pA = points.find(p => p.name === l.pointA);
-        const pB = points.find(p => p.name === l.pointB);
-        l.dim = (pA && pA.dim) || (pB && pB.dim) || '2D';
+    // Точки construct (bisector/median/altitude) наследуют dim от vertex/base; точки
+    // transform (reflect/rotate/homothety/translate) — от transformSource (обычная точка-
+    // трансформация) или от transformSourceLine (синтетические концы transform-линии,
+    // см. parseLineBlock) — раньше в обоих случаях dim не наследовался (оставался
+    // дефолтным/жёстким '2D'), из-за чего трансформация 3D-объекта в 3D-сцене создавала
+    // 2D-точки и валилась валидация ниже. Линии в общем случае наследуют dim от своих точек,
+    // но если точка — сама синтетический конец transform-линии, её dim нужно сначала
+    // разрешить от ИСХОДНОЙ линии, поэтому точки и линии выводятся вместе, в несколько
+    // проходов (на случай цепочек: поворот отражённой линии и т.п.).
+    for (let pass = 0; pass < 6; pass++) {
+        let changed = false;
+        for (let p of points) {
+            if (p.dim) continue;
+            if (p.construct) {
+                const vertexPt = points.find(pp => pp.name === p.vertex);
+                const basePt = points.find(pp => pp.name === p.base);
+                const d = (vertexPt && vertexPt.dim) || (basePt && basePt.dim);
+                if (d) { p.dim = d; changed = true; }
+            } else if (p.transformSourceLine) {
+                const srcLine = lines.find(l => l.name === p.transformSourceLine);
+                if (srcLine && srcLine.dim) { p.dim = srcLine.dim; changed = true; }
+            } else if (p.transform) {
+                const srcPt = points.find(pp => pp.name === p.transformSource);
+                if (srcPt && srcPt.dim) { p.dim = srcPt.dim; changed = true; }
+            } else {
+                p.dim = '2D';
+                changed = true;
+            }
+        }
+        for (let l of lines) {
+            if (l.dim) continue;
+            const pA = points.find(p => p.name === l.pointA);
+            const pB = points.find(p => p.name === l.pointB);
+            if (pA && pA.transform && !pA.dim) continue; // ждём, пока синтетическая точка получит dim выше
+            const d = (pA && pA.dim) || (pB && pB.dim);
+            if (d) { l.dim = d; changed = true; }
+            else if (!(pA && pA.transform)) { l.dim = '2D'; changed = true; }
+        }
+        if (!changed) break;
     }
+    // Safety-net: битая ссылка на несуществующий источник (например, опечатка в vertex/
+    // transformSource) не должна оставлять dim пустым — иначе дальнейшие проверки/рендер
+    // упадут на null. Дефолт '2D' — то же поведение, что было раньше для всех точек.
+    for (let p of points) { if (!p.dim) p.dim = '2D'; }
+    for (let l of lines) { if (!l.dim) l.dim = '2D'; }
     for (let cv of curves) {
         if (cv.dim) continue;
         if (cv.type === 'bezier') {
@@ -3777,48 +3966,48 @@ function parseCommands(codeBlock, vars) {
     for (let l of lines) {
         const pA = points.find(p => p.name === l.pointA);
         const pB = points.find(p => p.name === l.pointB);
-        if (!pA || !pB) { errors.push({ line: '--', message: `Линия "${l.name}" ссылается на несуществующую точку.` }); continue; }
+        if (!pA || !pB) { errors.push({ line: '--', message: `Линия "${l.name}" ссылается на несуществующую точку.`, __pos: l.__pos }); continue; }
         if (pA.dim !== l.dim || pB.dim !== l.dim) {
-            errors.push({ line: '--', message: `Line${l.dim} "${l.name}" ссылается на точку другого измерения — обе точки должны быть Point${l.dim}` });
+            errors.push({ line: '--', message: `Line${l.dim} "${l.name}" ссылается на точку другого измерения — обе точки должны быть Point${l.dim}`, __pos: l.__pos });
         }
     }
 
     for (let p of points) {
         if (p.line) {
             const line = lines.find(l => l.name === p.line);
-            if (!line) errors.push({ line: '--', message: `Точка "${p.name}" ссылается на несуществующую линию "${p.line}"` });
+            if (!line) errors.push({ line: '--', message: `Точка "${p.name}" ссылается на несуществующую линию "${p.line}"`, __pos: p.__pos });
         }
         if (p.circle) {
             const circle = circles.find(c => c.name === p.circle);
-            if (!circle) errors.push({ line: '--', message: `Точка "${p.name}" ссылается на несуществующую окружность "${p.circle}"` });
+            if (!circle) errors.push({ line: '--', message: `Точка "${p.name}" ссылается на несуществующую окружность "${p.circle}"`, __pos: p.__pos });
         }
         if (p.graph) {
             const g = drawFunctions.find(d => d.name === p.graph);
-            if (!g) errors.push({ line: '--', message: `Точка "${p.name}" ссылается на несуществующий график функции "${p.graph}"` });
+            if (!g) errors.push({ line: '--', message: `Точка "${p.name}" ссылается на несуществующий график функции "${p.graph}"`, __pos: p.__pos });
         }
         if (p.ellipse) {
             const ellipse = ellipses.find(e => e.name === p.ellipse);
-            if (!ellipse) errors.push({ line: '--', message: `Точка "${p.name}" ссылается на несуществующий эллипс "${p.ellipse}"` });
+            if (!ellipse) errors.push({ line: '--', message: `Точка "${p.name}" ссылается на несуществующий эллипс "${p.ellipse}"`, __pos: p.__pos });
         }
         if (p.curve) {
             const curve = curves.find(c => c.name === p.curve);
-            if (!curve) errors.push({ line: '--', message: `Точка "${p.name}" ссылается на несуществующую кривую "${p.curve}"` });
+            if (!curve) errors.push({ line: '--', message: `Точка "${p.name}" ссылается на несуществующую кривую "${p.curve}"`, __pos: p.__pos });
         }
         if (p.arc) {
             const arc = arcs.find(a => a.name === p.arc);
-            if (!arc) errors.push({ line: '--', message: `Точка "${p.name}" ссылается на несуществующую дугу "${p.arc}"` });
+            if (!arc) errors.push({ line: '--', message: `Точка "${p.name}" ссылается на несуществующую дугу "${p.arc}"`, __pos: p.__pos });
         }
         if (p.transform) {
             if (p.transformSourceLine) {
                 if (!lines.find(l => l.name === p.transformSourceLine)) {
-                    errors.push({ line: '--', message: `Линия ссылается на несуществующую исходную линию "${p.transformSourceLine}"` });
+                    errors.push({ line: '--', message: `Линия ссылается на несуществующую исходную линию "${p.transformSourceLine}"`, __pos: p.__pos });
                 }
             } else if (!points.find(pp => pp.name === p.transformSource)) {
-                errors.push({ line: '--', message: `Точка "${p.name}" ссылается на несуществующую исходную точку "${p.transformSource}"` });
+                errors.push({ line: '--', message: `Точка "${p.name}" ссылается на несуществующую исходную точку "${p.transformSource}"`, __pos: p.__pos });
             }
             const ref = p.transformOver || p.transformAround || p.transformCenter;
             if (ref && !points.find(pp => pp.name === ref) && !lines.find(l => l.name === ref)) {
-                errors.push({ line: '--', message: `Точка "${p.name}" ссылается на несуществующую точку/линию "${ref}"` });
+                errors.push({ line: '--', message: `Точка "${p.name}" ссылается на несуществующую точку/линию "${ref}"`, __pos: p.__pos });
             }
         }
     }
@@ -3837,13 +4026,13 @@ function parseCommands(codeBlock, vars) {
                 if (!allPointNames.includes(elem)) allPointNames.push(elem);
                 continue;
             }
-            errors.push({ line: '--', message: `Фигура "${f.name}" содержит неизвестный элемент "${elem}"` });
+            errors.push({ line: '--', message: `Фигура "${f.name}" содержит неизвестный элемент "${elem}"${/\s/.test(elem) ? ' — похоже, здесь пропущена запятая между элементами списка' : ''}`, __pos: f.__pos });
         }
         f.pointNames = allPointNames;
         for (let pn of allPointNames) {
             const pt = points.find(p => p.name === pn);
-            if (!pt) errors.push({ line: '--', message: `Фигура "${f.name}" ссылается на несуществующую точку "${pn}"` });
-            else if (pt.dim !== f.dim) errors.push({ line: '--', message: `Figure${f.dim} "${f.name}" ссылается на точку "${pn}" другого измерения — ожидается Point${f.dim}` });
+            if (!pt) errors.push({ line: '--', message: `Фигура "${f.name}" ссылается на несуществующую точку "${pn}"`, __pos: f.__pos });
+            else if (pt.dim !== f.dim) errors.push({ line: '--', message: `Figure${f.dim} "${f.name}" ссылается на точку "${pn}" другого измерения — ожидается Point${f.dim}`, __pos: f.__pos });
         }
     }
 
@@ -3871,22 +4060,22 @@ function parseCommands(codeBlock, vars) {
             const refs = isSingle ? [op.source] : op.parts;
             const label = isSingle ? singleSourceKinds[op.kind] : multiPartsKinds[op.kind];
             if (isSingle && op.source === op.name) {
-                errors.push({ line: '--', message: `${label} "${op.name}" не может ссылаться сам на себя` });
+                errors.push({ line: '--', message: `${label} "${op.name}" не может ссылаться сам на себя`, __pos: op.__pos });
                 continue;
             }
             if (!isSingle && op.parts.includes(op.name)) {
-                errors.push({ line: '--', message: `${label} "${op.name}" не может ссылаться сам на себя` });
+                errors.push({ line: '--', message: `${label} "${op.name}" не может ссылаться сам на себя`, __pos: op.__pos });
                 continue;
             }
             for (const refName of refs) {
                 if (primitiveNames.has(refName)) continue;
                 if (posByName.has(refName)) {
                     if (posByName.get(refName) >= op.__pos) {
-                        errors.push({ line: '--', message: `${label} "${op.name}" ссылается на "${refName}", объявленный позже (Section/Boolean/Truncate/Hull/Minkowski должны ссылаться только на ранее объявленные Primitive/Section/Boolean/Truncate/Hull/Minkowski)` });
+                        errors.push({ line: '--', message: `${label} "${op.name}" ссылается на "${refName}", объявленный позже (Section/Boolean/Truncate/Hull/Minkowski должны ссылаться только на ранее объявленные Primitive/Section/Boolean/Truncate/Hull/Minkowski)`, __pos: op.__pos });
                     }
                     continue;
                 }
-                errors.push({ line: '--', message: `${label} "${op.name}" ссылается на неизвестный объект "${refName}"` });
+                errors.push({ line: '--', message: `${label} "${op.name}" ссылается на неизвестный объект "${refName}"`, __pos: op.__pos });
             }
         }
     }
@@ -3894,6 +4083,10 @@ function parseCommands(codeBlock, vars) {
     // Валидация кластеров – теперь с учётом всех draw-элементов
     for (let c of clusters) {
         const allElements = [];
+        // Раньше здесь искалась лишь небольшая часть типов объектов — remaining типы (UI-контролы
+        // и большинство draw Xxx-визуализаций) считались "неизвестным элементом", даже если
+        // реально существовали в сцене, и кластер с ними просто не компилировался. Теперь ищем
+        // по всем типам, что и в рантайм-резолвере (см. initClusters в generate2D/generate3D).
         const findElem = (elem) => points.find(p => p.name === elem) ||
                           lines.find(l => l.name === elem) ||
                           figures.find(f => f.name === elem) ||
@@ -3904,13 +4097,43 @@ function parseCommands(codeBlock, vars) {
                           ellipses.find(el => el.name === elem) ||
                           curves.find(cv => cv.name === elem) ||
                           angles.find(a => a.name === elem) ||
+                          angles3D.find(a => a.name === elem) ||
                           drawAngles.find(d => d.name === elem) ||
                           drawEqually.find(d => d.name === elem) ||
                           drawVectors.find(d => d.name === elem) ||
                           drawInfLines.find(d => d.name === elem) ||
                           drawFillings.find(d => d.name === elem) ||
                           drawPunctirs.find(d => d.name === elem) ||
-                          drawTexts.find(d => d.name === elem);
+                          drawTexts.find(d => d.name === elem) ||
+                          uiElements.find(d => d.name === elem) ||
+                          drawFunctions.find(d => d.name === elem) ||
+                          drawSurfaces.find(d => d.name === elem) ||
+                          drawImages.find(d => d.name === elem) ||
+                          drawHistograms.find(d => d.name === elem) ||
+                          drawFields.find(d => d.name === elem) ||
+                          drawTrajectories.find(d => d.name === elem) ||
+                          drawGraphs.find(d => d.name === elem) ||
+                          drawFractals.find(d => d.name === elem) ||
+                          drawFormulas.find(d => d.name === elem) ||
+                          drawDistributions.find(d => d.name === elem) ||
+                          drawLoci.find(d => d.name === elem) ||
+                          drawTraces.find(d => d.name === elem) ||
+                          drawRegions.find(d => d.name === elem) ||
+                          drawCharts.find(d => d.name === elem) ||
+                          drawTrees.find(d => d.name === elem) ||
+                          drawTables.find(d => d.name === elem) ||
+                          drawComplexes.find(d => d.name === elem) ||
+                          drawHyperbolics.find(d => d.name === elem) ||
+                          drawBifurcations.find(d => d.name === elem) ||
+                          drawCobwebs.find(d => d.name === elem) ||
+                          drawIFSs.find(d => d.name === elem) ||
+                          drawAutomata.find(d => d.name === elem) ||
+                          drawVoronois.find(d => d.name === elem) ||
+                          drawFouriers.find(d => d.name === elem) ||
+                          drawDiagrams.find(d => d.name === elem) ||
+                          drawTensorFields.find(d => d.name === elem) ||
+                          drawScatter3Ds.find(d => d.name === elem) ||
+                          drawHistogram3Ds.find(d => d.name === elem);
         if (!c.dim) {
             for (const elem of c.elements) {
                 const found = findElem(elem);
@@ -3920,9 +4143,9 @@ function parseCommands(codeBlock, vars) {
         }
         for (let elem of c.elements) {
             const found = findElem(elem);
-            if (!found) { errors.push({ line: '--', message: `Кластер "${c.name}" содержит неизвестный элемент "${elem}"` }); continue; }
+            if (!found) { errors.push({ line: '--', message: `Кластер "${c.name}" содержит неизвестный элемент "${elem}"${/\s/.test(elem) ? ' — похоже, здесь пропущена запятая между элементами списка' : ''}`, __pos: c.__pos }); continue; }
             if (found.dim && found.dim !== c.dim) {
-                errors.push({ line: '--', message: `Claster${c.dim} "${c.name}" содержит элемент "${elem}" другого измерения (${found.dim}) — кластер и его элементы должны быть в одном пространстве` });
+                errors.push({ line: '--', message: `Claster${c.dim} "${c.name}" содержит элемент "${elem}" другого измерения (${found.dim}) — кластер и его элементы должны быть в одном пространстве`, __pos: c.__pos });
                 continue;
             }
             allElements.push(elem);
@@ -3932,7 +4155,7 @@ function parseCommands(codeBlock, vars) {
 
     for (let pr of primitives) {
         if (pr.width <= 0 || pr.height <= 0 || pr.depth <= 0 || pr.edge <= 0 || pr.radius <= 0 || pr.tube <= 0) {
-            errors.push({ line: '--', message: `Примитив "${pr.name}" (${pr.type}): размеры должны быть положительными числами` });
+            errors.push({ line: '--', message: `Примитив "${pr.name}" (${pr.type}): размеры должны быть положительными числами`, __pos: pr.__pos });
         }
     }
 
@@ -3940,7 +4163,7 @@ function parseCommands(codeBlock, vars) {
         const allRefs = Object.values(a3.refs).concat(a3.vertexOverride ? [a3.vertexOverride] : []);
         for (const r of allRefs) {
             if (r.point && !points.find(p => p.name === r.point)) {
-                errors.push({ line: '--', message: `Angle3D "${a3.name}" ссылается на несуществующую точку "${r.point}"` });
+                errors.push({ line: '--', message: `Angle3D "${a3.name}" ссылается на несуществующую точку "${r.point}"`, __pos: a3.__pos });
             }
         }
     }
@@ -3949,11 +4172,11 @@ function parseCommands(codeBlock, vars) {
         const l1 = lines.find(l => l.name === a.lineNames[0]);
         const l2 = lines.find(l => l.name === a.lineNames[1]);
         if (!l1 || !l2) {
-            errors.push({ line: '--', message: `Угол "${a.name}" ссылается на несуществующую линию.` });
+            errors.push({ line: '--', message: `Угол "${a.name}" ссылается на несуществующую линию.`, __pos: a.__pos });
             continue;
         }
         if (l1.dim !== '2D' || l2.dim !== '2D') {
-            errors.push({ line: '--', message: `Угол "${a.name}" — Angle работает только с Line2D (3D-линии сюда передавать нельзя)` });
+            errors.push({ line: '--', message: `Угол "${a.name}" — Angle работает только с Line2D (3D-линии сюда передавать нельзя)`, __pos: a.__pos });
             continue;
         }
         const p1 = points.find(p => p.name === l1.pointA);
@@ -3961,25 +4184,25 @@ function parseCommands(codeBlock, vars) {
         const p3 = points.find(p => p.name === l2.pointA);
         const p4 = points.find(p => p.name === l2.pointB);
         const common = [p1, p2].find(p => p === p3 || p === p4);
-        if (!common) errors.push({ line: '--', message: `Линии угла "${a.name}" не имеют общей вершины.` });
+        if (!common) errors.push({ line: '--', message: `Линии угла "${a.name}" не имеют общей вершины.`, __pos: a.__pos });
     }
 
     for (let d of drawAngles) {
         const angle = angles.find(a => a.name === d.angleName);
-        if (!angle) errors.push({ line: '--', message: `draw Angle "${d.name}" ссылается на неизвестный угол "${d.angleName}"` });
+        if (!angle) errors.push({ line: '--', message: `draw Angle "${d.name}" ссылается на неизвестный угол "${d.angleName}"`, __pos: d.__pos });
     }
 
     for (let c of circles) {
         if (c.type === 'FromRadius') {
             const centerPoint = points.find(p => p.name === c.centerName);
-            if (!centerPoint) errors.push({ line: '--', message: `Окружность "${c.name}" ссылается на несуществующую точку "${c.centerName}"` });
+            if (!centerPoint) errors.push({ line: '--', message: `Окружность "${c.name}" ссылается на несуществующую точку "${c.centerName}"`, __pos: c.__pos });
             if (typeof c.radius === 'string') {
                 const radiusPoint = points.find(p => p.name === c.radius);
-                if (!radiusPoint) errors.push({ line: '--', message: `Окружность "${c.name}" использует радиус-точку "${c.radius}", которая не найдена` });
+                if (!radiusPoint) errors.push({ line: '--', message: `Окружность "${c.name}" использует радиус-точку "${c.radius}", которая не найдена`, __pos: c.__pos });
             }
         } else if (c.type === 'FromPoints') {
             for (let pn of c.pointNames) {
-                if (!points.find(p => p.name === pn)) errors.push({ line: '--', message: `Окружность "${c.name}" ссылается на несуществующую точку "${pn}"` });
+                if (!points.find(p => p.name === pn)) errors.push({ line: '--', message: `Окружность "${c.name}" ссылается на несуществующую точку "${pn}"`, __pos: c.__pos });
             }
         }
     }
@@ -3987,28 +4210,28 @@ function parseCommands(codeBlock, vars) {
     for (let a of arcs) {
         if (a.type === 'ThreePoints') {
             for (let pn of a.pointNames) {
-                if (!points.find(p => p.name === pn)) errors.push({ line: '--', message: `Дуга "${a.name}" (ThreePoints) ссылается на несуществующую точку "${pn}"` });
+                if (!points.find(p => p.name === pn)) errors.push({ line: '--', message: `Дуга "${a.name}" (ThreePoints) ссылается на несуществующую точку "${pn}"`, __pos: a.__pos });
             }
             continue;
         }
-        if (!points.find(p => p.name === a.centerName)) errors.push({ line: '--', message: `Дуга "${a.name}" ссылается на несуществующую точку центра "${a.centerName}"` });
-        if (!points.find(p => p.name === a.from)) errors.push({ line: '--', message: `Дуга "${a.name}" ссылается на несуществующую точку "from"` });
-        if (!points.find(p => p.name === a.to)) errors.push({ line: '--', message: `Дуга "${a.name}" ссылается на несуществующую точку "to"` });
+        if (!points.find(p => p.name === a.centerName)) errors.push({ line: '--', message: `Дуга "${a.name}" ссылается на несуществующую точку центра "${a.centerName}"`, __pos: a.__pos });
+        if (!points.find(p => p.name === a.from)) errors.push({ line: '--', message: `Дуга "${a.name}" ссылается на несуществующую точку "from"`, __pos: a.__pos });
+        if (!points.find(p => p.name === a.to)) errors.push({ line: '--', message: `Дуга "${a.name}" ссылается на несуществующую точку "to"`, __pos: a.__pos });
         if (typeof a.radius === 'string' && !points.find(p => p.name === a.radius)) {
-            errors.push({ line: '--', message: `Дуга "${a.name}" использует радиус-точку "${a.radius}", которая не найдена` });
+            errors.push({ line: '--', message: `Дуга "${a.name}" использует радиус-точку "${a.radius}", которая не найдена`, __pos: a.__pos });
         }
     }
 
     for (let e of ellipses) {
         if (e.type === 'FromPoints') {
             for (let pn of e.pointNames) {
-                if (!points.find(p => p.name === pn)) errors.push({ line: '--', message: `Эллипс "${e.name}" (FromPoints) ссылается на несуществующую точку "${pn}"` });
+                if (!points.find(p => p.name === pn)) errors.push({ line: '--', message: `Эллипс "${e.name}" (FromPoints) ссылается на несуществующую точку "${pn}"`, __pos: e.__pos });
             }
         } else if (e.type === 'ByFoci') {
-            if (!points.find(p => p.name === e.focus1)) errors.push({ line: '--', message: `Эллипс "${e.name}" (ByFoci) ссылается на несуществующий фокус "${e.focus1}"` });
-            if (!points.find(p => p.name === e.focus2)) errors.push({ line: '--', message: `Эллипс "${e.name}" (ByFoci) ссылается на несуществующий фокус "${e.focus2}"` });
+            if (!points.find(p => p.name === e.focus1)) errors.push({ line: '--', message: `Эллипс "${e.name}" (ByFoci) ссылается на несуществующий фокус "${e.focus1}"`, __pos: e.__pos });
+            if (!points.find(p => p.name === e.focus2)) errors.push({ line: '--', message: `Эллипс "${e.name}" (ByFoci) ссылается на несуществующий фокус "${e.focus2}"`, __pos: e.__pos });
         } else {
-            if (!points.find(p => p.name === e.centerName)) errors.push({ line: '--', message: `Эллипс "${e.name}" ссылается на несуществующую точку центра "${e.centerName}"` });
+            if (!points.find(p => p.name === e.centerName)) errors.push({ line: '--', message: `Эллипс "${e.name}" ссылается на несуществующую точку центра "${e.centerName}"`, __pos: e.__pos });
         }
     }
 
@@ -4016,29 +4239,29 @@ function parseCommands(codeBlock, vars) {
         if (cv.type === 'bezier') {
             for (let pn of cv.controlPoints) {
                 const pt = points.find(p => p.name === pn);
-                if (!pt) errors.push({ line: '--', message: `Кривая "${cv.name}" ссылается на несуществующую контрольную точку "${pn}"` });
-                else if (pt.dim !== cv.dim) errors.push({ line: '--', message: `Curve${cv.dim} "${cv.name}" ссылается на контрольную точку "${pn}" другого измерения — ожидается Point${cv.dim}` });
+                if (!pt) errors.push({ line: '--', message: `Кривая "${cv.name}" ссылается на несуществующую контрольную точку "${pn}"`, __pos: cv.__pos });
+                else if (pt.dim !== cv.dim) errors.push({ line: '--', message: `Curve${cv.dim} "${cv.name}" ссылается на контрольную точку "${pn}" другого измерения — ожидается Point${cv.dim}`, __pos: cv.__pos });
             }
         } else if (cv.type === 'spiral' || cv.type === 'cycloid' || cv.type === 'involute') {
             const pt = points.find(p => p.name === cv.centerName);
-            if (!pt) errors.push({ line: '--', message: `Кривая "${cv.name}" ссылается на несуществующую опорную точку "${cv.centerName}"` });
-            else if (pt.dim !== cv.dim) errors.push({ line: '--', message: `Curve${cv.dim} "${cv.name}" ссылается на опорную точку "${cv.centerName}" другого измерения — ожидается Point${cv.dim}` });
+            if (!pt) errors.push({ line: '--', message: `Кривая "${cv.name}" ссылается на несуществующую опорную точку "${cv.centerName}"`, __pos: cv.__pos });
+            else if (pt.dim !== cv.dim) errors.push({ line: '--', message: `Curve${cv.dim} "${cv.name}" ссылается на опорную точку "${cv.centerName}" другого измерения — ожидается Point${cv.dim}`, __pos: cv.__pos });
         }
     }
 
     for (let im of drawImages) {
         if (im.dim === '3D') continue; // 3D-вариант: pos = (x, y, z), ссылки на точку нет
-        if (!points.find(p => p.name === im.posName)) errors.push({ line: '--', message: `Изображение "${im.name}" ссылается на несуществующую точку "${im.posName}"` });
+        if (!points.find(p => p.name === im.posName)) errors.push({ line: '--', message: `Изображение "${im.name}" ссылается на несуществующую точку "${im.posName}"`, __pos: im.__pos });
     }
 
     for (let tr of drawTrajectories) {
         if (tr.fieldName && !drawFields.find(f => f.name === tr.fieldName)) {
-            errors.push({ line: '--', message: `Траектория "${tr.name}" ссылается на несуществующее поле "${tr.fieldName}"` });
+            errors.push({ line: '--', message: `Траектория "${tr.name}" ссылается на несуществующее поле "${tr.fieldName}"`, __pos: tr.__pos });
         }
     }
 
     return {
-        points, lines, figures, primitives, derivedOps: derivedOps.map(({ __pos, ...rest }) => rest), clusters, angles, angles3D,
+        points, lines, figures, primitives, derivedOps, clusters, angles, angles3D,
         drawAngles, drawEqually, drawVectors, drawInfLines, drawInfPlanes, drawFillings, drawPunctirs, drawTexts,
         uiElements, circles, arcs, ellipses, curves, drawFunctions, drawSurfaces, drawImages,
         drawHistograms, drawFields, drawTrajectories, drawGraphs, drawFractals,
@@ -4109,6 +4332,9 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
         const cameraType2D = (params['camera type'] === 'fixed') ? 'fixed' : 'pan';
         const gridColor2D = params['grid color'] || 'rgba(128,128,128,0.25)';
         const axesColor2D = params['axes color'] || 'rgba(128,128,128,0.7)';
+        // ---- Граница поля (Задача: видимая рамка видимой области сцены в 2D) ----
+        const showBoundary2D = params['show boundary'] === true;
+        const boundaryColor2D = params['boundary color'] || 'rgba(255,255,255,0.6)';
 
         const descriptionJson = jsonForScript(description);
         const descAlignJson = jsonForScript(descAlign);
@@ -4389,6 +4615,8 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '    const GRID_ADAPTIVE = ', String(gridAdaptive2D), ';\n',
             '    const GRID_COLOR = \'', gridColor2D, '\';\n',
             '    const AXES_COLOR = \'', axesColor2D, '\';\n',
+            '    const SHOW_BOUNDARY = ', String(showBoundary2D), ';\n',
+            '    const BOUNDARY_COLOR = \'', boundaryColor2D, '\';\n',
             '    const CAMERA_TYPE_2D = \'', cameraType2D, '\';\n',
             '    const EDGE_MARGIN = 0;\n',
             '    const VERTEX_RADIUS = 7;\n',
@@ -4455,6 +4683,32 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '    let isDragging = false;\n',
             '    let draggedPointIndex = -1;\n',
             '\n',
+            '    // Разрешает "точечный" путь вида point.x / point.pos.y / varName.prop — используется\n',
+            '    // в activeExpr (см. glIsActive ниже), портировано из g3ResolveDotted (3D-движок).\n',
+            '    function glResolveDotted(path) {\n',
+            '      const parts = path.split(\'.\');\n',
+            '      const first = parts[0];\n',
+            '      let cur;\n',
+            '      const pt = points.find(function(p) { return p.name === first; });\n',
+            '      if (pt) {\n',
+            '        cur = { x: pt.pos.x, y: pt.pos.y, pos: { x: pt.pos.x, y: pt.pos.y }, name: pt.name, active: pt.active };\n',
+            '      } else if (typeof userVars[first] !== \'undefined\') {\n',
+            '        cur = userVars[first];\n',
+            '      } else return undefined;\n',
+            '      for (let i = 1; i < parts.length; i++) { if (cur === null || cur === undefined) return undefined; cur = cur[parts[i]]; }\n',
+            '      return cur;\n',
+            '    }\n',
+            '    // Динамическая видимость через activeExpr (переменная/точечный путь/"true"/"false")\n',
+            '    // — портировано из g3IsActive (3D-движок), чтобы объекты 2D-сцены тоже могли\n',
+            '    // управлять видимостью через переменные/слайдеры, а не только статическим active.\n',
+            '    function glIsActive(activeExpr, fallback) {\n',
+            '      if (activeExpr === undefined || activeExpr === null) return fallback !== false;\n',
+            '      if (activeExpr === \'true\') return true;\n',
+            '      if (activeExpr === \'false\') return false;\n',
+            '      const raw = (activeExpr.indexOf(\'.\') >= 0) ? glResolveDotted(activeExpr) : userVars[activeExpr];\n',
+            '      if (raw === undefined || raw === null) return fallback !== false;\n',
+            '      return !(raw === false || raw === 0 || raw === \'\');\n',
+            '    }\n',
             '    function isObjectActive(obj) {\n',
             '      if (!obj) return false;\n',
             '      for (let c of clusters) {\n',
@@ -4463,7 +4717,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '          break;\n',
             '        }\n',
             '      }\n',
-            '      return obj.active !== undefined ? obj.active : true;\n',
+            '      return glIsActive(obj.activeExpr, obj.active !== undefined ? obj.active : true);\n',
             '    }\n',
             '\n',
             '    function isPointLocked(point) {\n',
@@ -4527,9 +4781,20 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '      } else if (mode === \'pointOnSide\') {\n',
             '        return false;\n',
             '      }\n',
-            '      clampFieldPoint(vertex.pos);\n',
-            '      clampFieldPoint(p1.pos);\n',
-            '      clampFieldPoint(p2.pos);\n',
+            '      // Раньше каждая из трёх точек (vertex/p1/p2) обрезалась по границе поля НЕЗАВИСИМО —\n',
+            '      // из-за этого жёсткая фигура заблокированного угла искажалась (точки клэмпились на\n',
+            '      // разную величину) и угол можно было незаметно сдвинуть, притерев его к границе.\n',
+            '      // Теперь вместо клэмпа — проверка "вышла ли хоть одна точка за поле", и если да,\n',
+            '      // весь сдвиг целиком отменяется (та же логика, что и при столкновении ниже) —\n',
+            '      // угол именно упирается в границу как единое жёсткое тело, а не деформируется.\n',
+            '      const halfW = FIELD_WIDTH / 2, halfH = FIELD_HEIGHT / 2;\n',
+            '      function outOfField(pos) { return pos.x < -halfW || pos.x > halfW || pos.y < -halfH || pos.y > halfH; }\n',
+            '      if (outOfField(vertex.pos) || outOfField(p1.pos) || outOfField(p2.pos)) {\n',
+            '        vertex.pos.x = oldV.x; vertex.pos.y = oldV.y;\n',
+            '        p1.pos.x = oldP1.x; p1.pos.y = oldP1.y;\n',
+            '        p2.pos.x = oldP2.x; p2.pos.y = oldP2.y;\n',
+            '        return false;\n',
+            '      }\n',
             '      const pointsToCheck = [vertex, p1, p2];\n',
             '      let collision = false;\n',
             '      for (let i = 0; i < points.length; i++) {\n',
@@ -5131,16 +5396,31 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '    }\n',
             '\n',
             '    function initClusters() {\n',
+            '      // Раньше кластер мог включать только точки/линии/фигуры/окружности/дуги/эллипсы/\n',
+            '      // кривые — любое другое имя в elements = (...) молча отбрасывалось (в частности,\n',
+            '      // UI-контролы и все визуализации draw Xxx). Теперь резолвер ищет элемент по имени\n',
+            '      // среди буквально всех типов объектов сцены, поэтому кластер можно использовать\n',
+            '      // как "страницу" — кнопку/слайдер/текст/график/распределение и т.п. вместе с точками,\n',
+            '      // и прятать всё разом через cluster.active (см. isObjectActive).\n',
+            '      const clusterSearchPools = [\n',
+            '        points, lines, figures, circles, arcs, ellipses, curves,\n',
+            '        uiData, drawTexts, drawFunctions, drawSurfaces, drawImages, drawHistograms,\n',
+            '        drawFields, drawTrajectories, drawGraphs, drawFractals, drawFormulas, drawDistributions,\n',
+            '        drawLoci, drawTraces, drawRegions, drawCharts, drawTrees, drawTables, drawComplexes,\n',
+            '        drawHyperbolics, drawBifurcations, drawCobwebs, drawIFSs, drawAutomata, drawVoronois,\n',
+            '        drawFouriers, drawDiagrams, drawVectors, drawInfLines, drawEqually, drawAngles,\n',
+            '        drawPunctirs, drawFillings,\n',
+            '      ];\n',
+            '      function findByNameInPools(name) {\n',
+            '        for (const pool of clusterSearchPools) {\n',
+            '          if (!pool) continue;\n',
+            '          const found = pool.find(o => o && o.name === name);\n',
+            '          if (found) return found;\n',
+            '        }\n',
+            '        return undefined;\n',
+            '      }\n',
             '      clusters = clustersData.map(c => {\n',
-            '        const elements = c.elements.map(name => {\n',
-            '          return points.find(p => p.name === name) ||\n',
-            '                 lines.find(l => l.name === name) ||\n',
-            '                 figures.find(f => f.name === name) ||\n',
-            '                 circles.find(cir => cir.name === name) ||\n',
-            '                 arcs.find(a => a.name === name) ||\n',
-            '                 ellipses.find(e => e.name === name) ||\n',
-            '                 curves.find(cv => cv.name === name);\n',
-            '        }).filter(el => el !== undefined);\n',
+            '        const elements = c.elements.map(name => findByNameInPools(name)).filter(el => el !== undefined);\n',
             '        const rigidPoints = collectClusterRigidPoints(elements);\n',
             '        let cx = 0, cy = 0;\n',
             '        for (let p of rigidPoints) { cx += p.pos.x; cy += p.pos.y; }\n',
@@ -6033,6 +6313,16 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '          }\n',
             '        }\n',
             '      }\n',
+            '      if (SHOW_BOUNDARY) {\n',
+            '        // Прямоугольник границы поля (FIELD_WIDTH x FIELD_HEIGHT вокруг начала координат) —\n',
+            '        // та самая область, за которую точки не могут выйти (см. clampFieldPoint) — теперь\n',
+            '        // можно сделать видимой вместо того, чтобы полагаться на невидимую стену.\n',
+            '        const b1 = fieldToPixel(-FIELD_WIDTH / 2, -FIELD_HEIGHT / 2);\n',
+            '        const b2 = fieldToPixel(FIELD_WIDTH / 2, FIELD_HEIGHT / 2);\n',
+            '        ctx.strokeStyle = BOUNDARY_COLOR; ctx.lineWidth = 1.5; ctx.setLineDash([6, 4]);\n',
+            '        ctx.strokeRect(Math.min(b1.x, b2.x), Math.min(b1.y, b2.y), Math.abs(b2.x - b1.x), Math.abs(b2.y - b1.y));\n',
+            '        ctx.setLineDash([]);\n',
+            '      }\n',
             '      ctx.restore();\n',
             '    }\n',
             '    function drawAxesGrid(step) {\n',
@@ -6270,9 +6560,21 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '      ctx.restore();\n',
             '    }\n',
             '\n',
+            '// Если данные (для draw Chart/Table/Histogram/Tree) в итоге оказались строкой, а не\n',
+            '// массивом — например, значение пришло из переменной, которой Start/Update присвоили\n',
+            '// текст вида "[1,2,3]" — даём ещё одну попытку: пробуем вычислить содержимое строки\n',
+            '// как выражение. Компиляционный разбор уже страхует самый частый случай (data = "[...]"\n',
+            '// прямо в блоке — см. captureQuotableExprField), это — защита на рантайм-случай.\n',
+            'function glCoerceArrayData(raw) {\n',
+            '    if (Array.isArray(raw)) return raw;\n',
+            '    if (typeof raw === \'string\') {\n',
+            '        try { const re = evaluate(raw); if (Array.isArray(re)) return re; } catch (e) {}\n',
+            '    }\n',
+            '    return raw;\n',
+            '}\n',
             '    function drawHistogram(d) {\n',
             '      let data;\n',
-            '      try { data = evaluate(d.dataExpr); } catch (e) { return; }\n',
+            '      try { data = glCoerceArrayData(evaluate(d.dataExpr)); } catch (e) { return; }\n',
             '      if (!Array.isArray(data) || data.length === 0) return;\n',
             '      const bins = d.bins;\n',
             '      let dmin = Infinity, dmax = -Infinity;\n',
@@ -6399,6 +6701,14 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '    // ocean (по умолчанию)\n',
             '    return [Math.round(15 + 90 * t), Math.round(45 + 160 * t), Math.round(110 + 145 * t)];\n',
             '}\n',
+            '// Вычисляет centerRe/centerIm/scale заново каждый кадр, если задано как выражение\n',
+            '// (например, переменная слайдера) — иначе просто возвращает статичное значение,\n',
+            '// вычисленное один раз при компиляции. Ошибка вычисления — тихий откат к нему же.\n',
+            'function evalFractalNum(expr, fallback) {\n',
+            '    if (!expr) return fallback;\n',
+            '    try { const v = evaluate(expr); return (typeof v === \'number\' && isFinite(v)) ? v : fallback; }\n',
+            '    catch (e) { return fallback; }\n',
+            '}\n',
             'function drawFractal(d) {\n',
             '    const q = Math.max(1, Math.floor(d.quality || 2));\n',
             '    const w = Math.max(2, Math.floor(width / q)), h = Math.max(2, Math.floor(height / q));\n',
@@ -6408,15 +6718,42 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '        cRe = (typeof rV === \'number\' && isFinite(rV)) ? rV : -0.7;\n',
             '        cIm = (typeof iV === \'number\' && isFinite(iV)) ? iV : 0.27015;\n',
             '    }\n',
-            '    const tl = pixelToField(0, 0), br = pixelToField(width, height);\n',
-            '    const key = [d.type, cRe.toFixed(6), cIm.toFixed(6), d.maxIter, d.palette, w, h,\n',
-            '        tl.x.toFixed(6), tl.y.toFixed(6), br.x.toFixed(6), br.y.toFixed(6)].join(\'|\');\n',
+            '    // Раньше окно комплексной плоскости брали из ТЕКУЩЕЙ камеры сцены (pixelToField).\n',
+            '    // Из-за этого фрактал зависел от совершенно не связанных с ним настроек: дефолтное\n',
+            '    // поле сцены обычно ±25, а потолок зума камеры — обычно 5x, чего категорически\n',
+            '    // не хватает даже чтобы показать одно множество Мандельброта целиком (оно занимает\n',
+            '    // всего ~3.5x3 единицы), не говоря уже о приближении к границе, где и находятся все\n',
+            '    // интересные детали. Теперь используется СОБСТВЕННОЕ окно фрактала (centerRe/centerIm/\n',
+            '    // scale — точно как у 3D-панели этого же типа), независимое от камеры сцены: дефолты\n',
+            '    // (-0.5, 0, 1.5) сразу показывают всё множество целиком, а приближение к любой детали —\n',
+            '    // через сами эти поля (в т.ч. через переменную/слайдер), без потолка зума камеры.\n',
+            '    let scale = evalFractalNum(d.scaleExpr, d.scale);\n',
+            '    if (!(scale > 0)) scale = 1.5; // только явно некорректное (0/отрицательное/NaN) — не искусственный "пол" на приближение\n',
+            '    const aspect = w / h;\n',
+            '    const halfX = scale * aspect, halfY = scale;\n',
+            '    const centerRe = evalFractalNum(d.centerReExpr, d.centerRe);\n',
+            '    const centerIm = evalFractalNum(d.centerImExpr, d.centerIm);\n',
+            '    const tl = { x: centerRe - halfX, y: centerIm + halfY };\n',
+            '    const br = { x: centerRe + halfX, y: centerIm - halfY };\n',
+            '    // maxIter из поля — это МИНИМУМ (при adaptiveIter !== false). Чем глубже зум, тем\n',
+            '    // больше итераций нужно, чтобы у границы множества проявлялась структура, а не\n',
+            '    // сплошная заливка "внутри/снаружи": на каждое удвоение приближения (log2(1/scale))\n',
+            '    // добавляем ~60 итераций — стандартная для рендеров Мандельброта эвристика. Верхний\n',
+            '    // потолок (20000) — не ограничение на ПРИБЛИЖЕНИЕ (scale ничем не ограничен), а просто\n',
+            '    // защита от случайного зависания вкладки на нереалистичном числе итераций на пиксель.\n',
+            '    const baseIter = Math.max(5, Math.floor(d.maxIter || 80));\n',
+            '    let maxIter = baseIter;\n',
+            '    if (d.adaptiveIter !== false && scale < 1.5) {\n',
+            '        const depth = Math.log2(1.5 / scale);\n',
+            '        maxIter = Math.min(20000, Math.max(baseIter, Math.round(baseIter + depth * 60)));\n',
+            '    }\n',
+            '    const periodicityCheck = d.periodicityCheck !== false;\n',
+            '    const key = [d.type, cRe.toFixed(6), cIm.toFixed(6), maxIter, periodicityCheck, d.palette, w, h, centerRe, centerIm, scale].join(\'|\');\n',
             '    if (!d._cache || d._cacheKey !== key) {\n',
             '        const off = document.createElement(\'canvas\'); off.width = w; off.height = h;\n',
             '        const octx = off.getContext(\'2d\');\n',
             '        const imgData = octx.createImageData(w, h);\n',
             '        const data = imgData.data;\n',
-            '        const maxIter = Math.max(5, Math.floor(d.maxIter || 80));\n',
             '        for (let py = 0; py < h; py++) {\n',
             '            const y0 = tl.y + (br.y - tl.y) * (py + 0.5) / h;\n',
             '            for (let px = 0; px < w; px++) {\n',
@@ -6425,6 +6762,13 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '                if (d.type === \'julia\') { zx = x0; zy = y0; cx = cRe; cy = cIm; }\n',
             '                else { zx = 0; zy = 0; cx = x0; cy = y0; }\n',
             '                let iter = 0;\n',
+            '                // Periodicity checking (Brent-style): периодически запоминаем текущую z\n',
+            '                // ("checkX/checkY"), и если z совпадает с ней снова — орбита зациклилась,\n',
+            '                // точка точно принадлежит множеству, дальше можно не считать. Интервал\n',
+            '                // проверки удваивается — тот же классический приём, что в GNU MPFR/большинстве\n',
+            '                // Mandelbrot-рендеров, почти не влияет на скорость снаружи и радикально\n',
+            '                // ускоряет закрашенные внутренние области при большом adaptive maxIter.\n',
+            '                let checkX = zx, checkY = zy, checkPeriod = 0, checkLimit = 8, periodic = false;\n',
             '                while (iter < maxIter && zx * zx + zy * zy <= 4) {\n',
             '                    let nx, ny;\n',
             '                    if (d.type === \'burningship\') {\n',
@@ -6434,9 +6778,14 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '                        nx = zx * zx - zy * zy + cx; ny = 2 * zx * zy + cy;\n',
             '                    }\n',
             '                    zx = nx; zy = ny; iter++;\n',
+            '                    if (periodicityCheck) {\n',
+            '                        if (zx === checkX && zy === checkY) { periodic = true; break; }\n',
+            '                        checkPeriod++;\n',
+            '                        if (checkPeriod >= checkLimit) { checkPeriod = 0; checkLimit *= 2; checkX = zx; checkY = zy; }\n',
+            '                    }\n',
             '                }\n',
             '                const idx = (py * w + px) * 4;\n',
-            '                if (iter >= maxIter) { data[idx] = 0; data[idx + 1] = 0; data[idx + 2] = 0; data[idx + 3] = 255; }\n',
+            '                if (periodic || iter >= maxIter) { data[idx] = 0; data[idx + 1] = 0; data[idx + 2] = 0; data[idx + 3] = 255; }\n',
             '                else {\n',
             '                    const mag = Math.sqrt(zx * zx + zy * zy);\n',
             '                    const smooth = iter + 1 - Math.log(Math.log(Math.max(mag, 1.0000001))) / Math.LN2;\n',
@@ -6720,8 +7069,8 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '\n',
             '    function drawChart(d) {\n',
             '        let raw, labels = null;\n',
-            '        try { raw = evaluate(d.dataExpr); } catch (e) { return; }\n',
-            '        if (d.labelsExpr) { try { labels = evaluate(d.labelsExpr); } catch (e) { labels = null; } }\n',
+            '        try { raw = glCoerceArrayData(evaluate(d.dataExpr)); } catch (e) { return; }\n',
+            '        if (d.labelsExpr) { try { labels = glCoerceArrayData(evaluate(d.labelsExpr)); } catch (e) { labels = null; } }\n',
             '        if (!Array.isArray(raw)) return;\n',
             '        if (d.type === \'scatter\' || d.type === \'line\') return drawChartXY(d, raw);\n',
             '        // bar / pie / box строятся в прямоугольнике\n',
@@ -6992,7 +7341,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '    }\n',
             '    function drawTreeDiagram(d) {\n',
             '        let raw;\n',
-            '        try { raw = evaluate(d.dataExpr); } catch (e) { return; }\n',
+            '        try { raw = glCoerceArrayData(evaluate(d.dataExpr)); } catch (e) { return; }\n',
             '        const root = glTreeNorm(raw);\n',
             '        if (!root) return;\n',
             '        let ax = 0, ay = 0;\n',
@@ -7051,7 +7400,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '    // ---- Таблицы ----\n',
             '    function drawTable(d) {\n',
             '        let raw;\n',
-            '        try { raw = evaluate(d.dataExpr); } catch (e) { return; }\n',
+            '        try { raw = glCoerceArrayData(evaluate(d.dataExpr)); } catch (e) { return; }\n',
             '        if (!Array.isArray(raw) || !raw.length) return;\n',
             '        const rows = raw.map(r => Array.isArray(r) ? r : [r]);\n',
             '        let cols = 0;\n',
@@ -8355,7 +8704,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '      try { updateFormulas(); } catch (e) { glLog(\'warn\', \'draw Formula: \' + e.message); }\n',
             '      try { updateDescription(); } catch (e) { glLog(\'warn\', \'описание: \' + e.message); }\n',
             '      ctx.clearRect(0, 0, width, height);\n',
-              '      if (SHOW_GRID_X || SHOW_GRID_Y || SHOW_AXIS_X || SHOW_AXIS_Y) drawSceneGridAxes();\n',
+              '      if (SHOW_GRID_X || SHOW_GRID_Y || SHOW_AXIS_X || SHOW_AXIS_Y || SHOW_BOUNDARY) drawSceneGridAxes();\n',
             '      updateCircles();\n',
             '      updateEllipses();\n',
             '      updateArcs();\n',
@@ -8422,127 +8771,127 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '      }\n',
             '\n',
             '      for (let d of drawFunctions) {\n',
-            '        if (!d.active) continue;\n',
+            '        if (!isObjectActive(d)) continue;\n',
             '        push(d.layer, () => drawFunctionGraph(d));\n',
             '      }\n',
             '\n',
             '      for (let d of drawSurfaces) {\n',
-            '        if (!d.active) continue;\n',
+            '        if (!isObjectActive(d)) continue;\n',
             '        push(d.layer, () => drawSurface(d));\n',
             '      }\n',
             '\n',
             '      for (let d of drawImages) {\n',
-            '        if (!d.active) continue;\n',
+            '        if (!isObjectActive(d)) continue;\n',
             '        push(d.layer, () => drawImageElement(d));\n',
             '      }\n',
             '\n',
             '      for (let d of drawFractals) {\n',
-            '        if (!d.active) continue;\n',
+            '        if (!isObjectActive(d)) continue;\n',
             '        push(d.layer, () => drawFractal(d));\n',
             '      }\n',
             '\n',
             '      for (let d of drawRegions) {\n',
-            '        if (!d.active) continue;\n',
+            '        if (!isObjectActive(d)) continue;\n',
             '        push(d.layer, () => drawRegion(d));\n',
             '      }\n',
             '\n',
             '      for (let d of drawLoci) {\n',
-            '        if (!d.active) continue;\n',
+            '        if (!isObjectActive(d)) continue;\n',
             '        push(d.layer, () => drawLocus(d));\n',
             '      }\n',
             '\n',
             '      for (let d of drawTraces) {\n',
-            '        if (!d.active) continue;\n',
+            '        if (!isObjectActive(d)) continue;\n',
             '        push(d.layer, () => drawTrace(d));\n',
             '      }\n',
             '\n',
             '      for (let d of drawCharts) {\n',
-            '        if (!d.active) continue;\n',
+            '        if (!isObjectActive(d)) continue;\n',
             '        push(d.layer, () => drawChart(d));\n',
             '      }\n',
             '\n',
             '      for (let d of drawTrees) {\n',
-            '        if (!d.active) continue;\n',
+            '        if (!isObjectActive(d)) continue;\n',
             '        push(d.layer, () => drawTreeDiagram(d));\n',
             '      }\n',
             '\n',
             '      for (let d of drawTables) {\n',
-            '        if (!d.active) continue;\n',
+            '        if (!isObjectActive(d)) continue;\n',
             '        push(d.layer, () => drawTable(d));\n',
             '      }\n',
             '\n',
             '      for (let d of drawComplexes) {\n',
-            '        if (!d.active) continue;\n',
+            '        if (!isObjectActive(d)) continue;\n',
             '        push(d.layer, () => drawComplexDomain(d));\n',
             '      }\n',
             '\n',
             '      for (let d of drawHyperbolics) {\n',
-            '        if (!d.active) continue;\n',
+            '        if (!isObjectActive(d)) continue;\n',
             '        push(d.layer, () => drawHyperbolic(d));\n',
             '      }\n',
             '\n',
             '      for (let d of drawBifurcations) {\n',
-            '        if (!d.active) continue;\n',
+            '        if (!isObjectActive(d)) continue;\n',
             '        push(d.layer, () => drawBifurcation(d));\n',
             '      }\n',
             '\n',
             '      for (let d of drawCobwebs) {\n',
-            '        if (!d.active) continue;\n',
+            '        if (!isObjectActive(d)) continue;\n',
             '        push(d.layer, () => drawCobweb(d));\n',
             '      }\n',
             '\n',
             '      for (let d of drawIFSs) {\n',
-            '        if (!d.active) continue;\n',
+            '        if (!isObjectActive(d)) continue;\n',
             '        push(d.layer, () => drawIFS(d));\n',
             '      }\n',
             '\n',
             '      for (let d of drawAutomata) {\n',
-            '        if (!d.active) continue;\n',
+            '        if (!isObjectActive(d)) continue;\n',
             '        push(d.layer, () => drawAutomaton(d));\n',
             '      }\n',
             '\n',
             '      for (let d of drawVoronois) {\n',
-            '        if (!d.active) continue;\n',
+            '        if (!isObjectActive(d)) continue;\n',
             '        push(d.layer, () => drawVoronoi(d));\n',
             '      }\n',
             '\n',
             '      for (let d of drawFouriers) {\n',
-            '        if (!d.active) continue;\n',
+            '        if (!isObjectActive(d)) continue;\n',
             '        push(d.layer, () => drawFourier(d));\n',
             '      }\n',
             '\n',
             '      for (let d of drawDiagrams) {\n',
-            '        if (!d.active) continue;\n',
+            '        if (!isObjectActive(d)) continue;\n',
             '        push(d.layer, () => drawDiagram(d));\n',
             '      }\n',
             '\n',
             '      for (let d of drawFields) {\n',
-            '        if (!d.active) continue;\n',
+            '        if (!isObjectActive(d)) continue;\n',
             '        push(d.layer, () => drawField(d));\n',
             '      }\n',
             '\n',
             '      for (let d of drawTrajectories) {\n',
-            '        if (!d.active) continue;\n',
+            '        if (!isObjectActive(d)) continue;\n',
             '        push(d.layer, () => drawTrajectory(d));\n',
             '      }\n',
             '\n',
             '      for (let d of drawGraphs) {\n',
-            '        if (!d.active) continue;\n',
+            '        if (!isObjectActive(d)) continue;\n',
             '        push(d.layer, () => drawGraph(d));\n',
             '      }\n',
             '\n',
             '      for (let d of drawHistograms) {\n',
-            '        if (!d.active) continue;\n',
+            '        if (!isObjectActive(d)) continue;\n',
             '        push(d.layer, () => drawHistogram(d));\n',
             '      }\n',
             '\n',
             '      for (let d of drawFillings) {\n',
-            '        if (!d.active) continue;\n',
+            '        if (!isObjectActive(d)) continue;\n',
             '        push(d.layer, () => drawFilling(d));\n',
             '      }\n',
             '\n',
             '      for (let d of drawDistributions) {\n',
-            '        if (!d.active) continue;\n',
+            '        if (!isObjectActive(d)) continue;\n',
             '        push(d.layer, () => drawDistribution(d));\n',
             '      }\n',
             '\n',
@@ -8581,27 +8930,27 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '      }\n',
             '\n',
             '      for (let d of drawInfLines) {\n',
-            '        if (!d.active) continue;\n',
+            '        if (!isObjectActive(d)) continue;\n',
             '        push(d.layer, () => drawInfLine(d));\n',
             '      }\n',
             '\n',
             '      for (let d of drawPunctirs) {\n',
-            '        if (!d.active) continue;\n',
+            '        if (!isObjectActive(d)) continue;\n',
             '        push(d.layer, () => drawPunctir(d));\n',
             '      }\n',
             '\n',
             '      for (let d of drawVectors) {\n',
-            '        if (!d.active) continue;\n',
+            '        if (!isObjectActive(d)) continue;\n',
             '        push(d.layer, () => drawVector(d));\n',
             '      }\n',
             '\n',
             '      for (let d of drawEqually) {\n',
-            '        if (!d.active) continue;\n',
+            '        if (!isObjectActive(d)) continue;\n',
             '        push(d.layer, () => drawEquallySing(d));\n',
             '      }\n',
             '\n',
             '      for (let d of drawAngles) {\n',
-            '        if (!d.active) continue;\n',
+            '        if (!isObjectActive(d)) continue;\n',
             '        const angleObj = d.angle;\n',
             '        if (!angleObj) continue;\n',
             '        if (!isObjectActive(angleObj.vertex)) continue;\n',
@@ -8661,8 +9010,20 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '    let sceneChangedThisFrame = true;\n',
             '    function markDirty(obj) { if (obj) obj.dirty = true; }\n',
             '    function markSceneChanged() { sceneChangedThisFrame = true; }\n',
+            '    // UI-контролы — это DOM-элементы, а не то, что рисуется на canvas, поэтому их\n',
+            '    // видимость нужно синхронизировать отдельно (а не просто внутри drawFull) —\n',
+            '    // вызывается из draw() при каждой перерисовке, чтобы кластер/activeExpr/active,\n',
+            '    // изменившиеся в Update()/от кнопки, сразу отражались на видимости самих контролов.\n',
+            '    function syncUIVisibility() {\n',
+            '      for (const ui of uiData) {\n',
+            '        if (!ui._wrapper) continue;\n',
+            '        ui._wrapper.style.display = isObjectActive(ui) ? \'\' : \'none\';\n',
+            '      }\n',
+            '    }\n',
+            '\n',
             '    function draw() {\n',
               '    try {\n',
+            '      syncUIVisibility();\n',
             '      const stale = !sceneSnapshot || sceneSnapshot.width !== width || sceneSnapshot.height !== height;\n',
             '      const needsFull = isDragging || sceneChangedThisFrame || stale;\n',
             '      if (!needsFull) {\n',
@@ -9253,8 +9614,13 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '            if (lenSq < 0.0001) return;\n',
             '            const t = ((mouseField.x - pA.x)*dx + (mouseField.y - pA.y)*dy) / lenSq;\n',
             '            const clampedT = Math.min(1, Math.max(0, t));\n',
+            '            const newX = pA.x + dx * clampedT, newY = pA.y + dy * clampedT;\n',
+            '            // Точки на линии/окружности/кривой и т.п. раньше вообще не проверялись на\n',
+            '            // столкновение при перетаскивании — теперь ведут себя как обычные точки\n',
+            '            // (отказ от хода, если пересекли бы MIN_DIST с другой точкой/объектом).\n',
+            '            if (objectViolatesCollision(p, [{ x: newX, y: newY }])) return;\n',
             '            p.t = clampedT;\n',
-            '            p.pos.x = pA.x + dx * clampedT; p.pos.y = pA.y + dy * clampedT;\n',
+            '            p.pos.x = newX; p.pos.y = newY;\n',
             '            const idx = points.indexOf(p); if (idx !== -1) { updateFiguresForPoint(idx); updateClustersForPoint(idx); }\n',
             '            updateScene(); draw(); return;\n',
             '        }\n',
@@ -9266,9 +9632,11 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '            const dx = mouseField.x - cx, dy = mouseField.y - cy;\n',
             '            const angle = Math.atan2(dy, dx);\n',
             '            let t = angle / (2 * Math.PI); if (t < 0) t += 1;\n',
+            '            const newX = cx + circle.radius * Math.cos(angle), newY = cy + circle.radius * Math.sin(angle);\n',
+            '            if (objectViolatesCollision(p, [{ x: newX, y: newY }])) return;\n',
             '            p.t = t;\n',
-            '            p.pos.x = cx + circle.radius * Math.cos(angle);\n',
-            '            p.pos.y = cy + circle.radius * Math.sin(angle);\n',
+            '            p.pos.x = newX;\n',
+            '            p.pos.y = newY;\n',
             '            const idx = points.indexOf(p); if (idx !== -1) { updateFiguresForPoint(idx); updateClustersForPoint(idx); }\n',
             '            updateScene(); draw(); return;\n',
             '        }\n',
@@ -9283,6 +9651,11 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '            const lx = dx * cs - dy * sn, ly = dx * sn + dy * cs;\n',
             '            let t = Math.atan2(ly / (ellipse.b || 1), lx / (ellipse.a || 1)) / (2 * Math.PI);\n',
             '            if (t < 0) t += 1;\n',
+            '            const ang = t * 2 * Math.PI;\n',
+            '            const elx = ellipse.a * Math.cos(ang), ely = ellipse.b * Math.sin(ang);\n',
+            '            const csp = Math.cos(rotRad), snp = Math.sin(rotRad);\n',
+            '            const newX = cx + elx * csp - ely * snp, newY = cy + elx * snp + ely * csp;\n',
+            '            if (objectViolatesCollision(p, [{ x: newX, y: newY }])) return;\n',
             '            p.t = t;\n',
             '            const idx = points.indexOf(p); if (idx !== -1) { updateFiguresForPoint(idx); updateClustersForPoint(idx); }\n',
             '            updateScene(); draw(); return;\n',
@@ -9304,7 +9677,10 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '            const p = pointOnCurvePoint, curve = pointOnCurveCurve;\n',
             '            if (!p || !curve) return;\n',
             '            const mouseField = pixelToField(pos.x, pos.y);\n',
-            '            p.t = findNearestTOnCurve(curve, mouseField);\n',
+            '            const newT = findNearestTOnCurve(curve, mouseField);\n',
+            '            const cp = curvePointAt(curve, newT);\n',
+            '            if (cp && objectViolatesCollision(p, [{ x: cp.x, y: cp.y }])) return;\n',
+            '            p.t = newT;\n',
             '            const idx = points.indexOf(p); if (idx !== -1) { updateFiguresForPoint(idx); updateClustersForPoint(idx); }\n',
             '            updateScene(); draw(); return;\n',
             '        }\n',
@@ -9314,7 +9690,13 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '            const mouseField = pixelToField(pos.x, pos.y);\n',
             '            const span = g.xmax - g.xmin;\n',
             '            if (Math.abs(span) < 1e-12) return;\n',
-            '            p.t = Math.min(1, Math.max(0, (mouseField.x - g.xmin) / span));\n',
+            '            const newT = Math.min(1, Math.max(0, (mouseField.x - g.xmin) / span));\n',
+            '            if (GL_USER_FUNCS[g.funcName]) {\n',
+            '                const gx = g.xmin + span * newT;\n',
+            '                let gy; try { gy = glCallUserFunc(g.funcName, [gx]); } catch (e) { gy = NaN; }\n',
+            '                if (typeof gy === \'number\' && isFinite(gy) && objectViolatesCollision(p, [{ x: gx, y: gy }])) return;\n',
+            '            }\n',
+            '            p.t = newT;\n',
             '            const idx = points.indexOf(p); if (idx !== -1) { updateFiguresForPoint(idx); updateClustersForPoint(idx); }\n',
             '            updateScene(); draw(); return;\n',
             '        }\n',
@@ -9341,7 +9723,11 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '            const mouseAng = Math.atan2(pos.y - centerPix.y, pos.x - centerPix.x);\n',
             '            const normDiff = norm(mouseAng - ang1);\n',
             '            let t = effSweep >= 0 ? normDiff / effSweep : (normDiff - TAU) / effSweep;\n',
-            '            p.t = Math.max(0, Math.min(1, t));\n',
+            '            const newT = Math.max(0, Math.min(1, t));\n',
+            '            const finalAng = ang1 + effSweep * newT;\n',
+            '            const newX = arc.centerPoint.pos.x + radius * Math.cos(finalAng), newY = arc.centerPoint.pos.y + radius * Math.sin(finalAng);\n',
+            '            if (objectViolatesCollision(p, [{ x: newX, y: newY }])) return;\n',
+            '            p.t = newT;\n',
             '            const idx = points.indexOf(p); if (idx !== -1) { updateFiguresForPoint(idx); updateClustersForPoint(idx); }\n',
             '            updateScene(); draw(); return;\n',
             '        }\n',
@@ -9360,18 +9746,16 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '            if (isNaN(fieldPos.x) || isNaN(fieldPos.y)) return;\n',
             '            clampFieldPoint(fieldPos);\n',
             '            const p = points[dragTarget];\n',
-            '            const snapped = computeSnap(fieldPos, [p]);\n',
-            '            if (snapped.x !== fieldPos.x || snapped.y !== fieldPos.y) {\n',
-            '                const snapPixel = fieldToPixel(snapped.x, snapped.y);\n',
-            '                dragOffsetX = pos.x - snapPixel.x; dragOffsetY = pos.y - snapPixel.y;\n',
-            '                fieldPos = snapped;\n',
-            '            }\n',
-            '            const correctedPos = resolveCollision(dragTarget, fieldPos);\n',
-            '            if (correctedPos.x !== fieldPos.x || correctedPos.y !== fieldPos.y) {\n',
-            '                const newPixel = fieldToPixel(correctedPos.x, correctedPos.y);\n',
-            '                dragOffsetX = pos.x - newPixel.x; dragOffsetY = pos.y - newPixel.y;\n',
-            '                fieldPos = correctedPos;\n',
-            '            }\n',
+            '            // Раньше dragOffsetX/Y пересчитывались на каждом кадре под "притянутую" snap\'ом\n',
+            '            // или отодвинутую столкновением позицию — это создавало обратную связь\n',
+            '            // (snap тянет точку РОВНО на другую точку, столкновение тут же отталкивает,\n',
+            '            // оба раза меняя точку отсчёта drag\'а) и точка либо намертво "прилипала",\n',
+            '            // либо переставала откликаться на мышь. dragOffset теперь остаётся ровно\n',
+            '            // тем же, что был выставлен в момент начала перетаскивания (как и у всех\n',
+            '            // остальных режимов drag\'а в этом файле) — snap/коллизия лишь корректируют\n',
+            '            // ИТОГОВУЮ позицию точки, не искажая точку отсчёта для следующего кадра.\n',
+            '            fieldPos = computeSnap(fieldPos, [p]);\n',
+            '            fieldPos = resolveCollision(dragTarget, fieldPos);\n',
             '            p.pos.x = fieldPos.x; p.pos.y = fieldPos.y;\n',
             '            p.dirty = true;\n',
             '            if (p.lineName) { p.lineName = null; p.t = undefined; }\n',
@@ -9405,7 +9789,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '        pointOnGraphPoint = null; pointOnGraphGraph = null;\n',
             '        isDragging = false; draggedPointIndex = -1;\n',
             '        activeSnapGuides = [];\n',
-            '        markSceneChanged();\n',
+            '        markSceneChanged(); draw();\n',
               '      } catch (err) {\n',
               '        console.error(\'Ошибка в onPointerUp:\', err);\n',
               '      }\n',
@@ -14054,6 +14438,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '        uiContainer.innerHTML = \'\';\n',
             '        for (let ui of uiData) {\n',
             '            const wrapper = document.createElement(\'div\'); wrapper.className = \'ui-item\';\n',
+            '            ui._wrapper = wrapper; // нужен, чтобы менять display каждый кадр (см. syncUIVisibility) — активность/кластер могут меняться динамически\n',
             '            if (ui.active === false) wrapper.style.display = \'none\';\n',
             '            const positioned = ui.x !== null && ui.x !== undefined && ui.y !== null && ui.y !== undefined;\n',
             '            if (positioned) {\n',
@@ -14198,9 +14583,10 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             // читает его оттуда вместо собственных часов.
             '    let Update = async function() { elapsedTime = (performance.now() - glStartTime) / 1000; window.__gcElapsedTime = elapsedTime; await glRun(updateCode); };\n',
             '\n',
-            '    initUserFuncs(); initPoints(); initLines(); initCircles(); initArcs(); initEllipses(); initCurves(); initDrawFunctions(); initDrawSurfaces(); initDrawImages(); initDrawHistograms(); initDrawFields(); initDrawTrajectories(); initDrawGraphs(); initDrawFractals(); initDrawLoci(); initDrawFormulas(); initDrawDistributions(); initFigures(); initClusters(); initAngles();\n',
+            '    initUserFuncs(); initPoints(); initLines(); initCircles(); initArcs(); initEllipses(); initCurves(); initDrawFunctions(); initDrawSurfaces(); initDrawImages(); initDrawHistograms(); initDrawFields(); initDrawTrajectories(); initDrawGraphs(); initDrawFractals(); initDrawLoci(); initDrawFormulas(); initDrawDistributions(); initFigures(); initAngles();\n',
             '    initDrawAngles(); initDrawEqually(); initDrawVectors(); initDrawInfLines(); initDrawFillings(); initDrawPunctirs();\n',
             '    initDrawTexts();\n',
+            '    initClusters(); // после ВСЕХ initDrawXxx выше — резолвер элементов кластера ищет буквально по всем типам объектов (см. initClusters), и им всем нужно уже существовать в рантайм-массивах.\n',
             '    for (let coll of [points, lines, circles, ellipses, arcs, curves, figures, drawFunctions, drawSurfaces, drawImages, drawFillings, drawTexts, drawVectors, drawInfLines, drawPunctirs, drawEqually, drawAngles, drawHistograms, drawFields, drawTrajectories, drawGraphs]) {\n',
             '      for (let o of coll) { if (o && o.dirty === undefined) o.dirty = true; }\n',
             '    }\n',
@@ -14515,19 +14901,19 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '  const treesData = ', treesJson, ';\n',
             '  const tablesData = ', tablesJson, ';\n',
             '  const graphsData = ', graphsJson, ';\n',
-            '  const cobwebsData = ', cobwebsJson, ';\n',
-            '  const bifurcationsData = ', bifurcationsJson, ';\n',
-            '  const tracesData = ', tracesJson, ';\n',
-            '  const regionsData = ', regionsJson, ';\n',
-            '  const fractalsData = ', fractalsJson, ';\n',
-            '  const complexesData = ', complexesJson, ';\n',
-            '  const ifssData = ', ifssJson, ';\n',
-            '  const automataData = ', automataJson, ';\n',
-            '  const hyperbolicsData = ', hyperbolicsJson, ';\n',
+            '  const drawCobwebsData = ', cobwebsJson, ';\n',
+            '  const drawBifurcationsData = ', bifurcationsJson, ';\n',
+            '  const drawTracesData = ', tracesJson, ';\n',
+            '  const drawRegionsData = ', regionsJson, ';\n',
+            '  const drawFractalsData = ', fractalsJson, ';\n',
+            '  const drawComplexesData = ', complexesJson, ';\n',
+            '  const drawIFSsData = ', ifssJson, ';\n',
+            '  const drawAutomataData = ', automataJson, ';\n',
+            '  const drawHyperbolicsData = ', hyperbolicsJson, ';\n',
             '  const drawTensorFieldsData = ', tensorFieldsJson, ';\n',
             '  const drawScatter3DsData = ', scatter3DsJson, ';\n',
             '  const drawHistogram3DsData = ', histogram3DsJson, ';\n',
-            '  const voronoisData = ', voronoisJson, ';\n',
+            '  const drawVoronoisData = ', voronoisJson, ';\n',
             '  const primitivesData = ', primitivesJson, ';\n',
             '  const derivedOpsData = ', derivedOpsJson, ';\n',
             '  const angles3DData = ', angles3DJson, ';\n',
@@ -15212,7 +15598,7 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '      let capTris = [];\n',
             '      for (const loop of loops) capTris = capTris.concat(capFromLoop(loop, n).tris);\n',
             '      capTris = fixCapOrientation(capTris, clip.kept);\n',
-            '      cur = clip.kept.concat(capTris);\n',
+            '      cur = gcFilterDegenerateTris3D(clip.kept.concat(capTris)); // убираем треугольники нулевой площади, оставшиеся от отсечения по касательной\n',
             '    }\n',
             '    return cur;\n',
             '  }\n',
@@ -15319,7 +15705,7 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '        capTris = capTris.concat(capResult.tris);\n',
             '        cutArea += capResult.area;\n',
             '      }\n',
-            '      let bodyTris = clip.kept, allCapTris = capTris;\n',
+            '      let bodyTris = gcFilterDegenerateTris3D(clip.kept), allCapTris = gcFilterDegenerateTris3D(capTris);\n',
             '      if (opData.explode) {\n',
             '        const shift = normalV.clone().multiplyScalar(keepSign * opData.explode);\n',
             '        bodyTris = bodyTris.map(function (t) { return [t[0].clone().add(shift), t[1].clone().add(shift), t[2].clone().add(shift)]; });\n',
@@ -16085,6 +16471,11 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '  // вызова (в g3Eval, case \'call\'), т.к. return может быть на любой глубине if. ----------\n',
             '  function G3ReturnSignal(value) { this.value = value; }\n',
             '  const G3_FUNCS = {};\n',
+            '  // Счётчик перегенерации пользовательских функций — растёт при каждом переопределении\n',
+            '  // G3_FUNCS "на лету" (формула из UI-инпута, см. registerFormula ниже). Используется\n',
+            '  // как часть ключа кэша у панелей draw Region/Complex/Bifurcation (3D): без него после\n',
+            '  // правки формулы в поле ввода панель продолжала бы показывать старую картинку.\n',
+            '  let g3UserFuncVersion = 0;\n',
             '  for (const f of funcsData) { try { G3_FUNCS[f.name] = { params: f.params, ast: g3Parse(f.bodyExpr) }; } catch (e) { console.warn(\'Ошибка в функции \' + f.name, e); } }\n',
             '  // Function/Void — полноценные многострочные функции/процедуры (Задача: Void и Function).\n',
             '  for (const p of procsData) { try { G3_FUNCS[p.name] = { params: p.params, stmts: g3ParseProgram(p.body), isVoid: p.isVoid }; } catch (e) { console.warn(\'Ошибка в \' + (p.isVoid ? \'Void\' : \'Function\') + \' \' + p.name, e); } }\n',
@@ -16204,6 +16595,17 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '    const newR = Math.exp(b.re * lnr - b.im * th);\n',
             '    const newTh = b.im * lnr + b.re * th;\n',
             '    return g3Complex(newR * Math.cos(newTh), newR * Math.sin(newTh));\n',
+            '  }\n',
+            '  // Та же подстраховка, что и в 2D (glCoerceArrayData): если данные для панелей\n',
+            '  // Chart/Table/Tree/Histogram оказались строкой (например, data = "[1,2,3]" — по\n',
+            '  // аналогии с другими строковыми полями DSL — или значение из переменной), пробуем\n',
+            '  // ещё раз вычислить содержимое строки как выражение, прежде чем сдаться.\n',
+            '  function g3CoerceArrayData(raw) {\n',
+            '    if (Array.isArray(raw)) return raw;\n',
+            '    if (typeof raw === \'string\') {\n',
+            '      try { const re = g3Eval(g3Parse(raw), {}); if (Array.isArray(re)) return re; } catch (e) {}\n',
+            '    }\n',
+            '    return raw;\n',
             '  }\n',
             '  function g3Eval(node, ctx) {\n',
             '    switch (node.type) {\n',
@@ -17071,7 +17473,7 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '  }).filter(function(x) { return x !== null; });\n',
             '  function gcRebuildScatter3D(so) {\n',
             '    let raw;\n',
-            '    try { raw = g3Eval(so.dataAst, {}); } catch (e) { return; }\n',
+            '    try { raw = g3CoerceArrayData(g3Eval(so.dataAst, {})); } catch (e) { return; }\n',
             '    if (!Array.isArray(raw)) return;\n',
             '    const key = JSON.stringify(raw);\n',
             '    if (so.cacheKey === key) return;\n',
@@ -17491,6 +17893,21 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '    if (raw === undefined || raw === null) return fallback !== false;\n',
             '    return !(raw === false || raw === 0 || raw === \'\');\n',
             '  }\n',
+            '  // Как и g3IsActive, но дополнительно учитывает принадлежность объекта кластеру —\n',
+            '  // если кластер выключен (active=false), все его элементы тоже должны стать\n',
+            '  // невидимыми, что бы ни было в их собственном activeExpr/active (см. bug #6).\n',
+            '  // clusters объявляется ниже по файлу, но вызывается эта функция только из цикла\n',
+            '  // обновления видимости, который выполняется уже после инициализации кластеров.\n',
+            '  function g3IsObjectActive(obj) {\n',
+            '    if (!obj) return false;\n',
+            '    for (const c of clusters) {\n',
+            '      if (c.elements.includes(obj)) {\n',
+            '        if (!c.active) return false;\n',
+            '        break;\n',
+            '      }\n',
+            '    }\n',
+            '    return g3IsActive(obj.activeExpr, obj.active);\n',
+            '  }\n',
             '  // Раннер action у кнопок: полноценный код на том же мини-языке, что и тела\n',
             '  // Function/Void — присваивания, if/else, repeat/for, вызовы Void/Function, и,\n',
             '  // в отличие от тела Function/Void, ещё и wait() (см. g3ExecStatementsAsync) —\n',
@@ -17598,6 +18015,7 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '            try {\n',
             '              const ast = g3Parse(input.value);\n',
             '              G3_FUNCS[funcName] = { params: [\'x\'], ast: ast };\n',
+            '              g3UserFuncVersion++;\n',
             '              input.style.borderColor = \'\'; errLabel.style.display = \'none\';\n',
             '            } catch (e) {\n',
             '              input.style.borderColor = \'#ff0000\';\n',
@@ -17970,7 +18388,7 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '    ctx.fillStyle = \'rgba(255,255,255,0.92)\'; ctx.fillRect(0, 0, w, h);\n',
             '    if (!ho.ast) { ho.panel.texture.needsUpdate = true; return; }\n',
             '    let data;\n',
-            '    try { data = g3Eval(ho.ast, {}); } catch (e) { ho.panel.texture.needsUpdate = true; return; }\n',
+            '    try { data = g3CoerceArrayData(g3Eval(ho.ast, {})); } catch (e) { ho.panel.texture.needsUpdate = true; return; }\n',
             '    if (!Array.isArray(data) || data.length === 0) { ho.panel.texture.needsUpdate = true; return; }\n',
             '    const bins = ho.bins;\n',
             '    let dmin = Infinity, dmax = -Infinity;\n',
@@ -18040,8 +18458,8 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '    co.panel.texture.needsUpdate = true;\n',
             '    if (!co.dataAst) return;\n',
             '    let raw, labels = null;\n',
-            '    try { raw = g3Eval(co.dataAst, {}); } catch (e) { return; }\n',
-            '    if (co.labelsAst) { try { labels = g3Eval(co.labelsAst, {}); } catch (e) { labels = null; } }\n',
+            '    try { raw = g3CoerceArrayData(g3Eval(co.dataAst, {})); } catch (e) { return; }\n',
+            '    if (co.labelsAst) { try { labels = g3CoerceArrayData(g3Eval(co.labelsAst, {})); } catch (e) { labels = null; } }\n',
             '    if (!Array.isArray(raw)) return;\n',
             '    const pad = 30;\n',
             '    if (d.type === \'scatter\' || d.type === \'line\') {\n',
@@ -18200,7 +18618,7 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '    to.panel.texture.needsUpdate = true;\n',
             '    if (!to.dataAst) return;\n',
             '    let raw;\n',
-            '    try { raw = g3Eval(to.dataAst, {}); } catch (e) { return; }\n',
+            '    try { raw = g3CoerceArrayData(g3Eval(to.dataAst, {})); } catch (e) { return; }\n',
             '    const root = gcTreeNorm3D(raw);\n',
             '    if (!root) return;\n',
             '    gcTreeLayout3D(root, d.spacing || 2.2, d.levelGap || 2.2);\n',
@@ -18240,7 +18658,7 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '    to.panel.texture.needsUpdate = true;\n',
             '    if (!to.dataAst) return;\n',
             '    let raw;\n',
-            '    try { raw = g3Eval(to.dataAst, {}); } catch (e) { return; }\n',
+            '    try { raw = g3CoerceArrayData(g3Eval(to.dataAst, {})); } catch (e) { return; }\n',
             '    if (!Array.isArray(raw) || !raw.length) return;\n',
             '    const rows = raw.map(function(r) { return Array.isArray(r) ? r : [r]; });\n',
             '    let cols = 0;\n',
@@ -18454,11 +18872,14 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '  }\n',
             '  const bifurcationObjs = drawBifurcationsData.filter(function(d) { return d.dim === \'3D\' && d.pos3D; }).map(function(d) {\n',
             '    const panel = gcMakeCanvasPanel(384, 256, d.panelWidth || 8, d.panelHeight || 5, d.pos3D, d.rotate3D, d.billboard);\n',
-            '    return { name: d.name, panel: panel, def: d, active: d.active !== false, activeExpr: d.activeExpr, drawn: false };\n',
+            '    return { name: d.name, panel: panel, def: d, active: d.active !== false, activeExpr: d.activeExpr, cacheKey: null };\n',
             '  });\n',
             '  function gcDrawBifurcationPanel(bo) {\n',
             '    const d = bo.def, ctx = bo.panel.ctx, w = bo.panel.canvas.width, h = bo.panel.canvas.height;\n',
-            '    if (bo.drawn) { bo.panel.texture.needsUpdate = true; return; } // диаграмма статична для фиксированных r/x0/skip/keep — считаем один раз\n',
+            '    // Ключ кэша учитывает все влияющие параметры + g3UserFuncVersion (funcName может\n',
+            '    // быть переопределён "на лету" через формулу в UI-инпуте — см. registerFormula выше).\n',
+            '    const key = [d.funcName, d.rmin, d.rmax, d.ymin, d.ymax, d.x0, d.skip, d.keep, d.color, g3UserFuncVersion].join(\'|\');\n',
+            '    if (bo.cacheKey === key) { bo.panel.texture.needsUpdate = true; return; }\n',
             '    ctx.clearRect(0, 0, w, h);\n',
             '    if (!G3_FUNCS[d.funcName]) { bo.panel.texture.needsUpdate = true; return; }\n',
             '    const img = ctx.createImageData(w, h);\n',
@@ -18485,7 +18906,7 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '    }\n',
             '    ctx.putImageData(img, 0, 0);\n',
             '    bo.panel.texture.needsUpdate = true;\n',
-            '    bo.drawn = true;\n',
+            '    bo.cacheKey = key;\n',
             '  }\n',
             '  for (const bo of bifurcationObjs) { if (window[bo.name] === undefined) window[bo.name] = bo; }\n',
             '\n',
@@ -18503,11 +18924,14 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '  }\n',
             '  const regionObjs = drawRegionsData.filter(function(d) { return d.dim === \'3D\' && d.pos3D; }).map(function(d) {\n',
             '    const panel = gcMakeCanvasPanel(256, 256, d.panelWidth || 8, d.panelHeight || 8, d.pos3D, d.rotate3D, d.billboard);\n',
-            '    return { name: d.name, panel: panel, def: d, active: d.active !== false, activeExpr: d.activeExpr, drawn: false };\n',
+            '    return { name: d.name, panel: panel, def: d, active: d.active !== false, activeExpr: d.activeExpr, cacheKey: null };\n',
             '  });\n',
             '  function gcDrawRegionPanel(ro) {\n',
             '    const d = ro.def, ctx = ro.panel.ctx, w = ro.panel.canvas.width, h = ro.panel.canvas.height;\n',
-            '    if (ro.drawn) { ro.panel.texture.needsUpdate = true; return; } // область статична для скомпилированных f/op/level — считаем один раз\n',
+            '    // Ключ кэша учитывает все влияющие параметры + g3UserFuncVersion (funcName/func2Name\n',
+            '    // могут быть переопределены "на лету" через формулу в UI-инпуте).\n',
+            '    const key = [d.funcName, d.op, d.level, d.func2Name, d.op2, d.level2, d.combine, d.rangeX, d.rangeY, d.color, d.opacity, g3UserFuncVersion].join(\'|\');\n',
+            '    if (ro.cacheKey === key) { ro.panel.texture.needsUpdate = true; return; }\n',
             '    ctx.clearRect(0, 0, w, h);\n',
             '    if (!G3_FUNCS[d.funcName]) { ro.panel.texture.needsUpdate = true; return; }\n',
             '    const img = ctx.createImageData(w, h);\n',
@@ -18533,7 +18957,7 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '    }\n',
             '    ctx.putImageData(img, 0, 0);\n',
             '    ro.panel.texture.needsUpdate = true;\n',
-            '    ro.drawn = true;\n',
+            '    ro.cacheKey = key;\n',
             '  }\n',
             '  for (const ro of regionObjs) { if (window[ro.name] === undefined) window[ro.name] = ro; }\n',
             '\n',
@@ -18575,7 +18999,7 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '      if (fo.cReAst) { try { const v = g3Eval(fo.cReAst, {}); if (typeof v === \'number\' && isFinite(v)) cRe = v; } catch (e) {} }\n',
             '      if (fo.cImAst) { try { const v = g3Eval(fo.cImAst, {}); if (typeof v === \'number\' && isFinite(v)) cIm = v; } catch (e) {} }\n',
             '    }\n',
-            '    const key = [d.type, cRe.toFixed(6), cIm.toFixed(6), d.maxIter, d.palette].join(\'|\');\n',
+            '    const key = [d.type, cRe.toFixed(6), cIm.toFixed(6), d.maxIter, d.palette, d.centerRe, d.centerIm, d.scale, d.quality].join(\'|\');\n',
             '    if (fo.cacheKey === key) { fo.panel.texture.needsUpdate = true; return; }\n',
             '    const maxIter = Math.max(5, Math.floor(d.maxIter || 80));\n',
             '    const centerRe = d.centerRe, centerIm = d.centerIm, scale = d.scale || 1.5;\n',
@@ -18620,11 +19044,14 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '  // комплексных чисел в g3Eval.\n',
             '  const complexObjs = drawComplexesData.filter(function(d) { return d.dim === \'3D\' && d.pos3D; }).map(function(d) {\n',
             '    const panel = gcMakeCanvasPanel(320, 320, d.panelWidth || 8, d.panelHeight || 8, d.pos3D, d.rotate3D, d.billboard);\n',
-            '    return { name: d.name, panel: panel, def: d, active: d.active !== false, activeExpr: d.activeExpr, drawn: false };\n',
+            '    return { name: d.name, panel: panel, def: d, active: d.active !== false, activeExpr: d.activeExpr, cacheKey: null };\n',
             '  });\n',
             '  function gcDrawComplexPanel(co) {\n',
             '    const d = co.def, ctx = co.panel.ctx, w = co.panel.canvas.width, h = co.panel.canvas.height;\n',
-            '    if (co.drawn) { co.panel.texture.needsUpdate = true; return; }\n',
+            '    // Ключ кэша учитывает все влияющие параметры + g3UserFuncVersion (funcName может\n',
+            '    // быть переопределён "на лету" через формулу в UI-инпуте).\n',
+            '    const key = [d.funcName, d.mode, d.contours, d.centerRe, d.centerIm, d.scale, g3UserFuncVersion].join(\'|\');\n',
+            '    if (co.cacheKey === key) { co.panel.texture.needsUpdate = true; return; }\n',
             '    if (!G3_FUNCS[d.funcName]) { co.panel.texture.needsUpdate = true; return; }\n',
             '    const img = ctx.createImageData(w, h);\n',
             '    const data = img.data;\n',
@@ -18657,7 +19084,7 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '    }\n',
             '    ctx.putImageData(img, 0, 0);\n',
             '    co.panel.texture.needsUpdate = true;\n',
-            '    co.drawn = true;\n',
+            '    co.cacheKey = key;\n',
             '  }\n',
             '  for (const co of complexObjs) { if (window[co.name] === undefined) window[co.name] = co; }\n',
             '\n',
@@ -18682,7 +19109,7 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '    let maps;\n',
             '    try { maps = g3Eval(io.mapsAst, {}); } catch (e) { return; }\n',
             '    if (!Array.isArray(maps) || !maps.length) return;\n',
-            '    const key = JSON.stringify(maps) + \'|\' + d.iterations;\n',
+            '    const key = JSON.stringify(maps) + \'|\' + d.iterations + \'|\' + d.scale;\n',
             '    if (io.cacheKey === key) return;\n',
             '    let total = 0;\n',
             '    for (const m of maps) total += (m.length > 12 ? m[12] : 1);\n',
@@ -18885,7 +19312,7 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '    let geodesics = null, pts = null;\n',
             '    if (ho.geodesicsAst) { try { geodesics = g3Eval(ho.geodesicsAst, {}); } catch (e) { geodesics = null; } }\n',
             '    if (ho.pointsAst) { try { pts = g3Eval(ho.pointsAst, {}); } catch (e) { pts = null; } }\n',
-            '    const key = JSON.stringify(geodesics) + \'|\' + JSON.stringify(pts);\n',
+            '    const key = JSON.stringify(geodesics) + \'|\' + JSON.stringify(pts) + \'|\' + d.radius + \'|\' + d.model;\n',
             '    if (ho.builtKey === key) return;\n',
             '    ho.builtKey = key;\n',
             '    ho.geodesicMeshes.forEach(function(m) { ho.group.remove(m); });\n',
@@ -18981,7 +19408,7 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '      let capTris = [];\n',
             '      for (const loop of loops) capTris = capTris.concat(capFromLoop(loop, nvec).tris);\n',
             '      capTris = fixCapOrientation(capTris, clip.kept);\n',
-            '      cur = clip.kept.concat(capTris);\n',
+            '      cur = gcFilterDegenerateTris3D(clip.kept.concat(capTris));\n',
             '      if (!cur.length) break;\n',
             '    }\n',
             '    return cur;\n',
@@ -19215,11 +19642,27 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '      pr.mesh.quaternion.copy(quat).multiply(c.primBaseQuats[i]);\n',
             '    }\n',
             '  }\n',
+            '  // Раньше кластер в 3D мог включать только точки/линии/фигуры/примитивы — любой другой\n',
+            '  // элемент (UI, векторы, поверхности, поля, диаграммы-панели и т.д.) молча пропускался.\n',
+            '  // Теперь резолвер ищет по всем типам объектов сцены, как и в 2D (см. initClusters).\n',
+            '  const clusterSearchPools3D = [\n',
+            '    pointObjs, lineObjs, figureObjs, primitiveObjs, uiData, angleDefs, vectorObjs,\n',
+            '    surfaceObjs, fieldObjs, tensorFieldObjs, scatter3DObjs, histogram3DObjs, curveObjs,\n',
+            '    trajectoryObjs, textObjs, imageObjs, histogramObjs, chartObjs, treeObjs, tableObjs,\n',
+            '    cobwebObjs, bifurcationObjs, regionObjs, fractalObjs, complexObjs, ifsObjs,\n',
+            '    automatonObjs, hyperbolicObjs, voronoiObjs, traceObjs, angle3DObjs, solidAngleObjs,\n',
+            '  ];\n',
+            '  function findByNameInPools3D(name) {\n',
+            '    for (const pool of clusterSearchPools3D) {\n',
+            '      if (!pool) continue;\n',
+            '      const found = pool.find(function(o) { return o && o.name === name; });\n',
+            '      if (found) return found;\n',
+            '    }\n',
+            '    return undefined;\n',
+            '  }\n',
             '  const clusters = clustersData.map(function(c) {\n',
             '    const elements = (c.elements || []).map(function(name) {\n',
-            '      return findPoint(name) || lineObjs.find(function(l) { return l.name === name; }) ||\n',
-            '             figureObjs.find(function(f) { return f.name === name; }) ||\n',
-            '             primitiveObjs.find(function(pr) { return pr.name === name; });\n',
+            '      return findByNameInPools3D(name);\n',
             '    }).filter(function(x) { return x !== undefined; });\n',
             '    const members = collectClusterMembers3D(elements);\n',
             '    const allPos = members.points.map(function(p) { return p.mesh.position; })\n',
@@ -19519,57 +19962,57 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '    updateGridLOD();\n',
             '    try { updateDescription3D(); } catch (e) { console.warn(\'описание:\', e); }\n',
             '    clusters.forEach(applyClusterTransform3D);\n',
-            '    for (const p of pointObjs) { p.active = g3IsActive(p.activeExpr, p.active); p.mesh.visible = p.active; }\n',
-            '    for (const pr of primitiveObjs) { pr.active = g3IsActive(pr.activeExpr, pr.active); pr.mesh.visible = pr.active && !pr.hiddenByDerived; }\n',
+            '    for (const p of pointObjs) { p.active = g3IsObjectActive(p); p.mesh.visible = p.active; }\n',
+            '    for (const pr of primitiveObjs) { pr.active = g3IsObjectActive(pr); pr.mesh.visible = pr.active && !pr.hiddenByDerived; }\n',
             '    for (const dr of derivedObjs) {\n',
-            '      dr.active = g3IsActive(dr.activeExpr, dr.active);\n',
+            '      dr.active = g3IsObjectActive(dr);\n',
             '      const vis = dr.active && !dr.hiddenByDerived;\n',
             '      if (dr.mesh) dr.mesh.visible = vis;\n',
             '      if (dr.capMesh) dr.capMesh.visible = vis;\n',
             '    }\n',
-            '    for (const lo of lineObjs) { lo.active = g3IsActive(lo.activeExpr, lo.active); lo.mesh.visible = lo.active; }\n',
-            '    for (const fo of fillingObjs) { fo.mesh.visible = g3IsActive(fo.activeExpr, fo.active); }\n',
-            '    for (const po of infPlaneObjs) { const vis = g3IsActive(po.activeExpr, po.active); po.mesh.visible = vis; if (po.edges) po.edges.visible = vis; if (vis) updateInfPlane(po); }\n',
-            '    for (const lo of infLineObjs) { const vis = g3IsActive(lo.activeExpr, lo.active); lo.mesh.visible = vis; if (vis) updateInfLine3D(lo); }\n',
-            '    for (const pu of punctirObjs) { const vis = g3IsActive(pu.activeExpr, pu.active); pu.mesh.visible = vis; if (vis) updatePunctir3D(pu); }\n',
-            '    for (const eo of equallyObjs) { const vis = g3IsActive(eo.activeExpr, eo.active); eo.meshes.forEach(function(ms) { ms.forEach(function(m) { m.visible = vis; }); }); if (vis) updateEqually3D(eo); }\n',
+            '    for (const lo of lineObjs) { lo.active = g3IsObjectActive(lo); lo.mesh.visible = lo.active; }\n',
+            '    for (const fo of fillingObjs) { fo.mesh.visible = g3IsObjectActive(fo); }\n',
+            '    for (const po of infPlaneObjs) { const vis = g3IsObjectActive(po); po.mesh.visible = vis; if (po.edges) po.edges.visible = vis; if (vis) updateInfPlane(po); }\n',
+            '    for (const lo of infLineObjs) { const vis = g3IsObjectActive(lo); lo.mesh.visible = vis; if (vis) updateInfLine3D(lo); }\n',
+            '    for (const pu of punctirObjs) { const vis = g3IsObjectActive(pu); pu.mesh.visible = vis; if (vis) updatePunctir3D(pu); }\n',
+            '    for (const eo of equallyObjs) { const vis = g3IsObjectActive(eo); eo.meshes.forEach(function(ms) { ms.forEach(function(m) { m.visible = vis; }); }); if (vis) updateEqually3D(eo); }\n',
             '    for (const to of traceObjs) {\n',
-            '      const vis = g3IsActive(to.activeExpr, to.active);\n',
+            '      const vis = g3IsObjectActive(to);\n',
             '      if (to.mesh) to.mesh.visible = vis; if (to.segMeshes) to.segMeshes.forEach(function(m) { if (!vis) m.visible = false; });\n',
             '      if (vis) { updateTrace3D(to); renderTrace3D(to); }\n',
             '    }\n',
-            '    for (const ho of histogramObjs) { const vis = g3IsActive(ho.activeExpr, ho.active); ho.panel.mesh.visible = vis; if (vis) gcDrawHistogramPanel(ho); }\n',
-            '    for (const co of chartObjs) { const vis = g3IsActive(co.activeExpr, co.active); co.panel.mesh.visible = vis; if (vis) gcDrawChartPanel(co); }\n',
-            '    for (const to of treeObjs) { const vis = g3IsActive(to.activeExpr, to.active); to.panel.mesh.visible = vis; if (vis) gcDrawTreePanel(to); }\n',
-            '    for (const tbo of tableObjs) { const vis = g3IsActive(tbo.activeExpr, tbo.active); tbo.panel.mesh.visible = vis; if (vis) gcDrawTablePanel(tbo); }\n',
-            '    for (const go of graphObjs) { const vis = g3IsActive(go.activeExpr, go.active); go.panel.mesh.visible = vis; if (vis) gcDrawGraphPanel(go); }\n',
-            '    for (const co of cobwebObjs) { const vis = g3IsActive(co.activeExpr, co.active); co.panel.mesh.visible = vis; if (vis) gcDrawCobwebPanel(co); }\n',
-            '    for (const bo of bifurcationObjs) { const vis = g3IsActive(bo.activeExpr, bo.active); bo.panel.mesh.visible = vis; if (vis) gcDrawBifurcationPanel(bo); }\n',
-            '    for (const ro of regionObjs) { const vis = g3IsActive(ro.activeExpr, ro.active); ro.panel.mesh.visible = vis; if (vis) gcDrawRegionPanel(ro); }\n',
-            '    for (const fo of fractalObjs) { const vis = g3IsActive(fo.activeExpr, fo.active); fo.panel.mesh.visible = vis; if (vis) gcDrawFractalPanel(fo); }\n',
-            '    for (const cxo of complexObjs) { const vis = g3IsActive(cxo.activeExpr, cxo.active); cxo.panel.mesh.visible = vis; if (vis) gcDrawComplexPanel(cxo); }\n',
-            '    for (const io of ifsObjs) { const vis = g3IsActive(io.activeExpr, io.active); io.mesh.visible = vis; if (vis) gcBuildIFS3D(io); }\n',
-            '    for (const ao of automatonObjs) { const vis = g3IsActive(ao.activeExpr, ao.active); ao.panel.mesh.visible = vis; if (vis) gcDrawAutomatonPanel(ao); }\n',
-            '    for (const ho of hyperbolicObjs) { const vis = g3IsActive(ho.activeExpr, ho.active); ho.group.visible = vis; if (vis) gcRebuildHyperbolic3D(ho); }\n',
+            '    for (const ho of histogramObjs) { const vis = g3IsObjectActive(ho); ho.panel.mesh.visible = vis; if (vis) gcDrawHistogramPanel(ho); }\n',
+            '    for (const co of chartObjs) { const vis = g3IsObjectActive(co); co.panel.mesh.visible = vis; if (vis) gcDrawChartPanel(co); }\n',
+            '    for (const to of treeObjs) { const vis = g3IsObjectActive(to); to.panel.mesh.visible = vis; if (vis) gcDrawTreePanel(to); }\n',
+            '    for (const tbo of tableObjs) { const vis = g3IsObjectActive(tbo); tbo.panel.mesh.visible = vis; if (vis) gcDrawTablePanel(tbo); }\n',
+            '    for (const go of graphObjs) { const vis = g3IsObjectActive(go); go.panel.mesh.visible = vis; if (vis) gcDrawGraphPanel(go); }\n',
+            '    for (const co of cobwebObjs) { const vis = g3IsObjectActive(co); co.panel.mesh.visible = vis; if (vis) gcDrawCobwebPanel(co); }\n',
+            '    for (const bo of bifurcationObjs) { const vis = g3IsObjectActive(bo); bo.panel.mesh.visible = vis; if (vis) gcDrawBifurcationPanel(bo); }\n',
+            '    for (const ro of regionObjs) { const vis = g3IsObjectActive(ro); ro.panel.mesh.visible = vis; if (vis) gcDrawRegionPanel(ro); }\n',
+            '    for (const fo of fractalObjs) { const vis = g3IsObjectActive(fo); fo.panel.mesh.visible = vis; if (vis) gcDrawFractalPanel(fo); }\n',
+            '    for (const cxo of complexObjs) { const vis = g3IsObjectActive(cxo); cxo.panel.mesh.visible = vis; if (vis) gcDrawComplexPanel(cxo); }\n',
+            '    for (const io of ifsObjs) { const vis = g3IsObjectActive(io); io.mesh.visible = vis; if (vis) gcBuildIFS3D(io); }\n',
+            '    for (const ao of automatonObjs) { const vis = g3IsObjectActive(ao); ao.panel.mesh.visible = vis; if (vis) gcDrawAutomatonPanel(ao); }\n',
+            '    for (const ho of hyperbolicObjs) { const vis = g3IsObjectActive(ho); ho.group.visible = vis; if (vis) gcRebuildHyperbolic3D(ho); }\n',
             '    for (const vo of voronoiObjs) {\n',
-            '      const vis = g3IsActive(vo.activeExpr, vo.active);\n',
+            '      const vis = g3IsObjectActive(vo);\n',
             '      vo.mesh.visible = vis; vo.siteMeshes.forEach(function(m) { m.visible = vis; });\n',
             '      if (vis) gcBuildVoronoi3D(vo);\n',
             '    }\n',
-            '    for (const io of imageObjs) { io.mesh.visible = g3IsActive(io.activeExpr, io.active); }\n',
-            '    for (const so of surfaceObjs) { so.mesh.visible = g3IsActive(so.activeExpr, so.active); }\n',
-            '    for (const co of curveObjs) { co.mesh.visible = g3IsActive(co.activeExpr, co.active); if (co.frenetGroup) co.frenetGroup.visible = co.mesh.visible; }\n',
-            '    for (const to of trajectoryObjs) { to.mesh.visible = g3IsActive(to.activeExpr, to.active); }\n',
-            '    for (const fo of fieldObjs) { fo.visible = g3IsActive(fo.activeExpr, fo.active); if (!fo.visible) { for (const ar of fo.arrows) ar.mesh.visible = false; } }\n',
-            '    for (const tf of tensorFieldObjs) { tf.visible = g3IsActive(tf.activeExpr, tf.active); if (!tf.visible) { for (const gl of tf.glyphs) gl.mesh.visible = false; } }\n',
-            '    for (const so of scatter3DObjs) { so.group.visible = g3IsActive(so.activeExpr, so.active); }\n',
-            '    for (const ho of histogram3DObjs) { ho.group.visible = g3IsActive(ho.activeExpr, ho.active); }\n',
+            '    for (const io of imageObjs) { io.mesh.visible = g3IsObjectActive(io); }\n',
+            '    for (const so of surfaceObjs) { so.mesh.visible = g3IsObjectActive(so); }\n',
+            '    for (const co of curveObjs) { co.mesh.visible = g3IsObjectActive(co); if (co.frenetGroup) co.frenetGroup.visible = co.mesh.visible; }\n',
+            '    for (const to of trajectoryObjs) { to.mesh.visible = g3IsObjectActive(to); }\n',
+            '    for (const fo of fieldObjs) { fo.visible = g3IsObjectActive(fo); if (!fo.visible) { for (const ar of fo.arrows) ar.mesh.visible = false; } }\n',
+            '    for (const tf of tensorFieldObjs) { tf.visible = g3IsObjectActive(tf); if (!tf.visible) { for (const gl of tf.glyphs) gl.mesh.visible = false; } }\n',
+            '    for (const so of scatter3DObjs) { so.group.visible = g3IsObjectActive(so); }\n',
+            '    for (const ho of histogram3DObjs) { ho.group.visible = g3IsObjectActive(ho); }\n',
             '    for (const lo of lineObjs) { updateLineMesh(lo); }\n',
             '    for (const fo of fillingObjs) { updateFillingMesh(fo); }\n',
             '    for (const vo of vectorObjs) { updateVectorMesh(vo); }\n',
             '    for (const ao of angleObjs) { updateAngleObj(ao); }\n',
-            '    for (const a3 of angle3DObjs) { a3.active = g3IsActive(a3.activeExpr, a3.active); if (a3.active) updateAngle3DObj(a3); else { a3.mesh.visible = false; if (a3.label) a3.label.style.display = \'none\'; } }\n',
-            '    for (const so of solidAngleObjs) { so.active = g3IsActive(so.activeExpr, so.active); if (so.active) updateSolidAngleObj(so); else { so.capMesh.visible = false; so.edgeMesh.visible = false; if (so.label) so.label.style.display = \'none\'; } }\n',
+            '    for (const a3 of angle3DObjs) { a3.active = g3IsObjectActive(a3); if (a3.active) updateAngle3DObj(a3); else { a3.mesh.visible = false; if (a3.label) a3.label.style.display = \'none\'; } }\n',
+            '    for (const so of solidAngleObjs) { so.active = g3IsObjectActive(so); if (so.active) updateSolidAngleObj(so); else { so.capMesh.visible = false; so.edgeMesh.visible = false; if (so.label) so.label.style.display = \'none\'; } }\n',
             '    for (const so of surfaceObjs) { updateSurfaceMesh(so); }\n',
             '    for (const fo of fieldObjs) { if (fo.visible) updateFieldObj(fo); }\n',
             '    for (const tf of tensorFieldObjs) { if (tf.visible) updateTensorFieldObj(tf); }\n',
@@ -19630,6 +20073,7 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
                                'show axes', 'show axis x', 'show axis y', 'show axis z', 'axes size',
                                'show grid', 'show grid x', 'show grid y', 'show grid z', 'grid size',
                                'grid color', 'axes color', 'grid adaptive', '2D layer',
+                               'show boundary', 'boundary color',
                                'snap', 'snap grid', 'snap distance'];
             const requiredKeys = [];
             const numericKeys = ['field width', 'field height', 'field depth', 'frame width', 'description size', 'camera start zoom', 'axes size', 'grid size', 'snap grid', 'snap distance', 'camera fov', 'camera near', 'camera far'];
@@ -19712,7 +20156,8 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
 
                 const booleanKeys = ['can rotate camera', 'can zoom camera',
                                      'show axes', 'show axis x', 'show axis y', 'show axis z',
-                                     'show grid', 'show grid x', 'show grid y', 'show grid z', 'snap', 'grid adaptive'];
+                                     'show grid', 'show grid x', 'show grid y', 'show grid z', 'snap', 'grid adaptive',
+                                     'show boundary'];
                 if (!booleanKeys.includes(key) && !numericKeys.includes(key) && !tupleKeys.includes(key)) {
                     if (typeof parsedValue !== 'string') parsedValue = String(parsedValue);
                 }
@@ -19824,12 +20269,26 @@ function combineHtml2D3D(html2D, html3D, layer2D) {
         '    function restore() { topCanvas.style.pointerEvents = \'auto\'; bottomCanvas.style.pointerEvents = \'none\'; }\n' +
         '    function forward(e) {\n' +
         '      if (topActive()) return;\n' +
-        '      if (e.type.indexOf(\'touch\') === 0) return; // клоны TouchEvent ненадёжны кроссбраузерно — пропускаем только мышь\n' +
         '      topCanvas.style.pointerEvents = \'none\'; bottomCanvas.style.pointerEvents = \'auto\';\n' +
-        '      var clone = new MouseEvent(e.type, e);\n' +
-        '      bottomCanvas.dispatchEvent(clone);\n' +
+        '      if (e.type.indexOf(\'touch\') === 0) {\n' +
+        '        // Клоны TouchEvent через конструктор ненадёжны кроссбраузерно (особенно Safari),\n' +
+        '        // поэтому вместо клонирования самого касания шлём нижнему холсту синтетический\n' +
+        '        // mousedown с координатами первого касания — этого достаточно, чтобы «завести»\n' +
+        '        // драг в нижнем движке (у него getPointerPos понимает и mouse-, и touch-события).\n' +
+        '        // Последующие touchmove/touchend — уже настоящие события пальца, они сами\n' +
+        '        // всплывают до window, где у нижнего движка есть свои touchmove/touchend-слушатели.\n' +
+        '        var t = e.touches && e.touches[0];\n' +
+        '        if (!t) { restore(); return; }\n' +
+        '        if (e.cancelable) e.preventDefault();\n' +
+        '        var clone = new MouseEvent(\'mousedown\', { clientX: t.clientX, clientY: t.clientY, bubbles: true, cancelable: true, view: window, button: 0, buttons: 1 });\n' +
+        '        bottomCanvas.dispatchEvent(clone);\n' +
+        '      } else {\n' +
+        '        var clone = new MouseEvent(e.type, e);\n' +
+        '        bottomCanvas.dispatchEvent(clone);\n' +
+        '      }\n' +
         '    }\n' +
         '    topCanvas.addEventListener(\'mousedown\', forward, false);\n' +
+        '    topCanvas.addEventListener(\'touchstart\', forward, { passive: false });\n' +
         '    window.addEventListener(\'mouseup\', restore, true);\n' +
         '    window.addEventListener(\'touchend\', restore, true);\n' +
         '  }\n' +
@@ -19855,10 +20314,21 @@ function combineHtml2D3D(html2D, html3D, layer2D) {
                 return { success: false, errors: ['Не найден блок в квадратных скобках [ ... ]'] };
             }
             const block = match[1];
+            // Смещение начала block относительно ВСЕГО исходного текста пользователя — все
+            // сообщения об ошибках должны указывать строку/символ в файле, который видит
+            // человек (с учётом того, что могло быть до "["), а не внутри одной лишь block.
+            const blockBaseOffset = match.index + 1;
+            // parseAndValidate считает номера строк ВНУТРИ block (своя нумерация с 1) — нужен
+            // сдвиг на число строк ДО начала block в исходном файле, иначе "строка N" в ошибках
+            // параметров сцены (show axes = ...; и т.п.) окажется на 1+ меньше настоящей.
+            const blockLineOffset = sourceCode.slice(0, blockBaseOffset).split('\n').length - 1;
+            function formatErr(message, pos) {
+                return formatErrorWithPos(sourceCode, message, (pos === undefined || pos === null) ? null : pos + blockBaseOffset);
+            }
 
             const { params, errors: paramErrors, vars, startCodes, updateCodes, funcsData, procsData } = parseAndValidate(block);
             if (paramErrors.length > 0) {
-                return { success: false, errors: paramErrors.map(e => e.message) };
+                return { success: false, errors: paramErrors.map(e => (e.line !== undefined && e.line !== null && e.line !== '--') ? `${e.message} (строка ${e.line + blockLineOffset})` : e.message) };
             }
 
             // Тема (по умолчанию — тёмная) выставляется до разбора команд отрисовки,
@@ -19875,7 +20345,7 @@ function combineHtml2D3D(html2D, html3D, layer2D) {
             } = parseCommands(removeComments(block), vars);
 
             if (cmdErrors.length > 0) {
-                return { success: false, errors: cmdErrors.map(e => e.message) };
+                return { success: false, errors: cmdErrors.map(e => formatErr(e.message, e.__pos)) };
             }
 
             // Валидация ссылок на функции: draw Function/Surface и Trajectory(system=...)
@@ -19891,30 +20361,30 @@ function combineHtml2D3D(html2D, html3D, layer2D) {
                 for (const d of dynDefs) knownFuncs.add(d.replace(/\bfunc\s+/, ''));
                 const funcRefErrors = [];
                 for (const d of drawFunctions) {
-                    if (!knownFuncs.has(d.funcName)) funcRefErrors.push(`draw Function "${d.name}" ссылается на необъявленную функцию "${d.funcName}"`);
+                    if (!knownFuncs.has(d.funcName)) funcRefErrors.push(formatErr(`draw Function "${d.name}" ссылается на необъявленную функцию "${d.funcName}"`, d.__pos));
                 }
                 for (const d of drawSurfaces) {
                     if (d.type === 'parametric') continue;
-                    if (!knownFuncs.has(d.funcName)) funcRefErrors.push(`draw Surface "${d.name}" ссылается на необъявленную функцию "${d.funcName}"`);
+                    if (!knownFuncs.has(d.funcName)) funcRefErrors.push(formatErr(`draw Surface "${d.name}" ссылается на необъявленную функцию "${d.funcName}"`, d.__pos));
                 }
                 for (const tr of drawTrajectories) {
-                    if (tr.systemName && !knownFuncs.has(tr.systemName)) funcRefErrors.push(`draw Trajectory "${tr.name}" ссылается на необъявленную функцию "${tr.systemName}"`);
+                    if (tr.systemName && !knownFuncs.has(tr.systemName)) funcRefErrors.push(formatErr(`draw Trajectory "${tr.name}" ссылается на необъявленную функцию "${tr.systemName}"`, tr.__pos));
                 }
                 for (const d of drawRegions) {
-                    if (!knownFuncs.has(d.funcName)) funcRefErrors.push(`draw Region "${d.name}" ссылается на необъявленную функцию "${d.funcName}"`);
-                    if (d.func2Name && !knownFuncs.has(d.func2Name)) funcRefErrors.push(`draw Region "${d.name}" ссылается на необъявленную функцию "${d.func2Name}"`);
+                    if (!knownFuncs.has(d.funcName)) funcRefErrors.push(formatErr(`draw Region "${d.name}" ссылается на необъявленную функцию "${d.funcName}"`, d.__pos));
+                    if (d.func2Name && !knownFuncs.has(d.func2Name)) funcRefErrors.push(formatErr(`draw Region "${d.name}" ссылается на необъявленную функцию "${d.func2Name}"`, d.__pos));
                 }
                 for (const d of drawLoci) {
-                    if (!points.find(p => p.name === d.pointName)) funcRefErrors.push(`draw Locus "${d.name}": точка "${d.pointName}" не объявлена`);
-                    if (!points.find(p => p.name === d.driverName)) funcRefErrors.push(`draw Locus "${d.name}": ведущая точка "${d.driverName}" не объявлена`);
+                    if (!points.find(p => p.name === d.pointName)) funcRefErrors.push(formatErr(`draw Locus "${d.name}": точка "${d.pointName}" не объявлена`, d.__pos));
+                    if (!points.find(p => p.name === d.driverName)) funcRefErrors.push(formatErr(`draw Locus "${d.name}": ведущая точка "${d.driverName}" не объявлена`, d.__pos));
                 }
                 for (const d of drawTraces) {
-                    if (!points.find(p => p.name === d.pointName)) funcRefErrors.push(`draw Trace "${d.name}": точка "${d.pointName}" не объявлена`);
+                    if (!points.find(p => p.name === d.pointName)) funcRefErrors.push(formatErr(`draw Trace "${d.name}": точка "${d.pointName}" не объявлена`, d.__pos));
                 }
                 for (const d of drawFillings) {
                     if (!d.func) continue;
-                    if (!drawFunctions.find(g => g.name === d.func)) funcRefErrors.push(`draw Filling "${d.name}": func ссылается на несуществующий draw Function "${d.func}"`);
-                    if (d.func2 && !drawFunctions.find(g => g.name === d.func2)) funcRefErrors.push(`draw Filling "${d.name}": func2 ссылается на несуществующий draw Function "${d.func2}"`);
+                    if (!drawFunctions.find(g => g.name === d.func)) funcRefErrors.push(formatErr(`draw Filling "${d.name}": func ссылается на несуществующий draw Function "${d.func}"`, d.__pos));
+                    if (d.func2 && !drawFunctions.find(g => g.name === d.func2)) funcRefErrors.push(formatErr(`draw Filling "${d.name}": func2 ссылается на несуществующий draw Function "${d.func2}"`, d.__pos));
                 }
                 if (funcRefErrors.length > 0) {
                     return { success: false, errors: funcRefErrors };
