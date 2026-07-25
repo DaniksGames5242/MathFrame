@@ -82,55 +82,53 @@
             return (THEME_PRESETS[currentThemeName] || THEME_PRESETS.dark).defaultColor;
         }
 
+        // Находится ли символ со смещением pos внутри строкового литерала или комментария.
+        // Проверка "i === pos" СТОИТ В НАЧАЛЕ тела цикла осознанно: раньше она была последней,
+        // и до неё не доходило управление ни для одного символа внутри комментария (ветки
+        // inLineComment/inBlockComment завершались безусловным continue) — из-за чего любая
+        // позиция внутри // или /* */ ошибочно считалась "снаружи". Также сюда не попадали
+        // сами кавычки и экранированные символы. Отдельно: escapeNext теперь взводится только
+        // ВНУТРИ строки — раньше одиночный '\' в обычном коде съедал следующий символ.
+        // Ранний return вместо прохода по всему тексту заодно убирает лишнюю работу: функция
+        // вызывается в цикле по всем совпадениям, то есть суммарно была O(n²) по длине скрипта.
         function isInsideStringOrComment(code, pos) {
+            if (typeof pos !== 'number' || pos < 0 || pos >= code.length) return false;
             let inString = false;
             let stringChar = '';
             let escapeNext = false;
             let inLineComment = false;
             let inBlockComment = false;
             for (let i = 0; i < code.length; i++) {
+                if (i === pos) return inString || inLineComment || inBlockComment;
                 const ch = code[i];
-                if (escapeNext) {
-                    escapeNext = false;
-                    continue;
-                }
-                if (ch === '\\') {
-                    escapeNext = true;
-                    continue;
-                }
-                if (!inString && !inLineComment && !inBlockComment && (ch === '"' || ch === "'")) {
-                    inString = true;
-                    stringChar = ch;
-                    continue;
-                }
-                if (inString && ch === stringChar) {
-                    inString = false;
-                    continue;
-                }
-                if (!inString && !inLineComment && !inBlockComment && ch === '/' && i + 1 < code.length && code[i+1] === '/') {
-                    inLineComment = true;
-                    i++;
-                    continue;
-                }
                 if (inLineComment) {
                     if (ch === '\n') inLineComment = false;
                     continue;
                 }
-                if (!inString && !inLineComment && !inBlockComment && ch === '/' && i + 1 < code.length && code[i+1] === '*') {
-                    inBlockComment = true;
-                    i++;
-                    continue;
-                }
+                // Второй символ парных токенов (//, /* и */) пропускается через i++, поэтому
+                // проверка в начале цикла до него не доходит — обрабатываем его здесь явно:
+                // он тоже принадлежит комментарию.
                 if (inBlockComment) {
-                    if (ch === '*' && i + 1 < code.length && code[i+1] === '/') {
-                        inBlockComment = false;
-                        i++;
-                        continue;
+                    if (ch === '*' && code[i + 1] === '/') {
+                        if (i + 1 === pos) return true;
+                        inBlockComment = false; i++;
                     }
                     continue;
                 }
-                if (i === pos) {
-                    return inString || inLineComment || inBlockComment;
+                if (inString) {
+                    if (escapeNext) { escapeNext = false; continue; }
+                    if (ch === '\\') { escapeNext = true; continue; }
+                    if (ch === stringChar) inString = false;
+                    continue;
+                }
+                if (ch === '"' || ch === "'") { inString = true; stringChar = ch; continue; }
+                if (ch === '/' && code[i + 1] === '/') {
+                    if (i + 1 === pos) return true;
+                    inLineComment = true; i++; continue;
+                }
+                if (ch === '/' && code[i + 1] === '*') {
+                    if (i + 1 === pos) return true;
+                    inBlockComment = true; i++; continue;
                 }
             }
             return false;
@@ -293,6 +291,15 @@
                     hints.push('похоже, в списке в скобках пропущена запятая между элементами');
                     break;
                 }
+            }
+            // 4) name без кавычек. Самая коварная опечатка: parseStringField не находит строку
+            // в кавычках, не находит и строковую переменную с таким именем — и молча выдаёт
+            // объекту автоимя _autoN. Ошибка всплывает уже позже и совсем в другом месте
+            // ("Линия _auto3 ссылается на несуществующую точку"), потому что и точки, и
+            // ссылки на них разъехались по автоименам.
+            const bareName = body.match(/(?:^|[^A-Za-z0-9_])name\s*=\s*([a-zA-Z_][a-zA-Z0-9_]*)/);
+            if (bareName && !/(?:^|[^A-Za-z0-9_])name\s*=\s*["']/.test(body)) {
+                hints.push(`имя указано без кавычек (name = ${bareName[1]}) — имя объекта пишется в кавычках: name = "${bareName[1]}" (без кавычек это трактуется как имя строковой переменной)`);
             }
             return hints;
         }
@@ -878,6 +885,29 @@ function removeObjectBlocks(code) {
             return items;
         }
 
+        // Разбор ОДНОГО элемента внутри значения list-переменной: рекурсивно, чтобы вложенные
+        // кортежи (списки списков — например данные для draw Chart type=box/scatter, где
+        // каждый элемент сам является парой/набором чисел) разбирались правильно, а не через
+        // наивный split(',') по всей строке (тот terял вложенность и вообще ломался на первой
+        // же внутренней ")"). Числа и true/false приводятся к настоящим JS-типам — иначе draw
+        // Histogram/Chart получали массив СТРОК вместо чисел, что либо не рисовалось вовсе,
+        // либо считалось неверно.
+        function parseListLiteralItem(str) {
+            const s = str.trim();
+            if (s.startsWith('(') && s.endsWith(')')) {
+                return splitTopLevelList(s.slice(1, -1)).map(parseListLiteralItem);
+            }
+            if ((s.startsWith('"') && s.endsWith('"')) || (s.startsWith("'") && s.endsWith("'"))) {
+                return s.slice(1, -1).replace(/\\"/g, '"').replace(/\\'/g, "'").replace(/\\\\/g, '\\');
+            }
+            if (s === 'true') return true;
+            if (s === 'false') return false;
+            if (/^-?[\d.]+(?:[eE][+-]?\d+)?$/.test(s)) {
+                const n = parseFloat(s);
+                if (!isNaN(n)) return n;
+            }
+            return s; // строка/идентификатор как есть — сохраняет прежнее поведение для прочего
+        }
         function parseVariablesAndExpressions(codeBlock) {
             const vars = {};
             const errors = [];
@@ -937,9 +967,9 @@ function removeObjectBlocks(code) {
                         else if (vars[valueStr] !== undefined && typeof vars[valueStr] === 'string' && vars[valueStr].startsWith('#')) parsedValue = vars[valueStr];
                         else throw new Error(`Некорректное значение для color: ${valueStr}`);
                     } else if (type === 'list') {
-                        const listMatch = valueStr.match(/\(([^)]+)\)/);
+                        const listMatch = valueStr.match(/^\(([\s\S]*)\)$/);
                         if (listMatch) {
-                            const items = listMatch[1].split(',').map(s => s.trim().replace(/^"|"$/g, ''));
+                            const items = splitTopLevelList(listMatch[1]).map(parseListLiteralItem);
                             parsedValue = items;
                         } else throw new Error(`Некорректный формат list: ${valueStr}`);
                     }
@@ -954,7 +984,7 @@ function removeObjectBlocks(code) {
         // Исправленный парсер UI: поддерживает вложенные переменные (через точку)
         function parseUIBlock(block, vars) {
             try {
-                const typeMatch = block.match(/type\s*=\s*(button|toggle|input|slider)/);
+                const typeMatch = block.match(/type\s*=\s*(button|toggle|input|slider|select)/);
                 if (!typeMatch) return null;
                 const type = typeMatch[1];
 
@@ -1020,6 +1050,32 @@ function removeObjectBlocks(code) {
                     if (step === null) step = 1;
                 }
 
+                // type = select — выпадающий список. options = ("a", "b") задаёт варианты;
+                // строки в кавычках попадают в переменную как строки, голые числа — как числа
+                // (чтобы select можно было использовать и для выбора параметра, и для выбора
+                // режима). Необязательное labels = (...) задаёт подписи, если они должны
+                // отличаться от самих значений.
+                let options = null, optionLabels = null;
+                if (type === 'select') {
+                    const parseListLiteral = (field) => {
+                        const m = block.match(new RegExp('(?:^|[^A-Za-z0-9_])' + field + '\\s*=\\s*\\(([^)]*)\\)'));
+                        if (!m) return null;
+                        const parts = m[1].split(',').map(s => s.trim()).filter(s => s !== '');
+                        if (!parts.length) return null;
+                        return parts.map(p => {
+                            if ((p.startsWith('"') && p.endsWith('"')) || (p.startsWith("'") && p.endsWith("'"))) return p.slice(1, -1);
+                            const num = parseFloat(p);
+                            if (!isNaN(num) && String(num) === p) return num;
+                            if (vars[p] !== undefined && (typeof vars[p] === 'string' || typeof vars[p] === 'number')) return vars[p];
+                            return p;
+                        });
+                    };
+                    options = parseListLiteral('options');
+                    if (!options) return null; // select без options бессмысленен — это ошибка блока
+                    optionLabels = parseListLiteral('labels');
+                    if (optionLabels && optionLabels.length !== options.length) optionLabels = null;
+                }
+
                 const x = parseNumberField(block, vars, 'x', null, false);
                 const y = parseNumberField(block, vars, 'y', null, false);
                 const uiWidth = parseNumberField(block, vars, 'width', null, false);
@@ -1028,7 +1084,7 @@ function removeObjectBlocks(code) {
                 const stepper = parseBoolField(block, vars, 'stepper', true);
                 const layer = parseNumberField(block, vars, 'layer', 100, false);
 
-                return { name, type, label, color, textcolor, active, activeExpr: parseActiveExpr(block), variable, funcName, default: defaultValue, action, inputtype, min, max, step, stepper, x, y, width: uiWidth, height: uiHeight, radius, layer };
+                return { name, type, label, color, textcolor, active, activeExpr: parseActiveExpr(block), variable, funcName, default: defaultValue, action, inputtype, min, max, step, stepper, options, optionLabels, x, y, width: uiWidth, height: uiHeight, radius, layer };
             } catch (e) {
                 return null;
             }
@@ -1497,12 +1553,17 @@ function parsePunctirBlock(block, vars) {
             const collideWithFigures = parseBoolField(block, vars, 'collideWithFigures', false);
             const collideWithClusters = parseBoolField(block, vars, 'collideWithClusters', false);
             const collideWithBoundary = parseBoolField(block, vars, 'collideWithBoundary', true);
+            // Только 3D: столкновение с телами Primitive (сфера/куб/цилиндр/конус и т.п.) —
+            // по умолчанию включено (как и collideWithPoints/collideWithBoundary), чтобы точки
+            // не "проваливались" внутрь примитивов сразу, без дополнительной настройки скрипта;
+            // как и всё остальное здесь, отключается точечно: collideWithPrimitives = false.
+            const collideWithPrimitives = parseBoolField(block, vars, 'collideWithPrimitives', true);
 
             return {
                 color, textEnabled, textValue, textColor, dynamic, active, activeExpr, size, shape, textSize, pauseOnDrag, layer,
                 collision, collisionGroup, collisionMask, collisionMargin,
                 collideWithPoints, collideWithLines, collideWithCurves, collideWithCircles, collideWithEllipses, collideWithArcs,
-                collideWithFigures, collideWithClusters, collideWithBoundary,
+                collideWithFigures, collideWithClusters, collideWithBoundary, collideWithPrimitives,
             };
         }
 
@@ -1527,14 +1588,19 @@ function parsePunctirBlock(block, vars) {
             if (reflectSrc) {
                 const over = parsePointRefField(block, vars, 'over');
                 if (!over) return null;
-                return { ...base, pos: { x: 0, y: 0 }, transform: 'reflect', transformSource: reflectSrc, transformOver: over };
+                return { ...base, pos: { x: 0, y: 0, z: 0 }, transform: 'reflect', transformSource: reflectSrc, transformOver: over };
             }
             const rotateSrc = parsePointRefField(block, vars, 'rotate');
             if (rotateSrc) {
                 const around = parsePointRefField(block, vars, 'around');
                 const angleExpr = captureExprField(block, 'angle');
                 if (!around || angleExpr === null) return null;
-                return { ...base, pos: { x: 0, y: 0 }, transform: 'rotate', transformSource: rotateSrc, transformAround: around, transformExpr: angleExpr };
+                // axis — только для 3D-сцен (в 2D вращение всегда вокруг оси Z, перпендикулярной
+                // плоскости, поэтому направление не нужно); по умолчанию — вертикальная ось Y
+                // ("карусельное" вращение вокруг точки around), самый частый случай, когда явная
+                // ось не задана. Можно переопределить: axis = (x, y, z) — направление оси вращения.
+                const axis = parseXYZField(block, vars, 'axis', { x: 0, y: 1, z: 0 });
+                return { ...base, pos: { x: 0, y: 0, z: 0 }, transform: 'rotate', transformSource: rotateSrc, transformAround: around, transformExpr: angleExpr, transformAxis: axis };
             }
             const homothetySrc = parsePointRefField(block, vars, 'homothety');
             if (homothetySrc) {
@@ -1542,14 +1608,16 @@ function parsePunctirBlock(block, vars) {
                 const ratioExpr = captureExprField(block, 'ratio');
                 if (!center || ratioExpr === null) return null;
                 const ratioYExpr = captureExprField(block, 'ratioY');
-                return { ...base, pos: { x: 0, y: 0 }, transform: 'homothety', transformSource: homothetySrc, transformCenter: center, transformExpr: ratioExpr, transformExprY: ratioYExpr };
+                const ratioZExpr = captureExprField(block, 'ratioZ');
+                return { ...base, pos: { x: 0, y: 0, z: 0 }, transform: 'homothety', transformSource: homothetySrc, transformCenter: center, transformExpr: ratioExpr, transformExprY: ratioYExpr, transformExprZ: ratioZExpr };
             }
             const translateSrc = parsePointRefField(block, vars, 'translate');
             if (translateSrc) {
                 const dxExpr = captureExprField(block, 'dx');
                 const dyExpr = captureExprField(block, 'dy');
                 if (dxExpr === null || dyExpr === null) return null;
-                return { ...base, pos: { x: 0, y: 0 }, transform: 'translate', transformSource: translateSrc, transformDx: dxExpr, transformDy: dyExpr };
+                const dzExpr = captureExprField(block, 'dz');
+                return { ...base, pos: { x: 0, y: 0, z: 0 }, transform: 'translate', transformSource: translateSrc, transformDx: dxExpr, transformDy: dyExpr, transformDz: dzExpr };
             }
 
             // ---- Точка на линии / окружности / эллипсе / кривой / дуге / графике функции ----
@@ -1607,6 +1675,23 @@ function parsePunctirBlock(block, vars) {
                 const tMatch = block.match(/(?:^|[^A-Za-z0-9_])t\s*=\s*([\d.]+)/);
                 if (tMatch) { t = parseFloat(tMatch[1]); if (isNaN(t) || t < 0) t = 0; if (t > 1) t = 1; }
                 return { ...base, pos: { x: 0, y: 0 }, arc: arcMatch[1], t };
+            }
+
+            // ---- Точка на плоскости (draw InfPlane) или на грани фигуры (Figure3D) — только 3D. ----
+            // Плоскость/грань задаёт свой собственный ортонормированный базис (см. update3DConstrainedPoints
+            // в generate3D): origin — первая из определяющих точек, basis1/basis2 — два перпендикулярных
+            // направления В плоскости. u, v — свободные вещественные координаты точки в этом базисе
+            // (как и у draw InfPlane, плоскость считается бесконечной — u/v не ограничены контуром
+            // фигуры/размером plane, даже если сама грань конечна).
+            const planeMatch = block.match(/(?:^|[^A-Za-z0-9_])plane\s*=\s*"([^"]*)"/);
+            const onFigureMatch = block.match(/(?:^|[^A-Za-z0-9_])figure\s*=\s*"([^"]*)"/);
+            if (planeMatch || onFigureMatch) {
+                const uExpr = captureExprField(block, 'u');
+                const vExpr = captureExprField(block, 'v');
+                if (uExpr === null || vExpr === null) return null;
+                return planeMatch
+                    ? { ...base, pos: { x: 0, y: 0, z: 0 }, plane: planeMatch[1], uExpr, vExpr }
+                    : { ...base, pos: { x: 0, y: 0, z: 0 }, onFigure: onFigureMatch[1], uExpr, vExpr };
             }
 
             // ---- Обычная точка с фиксированными (или дефолтными) координатами ----
@@ -3193,8 +3278,9 @@ function parseFractalBlock(block, vars) {
     const name = parseStringField(block, vars, 'name');
     if (!name) return null;
     let type = 'mandelbrot';
-    const typeMatch = block.match(/(?:^|[^A-Za-z0-9_])type\s*=\s*"?(mandelbrot|julia|burningship)"?/);
+    const typeMatch = block.match(/(?:^|[^A-Za-z0-9_])type\s*=\s*"?(mandelbrot|julia|burningship|mandelbulb|mengersponge|sierpinski3d)"?/);
     if (typeMatch) type = typeMatch[1];
+    const is3DNative = (type === 'mandelbulb' || type === 'mengersponge' || type === 'sierpinski3d');
     const cReExpr = captureExprField(block, 'cRe');
     const cImExpr = captureExprField(block, 'cIm');
     if (type === 'julia' && (cReExpr === null || cImExpr === null)) return null;
@@ -3214,11 +3300,40 @@ function parseFractalBlock(block, vars) {
     const opacity = parseNumberField(block, vars, 'opacity', 1, false);
     const active = parseBoolField(block, vars, 'active', true);
     const layer = parseNumberField(block, vars, 'layer', -100, false);
+    if (is3DNative) {
+        // Настоящий объёмный фрактал (Mandelbulb/Menger sponge/тетраэдр Серпинского) — рендерится
+        // рэймarчингом (сфера-трейсинг сигнатурной функции расстояния до поверхности, SDF) прямо
+        // на GPU во фрагментном шейдере (см. build3DFractalMaterial в generate3D), а НЕ растровой
+        // 2D-панелью-биллбордом. Детализация ограничена только числом итераций/шагов и точностью
+        // float на GPU — при приближении камерой видна всё более мелкая структура точно так же,
+        // как и у остальных объектов сцены (это не билборд — обычная 3D-геометрия с точки зрения
+        // камеры/зума/окклюзии другими объектами).
+        const posMatch3D = block.match(/(?:^|[^A-Za-z0-9_])pos\s*=\s*\(([^)]*)\)/);
+        if (!posMatch3D) return null;
+        const parts3D = posMatch3D[1].split(',').map(s => s.trim());
+        if (parts3D.length !== 3) return null;
+        let pos3D;
+        try {
+            pos3D = {
+                x: evaluateNumericExpression(parts3D[0], vars),
+                y: evaluateNumericExpression(parts3D[1], vars),
+                z: evaluateNumericExpression(parts3D[2], vars),
+            };
+        } catch (e) { return null; }
+        return {
+            name, type, active, activeExpr: parseActiveExpr(block), layer, dim: '3D', pos3D,
+            rotate3D: parseXYZField(block, vars, 'rotate', { x: 0, y: 0, z: 0 }),
+            size: parseNumberField(block, vars, 'size', 1.5, false),
+            power: parseNumberField(block, vars, 'power', 8, false),
+            iterations: Math.max(1, Math.round(parseNumberField(block, vars, 'iterations', type === 'mengersponge' ? 5 : (type === 'sierpinski3d' ? 12 : 10), false))),
+            maxSteps: Math.max(8, Math.round(parseNumberField(block, vars, 'maxSteps', 128, false))),
+            color: parseColorField(block, vars, 'color', '#4a90d9'),
+            color2: parseColorField(block, vars, 'color2', '#ffaa44'),
+        };
+    }
     // 3D-альтернатива (билборд-панель): та же растровая математика Мандельброта/Жюлиа/
     // Burning Ship (см. drawFractal в generate2D), но область обзора задаётся явно через
     // centerRe/centerIm/scale, а не через камеру сцены (в 3D-панели нет pixelToField).
-    // Настоящий объёмный фрактал (Mandelbulb и т.п., через рэймарчинг) — другая техника
-    // рендеринга и отдельная, более крупная задача (см. итоговое резюме).
     let dim = '2D', pos3D = null, rotate3D = null, billboard = true;
     const posMatch = block.match(/(?:^|[^A-Za-z0-9_])pos\s*=\s*\(([^)]*)\)/);
     if (posMatch) {
@@ -4270,6 +4385,508 @@ function parseCommands(codeBlock, vars) {
     };
 }
 
+        // ========== ОБЩИЙ РАНТАЙМ: markdown-lite + KaTeX для описаний (::align/indent:: блоки,
+        // плейсхолдеры {expr}, **жирный**/*курсив*/`код`/[ссылки](url)) ==========
+        // Раньше эти 8 функций были продублированы дословно в generate2D и generate3D (единственная
+        // разница между слоями — вычисление {expr}: 2D зовёт переданный evalFn напрямую, 3D
+        // оборачивает его в свой кэш AST gcEvalPlaceholder3D, который остаётся 3D-специфичным и
+        // определяется отдельно). Теперь это единственный источник текста для обоих слоёв; при
+        // правке логики рендеринга описаний достаточно менять один раз здесь. indent — префикс
+        // (пробелы) для каждой строки сгенерированного кода, чисто косметический.
+        function gcSharedMarkdownKatexLines(indent) {
+            return [
+                indent + 'function gcFormatValue(v) {\n',
+                indent + '  if (typeof v === \'number\') { if (!isFinite(v)) return String(v); return String(Math.round(v * 10000) / 10000); }\n',
+                indent + '  if (v === undefined || v === null) return \'\';\n',
+                indent + '  return String(v);\n',
+                indent + '}\n',
+                indent + 'function gcSubstitutePlaceholders(text, evalFn) {\n',
+                indent + '  return String(text).replace(/\\{([^{}]+)\\}/g, function(m, expr) {\n',
+                indent + '    try { return gcFormatValue(evalFn(expr.trim())); } catch (e) { return \'\'; }\n',
+                indent + '  });\n',
+                indent + '}\n',
+                indent + 'function gcMdInline(s) {\n',
+                indent + '  s = s.replace(/\\[([^\\]]+)\\]\\(([^)\\s]+)\\)/g, \'<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>\');\n',
+                indent + '  s = s.replace(/\\*\\*([^*]+)\\*\\*/g, \'<b>$1</b>\');\n',
+                indent + '  s = s.replace(/(^|[^*])\\*([^*\\n]+)\\*(?!\\*)/g, \'$1<i>$2</i>\');\n',
+                indent + '  s = s.replace(/`([^`]+)`/g, \'<code>$1</code>\');\n',
+                indent + '  return s;\n',
+                indent + '}\n',
+                indent + 'function gcMdBlock(text) {\n',
+                indent + '  const lines = text.split(\'\\n\');\n',
+                indent + '  const htmlParts = [];\n',
+                indent + '  let para = [];\n',
+                indent + '  function flushPara() { if (!para.length) return; htmlParts.push(\'<p>\' + gcMdInline(para.join(\'<br>\')) + \'</p>\'); para = []; }\n',
+                indent + '  for (const raw of lines) {\n',
+                indent + '    const trimmed = raw.trim();\n',
+                indent + '    if (trimmed === \'\') { flushPara(); continue; }\n',
+                indent + '    const h = trimmed.match(/^(#{1,4})\\s+(.*)$/);\n',
+                indent + '    if (h) { flushPara(); const level = h[1].length; htmlParts.push(\'<h\' + level + \'>\' + gcMdInline(h[2]) + \'</h\' + level + \'>\'); continue; }\n',
+                indent + '    para.push(trimmed);\n',
+                indent + '  }\n',
+                indent + '  flushPara();\n',
+                indent + '  return htmlParts.join(\'\');\n',
+                indent + '}\n',
+                indent + 'function gcRenderMathSegments(s) {\n',
+                indent + '  const placeholders = [];\n',
+                indent + '  function stash(html) { const idx = placeholders.length; placeholders.push(html); return \'\\u0000\' + idx + \'\\u0001\'; }\n',
+                indent + '  function renderTex(tex, display) {\n',
+                indent + '    try { return (typeof katex !== \'undefined\') ? katex.renderToString(tex, { throwOnError: false, displayMode: display }) : tex; }\n',
+                indent + '    catch (e) { return tex; }\n',
+                indent + '  }\n',
+                indent + '  let out = s.replace(/\\\\\\[([\\s\\S]+?)\\\\\\]/g, function(m, tex) { return stash(renderTex(tex, true)); });\n',
+                indent + '  out = out.replace(/\\\\\\(([\\s\\S]+?)\\\\\\)/g, function(m, tex) { return stash(renderTex(tex, false)); });\n',
+                indent + '  return { text: out, placeholders: placeholders };\n',
+                indent + '}\n',
+                indent + 'function gcRestoreMathSegments(html, placeholders) {\n',
+                indent + '  return html.replace(/\\u0000(\\d+)\\u0001/g, function(m, i) { return placeholders[Number(i)]; });\n',
+                indent + '}\n',
+                indent + 'function gcParseFenceAttrs(attrStr) {\n',
+                indent + '  const attrs = {};\n',
+                indent + '  const re = /(align|indent)\\s*=\\s*"?([a-zA-Z0-9.]+)"?/g;\n',
+                indent + '  let am; while ((am = re.exec(attrStr))) attrs[am[1]] = am[2];\n',
+                indent + '  return attrs;\n',
+                indent + '}\n',
+                indent + 'function gcRenderDescriptionHtml(raw, defaultAlign) {\n',
+                indent + '  if (!raw) return \'\';\n',
+                indent + '  const mathRes = gcRenderMathSegments(String(raw));\n',
+                indent + '  const src = mathRes.text;\n',
+                indent + '  const fenceRe = /^::([^\\n]*)\\n([\\s\\S]*?)\\n::[ \\t]*$/gm;\n',
+                indent + '  let out = \'\', lastIndex = 0, m;\n',
+                indent + '  function renderPlain(chunk) { if (!chunk.trim()) return \'\'; return \'<div style="text-align:\' + (defaultAlign || \'left\') + \'">\' + gcMdBlock(chunk) + \'</div>\'; }\n',
+                indent + '  while ((m = fenceRe.exec(src))) {\n',
+                indent + '    if (m.index > lastIndex) out += renderPlain(src.slice(lastIndex, m.index));\n',
+                indent + '    const attrs = gcParseFenceAttrs(m[1]);\n',
+                indent + '    const align = attrs.align || defaultAlign || \'left\';\n',
+                indent + '    const indentPx = attrs.indent ? (parseFloat(attrs.indent) + \'em\') : \'0\';\n',
+                indent + '    out += \'<div style="text-align:\' + align + \';padding-left:\' + indentPx + \'">\' + gcMdBlock(m[2]) + \'</div>\';\n',
+                indent + '    lastIndex = fenceRe.lastIndex;\n',
+                indent + '  }\n',
+                indent + '  if (lastIndex < src.length) out += renderPlain(src.slice(lastIndex));\n',
+                indent + '  return gcRestoreMathSegments(out, mathRes.placeholders);\n',
+                indent + '}\n',
+            ];
+        }
+
+        // ========== ОБЩИЙ РАНТАЙМ: построение панели new UI (button/toggle/input/slider) ==========
+        // Раньше createUI() была продублирована в generate2D и generate3D почти дословно по структуре
+        // DOM-разметки, но с генуинными различиями в поведении между слоями:
+        //  — 2D читает/пишет переменные по вложенному пути через getNestedValue/setNestedValue(window,...),
+        //    3D — через плоский g3GetVar/g3SetVar;
+        //  — 2D после любого взаимодействия (кнопка/тумблер/поле/слайдер) вручную пересчитывает
+        //    фигуры/кластеры и перерисовывает кадр (у него нет отдельного постоянного цикла отрисовки
+        //    вне Update); 3D ничего не пересчитывает — сцена и так перерисовывается каждый кадр в
+        //    animate();
+        //  — числовое поле (type=input) в 2D умеет привязку к шагу (step-snapping) и слушает blur,
+        //    3D — только простое ограничение min/max без привязки к шагу и без blur;
+        //  — 2D логирует ошибку формулы через glLog('warn', ...) с подавлением повторов, 3D — молча;
+        //  — 2D помечает ui._wrapper для последующей динамической синхронизации видимости
+        //    (см. syncUIVisibility), 3D этого не делает;
+        //  — цвет по умолчанию: в 2D это динамический вызов __gcDefaultColor() (учитывает переключение
+        //    темы на лету), в 3D — константа, вычисленная один раз при компиляции.
+        // Чтобы объединение не превратилось в костыль поверх костыля, вся общая разметка/логика вынесена
+        // в gcBuildUI(uiData, hooks), а все перечисленные различия каждый слой передаёт через свой
+        // объект hooks — сама генерируемая логика при этом не изменилась ни на строчку.
+        function gcSharedUIBuilderLines(indent) {
+            return [
+                indent + 'function gcBuildUI(uiData, hooks) {\n',
+                indent + '  if (hooks.clearOverlay) uiOverlay.innerHTML = \'\';\n',
+                indent + '  uiContainer.innerHTML = \'\';\n',
+                indent + '  for (const ui of uiData) {\n',
+                indent + '    const wrapper = document.createElement(\'div\'); wrapper.className = \'ui-item\';\n',
+                indent + '    if (hooks.trackWrapper) ui._wrapper = wrapper;\n',
+                indent + '    if (ui.active === false) wrapper.style.display = \'none\';\n',
+                indent + '    const positioned = ui.x !== null && ui.x !== undefined && ui.y !== null && ui.y !== undefined;\n',
+                indent + '    if (positioned) {\n',
+                indent + '      wrapper.style.position = \'absolute\';\n',
+                indent + '      wrapper.style.left = ui.x + \'%\'; wrapper.style.top = ui.y + \'%\';\n',
+                indent + '      wrapper.style.pointerEvents = \'auto\';\n',
+                indent + '      wrapper.style.zIndex = (ui.layer !== undefined && ui.layer !== null) ? ui.layer : 100;\n',
+                indent + '      if (ui.width) wrapper.style.width = ui.width + \'px\';\n',
+                indent + '      if (ui.height) wrapper.style.height = ui.height + \'px\';\n',
+                indent + '    }\n',
+                indent + '    if (ui.type === \'button\') {\n',
+                indent + '      const btn = document.createElement(\'button\');\n',
+                indent + '      btn.textContent = ui.label || \'Button\';\n',
+                indent + '      btn.style.backgroundColor = ui.color || hooks.defaultColor();\n',
+                indent + '      btn.style.color = ui.textcolor || hooks.buttonTextColor();\n',
+                indent + '      btn.style.borderRadius = (ui.radius !== null && ui.radius !== undefined ? ui.radius : 4) + \'px\';\n',
+                indent + '      if (positioned) { btn.style.width = \'100%\'; btn.style.height = \'100%\'; }\n',
+                indent + '      btn.addEventListener(\'click\', async function() { await hooks.runButtonAction(ui.action || \'\'); });\n',
+                indent + '      wrapper.appendChild(btn);\n',
+                indent + '    } else if (ui.type === \'toggle\') {\n',
+                indent + '      const checkbox = document.createElement(\'input\'); checkbox.type = \'checkbox\';\n',
+                indent + '      let initialChecked = ui.default !== undefined ? ui.default : false;\n',
+                indent + '      if (ui.variable) { const val = hooks.getVar(ui.variable); if (val !== undefined) initialChecked = !!val; }\n',
+                indent + '      checkbox.checked = initialChecked;\n',
+                indent + '      if (ui.variable) {\n',
+                indent + '        if (hooks.getVar(ui.variable) === undefined) hooks.setVar(ui.variable, initialChecked);\n',
+                indent + '        checkbox.addEventListener(\'change\', function() { hooks.setVar(ui.variable, this.checked); hooks.onInteract(); });\n',
+                indent + '      }\n',
+                indent + '      const label = document.createElement(\'label\'); label.textContent = ui.label || \'\'; label.style.color = ui.textcolor || hooks.defaultColor();\n',
+                indent + '      wrapper.appendChild(checkbox); wrapper.appendChild(label);\n',
+                indent + '    } else if (ui.type === \'input\') {\n',
+                indent + '      const input = document.createElement(\'input\'); input.type = ui.inputtype === \'formula\' ? \'text\' : (ui.inputtype || \'text\');\n',
+                indent + '      if (input.type === \'number\') {\n',
+                indent + '        if (ui.min !== null) input.min = ui.min;\n',
+                indent + '        if (ui.max !== null) input.max = ui.max;\n',
+                indent + '        input.step = (ui.step !== null && ui.step !== undefined) ? ui.step : \'any\';\n',
+                indent + '        if (ui.stepper === false) input.classList.add(\'no-stepper\');\n',
+                indent + '      }\n',
+                indent + '      if (ui.inputtype === \'formula\') {\n',
+                indent + '        const funcName = ui.funcName || ui.variable || \'userFunc\';\n',
+                indent + '        const defaultExpr = (ui.default !== undefined && ui.default !== null) ? String(ui.default) : \'x\';\n',
+                indent + '        input.value = defaultExpr; input.placeholder = \'например: x^2 + sin(x)\';\n',
+                indent + '        const errLabel = document.createElement(\'div\');\n',
+                indent + '        errLabel.style.color = \'#ff0000\'; errLabel.style.fontSize = \'0.75rem\'; errLabel.style.marginTop = \'2px\'; errLabel.style.display = \'none\';\n',
+                indent + '        let lastErrMsg = null;\n',
+                indent + '        function registerFormula() {\n',
+                indent + '          try {\n',
+                indent + '            const ast = hooks.parseFormula(input.value);\n',
+                indent + '            hooks.registerUserFunc(funcName, ast);\n',
+                indent + '            input.style.borderColor = \'\'; errLabel.style.display = \'none\'; lastErrMsg = null;\n',
+                indent + '          } catch (e) {\n',
+                indent + '            input.style.borderColor = \'#ff0000\';\n',
+                indent + '            errLabel.textContent = \'Ошибка: \' + e.message; errLabel.style.display = \'block\';\n',
+                indent + '            if (e.message !== lastErrMsg) { hooks.onFormulaError(funcName, ui.label || \'\', e.message); lastErrMsg = e.message; }\n',
+                indent + '          }\n',
+                indent + '          hooks.onInteract();\n',
+                indent + '        }\n',
+                indent + '        registerFormula();\n',
+                indent + '        input.addEventListener(\'input\', registerFormula); input.addEventListener(\'change\', registerFormula);\n',
+                indent + '        const label = document.createElement(\'label\'); label.textContent = ui.label || \'\'; label.style.color = ui.textcolor || hooks.defaultColor();\n',
+                indent + '        wrapper.appendChild(label); wrapper.appendChild(input); wrapper.appendChild(errLabel);\n',
+                indent + '        if (positioned) uiOverlay.appendChild(wrapper); else uiContainer.appendChild(wrapper);\n',
+                indent + '        continue;\n',
+                indent + '      }\n',
+                indent + '      let defaultVal = ui.default !== undefined ? ui.default : (input.type === \'number\' ? 0 : \'\');\n',
+                indent + '      if (ui.variable) { const val = hooks.getVar(ui.variable); if (val !== undefined) defaultVal = val; }\n',
+                indent + '      input.value = defaultVal;\n',
+                indent + '      if (ui.variable) {\n',
+                indent + '        if (hooks.getVar(ui.variable) === undefined) hooks.setVar(ui.variable, defaultVal);\n',
+                indent + '        function clampAndUpdate() {\n',
+                indent + '          let val = input.value;\n',
+                indent + '          if (input.type === \'number\') {\n',
+                indent + '            let num = parseFloat(val);\n',
+                indent + '            if (isNaN(num)) { const currentVal = hooks.getVar(ui.variable); input.value = (currentVal !== undefined) ? currentVal : defaultVal; return; }\n',
+                indent + '            if (ui.min !== null && num < ui.min) num = ui.min;\n',
+                indent + '            if (ui.max !== null && num > ui.max) num = ui.max;\n',
+                indent + '            if (hooks.numberStepSnap && ui.step !== null && ui.step > 0) {\n',
+                indent + '              const minVal = ui.min !== null ? ui.min : 0;\n',
+                indent + '              const remainder = (num - minVal) % ui.step;\n',
+                indent + '              if (Math.abs(remainder) > 0.0001) { if (remainder > ui.step / 2) num += ui.step - remainder; else num -= remainder; num = parseFloat(num.toFixed(10)); }\n',
+                indent + '            }\n',
+                indent + '            input.value = num; val = num;\n',
+                indent + '          }\n',
+                indent + '          hooks.setVar(ui.variable, val);\n',
+                indent + '          hooks.onInteract();\n',
+                indent + '        }\n',
+                indent + '        input.addEventListener(\'input\', clampAndUpdate); input.addEventListener(\'change\', clampAndUpdate);\n',
+                indent + '        if (hooks.numberInputBlur) input.addEventListener(\'blur\', clampAndUpdate);\n',
+                indent + '      }\n',
+                indent + '      const label = document.createElement(\'label\'); label.textContent = ui.label || \'\'; label.style.color = ui.textcolor || hooks.defaultColor();\n',
+                indent + '      wrapper.appendChild(label); wrapper.appendChild(input);\n',
+                indent + '    } else if (ui.type === \'slider\') {\n',
+                indent + '      const input = document.createElement(\'input\'); input.type = \'range\';\n',
+                indent + '      input.min = ui.min; input.max = ui.max; input.step = ui.step || 1;\n',
+                indent + '      let defaultVal = (ui.default !== undefined && ui.default !== null) ? ui.default : ui.min;\n',
+                indent + '      if (ui.variable) { const val = hooks.getVar(ui.variable); if (val !== undefined) defaultVal = val; }\n',
+                indent + '      input.value = defaultVal;\n',
+                indent + '      input.style.accentColor = ui.color || hooks.defaultColor();\n',
+                indent + '      if (positioned) { input.style.width = \'100%\'; }\n',
+                indent + '      const valueLabel = document.createElement(\'span\'); valueLabel.textContent = String(defaultVal); valueLabel.style.color = ui.textcolor || hooks.defaultColor(); valueLabel.style.marginLeft = \'6px\';\n',
+                indent + '      if (ui.variable) {\n',
+                indent + '        if (hooks.getVar(ui.variable) === undefined) hooks.setVar(ui.variable, defaultVal);\n',
+                indent + '        input.addEventListener(\'input\', function() {\n',
+                indent + '          const num = parseFloat(this.value);\n',
+                indent + '          hooks.setVar(ui.variable, num);\n',
+                indent + '          valueLabel.textContent = String(num);\n',
+                indent + '          hooks.onInteract();\n',
+                indent + '        });\n',
+                indent + '      }\n',
+                indent + '      const label2 = document.createElement(\'label\'); label2.textContent = ui.label || \'\'; label2.style.color = ui.textcolor || hooks.defaultColor();\n',
+                indent + '      wrapper.appendChild(label2); wrapper.appendChild(input); wrapper.appendChild(valueLabel);\n',
+                // type = select — выпадающий список. В переменную кладётся само значение
+                // варианта (строка или число), а не индекс: его одинаково удобно сравнивать
+                // в условиях (if (mode == "polar")) и подставлять в вычисления. Ветка живёт
+                // в общем построителе панели, поэтому появляется сразу и в 2D, и в 3D.
+                indent + '    } else if (ui.type === \'select\') {\n',
+                indent + '      const sel = document.createElement(\'select\');\n',
+                indent + '      const opts = ui.options || [];\n',
+                indent + '      let defaultVal = (ui.default !== undefined && ui.default !== null) ? ui.default : opts[0];\n',
+                indent + '      if (ui.variable) { const v0 = hooks.getVar(ui.variable); if (v0 !== undefined) defaultVal = v0; }\n',
+                indent + '      for (let oi = 0; oi < opts.length; oi++) {\n',
+                indent + '        const opt = document.createElement(\'option\');\n',
+                indent + '        opt.value = String(oi);\n',
+                indent + '        opt.textContent = String((ui.optionLabels && ui.optionLabels[oi] !== undefined) ? ui.optionLabels[oi] : opts[oi]);\n',
+                indent + '        if (String(opts[oi]) === String(defaultVal)) opt.selected = true;\n',
+                indent + '        sel.appendChild(opt);\n',
+                indent + '      }\n',
+                indent + '      if (ui.color) sel.style.background = ui.color;\n',
+                indent + '      sel.style.color = ui.textcolor || hooks.defaultColor();\n',
+                indent + '      if (positioned) { sel.style.width = \'100%\'; }\n',
+                indent + '      if (ui.variable) {\n',
+                indent + '        if (hooks.getVar(ui.variable) === undefined) hooks.setVar(ui.variable, defaultVal);\n',
+                indent + '        sel.addEventListener(\'change\', function() {\n',
+                indent + '          hooks.setVar(ui.variable, opts[parseInt(this.value, 10)]);\n',
+                indent + '          hooks.onInteract();\n',
+                indent + '        });\n',
+                indent + '      }\n',
+                indent + '      const label3 = document.createElement(\'label\'); label3.textContent = ui.label || \'\'; label3.style.color = ui.textcolor || hooks.defaultColor();\n',
+                indent + '      wrapper.appendChild(label3); wrapper.appendChild(sel);\n',
+                indent + '    }\n',
+                indent + '    if (positioned) uiOverlay.appendChild(wrapper); else uiContainer.appendChild(wrapper);\n',
+                indent + '  }\n',
+                indent + '}\n',
+            ];
+        }
+
+        // ========== ОБЩИЙ РАНТАЙМ: токенайзер + рекурсивно-нисходящий парсер мини-языка
+        // GMS (Function/Void, Start/Update, действия кнопок, условия draw) ==========
+        // Раньше это было два независимо написанных парсера на разных технологиях: 2D — двухшаговый
+        // (glTokenize -> массив токенов -> glCreateParser), 3D — однопроходный посимвольный сканер
+        // (g3CreateParser). После того как формы AST и сама грамматика были приведены к одному виду
+        // (общие имена полей l/r/expr, путь-присваивание, тернарник, индексация, set/vector/...
+        // мульти-assign, литералы true/false/null, единый приоритет унарного минуса и "^"), стало
+        // возможно оставить один-единственный текст парсера вместо двух. Раньше здесь просто был
+        // определён встроенный код generate2D — теперь это единственный источник, из которого его
+        // забирают и generate2D (через ${...} в своём большом template literal), и generate3D
+        // (через spread в массив строк, как gcSharedMarkdownKatexLines/gcSharedUIBuilderLines).
+        function gcSharedExprParserLines() {
+            return [
+                '    function glTokenize(src) {\n',
+                '        const toks = []; let i = 0; const n = src.length;\n',
+                '        while (i < n) {\n',
+                '            const c = src[i];\n',
+                '            if (c === \' \' || c === \'\\\\t\' || c === \'\\\\n\' || c === \'\\\\r\') { i++; continue; }\n',
+                '            if (c === \'/\' && src[i + 1] === \'/\') { while (i < n && src[i] !== \'\\\\n\') i++; continue; }\n',
+                '            if (c === \'/\' && src[i + 1] === \'*\') { i += 2; while (i < n && !(src[i] === \'*\' && src[i + 1] === \'/\')) i++; i += 2; continue; }\n',
+                '            if (c === \'"\' || c === "\'") {\n',
+                '                const quote = c; let j = i + 1; let str = \'\';\n',
+                '                while (j < n && src[j] !== quote) { if (src[j] === \'\\\\\\\\\' && j + 1 < n) { str += src[j + 1]; j += 2; } else { str += src[j]; j++; } }\n',
+                '                toks.push({ type: \'string\', value: str }); i = j + 1; continue;\n',
+                '            }\n',
+                '            if (/[0-9]/.test(c) || (c === \'.\' && /[0-9]/.test(src[i + 1] || \'\'))) {\n',
+                '                let j = i; while (j < n && /[0-9.]/.test(src[j])) j++;\n',
+                '                if ((src[j] === \'e\' || src[j] === \'E\') && /[0-9+\\-]/.test(src[j + 1] || \'\')) {\n',
+                '                    j++;\n',
+                '                    if (src[j] === \'+\' || src[j] === \'-\') j++;\n',
+                '                    while (j < n && /[0-9]/.test(src[j])) j++;\n',
+                '                }\n',
+                '                toks.push({ type: \'number\', value: parseFloat(src.slice(i, j)) }); i = j; continue;\n',
+                '            }\n',
+                '            if (/[a-zA-Z_]/.test(c)) {\n',
+                '                let j = i; while (j < n && /[a-zA-Z0-9_]/.test(src[j])) j++;\n',
+                '                toks.push({ type: \'ident\', value: src.slice(i, j) }); i = j; continue;\n',
+                '            }\n',
+                '            const two = src.substr(i, 2);\n',
+                '            if ([\'==\', \'!=\', \'<=\', \'>=\', \'&&\', \'||\', \'+=\', \'-=\', \'*=\', \'/=\'].includes(two)) { toks.push({ type: \'op\', value: two }); i += 2; continue; }\n',
+                '            if (\'+-*/%^(){}[].,;=<>!#?:\'.includes(c)) { toks.push({ type: \'op\', value: c }); i++; continue; }\n',
+                '            i++;\n',
+                '        }\n',
+                '        toks.push({ type: \'eof\', value: null });\n',
+                '        return toks;\n',
+                '    }\n',
+                '\n',
+                '    function glCreateParser(tokens) {\n',
+                '        let pos = 0;\n',
+                '        const peek = () => tokens[pos];\n',
+                '        const next = () => tokens[pos++];\n',
+                '        const atOp = (v) => { const t = peek(); return t.type === \'op\' && t.value === v; };\n',
+                '        const atIdent = (v) => { const t = peek(); return t.type === \'ident\' && t.value === v; };\n',
+                '        function expectOp(v) { const t = next(); if (t.type !== \'op\' || t.value !== v) throw new Error(\'Ожидался "\' + v + \'"\'); }\n',
+                '\n',
+                '        function parseProgram() { const s = []; while (peek().type !== \'eof\') { if (atOp(\';\')) { next(); continue; } s.push(parseStatement()); } return s; }\n',
+                '        function parseBlock() { expectOp(\'{\'); const s = []; while (!atOp(\'}\')) { if (atOp(\';\')) { next(); continue; } s.push(parseStatement()); } expectOp(\'}\'); return s; }\n',
+                '        function parsePath() {\n',
+                '            const t = next(); if (t.type !== \'ident\') throw new Error(\'Ожидался идентификатор\');\n',
+                '            const parts = [{ type: \'field\', name: t.value }];\n',
+                '            for (;;) {\n',
+                '                if (atOp(\'.\')) { next(); const p = next(); if (p.type !== \'ident\') throw new Error(\'Ожидалось имя поля после "."\'); parts.push({ type: \'field\', name: p.value }); }\n',
+                '                else if (atOp(\'[\')) { next(); const idx = parseExpr(); expectOp(\']\'); parts.push({ type: \'index\', expr: idx }); }\n',
+                '                else break;\n',
+                '            }\n',
+                '            return parts;\n',
+                '        }\n',
+                '        function parseStatement() {\n',
+                '            if (atIdent(\'if\')) {\n',
+                '                next(); expectOp(\'(\'); const cond = parseExpr(); expectOp(\')\');\n',
+                '                const thenB = parseBlock(); let elseB = null;\n',
+                '                if (atIdent(\'else\')) { next(); if (atIdent(\'if\')) elseB = [parseStatement()]; else elseB = parseBlock(); }\n',
+                '                return { type: \'if\', cond, thenB, elseB };\n',
+                '            }\n',
+                '            if (atIdent(\'repeat\')) {\n',
+                '                next(); expectOp(\'(\'); const count = parseExpr(); expectOp(\')\');\n',
+                '                return { type: \'repeat\', count, body: parseBlock() };\n',
+                '            }\n',
+                // while (cond) { ... } — единственный способ выразить "повторять до сходимости"
+                // (метод Ньютона, деление пополам, алгоритм Евклида). repeat(N) требует знать
+                // число шагов заранее, а for работает только по готовой коллекции.
+                '            if (atIdent(\'while\')) {\n',
+                '                next(); expectOp(\'(\'); const cond = parseExpr(); expectOp(\')\');\n',
+                '                return { type: \'while\', cond, body: parseBlock() };\n',
+                '            }\n',
+                '            if (atIdent(\'for\')) {\n',
+                '                next(); expectOp(\'(\');\n',
+                '                const varTok = next(); if (varTok.type !== \'ident\') throw new Error(\'Ожидался идентификатор после "for ("\');\n',
+                '                if (!atIdent(\'in\')) throw new Error(\'Ожидалось "in" в цикле for\');\n',
+                '                next();\n',
+                '                const coll = parseExpr();\n',
+                '                expectOp(\')\');\n',
+                '                return { type: \'forEach\', varName: varTok.value, coll, body: parseBlock() };\n',
+                '            }\n',
+                '            if (atIdent(\'wait\')) {\n',
+                '                next(); expectOp(\'(\'); const arg = parseExpr(); expectOp(\')\'); if (atOp(\';\')) next();\n',
+                '                return { type: \'wait\', arg };\n',
+                '            }\n',
+                '            if (atIdent(\'return\')) {\n',
+                '                next();\n',
+                '                let expr = null;\n',
+                '                if (!atOp(\';\') && peek().type !== \'eof\' && !atOp(\'}\')) expr = parseExpr();\n',
+                '                if (atOp(\';\')) next();\n',
+                '                return { type: \'return\', expr };\n',
+                '            }\n',
+                '            if (atIdent(\'func\')) {\n',
+                '                next();\n',
+                '                const nameTok = next(); if (nameTok.type !== \'ident\') throw new Error(\'Ожидалось имя функции после "func"\');\n',
+                '                expectOp(\'(\');\n',
+                '                const params = [];\n',
+                '                if (!atOp(\')\')) {\n',
+                '                    const p0 = next(); if (p0.type !== \'ident\') throw new Error(\'Ожидалось имя параметра\'); params.push(p0.value);\n',
+                '                    while (atOp(\',\')) { next(); const p = next(); if (p.type !== \'ident\') throw new Error(\'Ожидалось имя параметра\'); params.push(p.value); }\n',
+                '                }\n',
+                '                expectOp(\')\');\n',
+                '                const eqTok = next(); if (eqTok.type !== \'op\' || eqTok.value !== \'=\') throw new Error(\'Ожидался "=" в определении функции\');\n',
+                '                const body = parseExpr(); if (atOp(\';\')) next();\n',
+                '                return { type: \'funcDef\', name: nameTok.value, params, body };\n',
+                '            }\n',
+                // Ключевые слова объявления в теле Start/Update/Function/Void. Раньше сюда
+                // входили только set/vector/matrix/graph/complex, а int/float/string/bool/
+                // color/list — типы, которыми объявляются переменные сцены на верхнем уровне —
+                // рантайм не знал: "float y = x + 1;" внутри функции падал с "Неизвестный
+                // идентификатор: float". Синтаксис языка обязан быть одинаковым внутри и
+                // снаружи тел, поэтому список приведён к общему. Аннотация типа здесь, как и
+                // для vector/matrix, декоративна: значение определяется выражением справа.
+                '            if (atIdent(\'set\') || atIdent(\'vector\') || atIdent(\'matrix\') || atIdent(\'graph\') || atIdent(\'complex\') || atIdent(\'int\') || atIdent(\'float\') || atIdent(\'string\') || atIdent(\'bool\') || atIdent(\'color\') || atIdent(\'list\')) {\n',
+                '                next();\n',
+                '                const assigns = [];\n',
+                '                for (;;) {\n',
+                '                    const path = parsePath();\n',
+                '                    const t = next();\n',
+                '                    if (t.type !== \'op\' || ![\'=\', \'+=\', \'-=\', \'*=\', \'/=\'].includes(t.value)) throw new Error(\'Ожидался оператор присваивания\');\n',
+                '                    const expr = parseExpr();\n',
+                '                    assigns.push({ path, op: t.value, expr });\n',
+                '                    if (atOp(\',\')) { next(); continue; }\n',
+                '                    break;\n',
+                '                }\n',
+                '                if (atOp(\';\')) next();\n',
+                '                if (assigns.length === 1) return { type: \'assign\', path: assigns[0].path, op: assigns[0].op, expr: assigns[0].expr };\n',
+                '                return { type: \'multiAssign\', assigns };\n',
+                '            }\n',
+                '            const startPos = pos;\n',
+                '            try {\n',
+                '                const path = parsePath();\n',
+                '                if (peek().type === \'op\' && [\'=\', \'+=\', \'-=\', \'*=\', \'/=\'].includes(peek().value)) {\n',
+                '                    const t = next(); const expr = parseExpr(); if (atOp(\';\')) next();\n',
+                '                    return { type: \'assign\', path, op: t.value, expr };\n',
+                '                }\n',
+                '                pos = startPos;\n',
+                '            } catch (e) { pos = startPos; }\n',
+                '            const expr = parseExpr(); if (atOp(\';\')) next();\n',
+                '            return { type: \'expr\', expr };\n',
+                '        }\n',
+                '        function parseExpr() {\n',
+                '            const cond = parseOr();\n',
+                '            if (atOp(\'?\')) {\n',
+                '                next();\n',
+                '                const a = parseExpr();\n',
+                '                expectOp(\':\');\n',
+                '                const b = parseExpr();\n',
+                '                return { type: \'ternary\', cond, a, b };\n',
+                '            }\n',
+                '            return cond;\n',
+                '        }\n',
+                '        function parseOr() { let l = parseAnd(); while (atOp(\'||\')) { next(); l = { type: \'logic\', op: \'||\', l, r: parseAnd() }; } return l; }\n',
+                '        function parseAnd() { let l = parseEquality(); while (atOp(\'&&\')) { next(); l = { type: \'logic\', op: \'&&\', l, r: parseEquality() }; } return l; }\n',
+                '        function parseEquality() { let l = parseRelational(); while (atOp(\'==\') || atOp(\'!=\')) { const op = next().value; l = { type: \'cmp\', op, l, r: parseRelational() }; } return l; }\n',
+                '        function parseRelational() { let l = parseAdditive(); while (atOp(\'<\') || atOp(\'>\') || atOp(\'<=\') || atOp(\'>=\')) { const op = next().value; l = { type: \'cmp\', op, l, r: parseAdditive() }; } return l; }\n',
+                '        function parseAdditive() { let l = parseMultiplicative(); while (atOp(\'+\') || atOp(\'-\')) { const op = next().value; l = { type: \'bin\', op, l, r: parseMultiplicative() }; } return l; }\n',
+                '        function parseMultiplicative() { let l = parseUnary(); while (atOp(\'*\') || atOp(\'/\') || atOp(\'%\')) { const op = next().value; l = { type: \'bin\', op, l, r: parseUnary() }; } return l; }\n',
+                '        function parseUnary() {\n',
+                '            if (atOp(\'-\')) { next(); return { type: \'neg\', expr: parseUnary() }; }\n',
+                '            if (atOp(\'!\')) { next(); return { type: \'not\', expr: parseUnary() }; }\n',
+                '            return parsePower();\n',
+                '        }\n',
+                '        function parsePower() {\n',
+                '            const base = parsePostfix();\n',
+                '            if (atOp(\'^\')) { next(); const exp = parseUnary(); return { type: \'pow\', base, exp }; }\n',
+                '            return base;\n',
+                '        }\n',
+                '        function parsePostfix() {\n',
+                '            let e = parsePrimary();\n',
+                '            while (true) {\n',
+                '                if (atOp(\'.\')) {\n',
+                '                    next(); const p = next(); if (p.type !== \'ident\') throw new Error(\'Ожидалось имя поля\');\n',
+                '                    if (atOp(\'(\')) {\n',
+                '                        next(); const args = [e];\n',
+                '                        if (!atOp(\')\')) { args.push(parseExpr()); while (atOp(\',\')) { next(); args.push(parseExpr()); } }\n',
+                '                        expectOp(\')\');\n',
+                '                        e = { type: \'call\', name: p.value, args };\n',
+                '                    } else {\n',
+                '                        e = { type: \'member\', obj: e, prop: p.value };\n',
+                '                    }\n',
+                '                }\n',
+                '                else if (atOp(\'[\')) { next(); const idx = parseExpr(); expectOp(\']\'); e = { type: \'index\', obj: e, idx }; }\n',
+                '                else break;\n',
+                '            }\n',
+                '            return e;\n',
+                '        }\n',
+                '        function parsePrimary() {\n',
+                '            const t = peek();\n',
+                '            if (t.type === \'number\') { next(); return { type: \'num\', value: t.value }; }\n',
+                '            if (t.type === \'string\') { next(); return { type: \'str\', value: t.value }; }\n',
+                '            if (atOp(\'#\')) {\n',
+                '                next(); let hex = \'#\'; while (peek().type === \'ident\' || peek().type === \'number\') { hex += String(next().value); }\n',
+                '                return { type: \'str\', value: hex };\n',
+                '            }\n',
+                '            if (atOp(\'[\')) {\n',
+                '                next(); const items = [];\n',
+                '                if (!atOp(\']\')) { items.push(parseExpr()); while (atOp(\',\')) { next(); items.push(parseExpr()); } }\n',
+                '                expectOp(\']\');\n',
+                '                return { type: \'array\', items };\n',
+                '            }\n',
+                '            if (atOp(\'(\')) {\n',
+                '                next();\n',
+                '                // Кортеж (a, b, ...) — та же запись, что и (x,y) везде в остальном DSL (Point pos=(x,y)\n',
+                '                // и т.п.); единственный элемент без запятой — это просто группировка, как раньше\n',
+                '                // ((a+b)*c), а два и больше — литерал-массив, совместимый с [a,b] (см. glReadPoints,\n',
+                '                // addNode и т.п., которым нужен именно массив [x,y]).\n',
+                '                const items = [parseExpr()];\n',
+                '                while (atOp(\',\')) { next(); items.push(parseExpr()); }\n',
+                '                expectOp(\')\');\n',
+                '                return items.length === 1 ? items[0] : { type: \'array\', items };\n',
+                '            }\n',
+                '            if (t.type === \'ident\') {\n',
+                '                next();\n',
+                '                if (t.value === \'true\') return { type: \'bool\', value: true };\n',
+                '                if (t.value === \'false\') return { type: \'bool\', value: false };\n',
+                '                if (t.value === \'null\') return { type: \'null\' };\n',
+                '                if (atOp(\'(\')) {\n',
+                '                    next(); const args = [];\n',
+                '                    if (!atOp(\')\')) { args.push(parseExpr()); while (atOp(\',\')) { next(); args.push(parseExpr()); } }\n',
+                '                    expectOp(\')\');\n',
+                '                    return { type: \'call\', name: t.value, args };\n',
+                '                }\n',
+                '                return { type: \'ident\', name: t.value };\n',
+                '            }\n',
+                '            throw new Error(\'Неожиданный токен в выражении\');\n',
+                '        }\n',
+                '        return { parseProgram, parseExpr };\n',
+                '    }\n',
+                '\n',
+            ];
+        }
+
         // ========== ГЕНЕРАТОР 2D с динамическими окружностями ==========
 function generate2D(params, pointsData, linesData, figuresData, clustersData, anglesData,
                     drawAnglesData, drawEquallyData, drawVectorsData, drawInfLinesData, drawFillingsData, drawPunctirsData,
@@ -4703,8 +5320,13 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '    // управлять видимостью через переменные/слайдеры, а не только статическим active.\n',
             '    function glIsActive(activeExpr, fallback) {\n',
             '      if (activeExpr === undefined || activeExpr === null) return fallback !== false;\n',
-            '      if (activeExpr === \'true\') return true;\n',
-            '      if (activeExpr === \'false\') return false;\n',
+            '      // "true"/"false" буквальные — это НЕ реактивная привязка к переменной, а просто то,\n',
+            '      // что было написано в active = ... при компиляции. Раньше это жёстко фиксировало\n',
+            '      // видимость навсегда, из-за чего objName.active = true/false в действиях кнопок\n',
+            '      // (new UI action = "fractal.active = true; ...") не имело эффекта, если объект был\n',
+            '      // объявлен с буквальным active = true/false. fallback уже содержит ТЕКУЩЕЕ (в т.ч.\n',
+            '      // изменённое в рантайме) значение obj.active — используем его.\n',
+            '      if (activeExpr === \'true\' || activeExpr === \'false\') return fallback !== false;\n',
             '      const raw = (activeExpr.indexOf(\'.\') >= 0) ? glResolveDotted(activeExpr) : userVars[activeExpr];\n',
             '      if (raw === undefined || raw === null) return fallback !== false;\n',
             '      return !(raw === false || raw === 0 || raw === \'\');\n',
@@ -4755,13 +5377,9 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '      const oldV = {x: vertex.pos.x, y: vertex.pos.y};\n',
             '      const oldP1 = {x: p1.pos.x, y: p1.pos.y};\n',
             '      const oldP2 = {x: p2.pos.x, y: p2.pos.y};\n',
+            '      let moveX, moveY;\n',
             '      if (mode === \'free\') {\n',
-            '        vertex.pos.x += dx;\n',
-            '        vertex.pos.y += dy;\n',
-            '        p1.pos.x += dx;\n',
-            '        p1.pos.y += dy;\n',
-            '        p2.pos.x += dx;\n',
-            '        p2.pos.y += dy;\n',
+            '        moveX = dx; moveY = dy;\n',
             '      } else if (mode === \'line\' && line) {\n',
             '        const dirX = line.pB.pos.x - line.pA.pos.x;\n',
             '        const dirY = line.pB.pos.y - line.pA.pos.y;\n',
@@ -4770,57 +5388,54 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '        const normX = -dirY / len;\n',
             '        const normY = dirX / len;\n',
             '        const proj = dx * normX + dy * normY;\n',
-            '        const moveX = proj * normX;\n',
-            '        const moveY = proj * normY;\n',
-            '        vertex.pos.x += moveX;\n',
-            '        vertex.pos.y += moveY;\n',
-            '        p1.pos.x += moveX;\n',
-            '        p1.pos.y += moveY;\n',
-            '        p2.pos.x += moveX;\n',
-            '        p2.pos.y += moveY;\n',
-            '      } else if (mode === \'pointOnSide\') {\n',
-            '        return false;\n',
+            '        moveX = proj * normX;\n',
+            '        moveY = proj * normY;\n',
+            '      } else {\n',
+            '        return false; // mode === \'pointOnSide\' обрабатывается отдельно, сюда не попадает\n',
             '      }\n',
-            '      // Раньше каждая из трёх точек (vertex/p1/p2) обрезалась по границе поля НЕЗАВИСИМО —\n',
-            '      // из-за этого жёсткая фигура заблокированного угла искажалась (точки клэмпились на\n',
-            '      // разную величину) и угол можно было незаметно сдвинуть, притерев его к границе.\n',
-            '      // Теперь вместо клэмпа — проверка "вышла ли хоть одна точка за поле", и если да,\n',
-            '      // весь сдвиг целиком отменяется (та же логика, что и при столкновении ниже) —\n',
-            '      // угол именно упирается в границу как единое жёсткое тело, а не деформируется.\n',
             '      const halfW = FIELD_WIDTH / 2, halfH = FIELD_HEIGHT / 2;\n',
             '      function outOfField(pos) { return pos.x < -halfW || pos.x > halfW || pos.y < -halfH || pos.y > halfH; }\n',
-            '      if (outOfField(vertex.pos) || outOfField(p1.pos) || outOfField(p2.pos)) {\n',
-            '        vertex.pos.x = oldV.x; vertex.pos.y = oldV.y;\n',
-            '        p1.pos.x = oldP1.x; p1.pos.y = oldP1.y;\n',
-            '        p2.pos.x = oldP2.x; p2.pos.y = oldP2.y;\n',
-            '        return false;\n',
-            '      }\n',
             '      const pointsToCheck = [vertex, p1, p2];\n',
-            '      let collision = false;\n',
-            '      for (let i = 0; i < points.length; i++) {\n',
-            '        if (pointsToCheck.includes(points[i])) continue;\n',
-            '        for (let pt of pointsToCheck) {\n',
-            '          if (distance(pt.pos, points[i].pos) < MIN_DIST) {\n',
-            '            collision = true;\n',
-            '            break;\n',
-            '          }\n',
+            '      // Взаимные расстояния vertex/p1/p2 неизменны при чистом переносе (жёсткое тело),\n',
+            '      // поэтому если угол уже был в порядке ДО хода, эта тройка сама с собой никогда не\n',
+            '      // столкнётся ни при каком s — достаточно проверить один раз, не на каждый шаг бисекции.\n',
+            '      const selfOk = distance(oldP1, oldV) >= MIN_DIST && distance(oldP2, oldV) >= MIN_DIST && distance(oldP1, oldP2) >= MIN_DIST;\n',
+            '      // Проверяет положение угла как единого жёсткого тела при переносе на долю s от\n',
+            '      // полного вычисленного сдвига (s=1 — сдвиг мыши целиком). Возвращает кандидатные\n',
+            '      // позиции трёх точек, либо null, если при таком s угол вышел бы за поле, столкнулся\n',
+            '      // с другой точкой, или (случай испорченного угла с самого начала) сам с собой.\n',
+            '      function candidateAt(s) {\n',
+            '        const v = { x: oldV.x + moveX * s, y: oldV.y + moveY * s };\n',
+            '        const q1 = { x: oldP1.x + moveX * s, y: oldP1.y + moveY * s };\n',
+            '        const q2 = { x: oldP2.x + moveX * s, y: oldP2.y + moveY * s };\n',
+            '        if (outOfField(v) || outOfField(q1) || outOfField(q2)) return null;\n',
+            '        for (let i = 0; i < points.length; i++) {\n',
+            '          if (pointsToCheck.includes(points[i])) continue;\n',
+            '          if (distance(v, points[i].pos) < MIN_DIST || distance(q1, points[i].pos) < MIN_DIST || distance(q2, points[i].pos) < MIN_DIST) return null;\n',
             '        }\n',
-            '        if (collision) break;\n',
+            '        if (!selfOk && (distance(q1, v) < MIN_DIST || distance(q2, v) < MIN_DIST || distance(q1, q2) < MIN_DIST)) return null;\n',
+            '        return { v, q1, q2 };\n',
             '      }\n',
-            '      if (!collision) {\n',
-            '        if (distance(p1.pos, vertex.pos) < MIN_DIST || distance(p2.pos, vertex.pos) < MIN_DIST || distance(p1.pos, p2.pos) < MIN_DIST) {\n',
-            '          collision = true;\n',
+            '      // Раньше любое препятствие (граница поля/другая точка) отменяло ВЕСЬ сдвиг целиком —\n',
+            '      // из-за этого при перетаскивании мышью угол либо не двигался вовсе, либо резко\n',
+            '      // "прыгал", когда мышь возвращалась в допустимую область (весь пройденный мышью путь\n',
+            '      // накапливался, а не терялся). Теперь методом бисекции ищем наибольшую долю s хода,\n',
+            '      // при которой угол ещё не задевает препятствие — угол плавно скользит вдоль границы/\n',
+            '      // соседних объектов и останавливается точно у них, как и обычная перетаскиваемая точка.\n',
+            '      let result = candidateAt(1);\n',
+            '      if (!result) {\n',
+            '        let lo = 0, hi = 1, loResult = null;\n',
+            '        for (let iter = 0; iter < 20; iter++) {\n',
+            '          const mid = (lo + hi) / 2;\n',
+            '          const cand = candidateAt(mid);\n',
+            '          if (cand) { lo = mid; loResult = cand; } else { hi = mid; }\n',
             '        }\n',
+            '        result = loResult;\n',
             '      }\n',
-            '      if (collision) {\n',
-            '        vertex.pos.x = oldV.x;\n',
-            '        vertex.pos.y = oldV.y;\n',
-            '        p1.pos.x = oldP1.x;\n',
-            '        p1.pos.y = oldP1.y;\n',
-            '        p2.pos.x = oldP2.x;\n',
-            '        p2.pos.y = oldP2.y;\n',
-            '        return false;\n',
-            '      }\n',
+            '      if (!result) return false; // даже минимальный сдвиг недопустим — фигура остаётся на месте\n',
+            '      vertex.pos.x = result.v.x; vertex.pos.y = result.v.y;\n',
+            '      p1.pos.x = result.q1.x; p1.pos.y = result.q1.y;\n',
+            '      p2.pos.x = result.q2.x; p2.pos.y = result.q2.y;\n',
             '      const idx1 = points.indexOf(p1);\n',
             '      const idx2 = points.indexOf(p2);\n',
             '      const idxV = points.indexOf(vertex);\n',
@@ -6718,29 +7333,39 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '        cRe = (typeof rV === \'number\' && isFinite(rV)) ? rV : -0.7;\n',
             '        cIm = (typeof iV === \'number\' && isFinite(iV)) ? iV : 0.27015;\n',
             '    }\n',
-            '    // Раньше окно комплексной плоскости брали из ТЕКУЩЕЙ камеры сцены (pixelToField).\n',
-            '    // Из-за этого фрактал зависел от совершенно не связанных с ним настроек: дефолтное\n',
-            '    // поле сцены обычно ±25, а потолок зума камеры — обычно 5x, чего категорически\n',
-            '    // не хватает даже чтобы показать одно множество Мандельброта целиком (оно занимает\n',
-            '    // всего ~3.5x3 единицы), не говоря уже о приближении к границе, где и находятся все\n',
-            '    // интересные детали. Теперь используется СОБСТВЕННОЕ окно фрактала (centerRe/centerIm/\n',
-            '    // scale — точно как у 3D-панели этого же типа), независимое от камеры сцены: дефолты\n',
-            '    // (-0.5, 0, 1.5) сразу показывают всё множество целиком, а приближение к любой детали —\n',
-            '    // через сами эти поля (в т.ч. через переменную/слайдер), без потолка зума камеры.\n',
-            '    let scale = evalFractalNum(d.scaleExpr, d.scale);\n',
-            '    if (!(scale > 0)) scale = 1.5; // только явно некорректное (0/отрицательное/NaN) — не искусственный "пол" на приближение\n',
+            '    // Окно комплексной плоскости = собственная база фрактала (centerRe/centerIm/scale —\n',
+            '    // как и раньше, поддерживают live-выражения через переменную/слайдер) + текущее\n',
+            '    // состояние ОБЩЕЙ камеры сцены (camera.zoom/offsetX/offsetY), применяемое поверх как\n',
+            '    // пропорциональный зум/пан — точно тот же ввод (колесо мыши, перетаскивание фона),\n',
+            '    // что двигает всё остальное на сцене, и та же граница глубины зума (camera zoom\n',
+            '    // limits), а не отдельная, никак не связанная со сценой система. Базовые centerRe/\n',
+            '    // centerIm/scale по-прежнему определяют, что видно при camera.zoom=1 (без панорамирования) —\n',
+            '    // дефолты (-0.5, 0, 1.5) показывают всё множество целиком.\n',
+            '    let baseScale = evalFractalNum(d.scaleExpr, d.scale);\n',
+            '    if (!(baseScale > 0)) baseScale = 1.5; // только явно некорректное (0/отрицательное/NaN) — не искусственный "пол" на приближение\n',
+            '    const camZoom = (camera.zoom > 0) ? camera.zoom : 1;\n',
+            '    const scale = baseScale / camZoom;\n',
             '    const aspect = w / h;\n',
             '    const halfX = scale * aspect, halfY = scale;\n',
-            '    const centerRe = evalFractalNum(d.centerReExpr, d.centerRe);\n',
-            '    const centerIm = evalFractalNum(d.centerImExpr, d.centerIm);\n',
+            '    const baseCenterRe = evalFractalNum(d.centerReExpr, d.centerRe);\n',
+            '    const baseCenterIm = evalFractalNum(d.centerImExpr, d.centerIm);\n',
+            '    // Пан общей камеры выражается в её собственных полевых единицах (обычно ~FIELD_WIDTH) —\n',
+            '    // пересчитываем в долю от видимого поля и применяем ту же долю к окну фрактала, чтобы\n',
+            '    // одно и то же перетаскивание сдвигало фрактал на ту же ДОЛЮ его окна, что и всё\n',
+            '    // остальное на сцене на долю своего поля (независимо от масштаба фрактала).\n',
+            '    const panFracX = (FIELD_WIDTH > 0) ? (camera.offsetX / (FIELD_WIDTH / 2)) : 0;\n',
+            '    const panFracY = (FIELD_HEIGHT > 0) ? (camera.offsetY / (FIELD_HEIGHT / 2)) : 0;\n',
+            '    const centerRe = baseCenterRe + panFracX * halfX;\n',
+            '    const centerIm = baseCenterIm + panFracY * halfY;\n',
             '    const tl = { x: centerRe - halfX, y: centerIm + halfY };\n',
             '    const br = { x: centerRe + halfX, y: centerIm - halfY };\n',
-            '    // maxIter из поля — это МИНИМУМ (при adaptiveIter !== false). Чем глубже зум, тем\n',
-            '    // больше итераций нужно, чтобы у границы множества проявлялась структура, а не\n',
-            '    // сплошная заливка "внутри/снаружи": на каждое удвоение приближения (log2(1/scale))\n',
-            '    // добавляем ~60 итераций — стандартная для рендеров Мандельброта эвристика. Верхний\n',
-            '    // потолок (20000) — не ограничение на ПРИБЛИЖЕНИЕ (scale ничем не ограничен), а просто\n',
-            '    // защита от случайного зависания вкладки на нереалистичном числе итераций на пиксель.\n',
+            '    // maxIter из поля — это МИНИМУМ (при adaptiveIter !== false). Чем глубже зум (включая\n',
+            '    // зум общей камеры сцены), тем больше итераций нужно, чтобы у границы множества\n',
+            '    // проявлялась структура, а не сплошная заливка "внутри/снаружи": на каждое удвоение\n',
+            '    // приближения (log2(1.5/scale), где scale уже учитывает camera.zoom) добавляем ~60\n',
+            '    // итераций — стандартная для рендеров Мандельброта эвристика. Верхний потолок (20000) —\n',
+            '    // не ограничение на ПРИБЛИЖЕНИЕ (глубина зума ограничена только camera zoom limits),\n',
+            '    // а просто защита от случайного зависания вкладки на нереалистичном числе итераций на пиксель.\n',
             '    const baseIter = Math.max(5, Math.floor(d.maxIter || 80));\n',
             '    let maxIter = baseIter;\n',
             '    if (d.adaptiveIter !== false && scale < 1.5) {\n',
@@ -9378,7 +10003,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '      const margin = collider.collisionMargin || 0;\n',
             '      if (collider.collideWithPoints) {\n',
             '        for (let other of points) {\n',
-            '          if (!other || !other.pos || other.hidden) continue;\n',
+            '          if (!other || other === collider || !other.pos || other.hidden) continue;\n',
             '          if (other.collision === false || other.collideWithPoints === false) continue;\n',
             '          if (!canCollideWith(collider, other)) continue;\n',
             '          if (distance(pos, other.pos) < MIN_DIST + margin + (other.collisionMargin || 0)) return true;\n',
@@ -9455,6 +10080,30 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '    function objectViolatesCollision(collider, testPoints) {\n',
             '      if (collider.collision === false || window.collisionsEnabled === false) return false;\n',
             '      return testPoints.some(pos => checkCollisionAt(collider, pos));\n',
+            '    }\n',
+            '\n',
+            '    // Точки на линии/окружности/кривой/графике/дуге раньше при столкновении просто\n',
+            '    // "замирали" на месте (весь шаг перетаскивания целиком отклонялся), из-за чего\n',
+            '    // движение мышью выглядело дёргано — любой мелкий шаг мыши рядом с препятствием\n',
+            '    // отклонялся целиком, а не только та его часть, что реально уходит за препятствие.\n',
+            '    // posFromT(t) — функция, вычисляющая позицию точки при заданном параметре t (или\n',
+            '    // null, если позиция в этой точке параметра не определена). Ищем методом бисекции\n',
+            '    // наибольшее t между старым (заведомо допустимым) и новым (желаемым, из позиции\n',
+            '    // мыши) значением, при котором позиция ещё не сталкивается — т.е. точка плавно\n',
+            '    // скользит вдоль своей кривой/линии/окружности до самого препятствия и там\n',
+            '    // останавливается, а не замирает заранее и не "прилипает".\n',
+            '    function slideTAvoidingCollision(p, oldT, newT, posFromT) {\n',
+            '      const newPos = posFromT(newT);\n',
+            '      if (newPos && !objectViolatesCollision(p, [newPos])) return { t: newT, pos: newPos };\n',
+            '      const oldPos = posFromT(oldT);\n',
+            '      if (!oldPos || objectViolatesCollision(p, [oldPos])) return null;\n',
+            '      let lo = oldT, hi = newT, loPos = oldPos;\n',
+            '      for (let iter = 0; iter < 20; iter++) {\n',
+            '        const mid = (lo + hi) / 2;\n',
+            '        const midPos = posFromT(mid);\n',
+            '        if (midPos && !objectViolatesCollision(p, [midPos])) { lo = mid; loPos = midPos; } else { hi = mid; }\n',
+            '      }\n',
+            '      return { t: lo, pos: loPos };\n',
             '    }\n',
             '\n',
             '    function moveFigure(fig, mousePixel) {\n',
@@ -9589,11 +10238,29 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '            const normX = dirX / len, normY = dirY / len;\n',
             '            const proj = dx * normX + dy * normY;\n',
             '            const oldPos = { x: targetPoint.pos.x, y: targetPoint.pos.y };\n',
-            '            targetPoint.pos.x += proj * normX; targetPoint.pos.y += proj * normY;\n',
-            '            clampFieldPoint(targetPoint.pos);\n',
-            '            let collision = false;\n',
-            '            for (let p of points) { if (p === targetPoint) continue; if (distance(targetPoint.pos, p.pos) < MIN_DIST) { collision = true; break; } }\n',
-            '            if (collision || distance(targetPoint.pos, vertex.pos) < MIN_DIST) { targetPoint.pos = oldPos; return false; }\n',
+            '            function candidatePos(s) {\n',
+            '                const pos = { x: oldPos.x + proj * s * normX, y: oldPos.y + proj * s * normY };\n',
+            '                clampFieldPoint(pos);\n',
+            '                for (let p of points) { if (p === targetPoint) continue; if (distance(pos, p.pos) < MIN_DIST) return null; }\n',
+            '                if (distance(pos, vertex.pos) < MIN_DIST) return null;\n',
+            '                return pos;\n',
+            '            }\n',
+            '            // См. moveLockedAngle: раньше столкновение отменяло весь шаг целиком (точка\n',
+            '            // "замирала" при первом же мелком шаге рядом с препятствием) — теперь бисекцией\n',
+            '            // находим наибольшую долю проекции, при которой позиция ещё допустима, и точка\n',
+            '            // плавно скользит вдоль стороны угла до препятствия, а не прилипает/дёргается.\n',
+            '            let cand = candidatePos(1);\n',
+            '            if (!cand) {\n',
+            '                let lo = 0, hi = 1, loCand = null;\n',
+            '                for (let iter = 0; iter < 20; iter++) {\n',
+            '                    const mid = (lo + hi) / 2;\n',
+            '                    const c = candidatePos(mid);\n',
+            '                    if (c) { lo = mid; loCand = c; } else { hi = mid; }\n',
+            '                }\n',
+            '                cand = loCand;\n',
+            '            }\n',
+            '            if (!cand) return false;\n',
+            '            targetPoint.pos.x = cand.x; targetPoint.pos.y = cand.y;\n',
             '            const idx = points.indexOf(targetPoint); if (idx !== -1) { updateFiguresForPoint(idx); updateClustersForPoint(idx); }\n',
             '            computeAngleMeasure(angle); updateScene(); return true;\n',
             '        }\n',
@@ -9614,13 +10281,15 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '            if (lenSq < 0.0001) return;\n',
             '            const t = ((mouseField.x - pA.x)*dx + (mouseField.y - pA.y)*dy) / lenSq;\n',
             '            const clampedT = Math.min(1, Math.max(0, t));\n',
-            '            const newX = pA.x + dx * clampedT, newY = pA.y + dy * clampedT;\n',
+            '            const posFromT = (tt) => ({ x: pA.x + dx * tt, y: pA.y + dy * tt });\n',
             '            // Точки на линии/окружности/кривой и т.п. раньше вообще не проверялись на\n',
             '            // столкновение при перетаскивании — теперь ведут себя как обычные точки\n',
-            '            // (отказ от хода, если пересекли бы MIN_DIST с другой точкой/объектом).\n',
-            '            if (objectViolatesCollision(p, [{ x: newX, y: newY }])) return;\n',
-            '            p.t = clampedT;\n',
-            '            p.pos.x = newX; p.pos.y = newY;\n',
+            '            // (плавно скользят до препятствия — MIN_DIST с другой точкой/объектом —\n',
+            '            // вместо замирания на месте при первом же мелком шаге рядом с ним).\n',
+            '            const res = slideTAvoidingCollision(p, p.t, clampedT, posFromT);\n',
+            '            if (!res) return;\n',
+            '            p.t = res.t;\n',
+            '            p.pos.x = res.pos.x; p.pos.y = res.pos.y;\n',
             '            const idx = points.indexOf(p); if (idx !== -1) { updateFiguresForPoint(idx); updateClustersForPoint(idx); }\n',
             '            updateScene(); draw(); return;\n',
             '        }\n',
@@ -9632,11 +10301,12 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '            const dx = mouseField.x - cx, dy = mouseField.y - cy;\n',
             '            const angle = Math.atan2(dy, dx);\n',
             '            let t = angle / (2 * Math.PI); if (t < 0) t += 1;\n',
-            '            const newX = cx + circle.radius * Math.cos(angle), newY = cy + circle.radius * Math.sin(angle);\n',
-            '            if (objectViolatesCollision(p, [{ x: newX, y: newY }])) return;\n',
-            '            p.t = t;\n',
-            '            p.pos.x = newX;\n',
-            '            p.pos.y = newY;\n',
+            '            const posFromT = (tt) => { const a = tt * 2 * Math.PI; return { x: cx + circle.radius * Math.cos(a), y: cy + circle.radius * Math.sin(a) }; };\n',
+            '            const res = slideTAvoidingCollision(p, p.t, t, posFromT);\n',
+            '            if (!res) return;\n',
+            '            p.t = res.t;\n',
+            '            p.pos.x = res.pos.x;\n',
+            '            p.pos.y = res.pos.y;\n',
             '            const idx = points.indexOf(p); if (idx !== -1) { updateFiguresForPoint(idx); updateClustersForPoint(idx); }\n',
             '            updateScene(); draw(); return;\n',
             '        }\n',
@@ -9651,12 +10321,15 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '            const lx = dx * cs - dy * sn, ly = dx * sn + dy * cs;\n',
             '            let t = Math.atan2(ly / (ellipse.b || 1), lx / (ellipse.a || 1)) / (2 * Math.PI);\n',
             '            if (t < 0) t += 1;\n',
-            '            const ang = t * 2 * Math.PI;\n',
-            '            const elx = ellipse.a * Math.cos(ang), ely = ellipse.b * Math.sin(ang);\n',
             '            const csp = Math.cos(rotRad), snp = Math.sin(rotRad);\n',
-            '            const newX = cx + elx * csp - ely * snp, newY = cy + elx * snp + ely * csp;\n',
-            '            if (objectViolatesCollision(p, [{ x: newX, y: newY }])) return;\n',
-            '            p.t = t;\n',
+            '            const posFromT = (tt) => {\n',
+            '                const ang = tt * 2 * Math.PI;\n',
+            '                const elx = ellipse.a * Math.cos(ang), ely = ellipse.b * Math.sin(ang);\n',
+            '                return { x: cx + elx * csp - ely * snp, y: cy + elx * snp + ely * csp };\n',
+            '            };\n',
+            '            const res = slideTAvoidingCollision(p, p.t, t, posFromT);\n',
+            '            if (!res) return;\n',
+            '            p.t = res.t;\n',
             '            const idx = points.indexOf(p); if (idx !== -1) { updateFiguresForPoint(idx); updateClustersForPoint(idx); }\n',
             '            updateScene(); draw(); return;\n',
             '        }\n',
@@ -9678,9 +10351,10 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '            if (!p || !curve) return;\n',
             '            const mouseField = pixelToField(pos.x, pos.y);\n',
             '            const newT = findNearestTOnCurve(curve, mouseField);\n',
-            '            const cp = curvePointAt(curve, newT);\n',
-            '            if (cp && objectViolatesCollision(p, [{ x: cp.x, y: cp.y }])) return;\n',
-            '            p.t = newT;\n',
+            '            const posFromT = (tt) => curvePointAt(curve, tt);\n',
+            '            const res = slideTAvoidingCollision(p, p.t, newT, posFromT);\n',
+            '            if (!res) return;\n',
+            '            p.t = res.t;\n',
             '            const idx = points.indexOf(p); if (idx !== -1) { updateFiguresForPoint(idx); updateClustersForPoint(idx); }\n',
             '            updateScene(); draw(); return;\n',
             '        }\n',
@@ -9691,12 +10365,15 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '            const span = g.xmax - g.xmin;\n',
             '            if (Math.abs(span) < 1e-12) return;\n',
             '            const newT = Math.min(1, Math.max(0, (mouseField.x - g.xmin) / span));\n',
-            '            if (GL_USER_FUNCS[g.funcName]) {\n',
-            '                const gx = g.xmin + span * newT;\n',
+            '            if (!GL_USER_FUNCS[g.funcName]) { p.t = newT; updateScene(); draw(); return; }\n',
+            '            const posFromT = (tt) => {\n',
+            '                const gx = g.xmin + span * tt;\n',
             '                let gy; try { gy = glCallUserFunc(g.funcName, [gx]); } catch (e) { gy = NaN; }\n',
-            '                if (typeof gy === \'number\' && isFinite(gy) && objectViolatesCollision(p, [{ x: gx, y: gy }])) return;\n',
-            '            }\n',
-            '            p.t = newT;\n',
+            '                return (typeof gy === \'number\' && isFinite(gy)) ? { x: gx, y: gy } : null;\n',
+            '            };\n',
+            '            const res = slideTAvoidingCollision(p, p.t, newT, posFromT);\n',
+            '            if (!res) return;\n',
+            '            p.t = res.t;\n',
             '            const idx = points.indexOf(p); if (idx !== -1) { updateFiguresForPoint(idx); updateClustersForPoint(idx); }\n',
             '            updateScene(); draw(); return;\n',
             '        }\n',
@@ -9724,20 +10401,23 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '            const normDiff = norm(mouseAng - ang1);\n',
             '            let t = effSweep >= 0 ? normDiff / effSweep : (normDiff - TAU) / effSweep;\n',
             '            const newT = Math.max(0, Math.min(1, t));\n',
-            '            const finalAng = ang1 + effSweep * newT;\n',
-            '            const newX = arc.centerPoint.pos.x + radius * Math.cos(finalAng), newY = arc.centerPoint.pos.y + radius * Math.sin(finalAng);\n',
-            '            if (objectViolatesCollision(p, [{ x: newX, y: newY }])) return;\n',
-            '            p.t = newT;\n',
+            '            const posFromT = (tt) => {\n',
+            '                const ang = ang1 + effSweep * tt;\n',
+            '                return { x: arc.centerPoint.pos.x + radius * Math.cos(ang), y: arc.centerPoint.pos.y + radius * Math.sin(ang) };\n',
+            '            };\n',
+            '            const res = slideTAvoidingCollision(p, p.t, newT, posFromT);\n',
+            '            if (!res) return;\n',
+            '            p.t = res.t;\n',
             '            const idx = points.indexOf(p); if (idx !== -1) { updateFiguresForPoint(idx); updateClustersForPoint(idx); }\n',
             '            updateScene(); draw(); return;\n',
             '        }\n',
             '        if (dragMode === \'lockedAngle\') {\n',
-            '            const moved = handleLockedAngleMove(lockedAngleDrag, lockedAngleDragMode, lockedAngleDragLine, null, dragStartPos, pos);\n',
-            '            if (moved) { dragStartPos = { x: pos.x, y: pos.y }; }\n',
+            '            handleLockedAngleMove(lockedAngleDrag, lockedAngleDragMode, lockedAngleDragLine, null, dragStartPos, pos);\n',
+            '            dragStartPos = { x: pos.x, y: pos.y };\n',
             '            draw(); return;\n',
             '        } else if (dragMode === \'lockedPointOnSide\') {\n',
-            '            const moved = handleLockedAngleMove(lockedAngleDrag, \'pointOnSide\', lockedAngleDragLine, lockedPointTarget, dragStartPos, pos);\n',
-            '            if (moved) { dragStartPos = { x: pos.x, y: pos.y }; }\n',
+            '            handleLockedAngleMove(lockedAngleDrag, \'pointOnSide\', lockedAngleDragLine, lockedPointTarget, dragStartPos, pos);\n',
+            '            dragStartPos = { x: pos.x, y: pos.y };\n',
             '            draw(); return;\n',
             '        }\n',
             '        if (dragMode === \'point\') {\n',
@@ -10803,6 +11483,355 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
     // ===== Мини-язык для Start/Update/действий кнопок/выражений текста =====
     // Вместо eval() сырого JS: set <путь> = <выражение>; if (...) {...} else {...}; repeat (N) {...}; wait(сек);
     // for (x in points) {...}; vector v = [1,2,3]; matrix m = [[1,2],[3,4]]; intersection(type, a, b)
+    // ===== Многомерный анализ, разложения матриц, логика, множества, статистика =====
+    // Численные операторы построены на центральных разностях: символьного
+    // дифференцирования по нескольким переменным в языке нет, а точности разностей
+    // с запасом хватает для интерактивных иллюстраций.
+    // ---- вспомогательное ----
+    function glAsFunc(f) { return typeof f === 'string' ? glMakeFuncWrapper(f) : f; }
+    function glStep(x) { return Math.max(1e-5, Math.abs(x) * 1e-5); }
+
+    // ===== Многомерный анализ (численно, центральные разности) =====
+    // point — массив координат; f принимает столько же скалярных аргументов.
+    function glPartial(f, point, i, h) {
+        const hh = h || glStep(point[i]);
+        const a = point.slice(); a[i] += hh;
+        const b = point.slice(); b[i] -= hh;
+        return (f.apply(null, a) - f.apply(null, b)) / (2 * hh);
+    }
+    function glPartial2(f, point, i, j, h) {
+        const hi = h || glStep(point[i]);
+        const hj = h || glStep(point[j]);
+        if (i === j) {
+            const a = point.slice(); a[i] += hi;
+            const b = point.slice(); b[i] -= hi;
+            return (f.apply(null, a) - 2 * f.apply(null, point) + f.apply(null, b)) / (hi * hi);
+        }
+        const pp = point.slice(); pp[i] += hi; pp[j] += hj;
+        const pm = point.slice(); pm[i] += hi; pm[j] -= hj;
+        const mp = point.slice(); mp[i] -= hi; mp[j] += hj;
+        const mm = point.slice(); mm[i] -= hi; mm[j] -= hj;
+        return (f.apply(null, pp) - f.apply(null, pm) - f.apply(null, mp) + f.apply(null, mm)) / (4 * hi * hj);
+    }
+    const glGradient = (f, point, h) => {
+        const fn = glAsFunc(f);
+        return point.map((_, i) => glPartial(fn, point, i, h));
+    };
+    const glJacobian = (fs, point, h) =>
+        fs.map(f => { const fn = glAsFunc(f); return point.map((_, i) => glPartial(fn, point, i, h)); });
+    const glDivergence = (fs, point, h) => {
+        let s = 0;
+        for (let i = 0; i < fs.length && i < point.length; i++) s += glPartial(glAsFunc(fs[i]), point, i, h);
+        return s;
+    };
+    // Ротор определён только в 3D: rot F = (dFz/dy - dFy/dz, dFx/dz - dFz/dx, dFy/dx - dFx/dy)
+    const glCurl = (fs, point, h) => {
+        if (fs.length < 3 || point.length < 3) throw new Error('curl: нужны три компоненты поля и точка в 3D');
+        const F = fs.map(glAsFunc);
+        return [
+            glPartial(F[2], point, 1, h) - glPartial(F[1], point, 2, h),
+            glPartial(F[0], point, 2, h) - glPartial(F[2], point, 0, h),
+            glPartial(F[1], point, 0, h) - glPartial(F[0], point, 1, h),
+        ];
+    };
+    const glHessian = (f, point, h) => {
+        const fn = glAsFunc(f);
+        return point.map((_, i) => point.map((_, j) => glPartial2(fn, point, i, j, h)));
+    };
+    const glLaplacian = (f, point, h) => {
+        const fn = glAsFunc(f);
+        let s = 0;
+        for (let i = 0; i < point.length; i++) s += glPartial2(fn, point, i, i, h);
+        return s;
+    };
+    const glDirDerivative = (f, point, dir, h) => {
+        const n = Math.hypot.apply(null, dir) || 1;
+        const g = glGradient(f, point, h);
+        let s = 0;
+        for (let i = 0; i < g.length; i++) s += g[i] * (dir[i] / n);
+        return s;
+    };
+
+    // ===== Разложения матриц =====
+    // LU с частичным выбором ведущего элемента: PA = LU. sign — знак перестановки (для det).
+    function glLuDecompose(A) {
+        const n = A.length;
+        const U = A.map(r => r.slice());
+        const L = Array.from({ length: n }, (_, i) => Array.from({ length: n }, (_, j) => i === j ? 1 : 0));
+        const perm = Array.from({ length: n }, (_, i) => i);
+        let sign = 1;
+        for (let k = 0; k < n; k++) {
+            let piv = k, best = Math.abs(U[k][k]);
+            for (let i = k + 1; i < n; i++) if (Math.abs(U[i][k]) > best) { best = Math.abs(U[i][k]); piv = i; }
+            if (best < 1e-14) continue;
+            if (piv !== k) {
+                const t = U[k]; U[k] = U[piv]; U[piv] = t;
+                const tp = perm[k]; perm[k] = perm[piv]; perm[piv] = tp;
+                for (let j = 0; j < k; j++) { const tl = L[k][j]; L[k][j] = L[piv][j]; L[piv][j] = tl; }
+                sign = -sign;
+            }
+            for (let i = k + 1; i < n; i++) {
+                const m = U[i][k] / U[k][k];
+                L[i][k] = m;
+                for (let j = k; j < n; j++) U[i][j] -= m * U[k][j];
+            }
+        }
+        const P = Array.from({ length: n }, (_, i) => Array.from({ length: n }, (_, j) => perm[i] === j ? 1 : 0));
+        return { L: L, U: U, P: P, perm: perm, sign: sign };
+    }
+    // QR методом Грама—Шмидта в модифицированной (устойчивой) форме: A = QR, Q ортогональна.
+    function glQrDecompose(A) {
+        const m = A.length, n = A[0].length;
+        const Q = Array.from({ length: m }, () => new Array(n).fill(0));
+        const R = Array.from({ length: n }, () => new Array(n).fill(0));
+        const v = [];
+        for (let j = 0; j < n; j++) v.push(A.map(r => r[j]));
+        for (let j = 0; j < n; j++) {
+            for (let i = 0; i < j; i++) {
+                let s = 0;
+                for (let k = 0; k < m; k++) s += Q[k][i] * v[j][k];
+                R[i][j] = s;
+                for (let k = 0; k < m; k++) v[j][k] -= s * Q[k][i];
+            }
+            let nrm = 0;
+            for (let k = 0; k < m; k++) nrm += v[j][k] * v[j][k];
+            nrm = Math.sqrt(nrm);
+            R[j][j] = nrm;
+            for (let k = 0; k < m; k++) Q[k][j] = nrm < 1e-14 ? 0 : v[j][k] / nrm;
+        }
+        return { Q: Q, R: R };
+    }
+    // Разложение Холецкого A = L*L^T. Возвращает null, если матрица не положительно определена.
+    function glCholesky(A) {
+        const n = A.length;
+        const L = Array.from({ length: n }, () => new Array(n).fill(0));
+        for (let i = 0; i < n; i++) {
+            for (let j = 0; j <= i; j++) {
+                let s = 0;
+                for (let k = 0; k < j; k++) s += L[i][k] * L[j][k];
+                if (i === j) {
+                    const d = A[i][i] - s;
+                    if (d <= 0) return null;
+                    L[i][j] = Math.sqrt(d);
+                } else {
+                    L[i][j] = (A[i][j] - s) / L[j][j];
+                }
+            }
+        }
+        return L;
+    }
+
+    // ===== Логика =====
+    // truthTable(['p','q'], f) — f вызывается с булевыми аргументами в порядке имён.
+    // Возвращает { vars, rows: [{values:[...], result: bool}] } — готово для draw Table.
+    function glTruthTable(varNames, f) {
+        const fn = glAsFunc(f);
+        const n = varNames.length;
+        const rows = [];
+        for (let mask = (1 << n) - 1; mask >= 0; mask--) {
+            const values = [];
+            for (let i = 0; i < n; i++) values.push(!!(mask & (1 << (n - 1 - i))));
+            rows.push({ values: values, result: !!fn.apply(null, values) });
+        }
+        return { vars: varNames.slice(), rows: rows };
+    }
+    const glIsTautology = (varNames, f) => glTruthTable(varNames, f).rows.every(r => r.result);
+    const glIsSatisfiable = (varNames, f) => glTruthTable(varNames, f).rows.some(r => r.result);
+    const glIsContradiction = (varNames, f) => glTruthTable(varNames, f).rows.every(r => !r.result);
+    // Все наборы значений, на которых формула истинна — «модели» формулы.
+    const glModels = (varNames, f) => glTruthTable(varNames, f).rows.filter(r => r.result).map(r => r.values);
+    // Логическая эквивалентность двух формул от одних и тех же переменных.
+    const glLogicEquiv = (varNames, f, g) => {
+        const a = glTruthTable(varNames, f).rows, b = glTruthTable(varNames, g).rows;
+        return a.every((r, i) => r.result === b[i].result);
+    };
+
+    // ===== Множества =====
+    // Элементы сравниваются по JSON-представлению, чтобы работали и числа, и строки, и пары.
+    function glSetKey(x) { return typeof x === 'object' ? JSON.stringify(x) : (typeof x) + ':' + String(x); }
+    function glSetUniq(a) {
+        const seen = new Set(), out = [];
+        for (const x of a) { const k = glSetKey(x); if (!seen.has(k)) { seen.add(k); out.push(x); } }
+        return out;
+    }
+    const glSetUnion = (a, b) => glSetUniq(a.concat(b));
+    const glSetIntersect = (a, b) => { const kb = new Set(b.map(glSetKey)); return glSetUniq(a).filter(x => kb.has(glSetKey(x))); };
+    const glSetDiff = (a, b) => { const kb = new Set(b.map(glSetKey)); return glSetUniq(a).filter(x => !kb.has(glSetKey(x))); };
+    const glSetSymDiff = (a, b) => glSetUnion(glSetDiff(a, b), glSetDiff(b, a));
+    const glIsSubset = (a, b) => { const kb = new Set(b.map(glSetKey)); return a.every(x => kb.has(glSetKey(x))); };
+    const glSetEqual = (a, b) => glIsSubset(a, b) && glIsSubset(b, a);
+    const glCartesian = (a, b) => { const out = []; for (const x of a) for (const y of b) out.push([x, y]); return out; };
+    // Мощности всех 2^n областей диаграммы Венна: ключ — строка вида '101' (входит/не входит
+    // в 1-е, 2-е, 3-е множество). Для draw Table и для подписей на диаграмме.
+    function glVennRegions(sets) {
+        const n = sets.length;
+        const all = glSetUniq([].concat.apply([], sets));
+        const keys = sets.map(s => new Set(s.map(glSetKey)));
+        const regions = {};
+        for (const x of all) {
+            const k = glSetKey(x);
+            let sig = '';
+            for (let i = 0; i < n; i++) sig += keys[i].has(k) ? '1' : '0';
+            if (!regions[sig]) regions[sig] = [];
+            regions[sig].push(x);
+        }
+        return regions;
+    }
+
+    // ===== Статистика: распределения и критерии =====
+    function glLogGamma(x) {
+        const c = [76.18009172947146, -86.50532032941677, 24.01409824083091,
+                   -1.231739572450155, 0.1208650973866179e-2, -0.5395239384953e-5];
+        let y = x, tmp = x + 5.5;
+        tmp -= (x + 0.5) * Math.log(tmp);
+        let ser = 1.000000000190015;
+        for (let j = 0; j < 6; j++) ser += c[j] / ++y;
+        return -tmp + Math.log(2.5066282746310005 * ser / x);
+    }
+    // Регуляризованная неполная бета-функция I_x(a,b) — через непрерывную дробь Лентца.
+    function glBetaCf(a, b, x) {
+        const FPMIN = 1e-300, EPS = 3e-12;
+        const qab = a + b, qap = a + 1, qam = a - 1;
+        let c = 1, d = 1 - qab * x / qap;
+        if (Math.abs(d) < FPMIN) d = FPMIN;
+        d = 1 / d;
+        let h = d;
+        for (let m = 1; m <= 300; m++) {
+            const m2 = 2 * m;
+            let aa = m * (b - m) * x / ((qam + m2) * (a + m2));
+            d = 1 + aa * d; if (Math.abs(d) < FPMIN) d = FPMIN;
+            c = 1 + aa / c; if (Math.abs(c) < FPMIN) c = FPMIN;
+            d = 1 / d; h *= d * c;
+            aa = -(a + m) * (qab + m) * x / ((a + m2) * (qap + m2));
+            d = 1 + aa * d; if (Math.abs(d) < FPMIN) d = FPMIN;
+            c = 1 + aa / c; if (Math.abs(c) < FPMIN) c = FPMIN;
+            d = 1 / d;
+            const del = d * c; h *= del;
+            if (Math.abs(del - 1) < EPS) break;
+        }
+        return h;
+    }
+    function glBetaInc(a, b, x) {
+        if (x <= 0) return 0;
+        if (x >= 1) return 1;
+        const bt = Math.exp(glLogGamma(a + b) - glLogGamma(a) - glLogGamma(b) + a * Math.log(x) + b * Math.log(1 - x));
+        return x < (a + 1) / (a + b + 2) ? bt * glBetaCf(a, b, x) / a : 1 - bt * glBetaCf(b, a, 1 - x) / b;
+    }
+    // Регуляризованная нижняя неполная гамма P(a,x) — ряд + непрерывная дробь.
+    function glGammaInc(a, x) {
+        if (x <= 0) return 0;
+        if (x < a + 1) {
+            let ap = a, sum = 1 / a, del = sum;
+            for (let n = 1; n <= 300; n++) {
+                ap++; del *= x / ap; sum += del;
+                if (Math.abs(del) < Math.abs(sum) * 3e-12) break;
+            }
+            return sum * Math.exp(-x + a * Math.log(x) - glLogGamma(a));
+        }
+        const FPMIN = 1e-300;
+        let b = x + 1 - a, c = 1 / FPMIN, d = 1 / b, h = d;
+        for (let i = 1; i <= 300; i++) {
+            const an = -i * (i - a);
+            b += 2;
+            d = an * d + b; if (Math.abs(d) < FPMIN) d = FPMIN;
+            c = b + an / c; if (Math.abs(c) < FPMIN) c = FPMIN;
+            d = 1 / d;
+            const del = d * c; h *= del;
+            if (Math.abs(del - 1) < 3e-12) break;
+        }
+        return 1 - Math.exp(-x + a * Math.log(x) - glLogGamma(a)) * h;
+    }
+    const glTPdf = (x, df) =>
+        Math.exp(glLogGamma((df + 1) / 2) - glLogGamma(df / 2)) / Math.sqrt(df * Math.PI) *
+        Math.pow(1 + x * x / df, -(df + 1) / 2);
+    const glTCdf = (x, df) => {
+        const p = 0.5 * glBetaInc(df / 2, 0.5, df / (df + x * x));
+        return x > 0 ? 1 - p : p;
+    };
+    const glChi2Pdf = (x, k) => x <= 0 ? 0 :
+        Math.exp((k / 2 - 1) * Math.log(x) - x / 2 - glLogGamma(k / 2) - (k / 2) * Math.LN2);
+    const glChi2Cdf = (x, k) => x <= 0 ? 0 : glGammaInc(k / 2, x / 2);
+    const glFPdf = (x, d1, d2) => {
+        if (x <= 0) return 0;
+        const lg = glLogGamma((d1 + d2) / 2) - glLogGamma(d1 / 2) - glLogGamma(d2 / 2);
+        return Math.exp(lg + (d1 / 2) * Math.log(d1 / d2) + (d1 / 2 - 1) * Math.log(x) -
+                        ((d1 + d2) / 2) * Math.log(1 + d1 * x / d2));
+    };
+    const glFCdf = (x, d1, d2) => x <= 0 ? 0 : glBetaInc(d1 / 2, d2 / 2, d1 * x / (d1 * x + d2));
+    // Обратная функция стандартного нормального распределения (алгоритм Акклама).
+    function glNormalQuantile(p) {
+        if (p <= 0 || p >= 1) return p <= 0 ? -Infinity : Infinity;
+        const a = [-3.969683028665376e+01, 2.209460984245205e+02, -2.759285104469687e+02,
+                    1.383577518672690e+02, -3.066479806614716e+01, 2.506628277459239e+00];
+        const b = [-5.447609879822406e+01, 1.615858368580409e+02, -1.556989798598866e+02,
+                    6.680131188771972e+01, -1.328068155288572e+01];
+        const c = [-7.784894002430293e-03, -3.223964580411365e-01, -2.400758277161838e+00,
+                   -2.549732539343734e+00, 4.374664141464968e+00, 2.938163982698783e+00];
+        const d = [7.784695709041462e-03, 3.224671290700398e-01, 2.445134137142996e+00, 3.754408661907416e+00];
+        const pl = 0.02425;
+        let q, r;
+        if (p < pl) {
+            q = Math.sqrt(-2 * Math.log(p));
+            return (((((c[0]*q+c[1])*q+c[2])*q+c[3])*q+c[4])*q+c[5]) / ((((d[0]*q+d[1])*q+d[2])*q+d[3])*q+1);
+        }
+        if (p > 1 - pl) {
+            q = Math.sqrt(-2 * Math.log(1 - p));
+            return -(((((c[0]*q+c[1])*q+c[2])*q+c[3])*q+c[4])*q+c[5]) / ((((d[0]*q+d[1])*q+d[2])*q+d[3])*q+1);
+        }
+        q = p - 0.5; r = q * q;
+        return (((((a[0]*r+a[1])*r+a[2])*r+a[3])*r+a[4])*r+a[5])*q / (((((b[0]*r+b[1])*r+b[2])*r+b[3])*r+b[4])*r+1);
+    }
+    // Обобщённый поиск квантиля по CDF пополам — для t/chi2/F.
+    function glQuantileFromCdf(cdf, p, lo, hi) {
+        let a = lo, b = hi;
+        for (let i = 0; i < 200; i++) {
+            const m = (a + b) / 2;
+            if (cdf(m) < p) a = m; else b = m;
+        }
+        return (a + b) / 2;
+    }
+    const glTQuantile = (p, df) => glQuantileFromCdf(x => glTCdf(x, df), p, -1e3, 1e3);
+    const glChi2Quantile = (p, k) => glQuantileFromCdf(x => glChi2Cdf(x, k), p, 0, 1e5);
+    const glFQuantile = (p, d1, d2) => glQuantileFromCdf(x => glFCdf(x, d1, d2), p, 0, 1e5);
+
+    function glMeanOf(a) { return a.reduce((s, x) => s + x, 0) / a.length; }
+    function glVarOf(a) { const m = glMeanOf(a); return a.reduce((s, x) => s + (x - m) * (x - m), 0) / (a.length - 1); }
+    // Одновыборочный t-критерий: сравнение среднего выборки с mu0.
+    const glTTest1 = (sample, mu0) => {
+        const n = sample.length, m = glMeanOf(sample), s = Math.sqrt(glVarOf(sample));
+        const t = (m - (mu0 || 0)) / (s / Math.sqrt(n)), df = n - 1;
+        return { t: t, df: df, mean: m, sd: s, p: 2 * (1 - glTCdf(Math.abs(t), df)) };
+    };
+    // Двухвыборочный t-критерий Уэлча (не требует равенства дисперсий).
+    const glTTest2 = (a, b) => {
+        const na = a.length, nb = b.length;
+        const ma = glMeanOf(a), mb = glMeanOf(b);
+        const va = glVarOf(a), vb = glVarOf(b);
+        const se = Math.sqrt(va / na + vb / nb);
+        const t = (ma - mb) / se;
+        const df = Math.pow(va / na + vb / nb, 2) /
+                   (Math.pow(va / na, 2) / (na - 1) + Math.pow(vb / nb, 2) / (nb - 1));
+        return { t: t, df: df, meanA: ma, meanB: mb, p: 2 * (1 - glTCdf(Math.abs(t), df)) };
+    };
+    // Критерий хи-квадрат согласия. expected можно не задавать — тогда равномерное.
+    const glChiSquareTest = (observed, expected) => {
+        const n = observed.length;
+        const total = observed.reduce((s, x) => s + x, 0);
+        const exp = expected && expected.length === n ? expected : new Array(n).fill(total / n);
+        let chi2 = 0;
+        for (let i = 0; i < n; i++) { const d = observed[i] - exp[i]; chi2 += d * d / exp[i]; }
+        const df = n - 1;
+        return { chi2: chi2, df: df, p: 1 - glChi2Cdf(chi2, df) };
+    };
+    // Доверительный интервал для среднего (t-распределение). level по умолчанию 0.95.
+    const glConfInterval = (sample, level) => {
+        const lv = level || 0.95;
+        const n = sample.length, m = glMeanOf(sample), s = Math.sqrt(glVarOf(sample));
+        const tc = glTQuantile(1 - (1 - lv) / 2, n - 1);
+        const half = tc * s / Math.sqrt(n);
+        return { mean: m, lower: m - half, upper: m + half, level: lv, margin: half };
+    };
+
     const GL_BUILTINS = {
         sin: (x) => glIsComplex(x) ? glComplexSin(x) : Math.sin(x),
         cos: (x) => glIsComplex(x) ? glComplexCos(x) : Math.cos(x),
@@ -11338,11 +12367,15 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
         dfs: (g, start) => glGraphDFS(g, start),
         shortestPath: (g, start, end) => glGraphDijkstra(g, start, end),
         // Задача 2: численные методы
+        // Имя функции строкой принимают solve/bisect/findRoots/sumSeries/limitAt и т.д.,
+        // а derivative/integral раньше — нет: derivative("f", x) падал с "f is not a function".
+        // Приводим к общему виду через glAsFunc, чтобы правило было одно на всю библиотеку.
         derivative: (f, x) => {
+            const fn = glAsFunc(f);
             const h = Math.max(1e-6, Math.abs(x) * 1e-6);
-            return (f(x + h) - f(x - h)) / (2 * h);
+            return (fn(x + h) - fn(x - h)) / (2 * h);
         },
-        integral: (f, a, b) => glAdaptiveSimpson(f, a, b, 1e-8, 20),
+        integral: (f, a, b) => glAdaptiveSimpson(glAsFunc(f), a, b, 1e-8, 20),
         solve: (f, x0) => glNewtonSolve(typeof f === 'string' ? glMakeFuncWrapper(f) : f, x0),
         solveSystem: (fs, x0) => glNewtonSolveSystem(fs.map(f => typeof f === 'string' ? glMakeFuncWrapper(f) : f), x0),
 
@@ -11436,6 +12469,52 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
         trace: (m) => m.reduce((s, row, ii) => s + row[ii], 0),
         rank: (m) => glMatRank(m),
         solveLinear: (M, rhs) => glSolveLinear(M.map(r => r.slice()), rhs.slice()),
+        luDecompose: (A) => glLuDecompose(A),
+        qrDecompose: (A) => glQrDecompose(A),
+        cholesky: (A) => glCholesky(A),
+
+        // === Многомерный анализ ===
+        gradient: (f, point, h) => glGradient(f, point, h),
+        jacobian: (fs, point, h) => glJacobian(fs, point, h),
+        divergence: (fs, point, h) => glDivergence(fs, point, h),
+        curl: (fs, point, h) => glCurl(fs, point, h),
+        hessian: (f, point, h) => glHessian(f, point, h),
+        laplacian: (f, point, h) => glLaplacian(f, point, h),
+        directionalDerivative: (f, point, dir, h) => glDirDerivative(f, point, dir, h),
+
+        // === Логика ===
+        truthTable: (vars, f) => glTruthTable(vars, f),
+        isTautology: (vars, f) => glIsTautology(vars, f),
+        isSatisfiable: (vars, f) => glIsSatisfiable(vars, f),
+        isContradiction: (vars, f) => glIsContradiction(vars, f),
+        models: (vars, f) => glModels(vars, f),
+        logicEquiv: (vars, f, g) => glLogicEquiv(vars, f, g),
+
+        // === Множества ===
+        setUnion: (a, b) => glSetUnion(a, b),
+        setIntersect: (a, b) => glSetIntersect(a, b),
+        setDiff: (a, b) => glSetDiff(a, b),
+        setSymDiff: (a, b) => glSetSymDiff(a, b),
+        isSubset: (a, b) => glIsSubset(a, b),
+        setEqual: (a, b) => glSetEqual(a, b),
+        cartesian: (a, b) => glCartesian(a, b),
+        vennRegions: (sets) => glVennRegions(sets),
+
+        // === Распределения и статистические критерии ===
+        tPdf: (x, df) => glTPdf(x, df),
+        tCdf: (x, df) => glTCdf(x, df),
+        chi2Pdf: (x, k) => glChi2Pdf(x, k),
+        chi2Cdf: (x, k) => glChi2Cdf(x, k),
+        fPdf: (x, d1, d2) => glFPdf(x, d1, d2),
+        fCdf: (x, d1, d2) => glFCdf(x, d1, d2),
+        normalQuantile: (p) => glNormalQuantile(p),
+        tQuantile: (p, df) => glTQuantile(p, df),
+        chi2Quantile: (p, k) => glChi2Quantile(p, k),
+        fQuantile: (p, d1, d2) => glFQuantile(p, d1, d2),
+        tTest: (sample, mu0) => glTTest1(sample, mu0),
+        tTest2: (a, b) => glTTest2(a, b),
+        chiSquareTest: (obs, exp) => glChiSquareTest(obs, exp),
+        confInterval: (sample, level) => glConfInterval(sample, level),
     };
     function glSimpson(f, a, b) { const c = (a + b) / 2; return (b - a) / 6 * (f(a) + 4 * f(c) + f(b)); }
     function glAdaptiveSimpsonRec(f, a, b, eps, whole, depth) {
@@ -13793,187 +14872,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
         throw new Error('Неизвестный тип пересечения: ' + type);
     }
 
-    function glTokenize(src) {
-        const toks = []; let i = 0; const n = src.length;
-        while (i < n) {
-            const c = src[i];
-            if (c === ' ' || c === '\\t' || c === '\\n' || c === '\\r') { i++; continue; }
-            if (c === '/' && src[i + 1] === '/') { while (i < n && src[i] !== '\\n') i++; continue; }
-            if (c === '/' && src[i + 1] === '*') { i += 2; while (i < n && !(src[i] === '*' && src[i + 1] === '/')) i++; i += 2; continue; }
-            if (c === '"' || c === "'") {
-                const quote = c; let j = i + 1; let str = '';
-                while (j < n && src[j] !== quote) { if (src[j] === '\\\\' && j + 1 < n) { str += src[j + 1]; j += 2; } else { str += src[j]; j++; } }
-                toks.push({ type: 'string', value: str }); i = j + 1; continue;
-            }
-            if (/[0-9]/.test(c) || (c === '.' && /[0-9]/.test(src[i + 1] || ''))) {
-                let j = i; while (j < n && /[0-9.]/.test(src[j])) j++;
-                if ((src[j] === 'e' || src[j] === 'E') && /[0-9+\-]/.test(src[j + 1] || '')) {
-                    j++;
-                    if (src[j] === '+' || src[j] === '-') j++;
-                    while (j < n && /[0-9]/.test(src[j])) j++;
-                }
-                toks.push({ type: 'number', value: parseFloat(src.slice(i, j)) }); i = j; continue;
-            }
-            if (/[a-zA-Z_]/.test(c)) {
-                let j = i; while (j < n && /[a-zA-Z0-9_]/.test(src[j])) j++;
-                toks.push({ type: 'ident', value: src.slice(i, j) }); i = j; continue;
-            }
-            const two = src.substr(i, 2);
-            if (['==', '!=', '<=', '>=', '&&', '||', '+=', '-=', '*=', '/='].includes(two)) { toks.push({ type: 'op', value: two }); i += 2; continue; }
-            if ('+-*/%^(){}[].,;=<>!#?:'.includes(c)) { toks.push({ type: 'op', value: c }); i++; continue; }
-            i++;
-        }
-        toks.push({ type: 'eof', value: null });
-        return toks;
-    }
-
-    function glCreateParser(tokens) {
-        let pos = 0;
-        const peek = () => tokens[pos];
-        const next = () => tokens[pos++];
-        const atOp = (v) => { const t = peek(); return t.type === 'op' && t.value === v; };
-        const atIdent = (v) => { const t = peek(); return t.type === 'ident' && t.value === v; };
-        function expectOp(v) { const t = next(); if (t.type !== 'op' || t.value !== v) throw new Error('Ожидался "' + v + '"'); }
-
-        function parseProgram() { const s = []; while (peek().type !== 'eof') { if (atOp(';')) { next(); continue; } s.push(parseStatement()); } return s; }
-        function parseBlock() { expectOp('{'); const s = []; while (!atOp('}')) { if (atOp(';')) { next(); continue; } s.push(parseStatement()); } expectOp('}'); return s; }
-        function parsePath() {
-            const t = next(); if (t.type !== 'ident') throw new Error('Ожидался идентификатор');
-            const parts = [t.value];
-            while (atOp('.')) { next(); const p = next(); if (p.type !== 'ident') throw new Error('Ожидалось имя поля после "."'); parts.push(p.value); }
-            return parts;
-        }
-        function parseStatement() {
-            if (atIdent('if')) {
-                next(); expectOp('('); const cond = parseExpr(); expectOp(')');
-                const thenB = parseBlock(); let elseB = null;
-                if (atIdent('else')) { next(); elseB = parseBlock(); }
-                return { type: 'if', cond, thenB, elseB };
-            }
-            if (atIdent('repeat')) {
-                next(); expectOp('('); const count = parseExpr(); expectOp(')');
-                return { type: 'repeat', count, body: parseBlock() };
-            }
-            if (atIdent('for')) {
-                next(); expectOp('(');
-                const varTok = next(); if (varTok.type !== 'ident') throw new Error('Ожидался идентификатор после "for ("');
-                if (!atIdent('in')) throw new Error('Ожидалось "in" в цикле for');
-                next();
-                const coll = parseExpr();
-                expectOp(')');
-                return { type: 'forEach', varName: varTok.value, coll, body: parseBlock() };
-            }
-            if (atIdent('wait')) {
-                next(); expectOp('('); const arg = parseExpr(); expectOp(')'); if (atOp(';')) next();
-                return { type: 'wait', arg };
-            }
-            if (atIdent('return')) {
-                next();
-                let expr = null;
-                if (!atOp(';') && peek().type !== 'eof' && !atOp('}')) expr = parseExpr();
-                if (atOp(';')) next();
-                return { type: 'return', expr };
-            }
-            if (atIdent('func')) {
-                next();
-                const nameTok = next(); if (nameTok.type !== 'ident') throw new Error('Ожидалось имя функции после "func"');
-                expectOp('(');
-                const params = [];
-                if (!atOp(')')) {
-                    const p0 = next(); if (p0.type !== 'ident') throw new Error('Ожидалось имя параметра'); params.push(p0.value);
-                    while (atOp(',')) { next(); const p = next(); if (p.type !== 'ident') throw new Error('Ожидалось имя параметра'); params.push(p.value); }
-                }
-                expectOp(')');
-                const eqTok = next(); if (eqTok.type !== 'op' || eqTok.value !== '=') throw new Error('Ожидался "=" в определении функции');
-                const body = parseExpr(); if (atOp(';')) next();
-                return { type: 'funcDef', name: nameTok.value, params, body };
-            }
-            if (atIdent('set') || atIdent('vector') || atIdent('matrix') || atIdent('graph') || atIdent('complex')) {
-                next(); const path = parsePath(); const t = next();
-                if (t.type !== 'op' || !['=', '+=', '-=', '*=', '/='].includes(t.value)) throw new Error('Ожидался оператор присваивания');
-                const expr = parseExpr(); if (atOp(';')) next();
-                return { type: 'assign', path, op: t.value, expr };
-            }
-            const startPos = pos;
-            try {
-                const path = parsePath();
-                if (peek().type === 'op' && ['=', '+=', '-=', '*=', '/='].includes(peek().value)) {
-                    const t = next(); const expr = parseExpr(); if (atOp(';')) next();
-                    return { type: 'assign', path, op: t.value, expr };
-                }
-                pos = startPos;
-            } catch (e) { pos = startPos; }
-            const expr = parseExpr(); if (atOp(';')) next();
-            return { type: 'expr', expr };
-        }
-        function parseExpr() {
-            const cond = parseOr();
-            if (atOp('?')) {
-                next();
-                const a = parseExpr();
-                expectOp(':');
-                const b = parseExpr();
-                return { type: 'ternary', cond, a, b };
-            }
-            return cond;
-        }
-        function parseOr() { let l = parseAnd(); while (atOp('||')) { next(); l = { type: 'logic', op: '||', l, r: parseAnd() }; } return l; }
-        function parseAnd() { let l = parseEquality(); while (atOp('&&')) { next(); l = { type: 'logic', op: '&&', l, r: parseEquality() }; } return l; }
-        function parseEquality() { let l = parseRelational(); while (atOp('==') || atOp('!=')) { const op = next().value; l = { type: 'cmp', op, l, r: parseRelational() }; } return l; }
-        function parseRelational() { let l = parseAdditive(); while (atOp('<') || atOp('>') || atOp('<=') || atOp('>=')) { const op = next().value; l = { type: 'cmp', op, l, r: parseAdditive() }; } return l; }
-        function parseAdditive() { let l = parseMultiplicative(); while (atOp('+') || atOp('-')) { const op = next().value; l = { type: 'bin', op, l, r: parseMultiplicative() }; } return l; }
-        function parseMultiplicative() { let l = parseUnary(); while (atOp('*') || atOp('/') || atOp('%')) { const op = next().value; l = { type: 'bin', op, l, r: parseUnary() }; } return l; }
-        function parseUnary() {
-            if (atOp('-')) { next(); return { type: 'neg', expr: parseUnary() }; }
-            if (atOp('!')) { next(); return { type: 'not', expr: parseUnary() }; }
-            return parsePower();
-        }
-        function parsePower() {
-            const base = parsePostfix();
-            if (atOp('^')) { next(); const exp = parseUnary(); return { type: 'pow', base, exp }; }
-            return base;
-        }
-        function parsePostfix() {
-            let e = parsePrimary();
-            while (true) {
-                if (atOp('.')) { next(); const p = next(); if (p.type !== 'ident') throw new Error('Ожидалось имя поля'); e = { type: 'member', obj: e, prop: p.value }; }
-                else if (atOp('[')) { next(); const idx = parseExpr(); expectOp(']'); e = { type: 'index', obj: e, idx }; }
-                else break;
-            }
-            return e;
-        }
-        function parsePrimary() {
-            const t = peek();
-            if (t.type === 'number') { next(); return { type: 'num', value: t.value }; }
-            if (t.type === 'string') { next(); return { type: 'str', value: t.value }; }
-            if (atOp('#')) {
-                next(); let hex = '#'; while (peek().type === 'ident' || peek().type === 'number') { hex += String(next().value); }
-                return { type: 'str', value: hex };
-            }
-            if (atOp('[')) {
-                next(); const items = [];
-                if (!atOp(']')) { items.push(parseExpr()); while (atOp(',')) { next(); items.push(parseExpr()); } }
-                expectOp(']');
-                return { type: 'array', items };
-            }
-            if (atOp('(')) { next(); const e = parseExpr(); expectOp(')'); return e; }
-            if (t.type === 'ident') {
-                next();
-                if (t.value === 'true') return { type: 'bool', value: true };
-                if (t.value === 'false') return { type: 'bool', value: false };
-                if (t.value === 'null') return { type: 'null' };
-                if (atOp('(')) {
-                    next(); const args = [];
-                    if (!atOp(')')) { args.push(parseExpr()); while (atOp(',')) { next(); args.push(parseExpr()); } }
-                    expectOp(')');
-                    return { type: 'call', name: t.value, args };
-                }
-                return { type: 'ident', name: t.value };
-            }
-            throw new Error('Неожиданный токен в выражении');
-        }
-        return { parseProgram, parseExpr };
-    }
+    ${gcSharedExprParserLines().join('')}
 
     function glParseProgram(src) { return glCreateParser(glTokenize(src)).parseProgram(); }
     function glParseExprOnly(src) { return glCreateParser(glTokenize(src)).parseExpr(); }
@@ -14176,11 +15075,39 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
         if (op === '=') return val;
         return glBinaryOp(cur, val, op[0]);
     }
-    function glResolvePath(parts, ctx) {
-        let obj = (ctx && parts[0] in ctx) ? ctx[parts[0]] : window[parts[0]];
-        if (obj === undefined) throw new Error('Неизвестный объект: ' + parts[0]);
-        for (let i = 1; i < parts.length - 1; i++) { if (obj === undefined || obj === null) throw new Error('Некорректный путь: ' + parts.join('.')); obj = obj[parts[i]]; }
-        return { obj, lastKey: parts[parts.length - 1] };
+    function glResolvePath(segs, ctx) {
+        const rootName = segs[0].name;
+        let obj = (ctx && rootName in ctx) ? ctx[rootName] : window[rootName];
+        if (obj === undefined) throw new Error('Неизвестный объект: ' + rootName);
+        for (let i = 1; i < segs.length - 1; i++) {
+            if (obj === undefined || obj === null) throw new Error('Некорректный путь: ' + glPathToString(segs));
+            const seg = segs[i];
+            obj = (seg.type === 'index') ? obj[glEvalExpr(seg.expr, ctx)] : obj[seg.name];
+        }
+        const last = segs[segs.length - 1];
+        const lastKey = (last.type === 'index') ? glEvalExpr(last.expr, ctx) : last.name;
+        return { obj, lastKey };
+    }
+    // Только для читаемых сообщений об ошибках (не участвует в резолве).
+    function glPathToString(segs) { return segs.map(s => s.type === 'index' ? '[...]' : s.name).join('.').replace(/\\.\\[/g, '['); }
+    function glApplySingleAssign(a, ctx) {
+        const val = glEvalExpr(a.expr, ctx);
+        if (a.path.length === 1) {
+            const name = a.path[0].name;
+            if (ctx && name in ctx) {
+                ctx[name] = a.op === '=' ? val : glApplyCompound(ctx[name], val, a.op);
+                if (ctx[name] && typeof ctx[name] === 'object' && 'dirty' in ctx[name]) ctx[name].dirty = true;
+            } else {
+                window[name] = a.op === '=' ? val : glApplyCompound(window[name], val, a.op);
+                if (window[name] && typeof window[name] === 'object' && 'dirty' in window[name]) window[name].dirty = true;
+            }
+        } else {
+            const { obj, lastKey } = glResolvePath(a.path, ctx);
+            obj[lastKey] = a.op === '=' ? val : glApplyCompound(obj[lastKey], val, a.op);
+            const rootName = a.path[0].name;
+            const root = (ctx && rootName in ctx) ? ctx[rootName] : window[rootName];
+            if (root && typeof root === 'object' && 'dirty' in root) root.dirty = true;
+        }
     }
     async function glExecStatements(stmts, ctx) { for (const s of stmts) await glExecStatement(s, ctx); }
     // Сигнал возврата значения из Function/Void: используется исключение вместо обычного
@@ -14189,26 +15116,8 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
     class GLReturnSignal { constructor(value) { this.value = value; } }
     async function glExecStatement(s, ctx) {
         switch (s.type) {
-            case 'assign': {
-                const val = glEvalExpr(s.expr, ctx);
-                if (s.path.length === 1) {
-                    const name = s.path[0];
-                    if (ctx && name in ctx) {
-                        ctx[name] = s.op === '=' ? val : glApplyCompound(ctx[name], val, s.op);
-                        if (ctx[name] && typeof ctx[name] === 'object' && 'dirty' in ctx[name]) ctx[name].dirty = true;
-                    } else {
-                        window[name] = s.op === '=' ? val : glApplyCompound(window[name], val, s.op);
-                        if (window[name] && typeof window[name] === 'object' && 'dirty' in window[name]) window[name].dirty = true;
-                    }
-                } else {
-                    const { obj, lastKey } = glResolvePath(s.path, ctx);
-                    obj[lastKey] = s.op === '=' ? val : glApplyCompound(obj[lastKey], val, s.op);
-                    const rootName = s.path[0];
-                    const root = (ctx && rootName in ctx) ? ctx[rootName] : window[rootName];
-                    if (root && typeof root === 'object' && 'dirty' in root) root.dirty = true;
-                }
-                break;
-            }
+            case 'assign': glApplySingleAssign(s, ctx); break;
+            case 'multiAssign': for (const a of s.assigns) glApplySingleAssign(a, ctx); break;
             case 'if':
                 if (glEvalExpr(s.cond, ctx)) await glExecStatements(s.thenB, ctx);
                 else if (s.elseB) await glExecStatements(s.elseB, ctx);
@@ -14217,6 +15126,14 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
                 const cnt = Math.max(0, Math.floor(glEvalExpr(s.count, ctx)));
                 for (let i = 0; i < cnt; i++) await glExecStatements(s.body, Object.assign({}, ctx, { i }));
                 break;
+            }
+            case 'while': {
+              let guard = 0;
+              while (glEvalExpr(s.cond, ctx)) {
+                if (++guard > 1000000) throw new Error('Цикл while превысил 1000000 итераций — похоже, условие никогда не станет ложным');
+                await glExecStatements(s.body, Object.assign({}, ctx, { i: guard - 1 }));
+              }
+              break;
             }
             case 'forEach': {
                 const coll = glEvalExpr(s.coll, ctx);
@@ -14243,26 +15160,8 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
     function glExecStatementsSync(stmts, ctx) { for (const s of stmts) glExecStatementSync(s, ctx); }
     function glExecStatementSync(s, ctx) {
         switch (s.type) {
-            case 'assign': {
-                const val = glEvalExpr(s.expr, ctx);
-                if (s.path.length === 1) {
-                    const name = s.path[0];
-                    if (ctx && name in ctx) {
-                        ctx[name] = s.op === '=' ? val : glApplyCompound(ctx[name], val, s.op);
-                        if (ctx[name] && typeof ctx[name] === 'object' && 'dirty' in ctx[name]) ctx[name].dirty = true;
-                    } else {
-                        window[name] = s.op === '=' ? val : glApplyCompound(window[name], val, s.op);
-                        if (window[name] && typeof window[name] === 'object' && 'dirty' in window[name]) window[name].dirty = true;
-                    }
-                } else {
-                    const { obj, lastKey } = glResolvePath(s.path, ctx);
-                    obj[lastKey] = s.op === '=' ? val : glApplyCompound(obj[lastKey], val, s.op);
-                    const rootName = s.path[0];
-                    const root = (ctx && rootName in ctx) ? ctx[rootName] : window[rootName];
-                    if (root && typeof root === 'object' && 'dirty' in root) root.dirty = true;
-                }
-                break;
-            }
+            case 'assign': glApplySingleAssign(s, ctx); break;
+            case 'multiAssign': for (const a of s.assigns) glApplySingleAssign(a, ctx); break;
             case 'if':
                 if (glEvalExpr(s.cond, ctx)) glExecStatementsSync(s.thenB, ctx);
                 else if (s.elseB) glExecStatementsSync(s.elseB, ctx);
@@ -14271,6 +15170,14 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
                 const cnt = Math.max(0, Math.floor(glEvalExpr(s.count, ctx)));
                 for (let i = 0; i < cnt; i++) glExecStatementsSync(s.body, Object.assign({}, ctx, { i }));
                 break;
+            }
+            case 'while': {
+              let guard = 0;
+              while (glEvalExpr(s.cond, ctx)) {
+                if (++guard > 1000000) throw new Error('Цикл while превысил 1000000 итераций — похоже, условие никогда не станет ложным');
+                glExecStatementsSync(s.body, Object.assign({}, ctx, { i: guard - 1 }));
+              }
+              break;
             }
             case 'forEach': {
                 const coll = glEvalExpr(s.coll, ctx);
@@ -14344,81 +15251,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '    }\n',
             '\n',
             '    // ---- Текст под холстом: {выражение} → живые переменные, лёгкий markdown, KaTeX ----\n',
-            '    function gcFormatValue(v) {\n',
-            '      if (typeof v === \'number\') { if (!isFinite(v)) return String(v); return String(Math.round(v * 10000) / 10000); }\n',
-            '      if (v === undefined || v === null) return \'\';\n',
-            '      return String(v);\n',
-            '    }\n',
-            '    function gcSubstitutePlaceholders(text, evalFn) {\n',
-            '      return String(text).replace(/\\{([^{}]+)\\}/g, function(m, expr) {\n',
-            '        try { return gcFormatValue(evalFn(expr.trim())); } catch (e) { return \'\'; }\n',
-            '      });\n',
-            '    }\n',
-            '    function gcMdInline(s) {\n',
-            '      s = s.replace(/\\[([^\\]]+)\\]\\(([^)\\s]+)\\)/g, \'<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>\');\n',
-            '      s = s.replace(/\\*\\*([^*]+)\\*\\*/g, \'<b>$1</b>\');\n',
-            '      s = s.replace(/(^|[^*])\\*([^*\\n]+)\\*(?!\\*)/g, \'$1<i>$2</i>\');\n',
-            '      s = s.replace(/`([^`]+)`/g, \'<code>$1</code>\');\n',
-            '      return s;\n',
-            '    }\n',
-            '    function gcMdBlock(text) {\n',
-            '      const lines = text.split(\'\\n\');\n',
-            '      const htmlParts = [];\n',
-            '      let para = [];\n',
-            '      function flushPara() { if (!para.length) return; htmlParts.push(\'<p>\' + gcMdInline(para.join(\'<br>\')) + \'</p>\'); para = []; }\n',
-            '      for (const raw of lines) {\n',
-            '        const trimmed = raw.trim();\n',
-            '        if (trimmed === \'\') { flushPara(); continue; }\n',
-            '        const h = trimmed.match(/^(#{1,4})\\s+(.*)$/);\n',
-            '        if (h) { flushPara(); const level = h[1].length; htmlParts.push(\'<h\' + level + \'>\' + gcMdInline(h[2]) + \'</h\' + level + \'>\'); continue; }\n',
-            '        para.push(trimmed);\n',
-            '      }\n',
-            '      flushPara();\n',
-            '      return htmlParts.join(\'\');\n',
-            '    }\n',
-            '    function gcRenderMathSegments(s) {\n',
-            '      const placeholders = [];\n',
-            '      function stash(html) { const idx = placeholders.length; placeholders.push(html); return \'\\u0000\' + idx + \'\\u0001\'; }\n',
-            '      function renderTex(tex, display) {\n',
-            '        try { return (typeof katex !== \'undefined\') ? katex.renderToString(tex, { throwOnError: false, displayMode: display }) : tex; }\n',
-            '        catch (e) { return tex; }\n',
-            '      }\n',
-            '      let out = s.replace(/\\\\\\[([\\s\\S]+?)\\\\\\]/g, function(m, tex) { return stash(renderTex(tex, true)); });\n',
-            '      out = out.replace(/\\\\\\(([\\s\\S]+?)\\\\\\)/g, function(m, tex) { return stash(renderTex(tex, false)); });\n',
-            '      return { text: out, placeholders: placeholders };\n',
-            '    }\n',
-            '    function gcRestoreMathSegments(html, placeholders) {\n',
-            '      return html.replace(/\\u0000(\\d+)\\u0001/g, function(m, i) { return placeholders[Number(i)]; });\n',
-            '    }\n',
-            '    function gcParseFenceAttrs(attrStr) {\n',
-            '      const attrs = {};\n',
-            '      const re = /(align|indent)\\s*=\\s*"?([a-zA-Z0-9.]+)"?/g;\n',
-            '      let am; while ((am = re.exec(attrStr))) attrs[am[1]] = am[2];\n',
-            '      return attrs;\n',
-            '    }\n',
-            '    // Раскладка текста под холстом: сначала защищаем формулы KaTeX плейсхолдерами\n',
-            '    // (чтобы LaTeX не искажался разметкой ниже), затем разбираем ::align=... indent=...\n',
-            '    // блоки (::  ...  :: — задают выравнивание/отступ отдельного куска текста), внутри\n',
-            '    // каждого — лёгкий markdown (заголовки/жирный/курсив/код/ссылки), в конце — вставляем\n',
-            '    // отрендеренные формулы обратно.\n',
-            '    function gcRenderDescriptionHtml(raw, defaultAlign) {\n',
-            '      if (!raw) return \'\';\n',
-            '      const mathRes = gcRenderMathSegments(String(raw));\n',
-            '      const src = mathRes.text;\n',
-            '      const fenceRe = /^::([^\\n]*)\\n([\\s\\S]*?)\\n::[ \\t]*$/gm;\n',
-            '      let out = \'\', lastIndex = 0, m;\n',
-            '      function renderPlain(chunk) { if (!chunk.trim()) return \'\'; return \'<div style="text-align:\' + (defaultAlign || \'left\') + \'">\' + gcMdBlock(chunk) + \'</div>\'; }\n',
-            '      while ((m = fenceRe.exec(src))) {\n',
-            '        if (m.index > lastIndex) out += renderPlain(src.slice(lastIndex, m.index));\n',
-            '        const attrs = gcParseFenceAttrs(m[1]);\n',
-            '        const align = attrs.align || defaultAlign || \'left\';\n',
-            '        const indent = attrs.indent ? (parseFloat(attrs.indent) + \'em\') : \'0\';\n',
-            '        out += \'<div style="text-align:\' + align + \';padding-left:\' + indent + \'">\' + gcMdBlock(m[2]) + \'</div>\';\n',
-            '        lastIndex = fenceRe.lastIndex;\n',
-            '      }\n',
-            '      if (lastIndex < src.length) out += renderPlain(src.slice(lastIndex));\n',
-            '      return gcRestoreMathSegments(out, mathRes.placeholders);\n',
-            '    }\n',
+            ...gcSharedMarkdownKatexLines('    '),
             '    let __gcLastDescRendered = null;\n',
             '    function updateDescription() {\n',
             '      // В совмещённой 2D+3D сцене за #infoText отвечает 3D-скрипт (updateDescription3D)\n',
@@ -14434,138 +15267,26 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '      infoPanel.innerHTML = gcRenderDescriptionHtml(substituted, GC_DESCRIPTION_ALIGN);\n',
             '    }\n',
             '\n',
+            ...gcSharedUIBuilderLines('    '),
             '    function createUI() {\n',
-            '        uiContainer.innerHTML = \'\';\n',
-            '        for (let ui of uiData) {\n',
-            '            const wrapper = document.createElement(\'div\'); wrapper.className = \'ui-item\';\n',
-            '            ui._wrapper = wrapper; // нужен, чтобы менять display каждый кадр (см. syncUIVisibility) — активность/кластер могут меняться динамически\n',
-            '            if (ui.active === false) wrapper.style.display = \'none\';\n',
-            '            const positioned = ui.x !== null && ui.x !== undefined && ui.y !== null && ui.y !== undefined;\n',
-            '            if (positioned) {\n',
-            '                wrapper.style.position = \'absolute\';\n',
-            '                wrapper.style.left = ui.x + \'%\';\n',
-            '                wrapper.style.top = ui.y + \'%\';\n',
-            '                wrapper.style.pointerEvents = \'auto\';\n',
-            '                wrapper.style.zIndex = (ui.layer !== undefined && ui.layer !== null) ? ui.layer : 100;\n',
-            '                if (ui.width) wrapper.style.width = ui.width + \'px\';\n',
-            '                if (ui.height) wrapper.style.height = ui.height + \'px\';\n',
-            '            }\n',
-            '            if (ui.type === \'button\') {\n',
-            '                const btn = document.createElement(\'button\');\n',
-            '                btn.textContent = ui.label || \'Button\';\n',
-            '                btn.style.backgroundColor = ui.color || __gcDefaultColor();\n',
-            '                btn.style.color = ui.textcolor || __gcDefaultColor();\n',
-            '                btn.style.borderRadius = (ui.radius !== null && ui.radius !== undefined ? ui.radius : 4) + \'px\';\n',
-            '                if (positioned) { btn.style.width = \'100%\'; btn.style.height = \'100%\'; }\n',
-            '                btn.addEventListener(\'click\', async function() {\n',
-            '                    await glRun(ui.action || \'\');\n',
-            '                    figures.forEach(applyFigureTransform); clusters.forEach(applyClusterTransform); updateScene(); draw();\n',
-            '                });\n',
-            '                wrapper.appendChild(btn);\n',
-            '            } else if (ui.type === \'toggle\') {\n',
-            '                const checkbox = document.createElement(\'input\'); checkbox.type = \'checkbox\';\n',
-            '                let initialChecked = ui.default !== undefined ? ui.default : false;\n',
-            '                if (ui.variable) { const val = getNestedValue(window, ui.variable); if (val !== undefined) initialChecked = !!val; }\n',
-            '                checkbox.checked = initialChecked;\n',
-            '                if (ui.variable) {\n',
-            '                    const varPath = ui.variable;\n',
-            '                    if (getNestedValue(window, varPath) === undefined) setNestedValue(window, varPath, initialChecked);\n',
-            '                    checkbox.addEventListener(\'change\', function() {\n',
-            '                        setNestedValue(window, varPath, this.checked);\n',
-            '                        figures.forEach(applyFigureTransform); clusters.forEach(applyClusterTransform); updateScene(); draw();\n',
-            '                    });\n',
-            '                }\n',
-            '                const label = document.createElement(\'label\'); label.textContent = ui.label || \'\'; label.style.color = ui.textcolor || __gcDefaultColor();\n',
-            '                wrapper.appendChild(checkbox); wrapper.appendChild(label);\n',
-            '            } else if (ui.type === \'input\') {\n',
-            '                const input = document.createElement(\'input\'); input.type = ui.inputtype === \'formula\' ? \'text\' : (ui.inputtype || \'text\');\n',
-            '                if (input.type === \'number\') {\n',
-            '                    if (ui.min !== null) input.min = ui.min;\n',
-            '                    if (ui.max !== null) input.max = ui.max;\n',
-            '                    input.step = (ui.step !== null && ui.step !== undefined) ? ui.step : \'any\';\n',
-            '                    if (ui.stepper === false) input.classList.add(\'no-stepper\');\n',
-            '                }\n',
-            '                if (ui.inputtype === \'formula\') {\n',
-            '                    const funcName = ui.funcName || ui.variable || \'userFunc\';\n',
-            '                    const defaultExpr = (ui.default !== undefined && ui.default !== null) ? String(ui.default) : \'x\';\n',
-            '                    input.value = defaultExpr;\n',
-            '                    input.placeholder = \'например: x^2 + sin(x)\';\n',
-            '                    const errLabel = document.createElement(\'div\');\n',
-            '                    errLabel.style.color = \'#ff0000\'; errLabel.style.fontSize = \'0.75rem\'; errLabel.style.marginTop = \'2px\'; errLabel.style.display = \'none\';\n',
-            '                    let lastErrMsg = null;\n',
-            '                    function registerFormula() {\n',
-            '                        try {\n',
-            '                            const ast = glParseExprOnly(input.value);\n',
-            '                            GL_USER_FUNCS[funcName] = { params: [\'x\'], bodyAst: ast };\n',
-            '                            glUserFuncVersion++;\n',
-            '                            input.style.borderColor = \'\';\n',
-            '                            errLabel.style.display = \'none\';\n',
-            '                            lastErrMsg = null;\n',
-            '                        } catch (e) {\n',
-            '                            input.style.borderColor = \'#ff0000\';\n',
-            '                            errLabel.textContent = \'Ошибка: \' + e.message;\n',
-            '                            errLabel.style.display = \'block\';\n',
-            '                            if (e.message !== lastErrMsg) { glLog(\'warn\', \'Формула "\' + funcName + \'" (поле "\' + (ui.label || \'\') + \'"): \' + e.message); lastErrMsg = e.message; }\n',
-            '                        }\n',
-            '                        figures.forEach(applyFigureTransform); clusters.forEach(applyClusterTransform); updateScene(); draw();\n',
-            '                    }\n',
-            '                    registerFormula();\n',
-            '                    input.addEventListener(\'input\', registerFormula); input.addEventListener(\'change\', registerFormula);\n',
-            '                    const label = document.createElement(\'label\'); label.textContent = ui.label || \'\'; label.style.color = ui.textcolor || __gcDefaultColor();\n',
-            '                    wrapper.appendChild(label); wrapper.appendChild(input); wrapper.appendChild(errLabel);\n',
-            '                    if (positioned) uiOverlay.appendChild(wrapper); else uiContainer.appendChild(wrapper);\n',
-            '                    continue;\n',
-            '                }\n',
-            '                let defaultVal = ui.default !== undefined ? ui.default : (input.type === \'number\' ? 0 : \'\');\n',
-            '                if (ui.variable) { const val = getNestedValue(window, ui.variable); if (val !== undefined) defaultVal = val; }\n',
-            '                input.value = defaultVal;\n',
-            '                if (ui.variable) {\n',
-            '                    const varPath = ui.variable;\n',
-            '                    if (getNestedValue(window, varPath) === undefined) setNestedValue(window, varPath, defaultVal);\n',
-            '                    function clampAndUpdate() {\n',
-            '                        let val = input.value;\n',
-            '                        if (input.type === \'number\') {\n',
-            '                            let num = parseFloat(val);\n',
-            '                            if (isNaN(num)) { const currentVal = getNestedValue(window, varPath); if (currentVal !== undefined) { input.value = currentVal; } else { input.value = defaultVal; } return; }\n',
-            '                            if (ui.min !== null && num < ui.min) num = ui.min;\n',
-            '                            if (ui.max !== null && num > ui.max) num = ui.max;\n',
-            '                            if (ui.step !== null && ui.step > 0) {\n',
-            '                                const minVal = ui.min !== null ? ui.min : 0;\n',
-            '                                const remainder = (num - minVal) % ui.step;\n',
-            '                                if (Math.abs(remainder) > 0.0001) { if (remainder > ui.step / 2) num += ui.step - remainder; else num -= remainder; num = parseFloat(num.toFixed(10)); }\n',
-            '                            }\n',
-            '                            input.value = num; setNestedValue(window, varPath, num);\n',
-            '                        } else { setNestedValue(window, varPath, val); }\n',
-            '                        figures.forEach(applyFigureTransform); clusters.forEach(applyClusterTransform); updateScene(); draw();\n',
-            '                    }\n',
-            '                    input.addEventListener(\'input\', clampAndUpdate); input.addEventListener(\'blur\', clampAndUpdate); input.addEventListener(\'change\', clampAndUpdate);\n',
-            '                }\n',
-            '                const label = document.createElement(\'label\'); label.textContent = ui.label || \'\'; label.style.color = ui.textcolor || __gcDefaultColor();\n',
-            '                wrapper.appendChild(label); wrapper.appendChild(input);\n',
-            '            } else if (ui.type === \'slider\') {\n',
-            '                const input = document.createElement(\'input\'); input.type = \'range\';\n',
-            '                input.min = ui.min; input.max = ui.max; input.step = ui.step || 1;\n',
-            '                let defaultVal = (ui.default !== undefined && ui.default !== null) ? ui.default : ui.min;\n',
-            '                if (ui.variable) { const val = getNestedValue(window, ui.variable); if (val !== undefined) defaultVal = val; }\n',
-            '                input.value = defaultVal;\n',
-            '                input.style.accentColor = ui.color || __gcDefaultColor();\n',
-            '                if (positioned) { input.style.width = \'100%\'; }\n',
-            '                const valueLabel = document.createElement(\'span\'); valueLabel.textContent = String(defaultVal); valueLabel.style.color = ui.textcolor || __gcDefaultColor(); valueLabel.style.marginLeft = \'6px\';\n',
-            '                if (ui.variable) {\n',
-            '                    const varPath = ui.variable;\n',
-            '                    if (getNestedValue(window, varPath) === undefined) setNestedValue(window, varPath, defaultVal);\n',
-            '                    input.addEventListener(\'input\', function() {\n',
-            '                        const num = parseFloat(this.value);\n',
-            '                        setNestedValue(window, varPath, num);\n',
-            '                        valueLabel.textContent = String(num);\n',
-            '                        figures.forEach(applyFigureTransform); clusters.forEach(applyClusterTransform); updateScene(); draw();\n',
-            '                    });\n',
-            '                }\n',
-            '                const label2 = document.createElement(\'label\'); label2.textContent = ui.label || \'\'; label2.style.color = ui.textcolor || __gcDefaultColor();\n',
-            '                wrapper.appendChild(label2); wrapper.appendChild(input); wrapper.appendChild(valueLabel);\n',
-            '            }\n',
-            '            if (positioned) uiOverlay.appendChild(wrapper); else uiContainer.appendChild(wrapper);\n',
-            '        }\n',
+            '        gcBuildUI(uiData, {\n',
+            '            clearOverlay: false,\n',
+            '            trackWrapper: true,\n',
+            '            numberStepSnap: true,\n',
+            '            numberInputBlur: true,\n',
+            '            getVar: function(name) { return getNestedValue(window, name); },\n',
+            '            setVar: function(name, val) { setNestedValue(window, name, val); },\n',
+            '            onInteract: function() { figures.forEach(applyFigureTransform); clusters.forEach(applyClusterTransform); updateScene(); draw(); },\n',
+            '            runButtonAction: async function(action) {\n',
+            '                await glRun(action);\n',
+            '                figures.forEach(applyFigureTransform); clusters.forEach(applyClusterTransform); updateScene(); draw();\n',
+            '            },\n',
+            '            parseFormula: function(src) { return glParseExprOnly(src); },\n',
+            '            registerUserFunc: function(name, ast) { GL_USER_FUNCS[name] = { params: [\'x\'], bodyAst: ast }; glUserFuncVersion++; },\n',
+            '            onFormulaError: function(funcName, label, message) { glLog(\'warn\', \'Формула "\' + funcName + \'" (поле "\' + label + \'"): \' + message); },\n',
+            '            defaultColor: function() { return __gcDefaultColor(); },\n',
+            '            buttonTextColor: function() { return __gcDefaultColor(); },\n',
+            '        });\n',
             '    }\n',
             '\n',
             '    let startCode = ' + startCodeEscaped + ';\n',
@@ -14957,11 +15678,40 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '  const GRID_ADAPTIVE_3D = ', String(gridAdaptive3D), ';\n',
             '\n',
             '  // ---------- Три.js: сцена, камера, рендерер ----------\n',
+            // Обе причины отказа реальны и не зависят от скрипта пользователя: three.js
+            // подгружается с CDN (нет сети / блокировщик / офлайн-копия страницы), а WebGL
+            // может быть выключен в браузере или недоступен в VM. Без этих двух проверок
+            // страница падала с необработанным исключением: пустой чёрный прямоугольник и
+            // ничего в интерфейсе — понять, что произошло, можно было только через консоль.
+            '  function gcFatal3D(msg) {\n',
+            '    try {\n',
+            '      if (canvas) canvas.style.display = \'none\';\n',
+            '      const box = document.createElement(\'div\');\n',
+            // Цвет — из активной темы, но через THEMES/themeName (переменной theme в этой
+            // области видимости нет) и с запасным вариантом: сообщение об ошибке обязано
+            // отрисоваться даже если сломано что-то ещё.
+            '      const th = (typeof THEMES !== \'undefined\' && typeof themeName !== \'undefined\' && THEMES[themeName]) || null;\n',
+            '      box.style.cssText = \'padding:16px;font:14px/1.5 system-ui,sans-serif;text-align:center;color:\' + (th ? th.descColor : \'#888\') + \';\';\n',
+            '      box.textContent = msg;\n',
+            '      (wrapper || document.body).appendChild(box);\n',
+            '    } catch (e) { /* показать сообщение не удалось — остаётся только консоль */ }\n',
+            '    console.error(msg);\n',
+            '  }\n',
+            '  if (typeof THREE === \'undefined\') {\n',
+            '    gcFatal3D(\'Не удалось загрузить библиотеку three.js — 3D-сцена не может быть построена. Проверьте подключение к сети (библиотека подгружается с cdnjs.cloudflare.com).\');\n',
+            '    return;\n',
+            '  }\n',
             '  const scene = new THREE.Scene();\n',
             '  const camera = (CAMERA_PROJECTION === \'orthographic\')\n',
             '    ? new THREE.OrthographicCamera(-1, 1, 1, -1, CAMERA_NEAR, CAMERA_FAR)\n',
             '    : new THREE.PerspectiveCamera(CAMERA_FOV, 1, CAMERA_NEAR, CAMERA_FAR);\n',
-            '  const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true });\n',
+            '  let renderer;\n',
+            '  try {\n',
+            '    renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true });\n',
+            '  } catch (e) {\n',
+            '    gcFatal3D(\'Не удалось создать WebGL-контекст — 3D-сцена не может быть отрисована. Возможно, WebGL отключён в браузере или не поддерживается видеодрайвером. (\' + (e && e.message ? e.message : e) + \')\');\n',
+            '    return;\n',
+            '  }\n',
             '  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));\n',
             '\n',
             '  scene.add(new THREE.AmbientLight(0xffffff, 0.65));\n',
@@ -15070,7 +15820,24 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '      label.style.fontSize = (0.8 * (p.textSize || 1)) + \'rem\';\n',
             '      labelLayer.appendChild(label);\n',
             '    }\n',
-            '    return { name: p.name, mesh: mesh, label: label, active: p.active !== false, activeExpr: p.activeExpr, dynamic: !!p.dynamic };\n',
+            '    return {\n',
+            '      name: p.name, mesh: mesh, label: label, active: p.active !== false, activeExpr: p.activeExpr, dynamic: !!p.dynamic,\n',
+            '      // Точки "на чём-то" (см. update3DConstrainedPoints ниже, определяется после того как\n',
+            '      // все объекты сцены — линии/кривые/фигуры/плоскости — уже готовы) — сырые поля как\n',
+            '      // они пришли из компилятора, ничего не резолвится здесь заранее.\n',
+            '      line: p.line || null, curve: p.curve || null, t: (typeof p.t === \'number\' ? p.t : 0.5), extend: !!p.extend,\n',
+            '      construct: p.construct || null, vertex: p.vertex || null, base: p.base || null,\n',
+            '      transform: p.transform || null, transformSource: p.transformSource || null, transformOver: p.transformOver || null,\n',
+            '      transformAround: p.transformAround || null, transformExpr: p.transformExpr, transformAxis: p.transformAxis || null,\n',
+            '      transformCenter: p.transformCenter || null, transformExprY: p.transformExprY, transformExprZ: p.transformExprZ,\n',
+            '      transformDx: p.transformDx, transformDy: p.transformDy, transformDz: p.transformDz,\n',
+            '      plane: p.plane || null, onFigure: p.onFigure || null, uExpr: p.uExpr, vExpr: p.vExpr,\n',
+            '      // Столкновения (см. resolveCollision3D ниже) — те же поля, что и в 2D (общий парсер),\n',
+            '      // плюс collideWithPrimitives (только 3D — столкновение с телами Primitive).\n',
+            '      collision: p.collision !== false, collisionGroup: p.collisionGroup || 0, collisionMask: p.collisionMask || null, collisionMargin: p.collisionMargin || 0,\n',
+            '      collideWithPoints: p.collideWithPoints !== false, collideWithLines: !!p.collideWithLines, collideWithCurves: !!p.collideWithCurves,\n',
+            '      collideWithFigures: !!p.collideWithFigures, collideWithBoundary: p.collideWithBoundary !== false, collideWithPrimitives: p.collideWithPrimitives !== false,\n',
+            '    };\n',
             '  });\n',
             '  function findPoint(name) { return pointObjs.find(function(o) { return o.name === name; }); }\n',
             '\n',
@@ -15134,8 +15901,24 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '\n',
             '  function updateFillingMesh(fo) {\n',
             '    const positions = fo.pts.map(function(p) { return p.mesh.position; });\n',
+            '    // Небольшой отступ вдоль собственной нормали грани — иначе Filling, совпадающий\n',
+            '    // по плоскости с другой поверхностью (draw InfPlane через те же точки, другой\n',
+            '      // Filling на общей грани фигуры и т.п.), даёт z-fighting: две сонаправленные\n',
+            '    // текстуры мерцают/просвечивают друг сквозь друга при повороте камеры. Сдвиг\n',
+            '    // ничтожно мал относительно масштаба сцены (worldScale) — визуально незаметен,\n',
+            '    // но развязывает точные совпадающие плоскости.\n',
+            '    const p0 = positions[0], p1 = positions[1], p2 = positions[positions.length > 2 ? 2 : 1];\n',
+            '    let nx = 0, ny = 1, nz = 0;\n',
+            '    if (p0 && p1 && p2) {\n',
+            '      const ux = p1.x - p0.x, uy = p1.y - p0.y, uz = p1.z - p0.z;\n',
+            '      const vx = p2.x - p0.x, vy = p2.y - p0.y, vz = p2.z - p0.z;\n',
+            '      nx = uy * vz - uz * vy; ny = uz * vx - ux * vz; nz = ux * vy - uy * vx;\n',
+            '      const nlen = Math.hypot(nx, ny, nz);\n',
+            '      if (nlen > 1e-9) { nx /= nlen; ny /= nlen; nz /= nlen; } else { nx = 0; ny = 1; nz = 0; }\n',
+            '    }\n',
+            '    const lift = worldScale * 0.02;\n',
             '    const vertsFlat = [];\n',
-            '    for (let i = 0; i < positions.length; i++) { vertsFlat.push(positions[i].x, positions[i].y, positions[i].z); }\n',
+            '    for (let i = 0; i < positions.length; i++) { vertsFlat.push(positions[i].x + nx * lift, positions[i].y + ny * lift, positions[i].z + nz * lift); }\n',
             '    const idx = [];\n',
             '    for (let i = 1; i < positions.length - 1; i++) { idx.push(0, i, i + 1); }\n',
             '    const geo = fo.mesh.geometry;\n',
@@ -15233,6 +16016,152 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '    }\n',
             '    return { name: pr.name, type: pr.type, mesh: mesh, label: label, active: pr.active !== false, activeExpr: pr.activeExpr, area: pr.area, volume: pr.volume, colorHex: color, hiddenByDerived: false };\n',
             '  });\n',
+            '\n',
+            '  // ---------- Настоящие объёмные 3D-фракталы (Mandelbulb/Menger sponge/тетраэдр Серпинского) ----------\n',
+            '  // В отличие от draw Fractal с type=mandelbrot/julia/burningship (растровая 2D-картинка на\n',
+            '  // биллборд-панели — по сути плоская текстура в 3D-пространстве), эти три типа — НАСТОЯЩИЕ\n',
+            '  // трёхмерные тела: рендерятся рэймарчингом (сфера-трейсинг сигнатурной функции расстояния,\n',
+            '  // SDF) прямо во фрагментном шейдере на GPU. Деталь ограничена только числом итераций/шагов\n',
+            '  // и точностью float — при приближении камерой (обычный орбитальный зум сцены, не билборд)\n',
+            '  // видна всё более мелкая структура, как у бесконечно детализированной фигуры, а не у плоской\n',
+            '  // картинки. Каждая точка луча честно проверяется на попадание в поверхность фрактала —\n',
+            '  // объект корректно закрывает и закрывается другими объектами сцены по глубине его ОГРАНИЧИВАЮЩЕЙ\n',
+            '  // сферы (полный per-pixel gl_FragDepth не пишем, чтобы не зависеть от WebGL1/2-специфичных\n',
+            '  // расширений — минимальное отличие от идеала заметно только при пересечении фрактала другим\n',
+            '  // объектом ровно на границе его bounding-сферы).\n',
+            '  const FRACTAL3D_VERTEX = [\n',
+            '    \'varying vec3 vLocalPos;\',\n',
+            '    \'void main() {\',\n',
+            '    \'  vLocalPos = position;\',\n',
+            '    \'  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);\',\n',
+            '    \'}\',\n',
+            '  ].join(\'\\n\');\n',
+            '  const FRACTAL3D_FRAGMENT = [\n',
+            '    \'precision highp float;\',\n',
+            '    \'varying vec3 vLocalPos;\',\n',
+            '    \'uniform mat4 uInvModelMatrix;\',\n',
+            '    \'uniform int uType;\',\n',
+            '    \'uniform float uPower;\',\n',
+            '    \'uniform int uIterations;\',\n',
+            '    \'uniform int uMaxSteps;\',\n',
+            '    \'uniform float uSize;\',\n',
+            '    \'uniform vec3 uColor1;\',\n',
+            '    \'uniform vec3 uColor2;\',\n',
+            '    \'float sdBoxF(vec3 p, vec3 b) {\',\n',
+            '    \'  vec3 q = abs(p) - b;\',\n',
+            '    \'  return length(max(q, 0.0)) + min(max(q.x, max(q.y, q.z)), 0.0);\',\n',
+            '    \'}\',\n',
+            '    \'float sdMandelbulbF(vec3 pos, out float trap) {\',\n',
+            '    \'  vec3 z = pos; float dr = 1.0; float r = 0.0; trap = 1e10;\',\n',
+            '    \'  for (int i = 0; i < 20; i++) {\',\n',
+            '    \'    if (i >= uIterations) break;\',\n',
+            '    \'    r = length(z);\',\n',
+            '    \'    if (r > 4.0) break;\',\n',
+            '    \'    trap = min(trap, r);\',\n',
+            '    \'    float theta = acos(clamp(z.z / max(r, 1e-6), -1.0, 1.0));\',\n',
+            '    \'    float phi = atan(z.y, z.x);\',\n',
+            '    \'    float zr = pow(r, uPower);\',\n',
+            '    \'    dr = pow(r, uPower - 1.0) * uPower * dr + 1.0;\',\n',
+            '    \'    theta *= uPower; phi *= uPower;\',\n',
+            '    \'    z = zr * vec3(sin(theta) * cos(phi), sin(theta) * sin(phi), cos(theta));\',\n',
+            '    \'    z += pos;\',\n',
+            '    \'  }\',\n',
+            '    \'  return 0.5 * log(max(r, 1e-6)) * r / max(dr, 1e-6);\',\n',
+            '    \'}\',\n',
+            '    \'float sdMengerF(vec3 p, out float trap) {\',\n',
+            '    \'  trap = 0.0;\',\n',
+            '    \'  float d = sdBoxF(p, vec3(1.0));\',\n',
+            '    \'  float s = 1.0;\',\n',
+            '    \'  for (int i = 0; i < 20; i++) {\',\n',
+            '    \'    if (i >= uIterations) break;\',\n',
+            '    \'    vec3 a = mod(p * s, 2.0) - 1.0;\',\n',
+            '    \'    s *= 3.0;\',\n',
+            '    \'    vec3 r = 1.0 - 3.0 * abs(a);\',\n',
+            '    \'    float da = max(r.x, r.y), db = max(r.y, r.z), dc = max(r.z, r.x);\',\n',
+            '    \'    float c = (min(da, min(db, dc)) - 1.0) / s;\',\n',
+            '    \'    d = max(d, c);\',\n',
+            '    \'    trap += 0.08;\',\n',
+            '    \'  }\',\n',
+            '    \'  return d;\',\n',
+            '    \'}\',\n',
+            '    \'float sdSierpinskiF(vec3 z, out float trap) {\',\n',
+            '    \'  vec3 a1 = vec3(1.0,1.0,1.0), a2 = vec3(-1.0,-1.0,1.0), a3 = vec3(1.0,-1.0,-1.0), a4 = vec3(-1.0,1.0,-1.0);\',\n',
+            '    \'  float scale = 2.0; vec3 c; float dist, d; trap = 0.0;\',\n',
+            '    \'  for (int i = 0; i < 20; i++) {\',\n',
+            '    \'    if (i >= uIterations) break;\',\n',
+            '    \'    c = a1; dist = length(z - a1);\',\n',
+            '    \'    d = length(z - a2); if (d < dist) { c = a2; dist = d; }\',\n',
+            '    \'    d = length(z - a3); if (d < dist) { c = a3; dist = d; }\',\n',
+            '    \'    d = length(z - a4); if (d < dist) { c = a4; dist = d; }\',\n',
+            '    \'    z = scale * z - c * (scale - 1.0);\',\n',
+            '    \'    trap += 0.08;\',\n',
+            '    \'  }\',\n',
+            '    \'  return length(z) * pow(scale, -float(uIterations)) - 0.02;\',\n',
+            '    \'}\',\n',
+            '    \'float mapF(vec3 p, out float trap) {\',\n',
+            '    \'  vec3 pn = p / uSize;\',\n',
+            '    \'  float d;\',\n',
+            '    \'  if (uType == 0) d = sdMandelbulbF(pn, trap);\',\n',
+            '    \'  else if (uType == 1) d = sdMengerF(pn, trap);\',\n',
+            '    \'  else d = sdSierpinskiF(pn, trap);\',\n',
+            '    \'  return d * uSize;\',\n',
+            '    \'}\',\n',
+            '    \'void main() {\',\n',
+            '    \'  vec3 camLocal = (uInvModelMatrix * vec4(cameraPosition, 1.0)).xyz;\',\n',
+            '    \'  vec3 rayDir = normalize(vLocalPos - camLocal);\',\n',
+            '    \'  vec3 p = camLocal;\',\n',
+            '    \'  float totalDist = 0.0;\',\n',
+            '    \'  float maxDist = uSize * 6.0;\',\n',
+            '    \'  bool hit = false;\',\n',
+            '    \'  float trap = 0.0;\',\n',
+            '    \'  for (int i = 0; i < 256; i++) {\',\n',
+            '    \'    if (i >= uMaxSteps) break;\',\n',
+            '    \'    p = camLocal + rayDir * totalDist;\',\n',
+            '    \'    float d = mapF(p, trap);\',\n',
+            '    \'    if (d < uSize * 0.0006) { hit = true; break; }\',\n',
+            '    \'    totalDist += d * 0.9;\',\n',
+            '    \'    if (totalDist > maxDist) break;\',\n',
+            '    \'  }\',\n',
+            '    \'  if (!hit) discard;\',\n',
+            '    \'  float e = uSize * 0.0008; float dtrap;\',\n',
+            '    \'  vec3 n = normalize(vec3(\',\n',
+            '    \'    mapF(p + vec3(e,0.0,0.0), dtrap) - mapF(p - vec3(e,0.0,0.0), dtrap),\',\n',
+            '    \'    mapF(p + vec3(0.0,e,0.0), dtrap) - mapF(p - vec3(0.0,e,0.0), dtrap),\',\n',
+            '    \'    mapF(p + vec3(0.0,0.0,e), dtrap) - mapF(p - vec3(0.0,0.0,e), dtrap)\',\n',
+            '    \'  ));\',\n',
+            '    \'  vec3 lightDir = normalize(vec3(0.5, 0.8, 0.4));\',\n',
+            '    \'  float diff = max(dot(n, lightDir), 0.15);\',\n',
+            '    \'  vec3 baseColor = mix(uColor1, uColor2, clamp(trap, 0.0, 1.0));\',\n',
+            '    \'  gl_FragColor = vec4(baseColor * diff, 1.0);\',\n',
+            '    \'}\',\n',
+            '  ].join(\'\\n\');\n',
+            '  const FRACTAL3D_TYPE_INDEX = { mandelbulb: 0, mengersponge: 1, sierpinski3d: 2 };\n',
+            '  const fractal3DObjs = drawFractalsData.filter(function(d) { return d.dim === \'3D\' && d.pos3D && FRACTAL3D_TYPE_INDEX[d.type] !== undefined; }).map(function(d) {\n',
+            '    const geo = new THREE.SphereGeometry(d.size * 1.6, 48, 32);\n',
+            '    const mat = new THREE.ShaderMaterial({\n',
+            '      vertexShader: FRACTAL3D_VERTEX,\n',
+            '      fragmentShader: FRACTAL3D_FRAGMENT,\n',
+            '      uniforms: {\n',
+            '        uInvModelMatrix: { value: new THREE.Matrix4() },\n',
+            '        uType: { value: FRACTAL3D_TYPE_INDEX[d.type] },\n',
+            '        uPower: { value: d.power },\n',
+            '        uIterations: { value: d.iterations },\n',
+            '        uMaxSteps: { value: d.maxSteps },\n',
+            '        uSize: { value: d.size },\n',
+            '        uColor1: { value: new THREE.Color(d.color || \'#4a90d9\') },\n',
+            '        uColor2: { value: new THREE.Color(d.color2 || \'#ffaa44\') },\n',
+            '      },\n',
+            '      side: THREE.DoubleSide,\n',
+            '    });\n',
+            '    const mesh = new THREE.Mesh(geo, mat);\n',
+            '    mesh.position.set(d.pos3D.x, d.pos3D.y, d.pos3D.z);\n',
+            '    const rot = d.rotate3D || { x: 0, y: 0, z: 0 };\n',
+            '    mesh.rotation.set(rot.x * Math.PI / 180, rot.y * Math.PI / 180, rot.z * Math.PI / 180);\n',
+            '    mesh.visible = d.active !== false;\n',
+            '    scene.add(mesh);\n',
+            '    return { name: d.name, mesh: mesh, mat: mat, active: d.active !== false, activeExpr: d.activeExpr };\n',
+            '  });\n',
+            '  for (const fo of fractal3DObjs) { if (window[fo.name] === undefined) window[fo.name] = fo; }\n',
             '\n',
             '  // ---------- Сечения (new Section) и булевы операции (new Boolean) над объёмными\n',
             '  // примитивами. Оба типа реализованы поверх треугольных сеток в мировых координатах:\n',
@@ -15977,6 +16906,25 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '  }\n',
             '  function computeAngle3D(def) {\n',
             '    const r = def.refs;\n',
+            '    // vectorVector — единственный тип без вершины/точек a/b/c/d в refs (там только\n',
+            '    // vec1/vec2 — имена draw Vector), поэтому обрабатывается ДО обращения к r.a: иначе\n',
+            '    // resolveVertexRef3D(undefined) падал на каждом кадре (см. историю бага — из-за этого\n',
+            '    // весь animate() падал ДО renderer.render, и холст оставался пустым).\n',
+            '    if (def.type === \'vectorVector\') {\n',
+            '      // Угол между направлениями двух ИМЕНОВАННЫХ draw Vector — направленный, поэтому,\n',
+            '      // в отличие от lineLine, здесь НЕТ принудительного приведения ко острому углу.\n',
+            '      const vo1 = vectorObjs.find(function(v) { return v.name === r.vec1; });\n',
+            '      const vo2 = vectorObjs.find(function(v) { return v.name === r.vec2; });\n',
+            '      if (!vo1 || !vo2) return null;\n',
+            '      const a1 = vo1.line.a.mesh.position, b1 = vo1.line.b.mesh.position;\n',
+            '      const a2 = vo2.line.a.mesh.position, b2 = vo2.line.b.mesh.position;\n',
+            '      const d1v = new THREE.Vector3().subVectors(b1, a1).multiplyScalar(vo1.direct);\n',
+            '      const d2v = new THREE.Vector3().subVectors(b2, a2).multiplyScalar(vo2.direct);\n',
+            '      if (d1v.lengthSq() < 1e-10 || d2v.lengthSq() < 1e-10) return null;\n',
+            '      d1v.normalize(); d2v.normalize();\n',
+            '      const Vv = def.vertexOverride ? resolveVertexRef3D(def.vertexOverride) : new THREE.Vector3().lerpVectors(a1, b1, vo1.t);\n',
+            '      return { V: Vv, d1: d1v, d2: d2v };\n',
+            '    }\n',
             '    const A = resolveVertexRef3D(r.a);\n',
             '    let V, d1, d2;\n',
             '    if (def.type === \'lineLine\') {\n',
@@ -16049,24 +16997,10 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '    } else if (def.type === \'pointAngle\') {\n',
             '      // Самый обычный "угол ABC" по трём точкам: вершина A, лучи к точкам r.b и r.c.\n',
             '      const P1 = resolveVertexRef3D(r.b), P2 = resolveVertexRef3D(r.c);\n',
-            '      d1 = new THREE.Vector3().subVectors(P1, A);\n',
-            '      d2 = new THREE.Vector3().subVectors(P2, A);\n',
+            '      d1 = P1.clone().sub(A); d2 = P2.clone().sub(A);\n',
             '      if (d1.lengthSq() < 1e-10 || d2.lengthSq() < 1e-10) return null;\n',
             '      d1.normalize(); d2.normalize();\n',
             '      V = def.vertexOverride ? resolveVertexRef3D(def.vertexOverride) : A;\n',
-            '    } else if (def.type === \'vectorVector\') {\n',
-            '      // Угол между направлениями двух ИМЕНОВАННЫХ draw Vector — направленный, поэтому,\n',
-            '      // в отличие от lineLine, здесь НЕТ принудительного приведения ко острому углу.\n',
-            '      const vo1 = vectorObjs.find(function(v) { return v.name === r.vec1; });\n',
-            '      const vo2 = vectorObjs.find(function(v) { return v.name === r.vec2; });\n',
-            '      if (!vo1 || !vo2) return null;\n',
-            '      const a1 = vo1.line.a.mesh.position, b1 = vo1.line.b.mesh.position;\n',
-            '      const a2 = vo2.line.a.mesh.position, b2 = vo2.line.b.mesh.position;\n',
-            '      d1 = new THREE.Vector3().subVectors(b1, a1).multiplyScalar(vo1.direct);\n',
-            '      d2 = new THREE.Vector3().subVectors(b2, a2).multiplyScalar(vo2.direct);\n',
-            '      if (d1.lengthSq() < 1e-10 || d2.lengthSq() < 1e-10) return null;\n',
-            '      d1.normalize(); d2.normalize();\n',
-            '      V = def.vertexOverride ? resolveVertexRef3D(def.vertexOverride) : new THREE.Vector3().lerpVectors(a1, b1, vo1.t);\n',
             '    }\n',
             '    return { V: V, d1: d1, d2: d2 };\n',
             '  }\n',
@@ -16254,192 +17188,182 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '  // последовательность операторов (g3ParseProgram — тело Function/Void: if/else,\n',
             '  // return, присваивания, вызовы). Грамматика выражений: || > && > == != > < > <= >=\n',
             '  // > + - > * / % > ^ (право-ассоц.) > унарные - + ! > атом (число/идент/вызов/скобки).\n',
-            '  function g3CreateParser(src) {\n',
-            '    let i = 0; const n = src.length;\n',
-            '    function skipWs() { while (i < n && /\\s/.test(src[i])) i++; }\n',
-            '    function consumeKeyword(kw) {\n',
-            '      skipWs();\n',
-            '      const save = i;\n',
-            '      let j = i; while (j < n && /[a-zA-Z0-9_]/.test(src[j])) j++;\n',
-            '      if (src.slice(i, j) === kw) { i = j; return true; }\n',
-            '      i = save; return false;\n',
+            ...gcSharedExprParserLines(),
+            '  function g3Parse(src) { return glCreateParser(glTokenize(src)).parseExpr(); }\n',
+            '  function g3ParseProgram(src) { return glCreateParser(glTokenize(src)).parseProgram(); }\n',
+            '  // ---- Графы (портировано из 2D-движка: glGraphNeighbors/BFS/DFS/Dijkstra/MST/LayoutForce) —\n',
+            '  // раньше в 3D не было НИ ОДНОЙ из этих функций (как и range/random/push и т.п. ниже),\n',
+            '  // поэтому newGraph()/addNode()/bfs() и т.д. в Start/Update молча возвращали NaN. ----------\n',
+            '  function g3GraphNeighbors(g, node) {\n',
+            '    const out = [];\n',
+            '    for (const e of g.edges) {\n',
+            '      if (e.a === node) out.push({ node: e.b, weight: e.weight });\n',
+            '      else if (e.b === node) out.push({ node: e.a, weight: e.weight });\n',
             '    }\n',
-            '    function parseNumber() {\n',
-            '      let j = i; while (j < n && /[0-9.]/.test(src[j])) j++;\n',
-            '      if ((src[j] === \'e\' || src[j] === \'E\') && /[0-9+-]/.test(src[j + 1] || \'\')) { j++; if (src[j] === \'+\' || src[j] === \'-\') j++; while (j < n && /[0-9]/.test(src[j])) j++; }\n',
-            '      const v = parseFloat(src.slice(i, j)); i = j; return { type: \'num\', value: v };\n',
-            '    }\n',
-            '    function parseIdentOrCall() {\n',
-            '      let j = i; while (j < n && /[a-zA-Z0-9_]/.test(src[j])) j++;\n',
-            '      const name = src.slice(i, j); i = j; skipWs();\n',
-            '      if (src[i] === \'(\') {\n',
-            '        i++; const args = []; skipWs();\n',
-            '        if (src[i] !== \')\') { args.push(parseExpr()); skipWs(); while (src[i] === \',\') { i++; args.push(parseExpr()); skipWs(); } }\n',
-            '        skipWs(); if (src[i] === \')\') i++;\n',
-            '        return { type: \'call\', name: name, args: args };\n',
-            '      }\n',
-            '      return { type: \'ident\', name: name };\n',
-            '    }\n',
-            '    function parseArrayLiteral() {\n',
-            '      i++; skipWs(); const items = [];\n',
-            '      if (src[i] !== \']\') { items.push(parseExpr()); skipWs(); while (src[i] === \',\') { i++; items.push(parseExpr()); skipWs(); } }\n',
-            '      skipWs(); if (src[i] === \']\') i++;\n',
-            '      return { type: \'array\', items: items };\n',
-            '    }\n',
-            '    function parseAtom() {\n',
-            '      skipWs(); const c = src[i];\n',
-            '      if (c === \'(\') { i++; const e = parseExpr(); skipWs(); if (src[i] === \')\') i++; return e; }\n',
-            '      if (c === \'[\') return parseArrayLiteral();\n',
-            '      if (/[0-9.]/.test(c)) return parseNumber();\n',
-            '      if (/[a-zA-Z_]/.test(c)) return parseIdentOrCall();\n',
-            '      throw new Error(\'Неожиданный символ в выражении: \' + c);\n',
-            '    }\n',
-            '    function parseUnary() {\n',
-            '      skipWs();\n',
-            '      if (src[i] === \'-\') { i++; return { type: \'neg\', value: parseUnary() }; }\n',
-            '      if (src[i] === \'+\') { i++; return parseUnary(); }\n',
-            '      if (src[i] === \'!\' && src[i + 1] !== \'=\') { i++; return { type: \'not\', value: parseUnary() }; }\n',
-            '      return parseAtom();\n',
-            '    }\n',
-            '    function parsePow() { const left = parseUnary(); skipWs(); if (src[i] === \'^\') { i++; const right = parsePow(); return { type: \'bin\', op: \'^\', left: left, right: right }; } return left; }\n',
-            '    function parseTerm() { let left = parsePow(); skipWs(); while (src[i] === \'*\' || src[i] === \'/\' || src[i] === \'%\') { const op = src[i]; i++; const right = parsePow(); left = { type: \'bin\', op: op, left: left, right: right }; skipWs(); } return left; }\n',
-            '    function parseAddSub() { let left = parseTerm(); skipWs(); while (src[i] === \'+\' || src[i] === \'-\') { const op = src[i]; i++; const right = parseTerm(); left = { type: \'bin\', op: op, left: left, right: right }; skipWs(); } return left; }\n',
-            '    function parseComparison() {\n',
-            '      let left = parseAddSub(); skipWs();\n',
-            '      for (;;) {\n',
-            '        const two = src.substr(i, 2);\n',
-            '        if (two === \'<=\' || two === \'>=\') { i += 2; const right = parseAddSub(); left = { type: \'cmp\', op: two, left: left, right: right }; skipWs(); continue; }\n',
-            '        if (src[i] === \'<\' || src[i] === \'>\') { const op = src[i]; i++; const right = parseAddSub(); left = { type: \'cmp\', op: op, left: left, right: right }; skipWs(); continue; }\n',
-            '        break;\n',
-            '      }\n',
-            '      return left;\n',
-            '    }\n',
-            '    function parseEquality() {\n',
-            '      let left = parseComparison(); skipWs();\n',
-            '      while (src.substr(i, 2) === \'==\' || src.substr(i, 2) === \'!=\') { const op = src.substr(i, 2); i += 2; const right = parseComparison(); left = { type: \'cmp\', op: op, left: left, right: right }; skipWs(); }\n',
-            '      return left;\n',
-            '    }\n',
-            '    function parseAnd() { let left = parseEquality(); skipWs(); while (src.substr(i, 2) === \'&&\') { i += 2; const right = parseEquality(); left = { type: \'logic\', op: \'&&\', left: left, right: right }; skipWs(); } return left; }\n',
-            '    function parseOr() { let left = parseAnd(); skipWs(); while (src.substr(i, 2) === \'||\') { i += 2; const right = parseAnd(); left = { type: \'logic\', op: \'||\', left: left, right: right }; skipWs(); } return left; }\n',
-            '    function parseExpr() { return parseOr(); }\n',
-            '\n',
-            '    function parseBlock() {\n',
-            '      skipWs(); if (src[i] !== \'{\') throw new Error(\'Ожидалась "{"\'); i++;\n',
-            '      const stmts = []; skipWs();\n',
-            '      while (src[i] !== \'}\') { if (i >= n) throw new Error(\'Не закрыта фигурная скобка\'); stmts.push(parseStatement()); skipWs(); }\n',
-            '      i++; return stmts;\n',
-            '    }\n',
-            '    function parseStatement() {\n',
-            '      skipWs();\n',
-            '      if (consumeKeyword(\'if\')) {\n',
-            '        skipWs(); if (src[i] !== \'(\') throw new Error(\'Ожидалась "(" после if\'); i++;\n',
-            '        const cond = parseExpr(); skipWs(); if (src[i] !== \')\') throw new Error(\'Ожидалась ")"\'); i++;\n',
-            '        const thenB = parseBlock(); let elseB = null; skipWs();\n',
-            '        if (consumeKeyword(\'else\')) {\n',
-            '          skipWs();\n',
-            '          let j = i; while (j < n && /[a-zA-Z0-9_]/.test(src[j])) j++;\n',
-            '          if (src.slice(i, j) === \'if\') elseB = [parseStatement()];\n',
-            '          else elseB = parseBlock();\n',
-            '        }\n',
-            '        return { type: \'if\', cond: cond, thenB: thenB, elseB: elseB };\n',
-            '      }\n',
-            '      if (consumeKeyword(\'return\')) {\n',
-            '        skipWs();\n',
-            '        let expr = null;\n',
-            '        if (src[i] !== \';\' && src[i] !== \'}\' && i < n) expr = parseExpr();\n',
-            '        skipWs(); if (src[i] === \';\') i++;\n',
-            '        return { type: \'return\', expr: expr };\n',
-            '      }\n',
-            // repeat(N) { ... } — тот же синтаксис, что и в 2D-мини-языке (см. parseStatement
-            // в generate2D). До этого момента 3D-интерпретатор поддерживал только if/return/
-            // присваивание — циклов не было вовсе (не в исполнителе, а в самой грамматике),
-            // поэтому Update/Start/Function/Void-код, написанный с оглядкой на 2D, в
-            // одиночной 3D-сцене просто не парсился бы. В комбинированной сцене это было не
-            // видно, т.к. Start/Update реально выполняет только 2D-слой.
-            '      if (consumeKeyword(\'repeat\')) {\n',
-            '        skipWs(); if (src[i] !== \'(\') throw new Error(\'Ожидалась "(" после repeat\'); i++;\n',
-            '        const count = parseExpr(); skipWs(); if (src[i] !== \')\') throw new Error(\'Ожидалась ")"\'); i++;\n',
-            '        return { type: \'repeat\', count: count, body: parseBlock() };\n',
-            '      }\n',
-            // for (x in coll) { ... } — перебор массива (см. type: 'array' в parseArrayLiteral
-            // и переменные типа list). Синтаксис идентичен 2D-мини-языку (там это тоже 'for'
-            // на уровне грамматики, хранится как узел type: 'forEach').
-            '      if (consumeKeyword(\'for\')) {\n',
-            '        skipWs(); if (src[i] !== \'(\') throw new Error(\'Ожидалась "(" после for\'); i++;\n',
-            '        skipWs();\n',
-            '        let vj = i; while (vj < n && /[a-zA-Z0-9_]/.test(src[vj])) vj++;\n',
-            '        const varName = src.slice(i, vj);\n',
-            '        if (!varName) throw new Error(\'Ожидался идентификатор после "for ("\');\n',
-            '        i = vj;\n',
-            '        if (!consumeKeyword(\'in\')) throw new Error(\'Ожидалось "in" в цикле for\');\n',
-            '        const coll = parseExpr(); skipWs(); if (src[i] !== \')\') throw new Error(\'Ожидалась ")"\'); i++;\n',
-            '        return { type: \'forEach\', varName: varName, coll: coll, body: parseBlock() };\n',
-            '      }\n',
-            // wait(секунды) — пауза перед следующим оператором. Поддержана только в
-            // "асинхронном" исполнителе (g3ExecStatementAsync) — Start/Update и action кнопок;
-            // внутри тела Function/Void (вызывается синхронно, посреди вычисления формулы)
-            // wait не имеет смысла — g3ExecStatementSync её просто пропускает с предупреждением,
-            // как и в 2D (см. glExecStatementSync).
-            '      if (consumeKeyword(\'wait\')) {\n',
-            '        skipWs(); if (src[i] !== \'(\') throw new Error(\'Ожидалась "(" после wait\'); i++;\n',
-            '        const arg = parseExpr(); skipWs(); if (src[i] !== \')\') throw new Error(\'Ожидалась ")"\'); i++;\n',
-            '        skipWs(); if (src[i] === \';\') i++;\n',
-            '        return { type: \'wait\', arg: arg };\n',
-            '      }\n',
-            // func name(params) = expr — динамическое определение простой (однострочной)
-            // функции прямо во время выполнения Start/Update/action (та же семантика, что и
-            // 2D-конструкция 'func', см. GL_USER_FUNCS[s.name] = {...} в glExecStatement).
-            '      if (consumeKeyword(\'func\')) {\n',
-            '        skipWs();\n',
-            '        let fj = i; while (fj < n && /[a-zA-Z0-9_]/.test(src[fj])) fj++;\n',
-            '        const fname = src.slice(i, fj);\n',
-            '        if (!fname) throw new Error(\'Ожидалось имя функции после "func"\');\n',
-            '        i = fj; skipWs();\n',
-            '        if (src[i] !== \'(\') throw new Error(\'Ожидалась "(" в определении функции\'); i++;\n',
-            '        const params = []; skipWs();\n',
-            '        if (src[i] !== \')\') {\n',
-            '          let pj = i; while (pj < n && /[a-zA-Z0-9_]/.test(src[pj])) pj++;\n',
-            '          params.push(src.slice(i, pj)); i = pj; skipWs();\n',
-            '          while (src[i] === \',\') {\n',
-            '            i++; skipWs(); let pj2 = i; while (pj2 < n && /[a-zA-Z0-9_]/.test(src[pj2])) pj2++;\n',
-            '            params.push(src.slice(i, pj2)); i = pj2; skipWs();\n',
-            '          }\n',
-            '        }\n',
-            '        skipWs(); if (src[i] === \')\') i++;\n',
-            '        skipWs(); if (src[i] !== \'=\') throw new Error(\'Ожидался "=" в определении функции\'); i++;\n',
-            '        const body = parseExpr(); skipWs(); if (src[i] === \';\') i++;\n',
-            '        return { type: \'funcDef\', name: fname, params: params, body: body };\n',
-            '      }\n',
-            '      const save = i; skipWs();\n',
-            '      if (/[a-zA-Z_]/.test(src[i] || \'\')) {\n',
-            '        let j = i; while (j < n && /[a-zA-Z0-9_]/.test(src[j])) j++;\n',
-            '        const name = src.slice(i, j);\n',
-            '        let k = j; while (k < n && /\\s/.test(src[k])) k++;\n',
-            '        const two = src.substr(k, 2);\n',
-            '        if (two === \'+=\' || two === \'-=\' || two === \'*=\' || two === \'/=\') {\n',
-            '          i = k + 2; const expr = parseExpr(); skipWs(); if (src[i] === \';\') i++;\n',
-            '          return { type: \'assign\', name: name, op: two, expr: expr };\n',
-            '        }\n',
-            '        if (src[k] === \'=\' && src[k + 1] !== \'=\') {\n',
-            '          i = k + 1; const expr = parseExpr(); skipWs(); if (src[i] === \';\') i++;\n',
-            '          return { type: \'assign\', name: name, op: \'=\', expr: expr };\n',
-            '        }\n',
-            '      }\n',
-            '      i = save;\n',
-            '      const expr = parseExpr(); skipWs(); if (src[i] === \';\') i++;\n',
-            '      return { type: \'expr\', expr: expr };\n',
-            '    }\n',
-            '    function parseProgram() { const stmts = []; skipWs(); while (i < n) { stmts.push(parseStatement()); skipWs(); } return stmts; }\n',
-            '\n',
-            '    return { parseExprEntry: parseExpr, parseProgramEntry: parseProgram };\n',
+            '    return out;\n',
             '  }\n',
-            '  function g3Parse(src) { return g3CreateParser(src).parseExprEntry(); }\n',
-            '  function g3ParseProgram(src) { return g3CreateParser(src).parseProgramEntry(); }\n',
+            '  function g3GraphBFS(g, start) {\n',
+            '    const visited = new Set([start]), order = [start], queue = [start];\n',
+            '    while (queue.length) {\n',
+            '      const cur = queue.shift();\n',
+            '      for (const nb of g3GraphNeighbors(g, cur)) { if (!visited.has(nb.node)) { visited.add(nb.node); order.push(nb.node); queue.push(nb.node); } }\n',
+            '    }\n',
+            '    return order;\n',
+            '  }\n',
+            '  function g3GraphDFS(g, start) {\n',
+            '    const visited = new Set(), order = [];\n',
+            '    (function visit(node) {\n',
+            '      if (visited.has(node)) return;\n',
+            '      visited.add(node); order.push(node);\n',
+            '      for (const nb of g3GraphNeighbors(g, node)) visit(nb.node);\n',
+            '    })(start);\n',
+            '    return order;\n',
+            '  }\n',
+            '  function g3GraphDijkstra(g, start, end) {\n',
+            '    const dist = {}, prev = {}, visited = new Set();\n',
+            '    for (const key in g.nodes) dist[key] = Infinity;\n',
+            '    dist[start] = 0;\n',
+            '    for (;;) {\n',
+            '      let u = null, best = Infinity;\n',
+            '      for (const key in dist) { if (!visited.has(key) && dist[key] < best) { best = dist[key]; u = key; } }\n',
+            '      if (u === null || u === end) break;\n',
+            '      visited.add(u);\n',
+            '      for (const nb of g3GraphNeighbors(g, u)) {\n',
+            '        const alt = dist[u] + nb.weight;\n',
+            '        if (alt < (dist[nb.node] === undefined ? Infinity : dist[nb.node])) { dist[nb.node] = alt; prev[nb.node] = u; }\n',
+            '      }\n',
+            '    }\n',
+            '    if (dist[end] === undefined || !isFinite(dist[end])) return null;\n',
+            '    const path = [end]; let cur = end;\n',
+            '    while (prev[cur] !== undefined) { cur = prev[cur]; path.unshift(cur); }\n',
+            '    return { path: path, distance: dist[end] };\n',
+            '  }\n',
+            '  function g3GraphMST(g) {\n',
+            '    const parent = {};\n',
+            '    for (const k in g.nodes) parent[k] = k;\n',
+            '    function find(x) { while (parent[x] !== x) { parent[x] = parent[parent[x]]; x = parent[x]; } return x; }\n',
+            '    const sorted = g.edges.slice().sort(function(a, b) { return (a.weight || 1) - (b.weight || 1); });\n',
+            '    const out = [];\n',
+            '    for (const e of sorted) {\n',
+            '      const ra = find(e.a), rb = find(e.b);\n',
+            '      if (ra === undefined || rb === undefined || ra === rb) continue;\n',
+            '      parent[ra] = rb; out.push(e);\n',
+            '    }\n',
+            '    return out;\n',
+            '  }\n',
+            '  function g3GraphLayoutForce(g, iters, spread) {\n',
+            '    const keys = Object.keys(g.nodes);\n',
+            '    const n = keys.length;\n',
+            '    if (n === 0) return g;\n',
+            '    const area = spread || Math.min(fieldW, fieldH) * 0.8;\n',
+            '    const k = area / Math.sqrt(n);\n',
+            '    const idx = {};\n',
+            '    for (let i2 = 0; i2 < n; i2++) {\n',
+            '      idx[keys[i2]] = i2;\n',
+            '      const a = 2 * Math.PI * i2 / n;\n',
+            '      g.nodes[keys[i2]].pos = [area * 0.3 * Math.cos(a), area * 0.3 * Math.sin(a)];\n',
+            '    }\n',
+            '    const N = Math.max(1, Math.floor(iters || 120));\n',
+            '    let temp = area * 0.1;\n',
+            '    for (let it = 0; it < N; it++) {\n',
+            '      const dx = new Array(n).fill(0), dy = new Array(n).fill(0);\n',
+            '      for (let i2 = 0; i2 < n; i2++) {\n',
+            '        for (let j = i2 + 1; j < n; j++) {\n',
+            '          const pi = g.nodes[keys[i2]].pos, pj = g.nodes[keys[j]].pos;\n',
+            '          let ddx = pi[0] - pj[0], ddy = pi[1] - pj[1];\n',
+            '          let dist = Math.hypot(ddx, ddy);\n',
+            '          if (dist < 1e-6) { ddx = (Math.random() - 0.5) * 0.01; ddy = (Math.random() - 0.5) * 0.01; dist = 0.01; }\n',
+            '          const rep = (k * k) / dist;\n',
+            '          const ux = ddx / dist, uy = ddy / dist;\n',
+            '          dx[i2] += ux * rep; dy[i2] += uy * rep;\n',
+            '          dx[j] -= ux * rep; dy[j] -= uy * rep;\n',
+            '        }\n',
+            '      }\n',
+            '      for (const e of g.edges) {\n',
+            '        const ia = idx[e.a], ib = idx[e.b];\n',
+            '        if (ia === undefined || ib === undefined) continue;\n',
+            '        const pa = g.nodes[e.a].pos, pb = g.nodes[e.b].pos;\n',
+            '        let ddx = pa[0] - pb[0], ddy = pa[1] - pb[1];\n',
+            '        const dist = Math.hypot(ddx, ddy);\n',
+            '        if (dist < 1e-6) continue;\n',
+            '        const att = (dist * dist) / k;\n',
+            '        const ux = ddx / dist, uy = ddy / dist;\n',
+            '        dx[ia] -= ux * att; dy[ia] -= uy * att;\n',
+            '        dx[ib] += ux * att; dy[ib] += uy * att;\n',
+            '      }\n',
+            '      for (let i2 = 0; i2 < n; i2++) {\n',
+            '        const len = Math.hypot(dx[i2], dy[i2]) || 1e-9;\n',
+            '        const cap = Math.min(len, temp);\n',
+            '        const p = g.nodes[keys[i2]].pos;\n',
+            '        p[0] += (dx[i2] / len) * cap; p[1] += (dy[i2] / len) * cap;\n',
+            '      }\n',
+            '      temp *= 0.95;\n',
+            '    }\n',
+            '    return g;\n',
+            '  }\n',
             '  const G3_BUILTINS = {\n',
             '    sin: Math.sin, cos: Math.cos, tan: Math.tan, asin: Math.asin, acos: Math.acos, atan: Math.atan, atan2: Math.atan2,\n',
             '    sqrt: Math.sqrt, abs: Math.abs, exp: Math.exp, log: Math.log, log2: Math.log2, log10: Math.log10,\n',
             '    min: Math.min, max: Math.max, pow: Math.pow, floor: Math.floor, ceil: Math.ceil, round: Math.round,\n',
             '    sign: Math.sign, sinh: Math.sinh, cosh: Math.cosh, tanh: Math.tanh, hypot: Math.hypot,\n',
+            '    // === Массивы/статистика/случайные числа (портировано из GL_BUILTINS в 2D — раньше\n',
+            '    // отсутствовали в 3D вовсе, поэтому range/randomNormal/push и т.п. в Start/Update тихо\n',
+            '    // возвращали NaN, и циклы генерации данных (draw Histogram/Chart/Scatter3D) не выполнялись). ----\n',
+            '    range: function(a, b, step) {\n',
+            '      const out = []; const st = (step === undefined || step === 0) ? 1 : step;\n',
+            '      if (st > 0) { for (let x = a; x < b - 1e-12; x += st) out.push(x); }\n',
+            '      else { for (let x = a; x > b + 1e-12; x += st) out.push(x); }\n',
+            '      return out;\n',
+            '    },\n',
+            '    random: function(a, b) { return (a === undefined) ? Math.random() : a + Math.random() * ((b === undefined ? 1 : b) - a); },\n',
+            '    randomNormal: function(mean, stddevArg) {\n',
+            '      let u = 0, v = 0;\n',
+            '      while (u === 0) u = Math.random();\n',
+            '      while (v === 0) v = Math.random();\n',
+            '      const z = Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);\n',
+            '      return (mean === undefined ? 0 : mean) + z * (stddevArg === undefined ? 1 : stddevArg);\n',
+            '    },\n',
+            '    randomInt: function(mn, mx) { return Math.floor(Math.random() * (Math.floor(mx) - Math.ceil(mn) + 1)) + Math.ceil(mn); },\n',
+            '    randomChoice: function(arr) { return arr[Math.floor(Math.random() * arr.length)]; },\n',
+            '    push: function(arr, val) { arr.push(val); return arr; },\n',
+            '    pop: function(arr) { return arr.pop(); },\n',
+            '    len: function(v) { return v.length; },\n',
+            '    length: function(v) { return v.length; },\n',
+            '    mean: function(arr) { return arr.reduce(function(s, x) { return s + x; }, 0) / arr.length; },\n',
+            '    variance: function(arr) { const mu = arr.reduce(function(s, x) { return s + x; }, 0) / arr.length; return arr.reduce(function(s, x) { return s + (x - mu) * (x - mu); }, 0) / arr.length; },\n',
+            '    stddev: function(arr) { return Math.sqrt(G3_BUILTINS.variance(arr)); },\n',
+            '    // === Графы ===\n',
+            '    newGraph: function() { return { __type: \'graph\', nodes: {}, edges: [] }; },\n',
+            '    addNode: function(g, label, pos) { g.nodes[label] = { label: label, pos: pos || [0, 0] }; return g; },\n',
+            '    addEdge: function(g, a, b, weight) { g.edges.push({ a: a, b: b, weight: weight === undefined ? 1 : weight }); return g; },\n',
+            '    graphLayoutForce: function(g, iters, spread) { return g3GraphLayoutForce(g, iters, spread); },\n',
+            '    graphMST: function(g) { return g3GraphMST(g); },\n',
+            '    bfs: function(g, start) { return g3GraphBFS(g, start); },\n',
+            '    dfs: function(g, start) { return g3GraphDFS(g, start); },\n',
+            '    shortestPath: function(g, start, end) { return g3GraphDijkstra(g, start, end); },\n',
+            '    // exprTree — дерево разбора формулы для draw Tree (например, exprTree("x^2 + 2*x + 1")).\n',
+            '    // В 2D для этого используется полноценный символьный движок (symParse) — переносить\n',
+            '    // его целиком в 3D не стали (отдельная большая подсистема, нужна для diff/simplify/\n',
+            '    // integrate и т.п., которых пока в 3D нет вообще). Вместо этого используем уже готовый\n',
+            '    // AST самого мини-языка g3 (он и так умеет +,-,*,/,^,вызовы функций) и просто переводим\n',
+            '    // его в формат [подпись, [дети]], который и ожидает панель draw Tree.\n',
+            '    exprTree: function(e) {\n',
+            '      function toTree(n) {\n',
+            '        if (!n) return [\'?\', []];\n',
+            '        switch (n.type) {\n',
+            '          case \'num\': return [String(n.value), []];\n',
+            '          case \'str\': return [String(n.value), []];\n',
+            '          case \'ident\': return [n.name, []];\n',
+            '          case \'neg\': return [\'-\', [toTree(n.expr)]];\n',
+            '          case \'not\': return [\'!\', [toTree(n.expr)]];\n',
+            '          case \'bin\': case \'cmp\': case \'logic\': return [n.op, [toTree(n.l), toTree(n.r)]];\n',
+            '          case \'call\': return [n.name, (n.args || []).map(toTree)];\n',
+            '          case \'array\': return [\'[]\', (n.items || []).map(toTree)];\n',
+            '          default: return [\'?\', []];\n',
+            '        }\n',
+            '      }\n',
+            '      try { return toTree(g3Parse(String(e))); } catch (err) { return [\'?\', []]; }\n',
+            '    },\n',
             '    // === Геометрия Лобачевского (модель шара Пуанкаре) — 3D-аналог hypDistance/hypTranslate\n',
             '    // из 2D (см. G3_BUILTINS в generate2D). Точки — массивы [x,y,z] внутри единичного шара;\n',
             '    // результат hypTranslate3D тоже [x,y,z] — его нельзя проиндексировать внутри выражений\n',
@@ -16486,22 +17410,55 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             //   предупреждением, как и в 2D.
             // — g3ExecStatementsAsync/g3ExecStatementAsync — для Start/Update и action кнопок,
             //   где пауза действительно нужна и осмысленна: await настоящего Promise/setTimeout.
+            // g3ResolvePath/g3ApplySingleAssign — присваивание по пути (obj.field, arr[i], а также
+            // их komбинации типа obj.field[i].sub), тот же приём, что glResolvePath/
+            // glApplySingleAssign в 2D (generate2D). Корень пути резолвится как и раньше —
+            // сначала в локальном ctx (параметры функции/переменные цикла), иначе в глобальном
+            // userVars; single-segment путь (обычная переменная без .field/[idx]) — это в точности
+            // прежнее поведение case \'assign\' до появления путей.
+            '  function g3ApplyCompound(cur, val, op) {\n',
+            '    const c = (typeof cur === \'number\') ? cur : 0;\n',
+            '    if (op === \'+=\') return c + val;\n',
+            '    if (op === \'-=\') return c - val;\n',
+            '    if (op === \'*=\') return c * val;\n',
+            '    if (op === \'/=\') return c / val;\n',
+            '    return val;\n',
+            '  }\n',
+            '  function g3ResolvePath(segs, ctx) {\n',
+            '    const rootName = segs[0].name;\n',
+            '    const hasLocal = ctx && Object.prototype.hasOwnProperty.call(ctx, rootName);\n',
+            '    let obj = hasLocal ? ctx[rootName] : userVars[rootName];\n',
+            '    for (let idx = 1; idx < segs.length - 1; idx++) {\n',
+            '      if (obj === undefined || obj === null) throw new Error(\'Некорректный путь при обращении к \' + rootName);\n',
+            '      const seg = segs[idx];\n',
+            '      obj = (seg.type === \'index\') ? obj[g3Eval(seg.expr, ctx)] : obj[seg.name];\n',
+            '    }\n',
+            '    const last = segs[segs.length - 1];\n',
+            '    const lastKey = (last.type === \'index\') ? g3Eval(last.expr, ctx) : last.name;\n',
+            '    return { obj: obj, lastKey: lastKey };\n',
+            '  }\n',
+            '  function g3ApplySingleAssign(a, ctx) {\n',
+            '    const val = g3Eval(a.expr, ctx);\n',
+            '    if (a.path.length === 1) {\n',
+            '      const name = a.path[0].name;\n',
+            '      const hasLocal = ctx && Object.prototype.hasOwnProperty.call(ctx, name);\n',
+            '      if (a.op === \'=\') { if (hasLocal) ctx[name] = val; else userVars[name] = val; }\n',
+            '      else {\n',
+            '        const cur = hasLocal ? ctx[name] : ((typeof userVars[name] === \'number\') ? userVars[name] : 0);\n',
+            '        const nv = g3ApplyCompound(cur, val, a.op);\n',
+            '        if (hasLocal) ctx[name] = nv; else userVars[name] = nv;\n',
+            '      }\n',
+            '    } else {\n',
+            '      const resolved = g3ResolvePath(a.path, ctx);\n',
+            '      if (resolved.obj === undefined || resolved.obj === null) throw new Error(\'Некорректный путь при обращении к \' + a.path[0].name);\n',
+            '      resolved.obj[resolved.lastKey] = (a.op === \'=\') ? val : g3ApplyCompound(resolved.obj[resolved.lastKey], val, a.op);\n',
+            '    }\n',
+            '  }\n',
             '  function g3ExecStatementsSync(stmts, ctx) { for (const s of stmts) g3ExecStatementSync(s, ctx); }\n',
             '  function g3ExecStatementSync(s, ctx) {\n',
             '    switch (s.type) {\n',
-            '      case \'assign\': {\n',
-            '        const val = g3Eval(s.expr, ctx);\n',
-            '        const hasLocal = ctx && Object.prototype.hasOwnProperty.call(ctx, s.name);\n',
-            '        if (s.op === \'=\') { if (hasLocal) ctx[s.name] = val; else userVars[s.name] = val; }\n',
-            '        else {\n',
-            '          const cur = hasLocal ? ctx[s.name] : ((typeof userVars[s.name] === \'number\') ? userVars[s.name] : 0);\n',
-            '          let nv = cur;\n',
-            '          if (s.op === \'+=\') nv = cur + val; else if (s.op === \'-=\') nv = cur - val;\n',
-            '          else if (s.op === \'*=\') nv = cur * val; else if (s.op === \'/=\') nv = cur / val;\n',
-            '          if (hasLocal) ctx[s.name] = nv; else userVars[s.name] = nv;\n',
-            '        }\n',
-            '        break;\n',
-            '      }\n',
+            '      case \'assign\': g3ApplySingleAssign(s, ctx); break;\n',
+            '      case \'multiAssign\': for (const a of s.assigns) g3ApplySingleAssign(a, ctx); break;\n',
             '      case \'if\':\n',
             '        if (g3Eval(s.cond, ctx)) g3ExecStatementsSync(s.thenB, ctx);\n',
             '        else if (s.elseB) g3ExecStatementsSync(s.elseB, ctx);\n',
@@ -16509,6 +17466,14 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '      case \'repeat\': {\n',
             '        const cnt = Math.max(0, Math.floor(g3Eval(s.count, ctx)));\n',
             '        for (let i = 0; i < cnt; i++) g3ExecStatementsSync(s.body, Object.assign({}, ctx, { i: i }));\n',
+            '        break;\n',
+            '      }\n',
+            '      case \'while\': {\n',
+            '        let guard = 0;\n',
+            '        while (g3Eval(s.cond, ctx)) {\n',
+            '          if (++guard > 1000000) throw new Error(\'Цикл while превысил 1000000 итераций — похоже, условие никогда не станет ложным\');\n',
+            '          g3ExecStatementsSync(s.body, Object.assign({}, ctx, { i: guard - 1 }));\n',
+            '        }\n',
             '        break;\n',
             '      }\n',
             '      case \'forEach\': {\n',
@@ -16529,19 +17494,8 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '  async function g3ExecStatementsAsync(stmts, ctx) { for (const s of stmts) await g3ExecStatementAsync(s, ctx); }\n',
             '  async function g3ExecStatementAsync(s, ctx) {\n',
             '    switch (s.type) {\n',
-            '      case \'assign\': {\n',
-            '        const val = g3Eval(s.expr, ctx);\n',
-            '        const hasLocal = ctx && Object.prototype.hasOwnProperty.call(ctx, s.name);\n',
-            '        if (s.op === \'=\') { if (hasLocal) ctx[s.name] = val; else userVars[s.name] = val; }\n',
-            '        else {\n',
-            '          const cur = hasLocal ? ctx[s.name] : ((typeof userVars[s.name] === \'number\') ? userVars[s.name] : 0);\n',
-            '          let nv = cur;\n',
-            '          if (s.op === \'+=\') nv = cur + val; else if (s.op === \'-=\') nv = cur - val;\n',
-            '          else if (s.op === \'*=\') nv = cur * val; else if (s.op === \'/=\') nv = cur / val;\n',
-            '          if (hasLocal) ctx[s.name] = nv; else userVars[s.name] = nv;\n',
-            '        }\n',
-            '        break;\n',
-            '      }\n',
+            '      case \'assign\': g3ApplySingleAssign(s, ctx); break;\n',
+            '      case \'multiAssign\': for (const a of s.assigns) g3ApplySingleAssign(a, ctx); break;\n',
             '      case \'if\':\n',
             '        if (g3Eval(s.cond, ctx)) await g3ExecStatementsAsync(s.thenB, ctx);\n',
             '        else if (s.elseB) await g3ExecStatementsAsync(s.elseB, ctx);\n',
@@ -16549,6 +17503,14 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '      case \'repeat\': {\n',
             '        const cnt = Math.max(0, Math.floor(g3Eval(s.count, ctx)));\n',
             '        for (let i = 0; i < cnt; i++) await g3ExecStatementsAsync(s.body, Object.assign({}, ctx, { i: i }));\n',
+            '        break;\n',
+            '      }\n',
+            '      case \'while\': {\n',
+            '        let guard = 0;\n',
+            '        while (g3Eval(s.cond, ctx)) {\n',
+            '          if (++guard > 1000000) throw new Error(\'Цикл while превысил 1000000 итераций — похоже, условие никогда не станет ложным\');\n',
+            '          await g3ExecStatementsAsync(s.body, Object.assign({}, ctx, { i: guard - 1 }));\n',
+            '        }\n',
             '        break;\n',
             '      }\n',
             '      case \'forEach\': {\n',
@@ -16609,10 +17571,26 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '  }\n',
             '  function g3Eval(node, ctx) {\n',
             '    switch (node.type) {\n',
+            '      case \'index\': {\n',
+            '        const obj = g3Eval(node.obj, ctx);\n',
+            '        const idx = g3Eval(node.idx, ctx);\n',
+            '        if (obj === undefined || obj === null) throw new Error(\'Индексация пустого значения\');\n',
+            '        return obj[idx];\n',
+            '      }\n',
+            '      case \'ternary\':\n',
+            '        return g3Eval(node.cond, ctx) ? g3Eval(node.a, ctx) : g3Eval(node.b, ctx);\n',
             '      case \'num\': return node.value;\n',
+            '      case \'str\': return node.value;\n',
+            '      case \'bool\': return node.value;\n',
+            '      case \'null\': return null;\n',
             '      case \'array\': return node.items.map(function(it) { return g3Eval(it, ctx); });\n',
-            '      case \'neg\': { const v = g3Eval(node.value, ctx); return g3IsComplex(v) ? g3Complex(-v.re, -v.im) : -v; }\n',
-            '      case \'not\': return !g3Eval(node.value, ctx);\n',
+            '      case \'member\': {\n',
+            '        const obj = g3Eval(node.obj, ctx);\n',
+            '        if (obj === undefined || obj === null) return NaN;\n',
+            '        return obj[node.prop];\n',
+            '      }\n',
+            '      case \'neg\': { const v = g3Eval(node.expr, ctx); return g3IsComplex(v) ? g3Complex(-v.re, -v.im) : -v; }\n',
+            '      case \'not\': return !g3Eval(node.expr, ctx);\n',
             '      case \'ident\':\n',
             '        if (node.name in ctx) return ctx[node.name];\n',
             '        if (node.name === \'time\') return elapsedTime;\n',
@@ -16626,19 +17604,24 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '        if (node.name in userVars) return userVars[node.name];\n',
             '        return NaN;\n',
             '      case \'cmp\': {\n',
-            '        const a = g3Eval(node.left, ctx), b = g3Eval(node.right, ctx);\n',
+            '        const a = g3Eval(node.l, ctx), b = g3Eval(node.r, ctx);\n',
             '        if (node.op === \'==\') return a === b; if (node.op === \'!=\') return a !== b;\n',
             '        if (node.op === \'<\') return a < b; if (node.op === \'>\') return a > b;\n',
             '        if (node.op === \'<=\') return a <= b; if (node.op === \'>=\') return a >= b;\n',
             '        return false;\n',
             '      }\n',
             '      case \'logic\': {\n',
-            '        if (node.op === \'&&\') { const a = g3Eval(node.left, ctx); return a ? g3Eval(node.right, ctx) : a; }\n',
-            '        if (node.op === \'||\') { const a = g3Eval(node.left, ctx); return a ? a : g3Eval(node.right, ctx); }\n',
+            '        if (node.op === \'&&\') { const a = g3Eval(node.l, ctx); return a ? g3Eval(node.r, ctx) : a; }\n',
+            '        if (node.op === \'||\') { const a = g3Eval(node.l, ctx); return a ? a : g3Eval(node.r, ctx); }\n',
             '        return false;\n',
             '      }\n',
+            '      case \'pow\': {\n',
+            '        const b = g3Eval(node.base, ctx), e = g3Eval(node.exp, ctx);\n',
+            '        if (g3IsComplex(b) || g3IsComplex(e)) return g3ComplexPow(b, e);\n',
+            '        return Math.pow(b, e);\n',
+            '      }\n',
             '      case \'bin\': {\n',
-            '        const a = g3Eval(node.left, ctx), b = g3Eval(node.right, ctx);\n',
+            '        const a = g3Eval(node.l, ctx), b = g3Eval(node.r, ctx);\n',
             '        if (g3IsComplex(a) || g3IsComplex(b)) {\n',
             '          if (node.op === \'+\') return g3ComplexAdd(a, b); if (node.op === \'-\') return g3ComplexSub(a, b);\n',
             '          if (node.op === \'*\') return g3ComplexMul(a, b); if (node.op === \'/\') return g3ComplexDiv(a, b);\n',
@@ -16671,14 +17654,9 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '  }\n',
             '  function g3SafeParse(src) { try { return g3Parse(src); } catch (e) { console.warn(\'Ошибка разбора выражения:\', src, e); return null; } }\n',
             '  // ---- Текст под холстом: {выражение} → живые переменные, лёгкий markdown, KaTeX ----\n',
-            '  // Тот же движок разметки, что и в 2D (см. generate2D); отличается только способ\n',
-            '  // вычисления {expr} — здесь через g3Parse/g3Eval (3D-мини-язык), с кэшем разобранных\n',
-            '  // AST по тексту выражения, т.к. вызывается каждый кадр из animate().\n',
-            '  function gcFormatValue(v) {\n',
-            '    if (typeof v === \'number\') { if (!isFinite(v)) return String(v); return String(Math.round(v * 10000) / 10000); }\n',
-            '    if (v === undefined || v === null) return \'\';\n',
-            '    return String(v);\n',
-            '  }\n',
+            '  // Тот же движок разметки, что и в 2D-слое; отличается только способ вычисления\n',
+            '  // {expr} — здесь через g3Parse/g3Eval (3D-мини-язык, gcEvalPlaceholder3D\n',
+            '  // ниже), с кэшем разобранных AST по тексту выражения, т.к. вызывается каждый кадр из animate().\n',
             '  const G3_DESC_AST_CACHE = new Map();\n',
             '  function gcEvalPlaceholder3D(expr) {\n',
             '    let ast = G3_DESC_AST_CACHE.get(expr);\n',
@@ -16686,71 +17664,7 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '    if (!ast) return \'\';\n',
             '    return g3Eval(ast, {});\n',
             '  }\n',
-            '  function gcSubstitutePlaceholders(text, evalFn) {\n',
-            '    return String(text).replace(/\\{([^{}]+)\\}/g, function(m, expr) {\n',
-            '      try { return gcFormatValue(evalFn(expr.trim())); } catch (e) { return \'\'; }\n',
-            '    });\n',
-            '  }\n',
-            '  function gcMdInline(s) {\n',
-            '    s = s.replace(/\\[([^\\]]+)\\]\\(([^)\\s]+)\\)/g, \'<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>\');\n',
-            '    s = s.replace(/\\*\\*([^*]+)\\*\\*/g, \'<b>$1</b>\');\n',
-            '    s = s.replace(/(^|[^*])\\*([^*\\n]+)\\*(?!\\*)/g, \'$1<i>$2</i>\');\n',
-            '    s = s.replace(/`([^`]+)`/g, \'<code>$1</code>\');\n',
-            '    return s;\n',
-            '  }\n',
-            '  function gcMdBlock(text) {\n',
-            '    const lines = text.split(\'\\n\');\n',
-            '    const htmlParts = [];\n',
-            '    let para = [];\n',
-            '    function flushPara() { if (!para.length) return; htmlParts.push(\'<p>\' + gcMdInline(para.join(\'<br>\')) + \'</p>\'); para = []; }\n',
-            '    for (const raw of lines) {\n',
-            '      const trimmed = raw.trim();\n',
-            '      if (trimmed === \'\') { flushPara(); continue; }\n',
-            '      const h = trimmed.match(/^(#{1,4})\\s+(.*)$/);\n',
-            '      if (h) { flushPara(); const level = h[1].length; htmlParts.push(\'<h\' + level + \'>\' + gcMdInline(h[2]) + \'</h\' + level + \'>\'); continue; }\n',
-            '      para.push(trimmed);\n',
-            '    }\n',
-            '    flushPara();\n',
-            '    return htmlParts.join(\'\');\n',
-            '  }\n',
-            '  function gcRenderMathSegments(s) {\n',
-            '    const placeholders = [];\n',
-            '    function stash(html) { const idx = placeholders.length; placeholders.push(html); return \'\\u0000\' + idx + \'\\u0001\'; }\n',
-            '    function renderTex(tex, display) {\n',
-            '      try { return (typeof katex !== \'undefined\') ? katex.renderToString(tex, { throwOnError: false, displayMode: display }) : tex; }\n',
-            '      catch (e) { return tex; }\n',
-            '    }\n',
-            '    let out = s.replace(/\\\\\\[([\\s\\S]+?)\\\\\\]/g, function(m, tex) { return stash(renderTex(tex, true)); });\n',
-            '    out = out.replace(/\\\\\\(([\\s\\S]+?)\\\\\\)/g, function(m, tex) { return stash(renderTex(tex, false)); });\n',
-            '    return { text: out, placeholders: placeholders };\n',
-            '  }\n',
-            '  function gcRestoreMathSegments(html, placeholders) {\n',
-            '    return html.replace(/\\u0000(\\d+)\\u0001/g, function(m, i) { return placeholders[Number(i)]; });\n',
-            '  }\n',
-            '  function gcParseFenceAttrs(attrStr) {\n',
-            '    const attrs = {};\n',
-            '    const re = /(align|indent)\\s*=\\s*"?([a-zA-Z0-9.]+)"?/g;\n',
-            '    let am; while ((am = re.exec(attrStr))) attrs[am[1]] = am[2];\n',
-            '    return attrs;\n',
-            '  }\n',
-            '  function gcRenderDescriptionHtml(raw, defaultAlign) {\n',
-            '    if (!raw) return \'\';\n',
-            '    const mathRes = gcRenderMathSegments(String(raw));\n',
-            '    const src = mathRes.text;\n',
-            '    const fenceRe = /^::([^\\n]*)\\n([\\s\\S]*?)\\n::[ \\t]*$/gm;\n',
-            '    let out = \'\', lastIndex = 0, m;\n',
-            '    function renderPlain(chunk) { if (!chunk.trim()) return \'\'; return \'<div style="text-align:\' + (defaultAlign || \'left\') + \'">\' + gcMdBlock(chunk) + \'</div>\'; }\n',
-            '    while ((m = fenceRe.exec(src))) {\n',
-            '      if (m.index > lastIndex) out += renderPlain(src.slice(lastIndex, m.index));\n',
-            '      const attrs = gcParseFenceAttrs(m[1]);\n',
-            '      const align = attrs.align || defaultAlign || \'left\';\n',
-            '      const indent = attrs.indent ? (parseFloat(attrs.indent) + \'em\') : \'0\';\n',
-            '      out += \'<div style="text-align:\' + align + \';padding-left:\' + indent + \'">\' + gcMdBlock(m[2]) + \'</div>\';\n',
-            '      lastIndex = fenceRe.lastIndex;\n',
-            '    }\n',
-            '    if (lastIndex < src.length) out += renderPlain(src.slice(lastIndex));\n',
-            '    return gcRestoreMathSegments(out, mathRes.placeholders);\n',
-            '  }\n',
+            ...gcSharedMarkdownKatexLines('  '),
             '  let __gcLastDescRendered3D = null;\n',
             '  function updateDescription3D() {\n',
             '    if (!infoText || !GC_DESCRIPTION_RAW) return;\n',
@@ -17887,8 +18801,10 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '  // каждый кадр, поэтому переключатель new UI реально скрывает/показывает объект.\n',
             '  function g3IsActive(activeExpr, fallback) {\n',
             '    if (activeExpr === undefined || activeExpr === null) return fallback !== false;\n',
-            '    if (activeExpr === \'true\') return true;\n',
-            '    if (activeExpr === \'false\') return false;\n',
+            '    // См. glIsActive (2D-движок) — буквальные "true"/"false" не должны навсегда\n',
+            '    // фиксировать видимость и должны уступать текущему (в т.ч. изменённому в рантайме\n',
+            '    // через objName.active = true/false в действии кнопки) значению fallback/obj.active.\n',
+            '    if (activeExpr === \'true\' || activeExpr === \'false\') return fallback !== false;\n',
             '    const raw = (activeExpr.indexOf(\'.\') >= 0) ? g3ResolveDotted(activeExpr) : userVars[activeExpr];\n',
             '    if (raw === undefined || raw === null) return fallback !== false;\n',
             '    return !(raw === false || raw === 0 || raw === \'\');\n',
@@ -17963,114 +18879,23 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '    for (let i = 0; i < parts.length - 1; i++) { if (typeof o[parts[i]] !== \'object\' || o[parts[i]] === null) o[parts[i]] = {}; o = o[parts[i]]; }\n',
             '    o[parts[parts.length - 1]] = value;\n',
             '  }\n',
+            ...gcSharedUIBuilderLines('  '),
             '  function createUI() {\n',
-            '    uiContainer.innerHTML = \'\';\n',
-            '    uiOverlay.innerHTML = \'\';\n',
-            '    for (const ui of uiData) {\n',
-            '      const wrapper = document.createElement(\'div\'); wrapper.className = \'ui-item\';\n',
-            '      if (ui.active === false) wrapper.style.display = \'none\';\n',
-            '      const positioned = ui.x !== null && ui.x !== undefined && ui.y !== null && ui.y !== undefined;\n',
-            '      if (positioned) {\n',
-            '        wrapper.style.position = \'absolute\';\n',
-            '        wrapper.style.left = ui.x + \'%\'; wrapper.style.top = ui.y + \'%\';\n',
-            '        wrapper.style.pointerEvents = \'auto\';\n',
-            '        wrapper.style.zIndex = (ui.layer !== undefined && ui.layer !== null) ? ui.layer : 100;\n',
-            '        if (ui.width) wrapper.style.width = ui.width + \'px\';\n',
-            '        if (ui.height) wrapper.style.height = ui.height + \'px\';\n',
-            '      }\n',
-            '      if (ui.type === \'button\') {\n',
-            '        const btn = document.createElement(\'button\');\n',
-            '        btn.textContent = ui.label || \'Button\';\n',
-            '        btn.style.backgroundColor = ui.color || \'', theme.defaultColor, '\';\n',
-            '        btn.style.color = ui.textcolor || \'#ffffff\';\n',
-            '        btn.style.borderRadius = (ui.radius !== null && ui.radius !== undefined ? ui.radius : 4) + \'px\';\n',
-            '        if (positioned) { btn.style.width = \'100%\'; btn.style.height = \'100%\'; }\n',
-            '        btn.addEventListener(\'click\', async function() { await g3RunAction(ui.action || \'\'); });\n',
-            '        wrapper.appendChild(btn);\n',
-            '      } else if (ui.type === \'toggle\') {\n',
-            '        const checkbox = document.createElement(\'input\'); checkbox.type = \'checkbox\';\n',
-            '        let initialChecked = ui.default !== undefined ? ui.default : false;\n',
-            '        if (ui.variable) { const val = g3GetVar(ui.variable); if (val !== undefined) initialChecked = !!val; }\n',
-            '        checkbox.checked = initialChecked;\n',
-            '        if (ui.variable) {\n',
-            '          if (g3GetVar(ui.variable) === undefined) g3SetVar(ui.variable, initialChecked);\n',
-            '          checkbox.addEventListener(\'change\', function() { g3SetVar(ui.variable, this.checked); });\n',
-            '        }\n',
-            '        const label = document.createElement(\'label\'); label.textContent = ui.label || \'\'; label.style.color = ui.textcolor || \'', theme.defaultColor, '\';\n',
-            '        wrapper.appendChild(checkbox); wrapper.appendChild(label);\n',
-            '      } else if (ui.type === \'input\') {\n',
-            '        const input = document.createElement(\'input\'); input.type = ui.inputtype === \'formula\' ? \'text\' : (ui.inputtype || \'text\');\n',
-            '        if (input.type === \'number\') {\n',
-            '          if (ui.min !== null) input.min = ui.min; if (ui.max !== null) input.max = ui.max;\n',
-            '          input.step = (ui.step !== null && ui.step !== undefined) ? ui.step : \'any\';\n',
-            '          if (ui.stepper === false) input.classList.add(\'no-stepper\');\n',
-            '        }\n',
-            '        if (ui.inputtype === \'formula\') {\n',
-            '          const funcName = ui.funcName || ui.variable || \'userFunc\';\n',
-            '          const defaultExpr = (ui.default !== undefined && ui.default !== null) ? String(ui.default) : \'x\';\n',
-            '          input.value = defaultExpr; input.placeholder = \'например: x^2 + sin(x)\';\n',
-            '          const errLabel = document.createElement(\'div\');\n',
-            '          errLabel.style.color = \'#ff0000\'; errLabel.style.fontSize = \'0.75rem\'; errLabel.style.marginTop = \'2px\'; errLabel.style.display = \'none\';\n',
-            '          function registerFormula() {\n',
-            '            try {\n',
-            '              const ast = g3Parse(input.value);\n',
-            '              G3_FUNCS[funcName] = { params: [\'x\'], ast: ast };\n',
-            '              g3UserFuncVersion++;\n',
-            '              input.style.borderColor = \'\'; errLabel.style.display = \'none\';\n',
-            '            } catch (e) {\n',
-            '              input.style.borderColor = \'#ff0000\';\n',
-            '              errLabel.textContent = \'Ошибка: \' + e.message; errLabel.style.display = \'block\';\n',
-            '            }\n',
-            '          }\n',
-            '          registerFormula();\n',
-            '          input.addEventListener(\'input\', registerFormula); input.addEventListener(\'change\', registerFormula);\n',
-            '          const label = document.createElement(\'label\'); label.textContent = ui.label || \'\'; label.style.color = ui.textcolor || \'', theme.defaultColor, '\';\n',
-            '          wrapper.appendChild(label); wrapper.appendChild(input); wrapper.appendChild(errLabel);\n',
-            '          if (positioned) uiOverlay.appendChild(wrapper); else uiContainer.appendChild(wrapper);\n',
-            '          continue;\n',
-            '        }\n',
-            '        let defaultVal = ui.default !== undefined ? ui.default : (input.type === \'number\' ? 0 : \'\');\n',
-            '        if (ui.variable) { const val = g3GetVar(ui.variable); if (val !== undefined) defaultVal = val; }\n',
-            '        input.value = defaultVal;\n',
-            '        if (ui.variable) {\n',
-            '          if (g3GetVar(ui.variable) === undefined) g3SetVar(ui.variable, defaultVal);\n',
-            '          function clampAndUpdate() {\n',
-            '            let val = input.value;\n',
-            '            if (input.type === \'number\') {\n',
-            '              let num = parseFloat(val);\n',
-            '              if (isNaN(num)) { const cur = g3GetVar(ui.variable); input.value = (cur !== undefined) ? cur : defaultVal; return; }\n',
-            '              if (ui.min !== null && num < ui.min) num = ui.min;\n',
-            '              if (ui.max !== null && num > ui.max) num = ui.max;\n',
-            '              val = num; input.value = num;\n',
-            '            }\n',
-            '            g3SetVar(ui.variable, val);\n',
-            '          }\n',
-            '          input.addEventListener(\'input\', clampAndUpdate); input.addEventListener(\'change\', clampAndUpdate);\n',
-            '        }\n',
-            '        const label = document.createElement(\'label\'); label.textContent = ui.label || \'\'; label.style.color = ui.textcolor || \'', theme.defaultColor, '\';\n',
-            '        wrapper.appendChild(label); wrapper.appendChild(input);\n',
-            '      } else if (ui.type === \'slider\') {\n',
-            '        const input = document.createElement(\'input\'); input.type = \'range\';\n',
-            '        input.min = ui.min; input.max = ui.max; input.step = ui.step || 1;\n',
-            '        let defaultVal = (ui.default !== undefined && ui.default !== null) ? ui.default : ui.min;\n',
-            '        if (ui.variable) { const val = g3GetVar(ui.variable); if (val !== undefined) defaultVal = val; }\n',
-            '        input.value = defaultVal;\n',
-            '        input.style.accentColor = ui.color || \'', theme.defaultColor, '\';\n',
-            '        if (positioned) input.style.width = \'100%\';\n',
-            '        const valueLabel = document.createElement(\'span\'); valueLabel.textContent = String(defaultVal); valueLabel.style.color = ui.textcolor || \'', theme.defaultColor, '\'; valueLabel.style.marginLeft = \'6px\';\n',
-            '        if (ui.variable) {\n',
-            '          if (g3GetVar(ui.variable) === undefined) g3SetVar(ui.variable, defaultVal);\n',
-            '          input.addEventListener(\'input\', function() {\n',
-            '            const num = parseFloat(this.value);\n',
-            '            g3SetVar(ui.variable, num);\n',
-            '            valueLabel.textContent = String(num);\n',
-            '          });\n',
-            '        }\n',
-            '        const label2 = document.createElement(\'label\'); label2.textContent = ui.label || \'\'; label2.style.color = ui.textcolor || \'', theme.defaultColor, '\';\n',
-            '        wrapper.appendChild(label2); wrapper.appendChild(input); wrapper.appendChild(valueLabel);\n',
-            '      }\n',
-            '      if (positioned) uiOverlay.appendChild(wrapper); else uiContainer.appendChild(wrapper);\n',
-            '    }\n',
+            '    gcBuildUI(uiData, {\n',
+            '      clearOverlay: true,\n',
+            '      trackWrapper: false,\n',
+            '      numberStepSnap: false,\n',
+            '      numberInputBlur: false,\n',
+            '      getVar: function(name) { return g3GetVar(name); },\n',
+            '      setVar: function(name, val) { g3SetVar(name, val); },\n',
+            '      onInteract: function() {},\n',
+            '      runButtonAction: async function(action) { await g3RunAction(action); },\n',
+            '      parseFormula: function(src) { return g3Parse(src); },\n',
+            '      registerUserFunc: function(name, ast) { G3_FUNCS[name] = { params: [\'x\'], ast: ast }; g3UserFuncVersion++; },\n',
+            '      onFormulaError: function() {},\n',
+            '      defaultColor: function() { return \'', theme.defaultColor, '\'; },\n',
+            '      buttonTextColor: function() { return \'#ffffff\'; },\n',
+            '    });\n',
             '  }\n',
             '  createUI();\n',
             '\n',
@@ -18134,6 +18959,328 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '      po.edges.geometry.attributes.position.needsUpdate = true;\n',
             '      po.edges.geometry.computeBoundingSphere();\n',
             '    }\n',
+            '  }\n',
+            '\n',
+            '  // ---------- Точки "на чём-то" в 3D (line/curve/construct/transform/plane/figure) ----------\n',
+            '  // Раньше generate3D просто ставил такие точки в статичный pos = (0,0,0), заданный при\n',
+            '  // компиляции, и никогда не пересчитывал их — в отличие от 2D, где updatePointsOnLinesAndCircles\n',
+            '  // делает это каждый кадр. Теперь то же самое для 3D: пересчитываем позицию каждого такого\n',
+            '  // pointObj из ТЕКУЩИХ позиций объектов, на которые он ссылается (см. вызов в animate()\n',
+            '  // сразу после видимости точек и до обновления линий/граней/плоскостей, которые уже\n',
+            '  // читают точки как готовые).\n',
+            '  function g3EvalNum(src, fallback) {\n',
+            '    if (src === undefined || src === null) return fallback;\n',
+            '    try {\n',
+            '      const ast = g3SafeParse(String(src));\n',
+            '      if (!ast) return fallback;\n',
+            '      const v = g3Eval(ast, {});\n',
+            '      return (typeof v === \'number\' && isFinite(v)) ? v : fallback;\n',
+            '    } catch (e) { return fallback; }\n',
+            '  }\n',
+            '  // Ортонормированный базис плоскости по трём её точкам: origin = p0, e1 — вдоль p0->p1,\n',
+            '  // e2 — перпендикуляр в той же плоскости (см. updateInfPlane выше — идентичная идея,\n',
+            '  // здесь как отдельная функция, т.к. нужна и для draw InfPlane, и для Figure3D).\n',
+            '  function gcPlaneBasis3(p0, p1, p2) {\n',
+            '    const ux = p1.x - p0.x, uy = p1.y - p0.y, uz = p1.z - p0.z;\n',
+            '    const wx = p2.x - p0.x, wy = p2.y - p0.y, wz = p2.z - p0.z;\n',
+            '    let nx = uy * wz - uz * wy, ny = uz * wx - ux * wz, nz = ux * wy - uy * wx;\n',
+            '    const nlen = Math.hypot(nx, ny, nz);\n',
+            '    const ulen = Math.hypot(ux, uy, uz);\n',
+            '    if (nlen < 1e-9 || ulen < 1e-9) return null;\n',
+            '    nx /= nlen; ny /= nlen; nz /= nlen;\n',
+            '    const e1x = ux / ulen, e1y = uy / ulen, e1z = uz / ulen;\n',
+            '    const e2x = ny * e1z - nz * e1y, e2y = nz * e1x - nx * e1z, e2z = nx * e1y - ny * e1x;\n',
+            '    return { ox: p0.x, oy: p0.y, oz: p0.z, e1x: e1x, e1y: e1y, e1z: e1z, e2x: e2x, e2y: e2y, e2z: e2z };\n',
+            '  }\n',
+            '  function update3DConstrainedPoints() {\n',
+            '    for (const p of pointObjs) {\n',
+            '      if (p.line) {\n',
+            '        const lo = lineObjs.find(function(l) { return l.name === p.line; });\n',
+            '        if (!lo) continue;\n',
+            '        const a = lo.a.mesh.position, b = lo.b.mesh.position;\n',
+            '        const t = p.extend ? p.t : Math.min(1, Math.max(0, p.t));\n',
+            '        p.mesh.position.set(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t, a.z + (b.z - a.z) * t);\n',
+            '      } else if (p.curve) {\n',
+            '        const co = curveObjs.find(function(c) { return c.name === p.curve; });\n',
+            '        if (!co) continue;\n',
+            '        const cp = gcCurvePoint3D(co, Math.min(1, Math.max(0, p.t)));\n',
+            '        if (cp) p.mesh.position.set(cp.x, cp.y, cp.z);\n',
+            '      } else if (p.plane || p.onFigure) {\n',
+            '        let pts = null;\n',
+            '        if (p.plane) {\n',
+            '          const po = infPlaneObjs.find(function(x) { return x.name === p.plane; });\n',
+            '          if (po) pts = po.pts.map(function(o) { return o.mesh.position; });\n',
+            '        } else {\n',
+            '          const fo = figureObjs.find(function(x) { return x.name === p.onFigure; });\n',
+            '          if (fo) pts = (fo.elements || []).filter(function(e) { return e && e.mesh; }).map(function(e) { return e.mesh.position; });\n',
+            '        }\n',
+            '        if (!pts || pts.length < 3) continue;\n',
+            '        const basis = gcPlaneBasis3(pts[0], pts[1], pts[2]);\n',
+            '        if (!basis) continue;\n',
+            '        const u = g3EvalNum(p.uExpr, 0), v = g3EvalNum(p.vExpr, 0);\n',
+            '        p.mesh.position.set(\n',
+            '          basis.ox + u * basis.e1x + v * basis.e2x,\n',
+            '          basis.oy + u * basis.e1y + v * basis.e2y,\n',
+            '          basis.oz + u * basis.e1z + v * basis.e2z\n',
+            '        );\n',
+            '      } else if (p.construct) {\n',
+            '        const vertex = findPoint(p.vertex);\n',
+            '        const baseLine = lineObjs.find(function(l) { return l.name === p.base; });\n',
+            '        if (!vertex || !baseLine) continue;\n',
+            '        const A = vertex.mesh.position, B = baseLine.a.mesh.position, C = baseLine.b.mesh.position;\n',
+            '        if (p.construct === \'median\') {\n',
+            '          p.mesh.position.set((B.x + C.x) / 2, (B.y + C.y) / 2, (B.z + C.z) / 2);\n',
+            '        } else if (p.construct === \'altitude\') {\n',
+            '          const dx = C.x - B.x, dy = C.y - B.y, dz = C.z - B.z;\n',
+            '          const len2 = dx * dx + dy * dy + dz * dz;\n',
+            '          const tt = len2 < 1e-12 ? 0 : ((A.x - B.x) * dx + (A.y - B.y) * dy + (A.z - B.z) * dz) / len2;\n',
+            '          p.mesh.position.set(B.x + dx * tt, B.y + dy * tt, B.z + dz * tt);\n',
+            '        } else if (p.construct === \'bisector\') {\n',
+            '          const ab = Math.hypot(A.x - B.x, A.y - B.y, A.z - B.z);\n',
+            '          const ac = Math.hypot(A.x - C.x, A.y - C.y, A.z - C.z);\n',
+            '          const sum = ab + ac;\n',
+            '          const tt = sum < 1e-12 ? 0.5 : ab / sum;\n',
+            '          p.mesh.position.set(B.x + (C.x - B.x) * tt, B.y + (C.y - B.y) * tt, B.z + (C.z - B.z) * tt);\n',
+            '        }\n',
+            '      } else if (p.transform) {\n',
+            '        const src = findPoint(p.transformSource);\n',
+            '        if (!src) continue;\n',
+            '        const srcPos = src.mesh.position;\n',
+            '        if (p.transform === \'reflect\') {\n',
+            '          const overLine = lineObjs.find(function(l) { return l.name === p.transformOver; });\n',
+            '          if (overLine) {\n',
+            '            const A = overLine.a.mesh.position, B = overLine.b.mesh.position;\n',
+            '            const dx = B.x - A.x, dy = B.y - A.y, dz = B.z - A.z;\n',
+            '            const len2 = dx * dx + dy * dy + dz * dz;\n',
+            '            const apx = srcPos.x - A.x, apy = srcPos.y - A.y, apz = srcPos.z - A.z;\n',
+            '            const tt = len2 < 1e-12 ? 0 : (apx * dx + apy * dy + apz * dz) / len2;\n',
+            '            const projx = A.x + dx * tt, projy = A.y + dy * tt, projz = A.z + dz * tt;\n',
+            '            p.mesh.position.set(2 * projx - srcPos.x, 2 * projy - srcPos.y, 2 * projz - srcPos.z);\n',
+            '          } else {\n',
+            '            const overPoint = findPoint(p.transformOver);\n',
+            '            if (overPoint) {\n',
+            '              const O = overPoint.mesh.position;\n',
+            '              p.mesh.position.set(2 * O.x - srcPos.x, 2 * O.y - srcPos.y, 2 * O.z - srcPos.z);\n',
+            '            }\n',
+            '          }\n',
+            '        } else if (p.transform === \'rotate\') {\n',
+            '          const around = findPoint(p.transformAround);\n',
+            '          if (around) {\n',
+            '            const angleDeg = g3EvalNum(p.transformExpr, 0);\n',
+            '            const rad = angleDeg * Math.PI / 180;\n',
+            '            const axisRaw = p.transformAxis || { x: 0, y: 1, z: 0 };\n',
+            '            const alen = Math.hypot(axisRaw.x, axisRaw.y, axisRaw.z) || 1;\n',
+            '            const ax = axisRaw.x / alen, ay = axisRaw.y / alen, az = axisRaw.z / alen;\n',
+            '            const O = around.mesh.position;\n',
+            '            const rx = srcPos.x - O.x, ry = srcPos.y - O.y, rz = srcPos.z - O.z;\n',
+            '            // Формула Родрига: поворот вектора (rx,ry,rz) вокруг единичной оси (ax,ay,az) на угол rad.\n',
+            '            const cs = Math.cos(rad), sn = Math.sin(rad);\n',
+            '            const dot = rx * ax + ry * ay + rz * az;\n',
+            '            const crossx = ay * rz - az * ry, crossy = az * rx - ax * rz, crossz = ax * ry - ay * rx;\n',
+            '            const rrx = rx * cs + crossx * sn + ax * dot * (1 - cs);\n',
+            '            const rry = ry * cs + crossy * sn + ay * dot * (1 - cs);\n',
+            '            const rrz = rz * cs + crossz * sn + az * dot * (1 - cs);\n',
+            '            p.mesh.position.set(O.x + rrx, O.y + rry, O.z + rrz);\n',
+            '          }\n',
+            '        } else if (p.transform === \'homothety\') {\n',
+            '          const center = findPoint(p.transformCenter);\n',
+            '          if (center) {\n',
+            '            const k = g3EvalNum(p.transformExpr, 1);\n',
+            '            const ky = (p.transformExprY !== undefined && p.transformExprY !== null) ? g3EvalNum(p.transformExprY, k) : k;\n',
+            '            const kz = (p.transformExprZ !== undefined && p.transformExprZ !== null) ? g3EvalNum(p.transformExprZ, k) : k;\n',
+            '            const O = center.mesh.position;\n',
+            '            p.mesh.position.set(O.x + k * (srcPos.x - O.x), O.y + ky * (srcPos.y - O.y), O.z + kz * (srcPos.z - O.z));\n',
+            '          }\n',
+            '        } else if (p.transform === \'translate\') {\n',
+            '          const dxVal = g3EvalNum(p.transformDx, 0);\n',
+            '          const dyVal = g3EvalNum(p.transformDy, 0);\n',
+            '          const dzVal = g3EvalNum(p.transformDz, 0);\n',
+            '          p.mesh.position.set(srcPos.x + dxVal, srcPos.y + dyVal, srcPos.z + dzVal);\n',
+            '        }\n',
+            '      }\n',
+            '    }\n',
+            '  }\n',
+            '\n',
+            '  // ---------- Столкновения в 3D ----------\n',
+            '  // Раньше при перетаскивании точки её позиция ставилась напрямую под курсор без каких-\n',
+            '  // либо проверок — точки свободно проходили друг сквозь друга и внутрь примитивов.\n',
+            '  // Теперь, как и в 2D (resolveCollision), позиция при перетаскивании прогоняется через\n',
+            '  // resolveCollision3D — она "выталкивает" кандидатную позицию наружу от всего, с чем\n',
+            '  // включено столкновение у ЭТОЙ точки (те же поля collideWithPoints/Lines/Curves/Figures/\n',
+            '  // Boundary, что и в 2D, общий парсер, + новое collideWithPrimitives только для 3D —\n',
+            '  // столкновение с телами Primitive). Всё по умолчанию гибко отключается на уровне точки:\n',
+            '  // new Point3D { collision = false; ... } или collideWithPrimitives = false и т.п.\n',
+            '  const MIN_DIST_3D = 1.0;\n',
+            '  function canCollideWith3D(a, b) {\n',
+            '    const groupA = a.collisionGroup || 0, groupB = b.collisionGroup || 0;\n',
+            '    if (a.collisionMask && a.collisionMask.length > 0 && !a.collisionMask.includes(groupB)) return false;\n',
+            '    if (b.collisionMask && b.collisionMask.length > 0 && !b.collisionMask.includes(groupA)) return false;\n',
+            '    return true;\n',
+            '  }\n',
+            '  function pushAwayFrom3D(pos, obstacle, minDist) {\n',
+            '    const dx = pos.x - obstacle.x, dy = pos.y - obstacle.y, dz = pos.z - obstacle.z;\n',
+            '    const len = Math.hypot(dx, dy, dz);\n',
+            '    if (len >= minDist) return pos;\n',
+            '    if (len < 1e-6) return { x: obstacle.x + minDist, y: obstacle.y, z: obstacle.z };\n',
+            '    const scale = minDist / len;\n',
+            '    return { x: obstacle.x + dx * scale, y: obstacle.y + dy * scale, z: obstacle.z + dz * scale };\n',
+            '  }\n',
+            '  function closestPointOnSegment3D(p, a, b) {\n',
+            '    const dx = b.x - a.x, dy = b.y - a.y, dz = b.z - a.z;\n',
+            '    const len2 = dx * dx + dy * dy + dz * dz;\n',
+            '    let t = len2 < 1e-12 ? 0 : ((p.x - a.x) * dx + (p.y - a.y) * dy + (p.z - a.z) * dz) / len2;\n',
+            '    t = Math.max(0, Math.min(1, t));\n',
+            '    return { x: a.x + dx * t, y: a.y + dy * t, z: a.z + dz * t };\n',
+            '  }\n',
+            '  function closestPointOnPolyline3D(p, pts) {\n',
+            '    let best = null, bestD = Infinity;\n',
+            '    for (let i = 0; i < pts.length - 1; i++) {\n',
+            '      const c = closestPointOnSegment3D(p, pts[i], pts[i + 1]);\n',
+            '      const d = Math.hypot(p.x - c.x, p.y - c.y, p.z - c.z);\n',
+            '      if (d < bestD) { bestD = d; best = c; }\n',
+            '    }\n',
+            '    return best;\n',
+            '  }\n',
+            '  // Столкновение точки с телом Primitive: тест и ближайшая точка поверхности считаются\n',
+            '  // в ЛОКАЛЬНОЙ системе координат примитива (учитывает его pos/rotate), используя\n',
+            '  // параметры уже построенной THREE-геометрии (mesh.geometry.parameters) — те же самые\n',
+            '  // числа, что и заданы в скрипте (radius/width/height/depth/tube и т.п.), без дублирования\n',
+            '  // полей. Платоновы тела (тетраэдр/октаэдр/додекаэдр/икосаэдр) и pyramid/prism (правильная\n',
+            '  // призма/пирамида через CylinderGeometry/ConeGeometry с боковыми гранями) приближаются\n',
+            '  // описанной сферой/тем же цилиндром-конусом по circumradius — исключающая зона чуть шире\n',
+            '  // самой фигуры у рёбер/вершин, но НИКОГДА не даёт точке провалиться внутрь, что и нужно.\n',
+            '  const _g3colLocal = new THREE.Vector3(), _g3colWorld = new THREE.Vector3(), _g3colInv = new THREE.Matrix4();\n',
+            '  function primitiveClosestPoint3D(pr, worldPos) {\n',
+            '    const params = pr.mesh.geometry.parameters;\n',
+            '    if (!params) return null;\n',
+            '    pr.mesh.updateMatrixWorld();\n',
+            '    _g3colInv.copy(pr.mesh.matrixWorld).invert();\n',
+            '    _g3colLocal.set(worldPos.x, worldPos.y, worldPos.z).applyMatrix4(_g3colInv);\n',
+            '    const Lx = _g3colLocal.x, Ly = _g3colLocal.y, Lz = _g3colLocal.z;\n',
+            '    let lc = null, inside = false;\n',
+            '    if (pr.type === \'sphere\' || pr.type === \'tetrahedron\' || pr.type === \'octahedron\' || pr.type === \'dodecahedron\' || pr.type === \'icosahedron\') {\n',
+            '      const r = params.radius;\n',
+            '      const d = Math.hypot(Lx, Ly, Lz);\n',
+            '      inside = d < r;\n',
+            '      lc = d < 1e-9 ? { x: 0, y: 0, z: r } : { x: Lx * (r / d), y: Ly * (r / d), z: Lz * (r / d) };\n',
+            '    } else if (pr.type === \'cube\' || pr.type === \'box\') {\n',
+            '      const hw = params.width / 2, hh = params.height / 2, hd = params.depth / 2;\n',
+            '      inside = Math.abs(Lx) < hw && Math.abs(Ly) < hh && Math.abs(Lz) < hd;\n',
+            '      if (inside) {\n',
+            '        const px = hw - Math.abs(Lx), py = hh - Math.abs(Ly), pz = hd - Math.abs(Lz);\n',
+            '        if (px <= py && px <= pz) lc = { x: (Lx < 0 ? -hw : hw), y: Ly, z: Lz };\n',
+            '        else if (py <= pz) lc = { x: Lx, y: (Ly < 0 ? -hh : hh), z: Lz };\n',
+            '        else lc = { x: Lx, y: Ly, z: (Lz < 0 ? -hd : hd) };\n',
+            '      } else {\n',
+            '        lc = { x: Math.max(-hw, Math.min(hw, Lx)), y: Math.max(-hh, Math.min(hh, Ly)), z: Math.max(-hd, Math.min(hd, Lz)) };\n',
+            '      }\n',
+            '    } else if (pr.type === \'cylinder\' || pr.type === \'prism\') {\n',
+            '      const r = (params.radiusTop !== undefined) ? Math.max(params.radiusTop, params.radiusBottom) : params.radius;\n',
+            '      const hh = params.height / 2;\n',
+            '      const radial = Math.hypot(Lx, Lz);\n',
+            '      inside = radial < r && Math.abs(Ly) < hh;\n',
+            '      const rs = radial < 1e-9 ? 1 : r / radial;\n',
+            '      if (inside) {\n',
+            '        if ((r - radial) <= (hh - Math.abs(Ly))) lc = { x: Lx * rs, y: Ly, z: Lz * rs };\n',
+            '        else lc = { x: Lx, y: (Ly < 0 ? -hh : hh), z: Lz };\n',
+            '      } else {\n',
+            '        const cy = Math.max(-hh, Math.min(hh, Ly));\n',
+            '        lc = radial < 1e-9 ? { x: r, y: cy, z: 0 } : { x: Lx * rs, y: cy, z: Lz * rs };\n',
+            '      }\n',
+            '    } else if (pr.type === \'cone\' || pr.type === \'pyramid\') {\n',
+            '      const r = params.radius, h = params.height, hh = h / 2;\n',
+            '      const radial = Math.hypot(Lx, Lz);\n',
+            '      const localR = function(yy) { return Math.max(0, r * (hh - yy) / h); };\n',
+            '      inside = Math.abs(Ly) < hh && radial < localR(Ly);\n',
+            '      if (inside) {\n',
+            '        const targetR = localR(Ly);\n',
+            '        const rs = radial < 1e-9 ? 1 : targetR / radial;\n',
+            '        lc = radial < 1e-9 ? { x: targetR, y: Ly, z: 0 } : { x: Lx * rs, y: Ly, z: Lz * rs };\n',
+            '      } else {\n',
+            '        const cy = Math.max(-hh, Math.min(hh, Ly));\n',
+            '        const targetR = localR(cy);\n',
+            '        const rs = radial < 1e-9 ? 1 : targetR / radial;\n',
+            '        lc = radial < 1e-9 ? { x: targetR, y: cy, z: 0 } : { x: Lx * rs, y: cy, z: Lz * rs };\n',
+            '      }\n',
+            '    } else if (pr.type === \'torus\') {\n',
+            '      const R = params.radius, tube = params.tube;\n',
+            '      // THREE.TorusGeometry: центральное кольцо лежит в локальной плоскости XY, ось "дырки" — Z.\n',
+            '      const planarR = Math.hypot(Lx, Ly);\n',
+            '      const rs = planarR < 1e-9 ? 0 : (R / planarR);\n',
+            '      const ringX = planarR < 1e-9 ? R : Lx * rs, ringY = planarR < 1e-9 ? 0 : Ly * rs;\n',
+            '      const dx2 = Lx - ringX, dy2 = Ly - ringY, dz2 = Lz;\n',
+            '      const dTube = Math.hypot(dx2, dy2, dz2);\n',
+            '      inside = dTube < tube;\n',
+            '      if (dTube < 1e-9) lc = { x: ringX, y: ringY, z: tube };\n',
+            '      else { const s = tube / dTube; lc = { x: ringX + dx2 * s, y: ringY + dy2 * s, z: dz2 * s }; }\n',
+            '    } else {\n',
+            '      return null;\n',
+            '    }\n',
+            '    _g3colWorld.set(lc.x, lc.y, lc.z).applyMatrix4(pr.mesh.matrixWorld);\n',
+            '    return { point: { x: _g3colWorld.x, y: _g3colWorld.y, z: _g3colWorld.z }, inside: inside };\n',
+            '  }\n',
+            '  function resolveCollision3D(p, newPos) {\n',
+            '    if (p.collision === false || window.collisionsEnabled === false) return newPos;\n',
+            '    let pos = { x: newPos.x, y: newPos.y, z: newPos.z };\n',
+            '    const margin = p.collisionMargin || 0;\n',
+            '    for (let iter = 0; iter < 3; iter++) {\n',
+            '      if (p.collideWithPoints !== false) {\n',
+            '        for (const other of pointObjs) {\n',
+            '          if (other === p || !other.active) continue;\n',
+            '          if (other.collision === false || other.collideWithPoints === false) continue;\n',
+            '          if (!canCollideWith3D(p, other)) continue;\n',
+            '          pos = pushAwayFrom3D(pos, other.mesh.position, MIN_DIST_3D + margin + (other.collisionMargin || 0));\n',
+            '        }\n',
+            '      }\n',
+            '      if (p.collideWithLines) {\n',
+            '        for (const lo of lineObjs) {\n',
+            '          if (!lo.active) continue;\n',
+            '          const c = closestPointOnSegment3D(pos, lo.a.mesh.position, lo.b.mesh.position);\n',
+            '          pos = pushAwayFrom3D(pos, c, MIN_DIST_3D + margin);\n',
+            '        }\n',
+            '      }\n',
+            '      if (p.collideWithCurves) {\n',
+            '        for (const co of curveObjs) {\n',
+            '          if (!co.mesh.visible) continue;\n',
+            '          const pts = [];\n',
+            '          for (let i = 0; i <= 30; i++) { const cp = gcCurvePoint3D(co, i / 30); if (cp) pts.push(cp); }\n',
+            '          if (pts.length < 2) continue;\n',
+            '          const c = closestPointOnPolyline3D(pos, pts);\n',
+            '          if (c) pos = pushAwayFrom3D(pos, c, MIN_DIST_3D + margin);\n',
+            '        }\n',
+            '      }\n',
+            '      if (p.collideWithFigures) {\n',
+            '        for (const fo of figureObjs) {\n',
+            '          if (!fo.active) continue;\n',
+            '          const pts = (fo.elements || []).filter(function(e) { return e && e.mesh; }).map(function(e) { return e.mesh.position; });\n',
+            '          if (pts.length < 2) continue;\n',
+            '          const c = closestPointOnPolyline3D(pos, pts.concat([pts[0]]));\n',
+            '          if (c) pos = pushAwayFrom3D(pos, c, MIN_DIST_3D + margin);\n',
+            '        }\n',
+            '      }\n',
+            '      if (p.collideWithPrimitives) {\n',
+            '        for (const pr of primitiveObjs) {\n',
+            '          if (!pr.active) continue;\n',
+            '          const info = primitiveClosestPoint3D(pr, pos);\n',
+            '          if (!info) continue;\n',
+            '          if (info.inside) {\n',
+            '            const cx = pr.mesh.position.x, cy = pr.mesh.position.y, cz = pr.mesh.position.z;\n',
+            '            let nx = info.point.x - cx, ny = info.point.y - cy, nz = info.point.z - cz;\n',
+            '            const nlen = Math.hypot(nx, ny, nz) || 1;\n',
+            '            const eps = Math.max(1e-4, margin);\n',
+            '            pos = { x: info.point.x + (nx / nlen) * eps, y: info.point.y + (ny / nlen) * eps, z: info.point.z + (nz / nlen) * eps };\n',
+            '          } else if (margin > 0) {\n',
+            '            pos = pushAwayFrom3D(pos, info.point, margin);\n',
+            '          }\n',
+            '        }\n',
+            '      }\n',
+            '      if (p.collideWithBoundary !== false) {\n',
+            '        pos.x = Math.max(-fieldW / 2, Math.min(fieldW / 2, pos.x));\n',
+            '        pos.y = Math.max(-fieldH / 2, Math.min(fieldH / 2, pos.y));\n',
+            '        pos.z = Math.max(-fieldD / 2, Math.min(fieldD / 2, pos.z));\n',
+            '      }\n',
+            '    }\n',
+            '    return pos;\n',
             '  }\n',
             '\n',
             '  // ---------- draw InfLine — 3D-альтернатива (Задача: 3D-аналоги для всех объектов).\n',
@@ -18356,6 +19503,17 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '    canvas.width = pxW; canvas.height = pxH;\n',
             '    const ctx = canvas.getContext(\'2d\');\n',
             '    const texture = new THREE.CanvasTexture(canvas);\n',
+            // Размеры панелей (384, 512x384, ...) не являются степенями двойки, а дефолтный
+            // minFilter у THREE.CanvasTexture — LinearMipmapLinearFilter, для которого нужны
+            // мипмапы, а мипмапы в WebGL1 требуют POT-текстуру. В результате three.js молча
+            // масштабировал КАЖДУЮ панель к ближайшей степени двойки (384 -> 256, то есть
+            // теряла треть разрешения) и предупреждал об этом в консоли, а лишнее
+            // перемасштабирование холста повторялось при каждом обновлении текстуры.
+            // LinearFilter без мипмапов — штатное решение для NPOT: панель и так смотрит
+            // в камеру почти фронтально, мипмапы ей не нужны.
+            '    texture.minFilter = THREE.LinearFilter;\n',
+            '    texture.magFilter = THREE.LinearFilter;\n',
+            '    texture.generateMipmaps = false;\n',
             '    let mesh;\n',
             '    if (billboard !== false) {\n',
             '      mesh = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true }));\n',
@@ -19846,7 +21004,9 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '      setMouseNDC(clientX, clientY);\n',
             '      raycaster.setFromCamera(mouseNDC, camera);\n',
             '      if (raycaster.ray.intersectPlane(dragPlane, dragPlaneHit)) {\n',
-            '        draggedPoint.mesh.position.copy(dragPlaneHit).add(dragOffset);\n',
+            '        const candidate3D = dragPlaneHit.clone().add(dragOffset);\n',
+            '        const resolved3D = resolveCollision3D(draggedPoint, candidate3D);\n',
+            '        draggedPoint.mesh.position.set(resolved3D.x, resolved3D.y, resolved3D.z);\n',
             '      }\n',
             '      return;\n',
             '    }\n',
@@ -19963,7 +21123,13 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '    try { updateDescription3D(); } catch (e) { console.warn(\'описание:\', e); }\n',
             '    clusters.forEach(applyClusterTransform3D);\n',
             '    for (const p of pointObjs) { p.active = g3IsObjectActive(p); p.mesh.visible = p.active; }\n',
+            '    update3DConstrainedPoints();\n',
             '    for (const pr of primitiveObjs) { pr.active = g3IsObjectActive(pr); pr.mesh.visible = pr.active && !pr.hiddenByDerived; }\n',
+            '    for (const fo of fractal3DObjs) {\n',
+            '      fo.active = g3IsObjectActive(fo);\n',
+            '      fo.mesh.visible = fo.active;\n',
+            '      if (fo.active) { fo.mesh.updateMatrixWorld(); fo.mat.uniforms.uInvModelMatrix.value.copy(fo.mesh.matrixWorld).invert(); }\n',
+            '    }\n',
             '    for (const dr of derivedObjs) {\n',
             '      dr.active = g3IsObjectActive(dr);\n',
             '      const vis = dr.active && !dr.hiddenByDerived;\n',
@@ -20047,16 +21213,26 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             let lineNum = 0;
 
             const codeWithoutComments = removeComments(codeBlock);
-            const { vars, errors: varErrors } = parseVariablesAndExpressions(codeWithoutComments);
-            errors.push(...varErrors);
 
             const { startCodes, updateCodes } = extractMethodBlocks(codeWithoutComments);
             const funcsData = findFuncDeclarations(codeWithoutComments).map(d => ({ name: d.name, params: d.params, bodyExpr: d.bodyExpr }));
             const procsData = findAllProcDeclarations(codeWithoutComments).map(d => ({ name: d.name, params: d.params, body: d.body, isVoid: d.isVoid }));
 
-            let codeForParams = removeMethodBlocks(codeWithoutComments);
-            codeForParams = removeFuncDeclarations(codeForParams);
-            codeForParams = removeProcDeclarations(codeForParams);
+            // Глобальные переменные сцены считаются ТОЛЬКО по коду вне тел Start/Update и
+            // Function/Void. Объявления вида "float y = x + 1;" внутри тела — локальные: они
+            // исполняются рантаймом (у него своя область видимости) и здесь, на этапе
+            // компиляции, вычислены быть не могут в принципе — параметры функции (x, v) и
+            // переменные цикла (i) на этот момент не существуют. Раньше vars разбирались по
+            // полному коду, и любая такая локальная переменная давала ложную ошибку
+            // "Неизвестная переменная: x", а совпадение имени с глобальной — ложную
+            // "Переменная r уже объявлена". eraseSpanKeepingLines сохраняет число строк, так
+            // что номера строк в оставшихся сообщениях об ошибках не сдвигаются.
+            let codeForVars = removeMethodBlocks(codeWithoutComments);
+            codeForVars = removeProcDeclarations(codeForVars);
+            const { vars, errors: varErrors } = parseVariablesAndExpressions(codeForVars);
+            errors.push(...varErrors);
+
+            let codeForParams = removeFuncDeclarations(codeForVars);
             codeForParams = removeObjectBlocks(codeForParams);
 
             const lines = codeForParams.split('\n');
@@ -20084,14 +21260,38 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             // "new Point { color = #ff0000 }") — здесь та же конвенция для цветов заголовка.
             const colorKeys = ['field color', 'frame color', 'description color'];
 
+            // Разбор параметров сцены построчный, и раньше с конца строки снимался только
+            // ОДИН завершающий ';'. Из-за этого "field width = 800; field height = 600;"
+            // разбиралось как key='field width', value='800; field height = 600', а
+            // parseFloat молча возвращал 800 — второй и все последующие параметры строки
+            // бесследно пропадали (высота оставалась дефолтной, show axes — выключенным),
+            // без единого сообщения об ошибке. Теперь строка честно делится на отдельные
+            // выражения по ';' ВНЕ кавычек (внутри кавычек ';' — часть значения, например
+            // description = "a; b"), и каждое разбирается самостоятельно. Номер строки для
+            // сообщений об ошибках у всех выражений строки общий — он и так указывает на
+            // нужную строку исходника.
+            function splitParamStatements(line) {
+                const parts = [];
+                let cur = '', q = '';
+                for (let i = 0; i < line.length; i++) {
+                    const c = line[i];
+                    if (q) { cur += c; if (c === q) q = ''; continue; }
+                    if (c === '"' || c === "'") { q = c; cur += c; continue; }
+                    if (c === ';') { parts.push(cur); cur = ''; continue; }
+                    cur += c;
+                }
+                parts.push(cur);
+                return parts.map(s => s.trim()).filter(s => s !== '');
+            }
+
             for (let rawLine of lines) {
                 lineNum++;
-                let line = rawLine.trim();
-                if (line === '') continue;
-                if (line.startsWith('//')) continue;
-                if (/^\s*(int|float|string|bool|Vector2|color|list)\s+/.test(line)) continue;
-                if (line.endsWith(';')) line = line.slice(0, -1).trim();
+                const lineTrimmed = rawLine.trim();
+                if (lineTrimmed === '') continue;
+                if (lineTrimmed.startsWith('//')) continue;
+                if (/^\s*(int|float|string|bool|Vector2|color|list)\s+/.test(lineTrimmed)) continue;
 
+                for (const line of splitParamStatements(lineTrimmed)) {
                 const eqIndex = line.indexOf('=');
                 if (eqIndex === -1) {
                     if (line && !line.startsWith('[') && !line.startsWith(']')) {
@@ -20111,7 +21311,6 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
                     errors.push({ line: lineNum, message: `Неизвестный ключ "${key}"` });
                     continue;
                 }
-
                 let parsedValue;
                 const isQuoted = (value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"));
                 if (colorKeys.includes(key)) {
@@ -20168,6 +21367,7 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
                     }
                 }
                 params[key] = parsedValue;
+                }
             }
 
             for (let req of requiredKeys) {
