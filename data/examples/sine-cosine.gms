@@ -9,8 +9,8 @@ func c(x) = cos(freq * x);
 draw Function {
     name = "sinGraph";
     f = "s";
-    xmin = -10;
-    xmax = 10;
+    xmin = -200;
+    xmax = 200;
     segments = 300;
     color = #3b82f6;
     thickness = 3;
@@ -19,8 +19,8 @@ draw Function {
 draw Function {
     name = "cosGraph";
     f = "c";
-    xmin = -10;
-    xmax = 10;
+    xmin = -200;
+    xmax = 200;
     segments = 300;
     color = #f59e0b;
     thickness = 3;
@@ -30,7 +30,7 @@ new UI {
     type = slider;
     label = "частота";
     variable = freq;
-    min = 0.5;
+    min = 0;
     max = 4;
     default = 1;
 }
