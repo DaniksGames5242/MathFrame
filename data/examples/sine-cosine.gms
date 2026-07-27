@@ -11,7 +11,7 @@ draw Function {
     f = "s";
     xmin = -200;
     xmax = 200;
-    segments = 300;
+    segments = 6000;
     color = #3b82f6;
     thickness = 3;
 }
@@ -21,7 +21,7 @@ draw Function {
     f = "c";
     xmin = -200;
     xmax = 200;
-    segments = 300;
+    segments = 6000;
     color = #f59e0b;
     thickness = 3;
 }
