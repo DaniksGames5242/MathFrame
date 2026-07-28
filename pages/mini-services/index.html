@@ -570,12 +570,37 @@
 
 <div id="app-footer"></div>
 
+<!-- ===== Подключение общих скриптов ===== -->
 <script>
   var PAGE_ROOT = '../';
 </script>
 <script src="../assets/js/auth.js"></script>
 <script src="../assets/js/common.js"></script>
 
+<!-- ===== Дополнительный вызов рендеринга шапки/подвала ===== -->
+<script>
+  // Гарантируем, что шапка и подвал отобразятся даже если common.js загрузился с задержкой
+  function ensureHeaderFooter() {
+    if (typeof renderHeader === 'function') {
+      renderHeader();
+    } else {
+      setTimeout(ensureHeaderFooter, 100);
+    }
+    if (typeof renderFooter === 'function') {
+      renderFooter();
+    } else {
+      setTimeout(ensureHeaderFooter, 100);
+    }
+  }
+  // Ждём, пока DOM загрузится, чтобы не перекрыть рендеринг от common.js
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', ensureHeaderFooter);
+  } else {
+    ensureHeaderFooter();
+  }
+</script>
+
+<!-- ===== Модуль с логикой сервисов ===== -->
 <script type="importmap">
 {
   "imports": {
@@ -586,10 +611,6 @@
 
 <script type="module">
 import { compile } from '../../assets/js/GMS-script-compiler.js';
-
-// ===== Принудительно рендерим шапку и подвал (на случай, если DOMContentLoaded уже прошёл) =====
-if (typeof renderHeader === 'function') renderHeader();
-if (typeof renderFooter === 'function') renderFooter();
 
 // ===== Утилиты =====
 function safeEval(expr) {
