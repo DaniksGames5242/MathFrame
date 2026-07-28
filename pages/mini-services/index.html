@@ -5,10 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Мини‑сервисы — MathFrame</title>
   <link rel="stylesheet" href="../assets/css/common.css" />
-  <!-- KaTeX -->
   <link rel="stylesheet" href="../assets/lib/katex/katex.min.css" />
   <script src="../assets/lib/katex/katex.min.js"></script>
-
   <style>
     /* ===== Общие стили ===== */
     :root {
@@ -154,16 +152,23 @@
       color: #ef4444;
     }
 
-    /* ===== Предпросмотр формулы ===== */
+    /* ===== Редактор формул ===== */
+    .formula-editor {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
     .formula-preview {
-      margin: 0.5rem 0 0.8rem;
       padding: 0.5rem;
       background: rgba(255,255,255,0.05);
       border-radius: 0.4rem;
-      min-height: 2rem;
+      min-height: 2.5rem;
       font-size: 1.2rem;
       text-align: center;
       border: 1px dashed var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
     .formula-preview .katex-display { margin: 0.2rem 0; }
 
@@ -172,6 +177,17 @@
       flex-wrap: wrap;
       gap: 0.3rem;
       margin: 0.5rem 0 0.8rem;
+      padding: 0.3rem;
+      background: rgba(255,255,255,0.03);
+      border-radius: 0.5rem;
+      border: 1px solid var(--border);
+    }
+    .math-toolbar .group-label {
+      font-size: 0.7rem;
+      color: var(--text-secondary);
+      padding: 0.2rem 0.5rem;
+      display: flex;
+      align-items: center;
     }
     .math-toolbar button {
       padding: 0.2rem 0.7rem;
@@ -186,6 +202,15 @@
     .math-toolbar button:hover {
       background: rgba(255,255,255,0.12);
       border-color: var(--accent);
+    }
+    .math-toolbar button:active {
+      transform: scale(0.95);
+    }
+
+    .math-toolbar .sep {
+      width: 1px;
+      background: var(--border);
+      margin: 0.2rem 0.3rem;
     }
 
     /* ===== Iframe графиков ===== */
@@ -216,6 +241,7 @@
       .service-row { flex-direction: column; align-items: stretch; }
       .service-row .field-group { flex: 1 1 auto; }
       .tab-btn { font-size: 0.85rem; padding: 0.5rem 1rem; }
+      .math-toolbar button { font-size: 0.8rem; padding: 0.15rem 0.5rem; }
     }
   </style>
 </head>
@@ -241,34 +267,50 @@
     <div class="tab-panel active" id="panel-calc">
       <div class="service-card">
         <h3>🔢 Численный калькулятор</h3>
-        <div class="math-toolbar" id="calcToolbar">
-          <button data-ins="sin(">sin</button>
-          <button data-ins="cos(">cos</button>
-          <button data-ins="tan(">tan</button>
-          <button data-ins="sqrt(">√</button>
-          <button data-ins="exp(">e^</button>
-          <button data-ins="log(">log</button>
-          <button data-ins="abs(">| |</button>
-          <button data-ins="pi">π</button>
-          <button data-ins="e">e</button>
-          <button data-ins="^">^</button>
-          <button data-ins="/">/</button>
-          <button data-ins="*">*</button>
-          <button data-ins="+">+</button>
-          <button data-ins="-">-</button>
-          <button data-ins="(">(</button>
-          <button data-ins=")">)</button>
-        </div>
-        <div class="service-row">
-          <div class="field-group">
-            <label for="calcExpr">Выражение</label>
-            <input type="text" id="calcExpr" value="2 * sin(pi/4) + 3^2" placeholder="например: 2*sin(pi/4) + 3^2" />
+        <div class="formula-editor">
+          <div class="math-toolbar" id="calcToolbar">
+            <span class="group-label">Функции</span>
+            <button data-ins="sin(">sin</button>
+            <button data-ins="cos(">cos</button>
+            <button data-ins="tan(">tan</button>
+            <button data-ins="asin(">asin</button>
+            <button data-ins="acos(">acos</button>
+            <button data-ins="atan(">atan</button>
+            <button data-ins="sqrt(">√</button>
+            <button data-ins="exp(">e^</button>
+            <button data-ins="log(">log</button>
+            <button data-ins="abs(">| |</button>
+            <div class="sep"></div>
+            <span class="group-label">Операторы</span>
+            <button data-ins="^">x^y</button>
+            <button data-ins="/">÷</button>
+            <button data-ins="*">×</button>
+            <button data-ins="+">+</button>
+            <button data-ins="-">−</button>
+            <div class="sep"></div>
+            <span class="group-label">Скобки</span>
+            <button data-ins="(">(</button>
+            <button data-ins=")">)</button>
+            <div class="sep"></div>
+            <span class="group-label">Константы</span>
+            <button data-ins="pi">π</button>
+            <button data-ins="e">e</button>
+            <div class="sep"></div>
+            <button data-ins="clear" class="btn small" style="background:rgba(239,68,68,0.2);border-color:#ef4444;">Очистить</button>
           </div>
-          <button class="btn primary" id="calcBtn">Вычислить</button>
+
+          <div class="service-row">
+            <div class="field-group" style="flex:3;">
+              <label for="calcExpr">Выражение</label>
+              <input type="text" id="calcExpr" value="2 * sin(pi/4) + 3^2" placeholder="например: 2*sin(pi/4) + 3^2" />
+            </div>
+            <button class="btn primary" id="calcBtn">Вычислить</button>
+          </div>
+
+          <div class="formula-preview" id="calcPreview">\( 2 \cdot \sin(\pi/4) + 3^2 \)</div>
+          <div class="result-box" id="calcResult">Введите выражение и нажмите «Вычислить».</div>
+          <div class="hint">Поддерживаются: +, -, *, /, ^ (степень), sin, cos, tan, asin, acos, atan, sqrt, exp, log, abs, pi, e, скобки. Используйте кнопки для быстрой вставки.</div>
         </div>
-        <div class="formula-preview" id="calcPreview">\( 2 \cdot \sin(\pi/4) + 3^2 \)</div>
-        <div class="result-box" id="calcResult">Введите выражение и нажмите «Вычислить».</div>
-        <div class="hint">Поддерживаются: +, -, *, /, ^ (степень), sin, cos, tan, asin, acos, atan, sqrt, exp, log, abs, pi, e, скобки.</div>
       </div>
     </div>
 
@@ -292,7 +334,8 @@
           <button data-ins="(">(</button>
           <button data-ins=")">)</button>
           <button data-ins="frac" title="Дробь">a/b</button>
-          <button data-ins="int" title="Интеграл">∫</button>
+          <button data-ins="integrate" title="Интеграл">∫</button>
+          <button data-ins="diff" title="Производная">d/dx</button>
         </div>
         <div class="service-row">
           <div class="field-group">
@@ -317,7 +360,7 @@
         </div>
         <div class="formula-preview" id="symPreview">\( x^2 + 2x + 1 \)</div>
         <div class="result-box" id="symResult">Введите выражение и выберите действие.</div>
-        <div class="hint">Используется символьный движок: simplify, expand, diff, integrate, integrateDefinite.</div>
+        <div class="hint">Используется символьный движок GMS: simplify, expand, diff, integrate, integrateDefinite.</div>
       </div>
 
       <div class="service-card">
@@ -541,7 +584,11 @@ import { compile } from '../../assets/js/GMS-script-compiler.js';
 
 // ===== Утилиты =====
 function safeEval(expr) {
-  const sanitized = expr.replace(/[^0-9+\-*/()., eEpiPIaAcCoOsStTlLrRqQdDfFbB]/g, '');
+  // Разрешённые символы: цифры, + - * / ( ) . , пробелы, e, pi, названия функций
+  // Удаляем всё, что не разрешено
+  const allowedChars = /[^0-9+\-*/()., eEpiPIaAcCoOsStTlLrRqQdDfFbB]/g;
+  const sanitized = expr.replace(allowedChars, '');
+  // Разрешённые функции и константы
   const allowed = {
     sin: Math.sin, cos: Math.cos, tan: Math.tan,
     asin: Math.asin, acos: Math.acos, atan: Math.atan,
@@ -549,9 +596,15 @@ function safeEval(expr) {
     abs: Math.abs, pow: Math.pow,
     PI: Math.PI, pi: Math.PI, E: Math.E, e: Math.E,
   };
+  // Проверяем, что выражение содержит только допустимые токены
   const tokenRegex = new RegExp(`^(?:[0-9.]+|${Object.keys(allowed).join('|')}|[+\\-*/()^, ])+$`, 'i');
-  if (!tokenRegex.test(sanitized)) throw new Error('Недопустимые символы');
-  const fn = new Function(...Object.keys(allowed), `return (${sanitized.replace(/\^/g, '**')});`);
+  if (!tokenRegex.test(sanitized)) {
+    throw new Error('Недопустимые символы в выражении');
+  }
+  // Заменяем ^ на ** для степени
+  const exprForEval = sanitized.replace(/\^/g, '**');
+  // Создаём функцию с доступом к allowed
+  const fn = new Function(...Object.keys(allowed), `return (${exprForEval});`);
   return fn(...Object.values(allowed));
 }
 
@@ -634,7 +687,19 @@ renderPreview('calcExpr', 'calcPreview');
 renderPreview('symExpr', 'symPreview');
 renderPreview('eqExpr', 'eqPreview');
 
-// ===== Кнопки вставки в поля =====
+// ===== Вставка в поле с позиционированием курсора =====
+function insertText(input, text, cursorOffset) {
+  const start = input.selectionStart;
+  const end = input.selectionEnd;
+  const val = input.value;
+  const newVal = val.slice(0, start) + text + val.slice(end);
+  input.value = newVal;
+  const newPos = start + (cursorOffset !== undefined ? cursorOffset : text.length);
+  input.focus();
+  input.setSelectionRange(newPos, newPos);
+  input.dispatchEvent(new Event('input'));
+}
+
 function setupToolbar(toolbarId, targetId) {
   const toolbar = document.getElementById(toolbarId);
   const input = document.getElementById(targetId);
@@ -644,36 +709,35 @@ function setupToolbar(toolbarId, targetId) {
     if (!btn) return;
     const ins = btn.dataset.ins;
     if (!ins) return;
-    const start = input.selectionStart;
-    const end = input.selectionEnd;
-    let text = input.value;
-    let insert = '';
+    if (ins === 'clear') {
+      input.value = '';
+      input.dispatchEvent(new Event('input'));
+      input.focus();
+      return;
+    }
+    let text = ins;
+    let cursorOffset = text.length;
+    // Специальные шаблоны
     if (ins === 'frac') {
-      insert = '()/()';
-    } else if (ins === 'int') {
-      insert = 'integrate(())';
-    } else {
-      insert = ins;
-      if (ins.endsWith('(')) {
-        // если функция с открывающей скобкой, выделим место для аргумента
-        // вставим скобку и поставим курсор внутрь
-        insert = ins + ' )';
-      }
+      text = '()/()';
+      cursorOffset = 1; // после первой открывающей скобки
+    } else if (ins === 'integrate') {
+      text = 'integrate(, )';
+      cursorOffset = 10; // после "integrate("
+    } else if (ins === 'diff') {
+      text = 'diff(, x)';
+      cursorOffset = 5; // после "diff("
+    } else if (ins.endsWith('(')) {
+      // sin(, cos(, ...)
+      cursorOffset = ins.length; // после открывающей скобки
+    } else if (ins === '^') {
+      text = '^';
+      cursorOffset = 1;
+    } else if (ins === 'sqrt(') {
+      text = 'sqrt()';
+      cursorOffset = 5; // после "sqrt("
     }
-    const newText = text.slice(0, start) + insert + text.slice(end);
-    input.value = newText;
-    // установим курсор в нужное место (внутрь скобок или после вставки)
-    let newPos = start + insert.length;
-    if (ins.endsWith('(')) {
-      newPos = start + ins.length; // после sin( поставить курсор перед )
-    } else if (ins === 'frac') {
-      newPos = start + 1; // внутрь первой скобки
-    } else if (ins === 'int') {
-      newPos = start + 11; // после integrate( 
-    }
-    input.focus();
-    input.setSelectionRange(newPos, newPos);
-    input.dispatchEvent(new Event('input'));
+    insertText(input, text, cursorOffset);
   });
 }
 
@@ -684,6 +748,11 @@ setupToolbar('algebraToolbar', 'symExpr');
 document.getElementById('calcBtn').addEventListener('click', () => {
   const expr = document.getElementById('calcExpr').value.trim();
   const resultBox = document.getElementById('calcResult');
+  if (!expr) {
+    resultBox.textContent = 'Введите выражение.';
+    resultBox.classList.add('error');
+    return;
+  }
   try {
     const result = safeEval(expr);
     resultBox.textContent = `Результат: ${formatNumber(result)}`;
