@@ -1,7 +1,4 @@
 [
-space = 2D
-title = "sin(x) и cos(x)"
-undertitle = "Синус и косинус"
 description = "Меняйте частоту и смотрите, как синус и косинус сдвинуты друг относительно друга"
 
 float freq = 1;
@@ -12,9 +9,9 @@ func c(x) = cos(freq * x);
 draw Function {
     name = "sinGraph";
     f = "s";
-    xmin = -10;
-    xmax = 10;
-    segments = 300;
+    xmin = -200;
+    xmax = 200;
+    segments = 6000;
     color = #3b82f6;
     thickness = 3;
 }
@@ -22,9 +19,9 @@ draw Function {
 draw Function {
     name = "cosGraph";
     f = "c";
-    xmin = -10;
-    xmax = 10;
-    segments = 300;
+    xmin = -200;
+    xmax = 200;
+    segments = 6000;
     color = #f59e0b;
     thickness = 3;
 }
@@ -33,7 +30,7 @@ new UI {
     type = slider;
     label = "частота";
     variable = freq;
-    min = 0.5;
+    min = 0;
     max = 4;
     default = 1;
 }

@@ -1,7 +1,4 @@
 [
-space = 2D
-title = "Теорема Пифагора"
-undertitle = "Прямоугольный треугольник"
 description = "Перетащите точку C и посмотрите, как соотносятся катеты и гипотенуза"
 
 new Point { name = "A"; pos = (-4, -2); color = #3b82f6; text = true("A"); dynamic = true }
