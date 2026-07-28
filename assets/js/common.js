@@ -247,7 +247,6 @@ function animateThemeChange(theme, callback) {
     const mask = document.createElement('div');
     mask.style.position = 'fixed';
     mask.style.top = '0';
-    mask.style.left = '0';
     mask.style.width = '100%';
     mask.style.height = '100%';
     mask.style.zIndex = '9999';
@@ -302,7 +301,11 @@ function updateThemeImages(mode) {
         let src = mode === 'light' ? img.dataset.lightSrc : img.dataset.darkSrc;
         if (src) {
             if (!src.startsWith('http://') && !src.startsWith('https://')) {
-                src = PAGE_ROOT + src;
+                // Если путь не абсолютный и не начинается с '/', то он относительный.
+                // Мы используем абсолютные пути, поэтому добавляем '/', если его нет.
+                if (!src.startsWith('/')) {
+                    src = '/' + src;
+                }
             }
             img.src = src;
         }
@@ -326,7 +329,40 @@ function updateAllThemeSelections(theme) {
 let currentUser = null;
 let populateSettingsRef = null;
 
-// ===== ПРОВЕРКА БЛОКИРОВКИ (исправлена: ошибки игнорируются) =====
+// ===== ФУНКЦИЯ ПРЕОБРАЗОВАНИЯ ОШИБОК FIREBASE (расширенная) =====
+function getFirebaseErrorMessage(error) {
+    const code = error.code;
+    switch (code) {
+        // Email/пароль
+        case 'auth/email-already-in-use': return 'Почта уже используется в существующем аккаунте.';
+        case 'auth/invalid-email': return 'Некорректный формат email.';
+        case 'auth/weak-password': return 'Пароль слишком слабый (минимум 6 символов).';
+        case 'auth/user-not-found': return 'Пользователь с таким email не найден.';
+        case 'auth/wrong-password': return 'Неверный пароль.';
+        case 'auth/too-many-requests': return 'Слишком много попыток. Попробуйте позже.';
+        case 'auth/network-request-failed': return 'Ошибка сети. Проверьте подключение.';
+        case 'auth/internal-error': return 'Внутренняя ошибка сервера. Попробуйте позже.';
+        case 'auth/user-disabled': return 'Аккаунт отключён. Обратитесь к администратору.';
+        case 'auth/operation-not-allowed': return 'Вход через email/пароль отключён.';
+        case 'auth/requires-recent-login': return 'Требуется повторная авторизация.';
+
+        // Телефон
+        case 'auth/invalid-verification-code': return 'Неверный код подтверждения.';
+        case 'auth/code-expired': return 'Код подтверждения истёк. Запросите новый.';
+        case 'auth/invalid-phone-number': return 'Неверный формат номера телефона.';
+        case 'auth/missing-phone-number': return 'Введите номер телефона.';
+        case 'auth/quota-exceeded': return 'Превышен лимит отправки SMS. Попробуйте позже.';
+
+        // Общие
+        case 'auth/popup-closed-by-user': return 'Окно входа было закрыто. Попробуйте снова.';
+        case 'auth/cancelled-popup-request': return 'Запрос входа был отменён.';
+        case 'auth/account-exists-with-different-credential': return 'Аккаунт уже существует с другим способом входа.';
+
+        default: return error.message || 'Неизвестная ошибка.';
+    }
+}
+
+// ===== ПРОВЕРКА БЛОКИРОВКИ =====
 async function checkUserBanned(user) {
     if (!user) return false;
     try {
@@ -334,8 +370,6 @@ async function checkUserBanned(user) {
         const doc = await firebase.firestore().collection('bannedUsers').doc(user.uid).get();
         return doc.exists;
     } catch (e) {
-        // Если нет прав на чтение (например, ещё не настроены правила), считаем, что пользователь не забанен.
-        // Ошибка не выводится, чтобы не засорять консоль.
         return false;
     }
 }
@@ -343,7 +377,7 @@ async function checkUserBanned(user) {
 // ===== ОБНОВЛЕНИЕ UI ПОЛЬЗОВАТЕЛЯ =====
 async function updateUIForAuth(user) {
     if (user) {
-        // Проверяем, подтверждён ли email (если вход через email/пароль)
+        // Проверка email только для парольных аккаунтов
         if (user.providerData.some(p => p.providerId === 'password') && !user.emailVerified) {
             await window.Auth.logout();
             user = null;
@@ -351,7 +385,8 @@ async function updateUIForAuth(user) {
             if (msgEl) {
                 msgEl.className = 'auth-message info';
                 msgEl.innerHTML = `Пожалуйста, подтвердите email, перейдя по ссылке в письме. 
-                    <span class="resend-link" id="resend-verification-link">Отправить повторно</span>`;
+                    Если письмо не пришло, проверьте папку «Спам» или нажмите 
+                    <span class="resend-link" id="resend-verification-link">Отправить повторно</span>.`;
                 msgEl.style.display = 'block';
                 const resendLink = document.getElementById('resend-verification-link');
                 if (resendLink) {
@@ -359,10 +394,10 @@ async function updateUIForAuth(user) {
                         try {
                             await window.Auth.sendEmailVerification();
                             msgEl.className = 'auth-message success';
-                            msgEl.innerHTML = 'Письмо отправлено повторно. Проверьте почту.';
+                            msgEl.innerHTML = 'Письмо отправлено повторно. Проверьте почту (и папку «Спам»).';
                         } catch (e) {
                             msgEl.className = 'auth-message error';
-                            msgEl.textContent = 'Ошибка: ' + e.message;
+                            msgEl.textContent = 'Ошибка: ' + getFirebaseErrorMessage(e);
                         }
                     };
                 }
@@ -617,7 +652,8 @@ function injectAuthModal() {
                 await window.Auth.logout();
                 setMessageHTML(
                     `Пожалуйста, подтвердите email, перейдя по ссылке в письме. 
-                    <span class="resend-link" id="resend-verification-link">Отправить повторно</span>`,
+                    Если письмо не пришло, проверьте папку «Спам» или нажмите 
+                    <span class="resend-link" id="resend-verification-link">Отправить повторно</span>.`,
                     'info'
                 );
                 const resendLink = document.getElementById('resend-verification-link');
@@ -625,9 +661,9 @@ function injectAuthModal() {
                     resendLink.onclick = async () => {
                         try {
                             await window.Auth.sendEmailVerification();
-                            setMessage('Письмо отправлено повторно. Проверьте почту.', 'success');
+                            setMessage('Письмо отправлено повторно. Проверьте почту (и папку «Спам»).', 'success');
                         } catch (e) {
-                            setMessage('Ошибка: ' + e.message, 'error');
+                            setMessage('Ошибка: ' + getFirebaseErrorMessage(e), 'error');
                         }
                     };
                 }
@@ -635,7 +671,7 @@ function injectAuthModal() {
             }
             closeAuth();
         } catch (error) {
-            setMessage(error.message, 'error');
+            setMessage(getFirebaseErrorMessage(error), 'error');
         }
     }
 
@@ -646,11 +682,16 @@ function injectAuthModal() {
             if (nickname) {
                 await result.user.updateProfile({ displayName: nickname });
             }
-            await result.user.sendEmailVerification();
-            setMessage('Регистрация успешна! На вашу почту отправлено письмо для подтверждения.', 'success');
-            showLoginTab();
+            try {
+                await result.user.sendEmailVerification();
+                setMessage('Регистрация успешна! На вашу почту отправлено письмо для подтверждения. Проверьте также папку «Спам».', 'success');
+                showLoginTab();
+            } catch (verifyError) {
+                setMessage('Аккаунт создан, но не удалось отправить письмо подтверждения: ' + getFirebaseErrorMessage(verifyError), 'error');
+                showLoginTab();
+            }
         } catch (error) {
-            setMessage(error.message, 'error');
+            setMessage(getFirebaseErrorMessage(error), 'error');
         }
     }
 
@@ -662,9 +703,9 @@ function injectAuthModal() {
         }
         try {
             await window.Auth.resetPassword(email);
-            setMessage('Письмо для сброса пароля отправлено.', 'success');
+            setMessage('Письмо для сброса пароля отправлено. Проверьте почту (и папку «Спам»).', 'success');
         } catch (error) {
-            setMessage(error.message, 'error');
+            setMessage(getFirebaseErrorMessage(error), 'error');
         }
     }
 
@@ -688,7 +729,7 @@ function injectAuthModal() {
                 phoneVerifySection.classList.add('active');
                 clearMessage();
             } catch (error) {
-                setMessage('Ошибка отправки кода: ' + error.message, 'error');
+                setMessage('Ошибка отправки кода: ' + getFirebaseErrorMessage(error), 'error');
                 recaptchaVerifier = null;
             }
         }
@@ -715,7 +756,7 @@ function injectAuthModal() {
             await confirmationResult.confirm(code);
             closeAuth();
         } catch (error) {
-            setMessage('Неверный код: ' + error.message, 'error');
+            setMessage('Неверный код: ' + getFirebaseErrorMessage(error), 'error');
         }
     });
 
@@ -738,7 +779,7 @@ function injectAuthModal() {
             await window.Auth.loginWithGoogle();
             closeAuth();
         } catch (e) {
-            setMessage('Ошибка входа через Google: ' + e.message, 'error');
+            setMessage('Ошибка входа через Google: ' + getFirebaseErrorMessage(e), 'error');
         }
     });
 
@@ -748,7 +789,7 @@ function injectAuthModal() {
             await window.Auth.loginWithApple();
             closeAuth();
         } catch (e) {
-            setMessage('Ошибка входа через Apple: ' + e.message, 'error');
+            setMessage('Ошибка входа через Apple: ' + getFirebaseErrorMessage(e), 'error');
         }
     });
 }
@@ -837,7 +878,7 @@ function injectSettingsModal() {
             alert('Аккаунт удалён.');
             closeSettings();
         } catch (e) {
-            alert('Ошибка при удалении аккаунта: ' + e.message);
+            alert('Ошибка при удалении аккаунта: ' + getFirebaseErrorMessage(e));
         }
     });
 
@@ -936,7 +977,7 @@ function injectSettingsModal() {
                     updateAccountCircle(currentUser);
                     populateSettings(currentUser);
                 }
-            } catch (e) { alert('Ошибка: ' + e.message); }
+            } catch (e) { alert('Ошибка: ' + getFirebaseErrorMessage(e)); }
         }
         usernameEditField.style.display = 'none';
     });
@@ -945,13 +986,13 @@ function injectSettingsModal() {
         if (!currentUser || !currentUser.email) return alert('Email не найден');
         try {
             await window.Auth.resetPassword(currentUser.email);
-            alert('Письмо для сброса пароля отправлено');
-        } catch (e) { alert('Ошибка: ' + e.message); }
+            alert('Письмо для сброса пароля отправлено. Проверьте почту (и папку «Спам»).');
+        } catch (e) { alert('Ошибка: ' + getFirebaseErrorMessage(e)); }
     });
 
     logoutBtn.addEventListener('click', async () => {
         if (!window.Auth) return;
-        try { await window.Auth.logout(); closeSettings(); } catch (e) { alert('Ошибка: ' + e.message); }
+        try { await window.Auth.logout(); closeSettings(); } catch (e) { alert('Ошибка: ' + getFirebaseErrorMessage(e)); }
     });
 
     window.openSettings = openSettings;
@@ -962,33 +1003,32 @@ function renderHeader() {
     const header = document.getElementById('app-header');
     if (!header) return;
 
+    // Массив ссылок с абсолютными путями от корня
     const navLinks = [
-        { href: 'pages/spravochnik.html', text: 'Справочник' },
-        { href: 'pages/mini-services.html', text: 'Мини‑сервисы' },
-        { href: 'pages/forum.html', text: 'Форум' },
-        { href: 'pages/ai-agent.html', text: 'AI‑агент' },
-        { href: 'pages/playground.html', text: 'Песочница' },
+        { href: '/spravochnik/', text: 'Справочник' },
+        { href: '/mini-services/', text: 'Мини‑сервисы' },
+        { href: '/forum/', text: 'Форум' },
+        { href: '/ai-agent/', text: 'AI‑агент' },
+        { href: '/playground/', text: 'Песочница' },
     ];
 
     const currentPath = window.location.pathname;
-    const currentFile = currentPath.split('/').pop() || 'index.html';
 
     const navHTML = navLinks
         .map(link => {
-            const isActive = link.href === currentFile ||
-                            (currentFile === '' && link.href === 'index.html') ||
-                            currentPath.endsWith(link.href);
+            // Простая проверка активности: если текущий путь начинается с link.href (кроме случая, когда link.href == '/')
+            const isActive = currentPath === link.href || currentPath.startsWith(link.href);
             const activeClass = isActive ? ' active' : '';
-            return `<a href="${PAGE_ROOT}${link.href}" class="nav-link${activeClass}">${link.text}</a>`;
+            return `<a href="${link.href}" class="nav-link${activeClass}">${link.text}</a>`;
         })
         .join('');
 
     header.innerHTML = `
-    <a href="${PAGE_ROOT}" class="logo-container">
-      <img src="${PAGE_ROOT}assets/img/logo.png" alt="MathFrame" class="logo-icon"
-           data-light-src="assets/img/logo-light.png" data-dark-src="assets/img/logo.png" />
+    <a href="/" class="logo-container">
+      <img src="/assets/img/logo.png" alt="MathFrame" class="logo-icon"
+           data-light-src="/assets/img/logo-light.png" data-dark-src="/assets/img/logo.png" />
     </a>
-    <nav id="app-nav">${navHTML}<a href="${PAGE_ROOT}pages/admin/admin.html" id="admin-nav-link" class="nav-link" style="display:none;">Админ панель</a></nav>
+    <nav id="app-nav">${navHTML}<a href="/admin/" id="admin-nav-link" class="nav-link" style="display:none;">Админ панель</a></nav>
     <div class="header-right">
       <div class="account-circle" id="account-circle" title="Аккаунт"></div>
       <button class="nav-toggle" id="nav-toggle" aria-label="Меню" aria-expanded="false">
