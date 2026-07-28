@@ -1,0 +1,18 @@
+{
+  "rewrites": [
+    { "source": "/", "destination": "/index.html" },
+    { "source": "/spravochnik", "destination": "/pages/spravochnik/index.html" },
+    { "source": "/spravochnik/", "destination": "/pages/spravochnik/index.html" },
+    { "source": "/forum", "destination": "/pages/forum/index.html" },
+    { "source": "/forum/", "destination": "/pages/forum/index.html" },
+    { "source": "/ai-agent", "destination": "/pages/ai-agent/index.html" },
+    { "source": "/ai-agent/", "destination": "/pages/ai-agent/index.html" },
+    { "source": "/mini-services", "destination": "/pages/mini-services/index.html" },
+    { "source": "/mini-services/", "destination": "/pages/mini-services/index.html" },
+    { "source": "/playground", "destination": "/pages/playground/index.html" },
+    { "source": "/playground/", "destination": "/pages/playground/index.html" },
+    { "source": "/admin", "destination": "/pages/admin/index.html" },
+    { "source": "/admin/", "destination": "/pages/admin/index.html" }
+  ],
+  "trailingSlash": true
+}
