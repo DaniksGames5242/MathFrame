@@ -206,7 +206,6 @@
     .math-toolbar button:active {
       transform: scale(0.95);
     }
-
     .math-toolbar .sep {
       width: 1px;
       background: var(--border);
@@ -571,6 +570,12 @@
 
 <div id="app-footer"></div>
 
+<script>
+  var PAGE_ROOT = '../';
+</script>
+<script src="../assets/js/auth.js"></script>
+<script src="../assets/js/common.js"></script>
+
 <script type="importmap">
 {
   "imports": {
@@ -582,13 +587,14 @@
 <script type="module">
 import { compile } from '../../assets/js/GMS-script-compiler.js';
 
+// ===== Принудительно рендерим шапку и подвал (на случай, если DOMContentLoaded уже прошёл) =====
+if (typeof renderHeader === 'function') renderHeader();
+if (typeof renderFooter === 'function') renderFooter();
+
 // ===== Утилиты =====
 function safeEval(expr) {
-  // Разрешённые символы: цифры, + - * / ( ) . , пробелы, e, pi, названия функций
-  // Удаляем всё, что не разрешено
   const allowedChars = /[^0-9+\-*/()., eEpiPIaAcCoOsStTlLrRqQdDfFbB]/g;
   const sanitized = expr.replace(allowedChars, '');
-  // Разрешённые функции и константы
   const allowed = {
     sin: Math.sin, cos: Math.cos, tan: Math.tan,
     asin: Math.asin, acos: Math.acos, atan: Math.atan,
@@ -596,14 +602,11 @@ function safeEval(expr) {
     abs: Math.abs, pow: Math.pow,
     PI: Math.PI, pi: Math.PI, E: Math.E, e: Math.E,
   };
-  // Проверяем, что выражение содержит только допустимые токены
   const tokenRegex = new RegExp(`^(?:[0-9.]+|${Object.keys(allowed).join('|')}|[+\\-*/()^, ])+$`, 'i');
   if (!tokenRegex.test(sanitized)) {
     throw new Error('Недопустимые символы в выражении');
   }
-  // Заменяем ^ на ** для степени
   const exprForEval = sanitized.replace(/\^/g, '**');
-  // Создаём функцию с доступом к allowed
   const fn = new Function(...Object.keys(allowed), `return (${exprForEval});`);
   return fn(...Object.values(allowed));
 }
@@ -682,12 +685,11 @@ function renderPreview(inputId, previewId) {
   update();
 }
 
-// Инициализация предпросмотра для всех полей
 renderPreview('calcExpr', 'calcPreview');
 renderPreview('symExpr', 'symPreview');
 renderPreview('eqExpr', 'eqPreview');
 
-// ===== Вставка в поле с позиционированием курсора =====
+// ===== Вставка в поле =====
 function insertText(input, text, cursorOffset) {
   const start = input.selectionStart;
   const end = input.selectionEnd;
@@ -717,25 +719,23 @@ function setupToolbar(toolbarId, targetId) {
     }
     let text = ins;
     let cursorOffset = text.length;
-    // Специальные шаблоны
     if (ins === 'frac') {
       text = '()/()';
-      cursorOffset = 1; // после первой открывающей скобки
+      cursorOffset = 1;
     } else if (ins === 'integrate') {
       text = 'integrate(, )';
-      cursorOffset = 10; // после "integrate("
+      cursorOffset = 10;
     } else if (ins === 'diff') {
       text = 'diff(, x)';
-      cursorOffset = 5; // после "diff("
+      cursorOffset = 5;
     } else if (ins.endsWith('(')) {
-      // sin(, cos(, ...)
-      cursorOffset = ins.length; // после открывающей скобки
+      cursorOffset = ins.length;
     } else if (ins === '^') {
       text = '^';
       cursorOffset = 1;
     } else if (ins === 'sqrt(') {
       text = 'sqrt()';
-      cursorOffset = 5; // после "sqrt("
+      cursorOffset = 5;
     }
     insertText(input, text, cursorOffset);
   });
@@ -764,7 +764,7 @@ document.getElementById('calcBtn').addEventListener('click', () => {
 });
 
 // ===== СИМВОЛЬНЫЙ КАЛЬКУЛЯТОР =====
-function symAction(action, extra = '') {
+function symAction(action) {
   const expr = document.getElementById('symExpr').value.trim();
   const resultBox = document.getElementById('symResult');
   if (!expr) {
