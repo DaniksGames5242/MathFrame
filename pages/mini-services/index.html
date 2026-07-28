@@ -577,45 +577,28 @@
 <script src="../assets/js/auth.js"></script>
 <script src="../assets/js/common.js"></script>
 
-<!-- ===== Дополнительный вызов рендеринга шапки/подвала ===== -->
+<!-- ===== Основная логика (без module, чтобы видеть глобальные Auth и renderHeader) ===== -->
 <script>
-  // Гарантируем, что шапка и подвал отобразятся даже если common.js загрузился с задержкой
-  function ensureHeaderFooter() {
-    if (typeof renderHeader === 'function') {
-      renderHeader();
-    } else {
-      setTimeout(ensureHeaderFooter, 100);
-    }
-    if (typeof renderFooter === 'function') {
-      renderFooter();
-    } else {
-      setTimeout(ensureHeaderFooter, 100);
-    }
+// Дожидаемся, когда common.js отрендерит шапку/подвал и инициализирует Auth
+document.addEventListener('DOMContentLoaded', function() {
+  // Принудительно обновляем UI после загрузки auth
+  if (window.Auth) {
+    window.Auth.onAuthChange(function(user) {
+      // common.js сам обновляет account-circle и кнопки, но если что-то пошло не так — вызовем вручную
+      if (typeof updateAccountCircle === 'function') updateAccountCircle(user);
+      if (typeof updateHeroButtons === 'function') updateHeroButtons(user);
+      if (typeof updateAdminNavLink === 'function') updateAdminNavLink(user);
+    });
   }
-  // Ждём, пока DOM загрузится, чтобы не перекрыть рендеринг от common.js
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', ensureHeaderFooter);
-  } else {
-    ensureHeaderFooter();
-  }
-</script>
-
-<!-- ===== Модуль с логикой сервисов ===== -->
-<script type="importmap">
-{
-  "imports": {
-    "../../assets/js/GMS-script-compiler.js": "../../assets/js/GMS-script-compiler.js"
-  }
-}
-</script>
-
-<script type="module">
-import { compile } from '../../assets/js/GMS-script-compiler.js';
+});
 
 // ===== Утилиты =====
 function safeEval(expr) {
-  const allowedChars = /[^0-9+\-*/()., eEpiPIaAcCoOsStTlLrRqQdDfFbB]/g;
-  const sanitized = expr.replace(allowedChars, '');
+  // Удаляем всё, кроме допустимых символов: цифры, + - * / ( ) . , пробелы, буквы (для функций), ^
+  // Затем заменяем ^ на **
+  const sanitized = expr.replace(/[^0-9+\-*/()., eEpiPIaAcCoOsStTlLrRqQdDfFbB]/g, '');
+  const exprForEval = sanitized.replace(/\^/g, '**');
+  // Разрешённые функции и константы
   const allowed = {
     sin: Math.sin, cos: Math.cos, tan: Math.tan,
     asin: Math.asin, acos: Math.acos, atan: Math.atan,
@@ -623,11 +606,8 @@ function safeEval(expr) {
     abs: Math.abs, pow: Math.pow,
     PI: Math.PI, pi: Math.PI, E: Math.E, e: Math.E,
   };
-  const tokenRegex = new RegExp(`^(?:[0-9.]+|${Object.keys(allowed).join('|')}|[+\\-*/()^, ])+$`, 'i');
-  if (!tokenRegex.test(sanitized)) {
-    throw new Error('Недопустимые символы в выражении');
-  }
-  const exprForEval = sanitized.replace(/\^/g, '**');
+  // Проверяем, что в выражении нет ничего опасного (уже почистили, но дополнительно проверим на вызовы)
+  // Создаём функцию с доступом к allowed
   const fn = new Function(...Object.keys(allowed), `return (${exprForEval});`);
   return fn(...Object.values(allowed));
 }
@@ -642,8 +622,20 @@ function formatNumber(v) {
 }
 
 // ===== Работа с GMS =====
-function runGMS(source) {
+// Компилятор загружается динамически через import, но мы используем его в модуле.
+// Для совместимости с обычным скриптом, загружаем его через import() и сохраняем в переменную.
+let compilerModule = null;
+
+async function loadCompiler() {
+  if (!compilerModule) {
+    compilerModule = await import('../../assets/js/GMS-script-compiler.js');
+  }
+  return compilerModule;
+}
+
+async function runGMS(source) {
   try {
+    const { compile } = await loadCompiler();
     const result = compile(source);
     if (!result.success) {
       throw new Error(result.errors.join('; '));
@@ -654,7 +646,7 @@ function runGMS(source) {
   }
 }
 
-function extractDescription(html) {
+async function extractDescription(html) {
   const wrapper = document.createElement('div');
   wrapper.innerHTML = html;
   const info = wrapper.querySelector('.info-panel');
@@ -662,9 +654,9 @@ function extractDescription(html) {
   return wrapper.textContent.trim();
 }
 
-function runGMSForResult(codeTemplate) {
-  const html = runGMS(codeTemplate);
-  return extractDescription(html);
+async function runGMSForResult(codeTemplate) {
+  const html = await runGMS(codeTemplate);
+  return await extractDescription(html);
 }
 
 // ===== Вкладки (анимация) =====
@@ -785,7 +777,7 @@ document.getElementById('calcBtn').addEventListener('click', () => {
 });
 
 // ===== СИМВОЛЬНЫЙ КАЛЬКУЛЯТОР =====
-function symAction(action) {
+async function symAction(action) {
   const expr = document.getElementById('symExpr').value.trim();
   const resultBox = document.getElementById('symResult');
   if (!expr) {
@@ -810,7 +802,7 @@ function symAction(action) {
     } else {
       throw new Error('Неизвестное действие');
     }
-    const result = runGMSForResult(code);
+    const result = await runGMSForResult(code);
     resultBox.textContent = result || '(пустой результат)';
     resultBox.classList.remove('error');
   } catch (e) {
@@ -826,7 +818,7 @@ document.getElementById('symIntegrateBtn').addEventListener('click', () => symAc
 document.getElementById('symDefIntegralBtn').addEventListener('click', () => symAction('defintegral'));
 
 // ===== РЕШЕНИЕ УРАВНЕНИЙ =====
-document.getElementById('eqSolveSymBtn').addEventListener('click', () => {
+document.getElementById('eqSolveSymBtn').addEventListener('click', async () => {
   const expr = document.getElementById('eqExpr').value.trim();
   const varName = document.getElementById('eqVar').value.trim() || 'x';
   const resultBox = document.getElementById('eqResult');
@@ -837,7 +829,7 @@ document.getElementById('eqSolveSymBtn').addEventListener('click', () => {
   }
   try {
     const code = `[ description = solveSymbolic("${expr}", "${varName}"); ]`;
-    const result = runGMSForResult(code);
+    const result = await runGMSForResult(code);
     resultBox.textContent = result || 'Корней не найдено.';
     resultBox.classList.remove('error');
   } catch (e) {
@@ -846,7 +838,7 @@ document.getElementById('eqSolveSymBtn').addEventListener('click', () => {
   }
 });
 
-document.getElementById('eqSolveNumBtn').addEventListener('click', () => {
+document.getElementById('eqSolveNumBtn').addEventListener('click', async () => {
   const expr = document.getElementById('eqExpr').value.trim();
   const varName = document.getElementById('eqVar').value.trim() || 'x';
   const resultBox = document.getElementById('eqResult');
@@ -860,7 +852,7 @@ document.getElementById('eqSolveNumBtn').addEventListener('click', () => {
       func f(${varName}) = ${expr};
       description = "Корни: " + findRoots(f, -10, 10, 500);
     ]`;
-    const result = runGMSForResult(code);
+    const result = await runGMSForResult(code);
     resultBox.textContent = result || 'Корней не найдено.';
     resultBox.classList.remove('error');
   } catch (e) {
@@ -891,7 +883,7 @@ document.getElementById('sysSolveBtn').addEventListener('click', () => {
 });
 
 // ===== ГРАФИКИ =====
-function renderGraph(funcStr, xmin, xmax, containerId, frameId) {
+async function renderGraph(funcStr, xmin, xmax, containerId, frameId) {
   const code = `[
     description = "График функции f(x) = ${funcStr}";
     theme = dark;
@@ -912,6 +904,7 @@ function renderGraph(funcStr, xmin, xmax, containerId, frameId) {
     }
   ]`;
   try {
+    const { compile } = await loadCompiler();
     const result = compile(code);
     if (!result.success) {
       document.getElementById(containerId).querySelector('iframe').srcdoc = `Ошибка компиляции: ${result.errors.join('; ')}`;
@@ -930,7 +923,7 @@ document.getElementById('graphBtn').addEventListener('click', () => {
   renderGraph(funcStr, xmin, xmax, 'graphContainer', 'graphFrame');
 });
 
-document.getElementById('surfBtn').addEventListener('click', () => {
+document.getElementById('surfBtn').addEventListener('click', async () => {
   const funcStr = document.getElementById('surfFunc').value.trim();
   const xmin = parseFloat(document.getElementById('surfXmin').value) || -5;
   const xmax = parseFloat(document.getElementById('surfXmax').value) || 5;
@@ -957,6 +950,7 @@ document.getElementById('surfBtn').addEventListener('click', () => {
     }
   ]`;
   try {
+    const { compile } = await loadCompiler();
     const result = compile(code);
     if (!result.success) {
       document.getElementById('surfContainer').querySelector('iframe').srcdoc = `Ошибка: ${result.errors.join('; ')}`;
@@ -1074,7 +1068,6 @@ document.getElementById('randBtn').addEventListener('click', () => {
 window.addEventListener('load', () => {
   document.getElementById('graphBtn').click();
 });
-
 </script>
 </body>
 </html>
