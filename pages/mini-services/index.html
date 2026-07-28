@@ -570,21 +570,25 @@
 
 <div id="app-footer"></div>
 
-<!-- ===== Подключение общих скриптов ===== -->
+<!-- ===== Подключение общих скриптов (как на главной) ===== -->
 <script>
   var PAGE_ROOT = '../';
 </script>
 <script src="../assets/js/auth.js"></script>
 <script src="../assets/js/common.js"></script>
 
-<!-- ===== Основная логика ===== -->
+<!-- ===== Основная логика (без module) ===== -->
 <script>
-// Дожидаемся, когда common.js отрендерит шапку/подвал и инициализирует Auth
+// Дожидаемся загрузки DOM и рендеринга шапки/подвала
 document.addEventListener('DOMContentLoaded', function() {
-  // Принудительно обновляем UI после загрузки auth
+  // Если по какой-то причине common.js не отрендерил, делаем это вручную
+  if (typeof renderHeader === 'function') renderHeader();
+  if (typeof renderFooter === 'function') renderFooter();
+
+  // Подписываемся на изменения пользователя
   if (window.Auth) {
     window.Auth.onAuthChange(function(user) {
-      // common.js сам обновляет account-circle и кнопки, но если что-то пошло не так — вызовем вручную
+      // common.js сам обновляет UI, но для надёжности вызовем вручную
       if (typeof updateAccountCircle === 'function') updateAccountCircle(user);
       if (typeof updateHeroButtons === 'function') updateHeroButtons(user);
       if (typeof updateAdminNavLink === 'function') updateAdminNavLink(user);
@@ -605,7 +609,6 @@ function safeEval(expr) {
     abs: Math.abs, pow: Math.pow,
     PI: Math.PI, pi: Math.PI, E: Math.E, e: Math.E,
   };
-  // Проверяем, что в выражении нет ничего опасного (уже почистили, но дополнительно проверим на вызовы)
   // Создаём функцию с доступом к allowed
   const fn = new Function(...Object.keys(allowed), `return (${exprForEval});`);
   return fn(...Object.values(allowed));
