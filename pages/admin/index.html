@@ -52,6 +52,8 @@
 
   .actions-row { display: flex; gap: 0.6rem; flex-wrap: wrap; }
   .btn.small { padding: 0.3rem 0.7rem; font-size: 0.75rem; }
+  .btn.danger { background: rgba(239,68,68,0.2); color: #ef4444; border-color: #ef4444; }
+  .btn.danger:hover { background: #ef4444; color: #fff; }
 </style>
 </head>
 <body>
@@ -350,7 +352,7 @@
     }).join('');
   }
 
-  // ===== ТАБЛИЦА ПОЛЬЗОВАТЕЛЕЙ (с блокировкой) =====
+  // ===== ТАБЛИЦА ПОЛЬЗОВАТЕЛЕЙ (с блокировкой и удалением) =====
   function renderUsersTable(users, currentUser) {
     document.getElementById('usersCount').textContent = users.length;
     const tbody = document.getElementById('usersTbody');
@@ -365,16 +367,19 @@
         accessCell += ` <button class="btn small" data-uid="${u.uid}" data-grant="${u.isAdmin ? '0' : '1'}" style="margin-left:0.5rem;">${u.isAdmin ? 'Отозвать' : 'Выдать'}</button>`;
       }
 
-      // Статус блокировки
       const statusCell = u.isBanned ? `<span class="badge banned">Заблокирован</span>` : `<span class="badge yes">Активен</span>`;
 
-      // Действия: заблокировать/разблокировать (только для суперадмина, не для себя)
+      // Действия: блокировка/разблокировка + удаление (только для суперадмина, не для себя)
       let actionsCell = '';
       if (isSuperAdmin && u.uid !== currentUser.uid) {
         if (u.isBanned) {
-          actionsCell = `<button class="btn small" data-uid="${u.uid}" data-action="unban">Разблокировать</button>`;
+          actionsCell += `<button class="btn small" data-uid="${u.uid}" data-action="unban">Разблокировать</button> `;
         } else {
-          actionsCell = `<button class="btn small danger" data-uid="${u.uid}" data-action="ban">Заблокировать</button>`;
+          actionsCell += `<button class="btn small danger" data-uid="${u.uid}" data-action="ban">Заблокировать</button> `;
+        }
+        // Кнопка удаления (не для суперадмина)
+        if (!isSelfSuper) {
+          actionsCell += `<button class="btn small danger" data-uid="${u.uid}" data-action="delete">Удалить</button>`;
         }
       }
 
@@ -389,14 +394,19 @@
       </tr>`;
     }).join('');
 
-    // Обработчики для кнопок выдачи/отзыва админки
+    // Обработчики для выдачи/отзыва админки
     tbody.querySelectorAll('button[data-uid][data-grant]').forEach(btn => {
       btn.addEventListener('click', () => toggleAdminAccess(btn, currentUser));
     });
 
     // Обработчики для блокировки/разблокировки
-    tbody.querySelectorAll('button[data-uid][data-action]').forEach(btn => {
+    tbody.querySelectorAll('button[data-uid][data-action="ban"], button[data-uid][data-action="unban"]').forEach(btn => {
       btn.addEventListener('click', () => handleBanAction(btn, currentUser));
+    });
+
+    // НОВОЕ: обработчики для удаления
+    tbody.querySelectorAll('button[data-uid][data-action="delete"]').forEach(btn => {
+      btn.addEventListener('click', () => deleteUser(btn.dataset.uid, currentUser));
     });
   }
 
@@ -418,9 +428,11 @@
       } else { // unban
         await db.collection('bannedUsers').doc(uid).delete();
       }
-      // Перезагружаем данные пользователей
       const users = await loadUsers(currentUser);
       renderUsersTable(users, currentUser);
+      // обновляем карточки (количество пользователей не меняется, но для актуальности)
+      const visits = await loadVisits();
+      renderCards(allTopics, visits, users.length);
     } catch (err) {
       alert('Ошибка: ' + err.message);
       btn.disabled = false;
@@ -440,6 +452,26 @@
       alert('Ошибка: ' + err.message);
       btn.disabled = false;
     });
+  }
+
+  // ===== НОВОЕ: УДАЛЕНИЕ ПОЛЬЗОВАТЕЛЯ =====
+  async function deleteUser(uid, currentUser) {
+    if (!confirm('Вы действительно хотите удалить этого пользователя? Все его данные (включая записи на форуме) будут удалены.')) return;
+    try {
+      // Удаляем документы из всех коллекций, где может быть uid
+      await db.collection('users').doc(uid).delete();
+      await db.collection('admins').doc(uid).delete();
+      await db.collection('bannedUsers').doc(uid).delete();
+      // (опционально) можно также удалить статьи и ответы пользователя, но это потребует дополнительных запросов
+
+      // Перезагружаем список пользователей и обновляем таблицу и карточки
+      const users = await loadUsers(currentUser);
+      renderUsersTable(users, currentUser);
+      const visits = await loadVisits();
+      renderCards(allTopics, visits, users.length);
+    } catch (err) {
+      alert('Ошибка при удалении: ' + err.message);
+    }
   }
 
   // ===== ЭКСПОРТ =====
