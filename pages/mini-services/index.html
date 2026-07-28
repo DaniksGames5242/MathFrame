@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Мини‑сервисы — MathFrame</title>
+  <link rel="stylesheet" href="../assets/css/common.css" />
+  <style>
+    :root {
+      --tab-bg: rgba(255,255,255,0.04);
+      --tab-active: var(--accent);
+      --service-panel: var(--bg-card);
+      --service-border: var(--border);
+      --service-radius: 0.75rem;
+    }
+    html.light { --tab-bg: rgba(0,0,0,0.04); }
+
+    .services-container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem 4rem;
+    }
+    .page-title { font-size: 2rem; font-weight: 700; margin-bottom: 0.5rem; }
+    .page-sub { color: var(--text-secondary); margin-bottom: 2rem; font-size: 1.1rem; }
+
+    .tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.25rem;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 2rem;
+    }
+    .tab-btn {
+      padding: 0.7rem 1.4rem;
+      background: transparent;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: var(--text-secondary);
+      font-weight: 600;
+      font-size: 0.95rem;
+      cursor: pointer;
+      transition: var(--transition-smooth);
+      white-space: nowrap;
+    }
+    .tab-btn:hover { color: var(--text-primary); }
+    .tab-btn.active { color: var(--tab-active); border-bottom-color: var(--tab-active); }
+
+    .tab-panel { display: none; animation: fadeIn 0.3s ease; }
+    .tab-panel.active { display: block; }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .service-card {
+      background: var(--service-panel);
+      border: 1px solid var(--service-border);
+      border-radius: var(--service-radius);
+      padding: 1.5rem 1.8rem;
+      margin-bottom: 2rem;
+      backdrop-filter: blur(20px);
+      box-shadow: var(--shadow);
+      transition: var(--theme-transition);
+    }
+    .service-card h3 {
+      font-size: 1.3rem;
+      margin-bottom: 0.8rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .service-card h3 .badge {
+      font-size: 0.7rem;
+      background: var(--accent);
+      color: #fff;
+      padding: 0.1rem 0.6rem;
+      border-radius: 1rem;
+      font-weight: 600;
+    }
+
+    .service-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      align-items: flex-end;
+    }
+    .service-row .field-group {
+      flex: 1 1 200px;
+      min-width: 150px;
+    }
+    .service-row label {
+      display: block;
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      margin-bottom: 0.3rem;
+    }
+    .service-row input, .service-row select {
+      width: 100%;
+      padding: 0.55rem 0.8rem;
+      border-radius: 0.5rem;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.05);
+      color: var(--text-primary);
+      font-size: 0.95rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .service-row input:focus, .service-row select:focus {
+      border-color: var(--accent);
+    }
+    .service-row .btn {
+      flex: 0 0 auto;
+      padding: 0.55rem 1.4rem;
+    }
+
+    .result-box {
+      margin-top: 1rem;
+      padding: 0.8rem 1rem;
+      background: rgba(255,255,255,0.04);
+      border-radius: 0.5rem;
+      border: 1px solid var(--border);
+      min-height: 2.5rem;
+      font-family: monospace;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+    .result-box.error {
+      border-color: #ef4444;
+      color: #ef4444;
+    }
+
+    .iframe-wrapper {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 4 / 3;
+      border-radius: 0.5rem;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      background: var(--bg-body);
+      margin-top: 1rem;
+    }
+    .iframe-wrapper iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+      display: block;
+    }
+
+    .hint {
+      color: var(--text-secondary);
+      font-size: 0.85rem;
+      margin-top: 0.4rem;
+    }
+
+    @media (max-width: 768px) {
+      .service-row { flex-direction: column; align-items: stretch; }
+      .service-row .field-group { flex: 1 1 auto; }
+      .tab-btn { font-size: 0.85rem; padding: 0.5rem 1rem; }
+    }
+  </style>
+</head>
+<body>
+
+<div id="app-header"></div>
+
+<main>
+  <div class="services-container">
+    <h1 class="page-title">🧮 Мини‑сервисы</h1>
+    <p class="page-sub">Калькуляторы, решатели, построители и геометрические инструменты на движке GMS</p>
+
+    <!-- Вкладки -->
+    <div class="tabs" id="serviceTabs">
+      <button class="tab-btn active" data-tab="calc">Калькулятор</button>
+      <button class="tab-btn" data-tab="graph">Графики</button>
+      <button class="tab-btn" data-tab="equations">Уравнения</button>
+      <button class="tab-btn" data-tab="geometry">Геометрия</button>
+      <button class="tab-btn" data-tab="stats">Статистика</button>
+    </div>
+
+    <!-- ===== КАЛЬКУЛЯТОР ===== -->
+    <div class="tab-panel active" id="panel-calc">
+      <div class="service-card">
+        <h3>🔢 Численный калькулятор</h3>
+        <div class="service-row">
+          <div class="field-group">
+            <label for="calcExpr">Выражение</label>
+            <input type="text" id="calcExpr" value="2 * sin(pi/4) + 3^2" placeholder="например: 2*sin(pi/4) + 3^2" />
+          </div>
+          <button class="btn primary" id="calcBtn">Вычислить</button>
+        </div>
+        <div class="result-box" id="calcResult">Введите выражение и нажмите «Вычислить».</div>
+        <div class="hint">Поддерживаются: +, -, *, /, ^ (степень), sin, cos, tan, asin, acos, atan, sqrt, exp, log, abs, pi, e, скобки.</div>
+      </div>
+
+      <div class="service-card">
+        <h3>🧠 Символьный калькулятор (на базе GMS)</h3>
+        <div class="service-row">
+          <div class="field-group">
+            <label for="symExpr">Выражение (переменная x)</label>
+            <input type="text" id="symExpr" value="x^2 + 2*x + 1" placeholder="например: x^2 + 2*x + 1" />
+          </div>
+          <button class="btn primary" id="symSimplifyBtn">Упростить</button>
+          <button class="btn" id="symExpandBtn">Раскрыть</button>
+          <button class="btn" id="symDerivativeBtn">Производная</button>
+          <button class="btn" id="symIntegrateBtn">Интеграл (неопр.)</button>
+        </div>
+        <div class="service-row" style="margin-top: 0.5rem;">
+          <div class="field-group">
+            <label for="symIntA">Нижний предел</label>
+            <input type="text" id="symIntA" value="0" style="width:80px;" />
+          </div>
+          <div class="field-group">
+            <label for="symIntB">Верхний предел</label>
+            <input type="text" id="symIntB" value="1" style="width:80px;" />
+          </div>
+          <button class="btn" id="symDefIntegralBtn">Определённый интеграл</button>
+        </div>
+        <div class="result-box" id="symResult">Введите выражение и выберите действие.</div>
+        <div class="hint">Используется символьный движок GMS: simplify, expand, diff, integrate, integrateDefinite.</div>
+      </div>
+    </div>
+
+    <!-- ===== ГРАФИКИ ===== -->
+    <div class="tab-panel" id="panel-graph">
+      <div class="service-card">
+        <h3>📈 Построение графика функции</h3>
+        <div class="service-row">
+          <div class="field-group">
+            <label for="graphFunc">f(x) =</label>
+            <input type="text" id="graphFunc" value="sin(x)/x" placeholder="например: sin(x)/x" />
+          </div>
+          <div class="field-group">
+            <label for="graphXmin">x min</label>
+            <input type="number" id="graphXmin" value="-10" step="0.5" />
+          </div>
+          <div class="field-group">
+            <label for="graphXmax">x max</label>
+            <input type="number" id="graphXmax" value="10" step="0.5" />
+          </div>
+          <button class="btn primary" id="graphBtn">Построить</button>
+        </div>
+        <div class="iframe-wrapper" id="graphContainer">
+          <iframe id="graphFrame" title="График функции"></iframe>
+        </div>
+        <div class="hint">Используйте синтаксис: sin(x), cos(x), tan(x), exp(x), log(x), sqrt(x), abs(x), x^2, x*y (для поверхностей).</div>
+      </div>
+
+      <div class="service-card">
+        <h3>📊 Поверхность (3D)</h3>
+        <div class="service-row">
+          <div class="field-group">
+            <label for="surfFunc">f(x, y) =</label>
+            <input type="text" id="surfFunc" value="sin(x)*cos(y)" placeholder="например: sin(x)*cos(y)" />
+          </div>
+          <div class="field-group">
+            <label for="surfXmin">x min</label>
+            <input type="number" id="surfXmin" value="-5" step="0.5" />
+          </div>
+          <div class="field-group">
+            <label for="surfXmax">x max</label>
+            <input type="number" id="surfXmax" value="5" step="0.5" />
+          </div>
+          <div class="field-group">
+            <label for="surfYmin">y min</label>
+            <input type="number" id="surfYmin" value="-5" step="0.5" />
+          </div>
+          <div class="field-group">
+            <label for="surfYmax">y max</label>
+            <input type="number" id="surfYmax" value="5" step="0.5" />
+          </div>
+          <button class="btn primary" id="surfBtn">Построить</button>
+        </div>
+        <div class="iframe-wrapper" id="surfContainer">
+          <iframe id="surfFrame" title="Поверхность"></iframe>
+        </div>
+        <div class="hint">Для 3D используйте режим 3D в компиляторе (автоматически).</div>
+      </div>
+    </div>
+
+    <!-- ===== УРАВНЕНИЯ ===== -->
+    <div class="tab-panel" id="panel-equations">
+      <div class="service-card">
+        <h3>✏️ Решение уравнений (символьное и численное)</h3>
+        <div class="service-row">
+          <div class="field-group">
+            <label for="eqExpr">Уравнение f(x) = 0</label>
+            <input type="text" id="eqExpr" value="x^2 - 4" placeholder="например: x^2 - 4" />
+          </div>
+          <div class="field-group">
+            <label for="eqVar">Переменная</label>
+            <input type="text" id="eqVar" value="x" style="width:60px;" />
+          </div>
+          <button class="btn primary" id="eqSolveSymBtn">Символьно</button>
+          <button class="btn" id="eqSolveNumBtn">Численно</button>
+        </div>
+        <div class="result-box" id="eqResult">Введите уравнение и переменную.</div>
+        <div class="hint">Символьное решение использует solveSymbolic (рациональные корни, квадратные). Численное — поиск корней на интервале [-10, 10].</div>
+      </div>
+
+      <div class="service-card">
+        <h3>🧮 Системы уравнений (2×2)</h3>
+        <div class="service-row">
+          <div class="field-group">
+            <label>a₁·x + b₁·y = c₁</label>
+            <div style="display:flex; gap:0.4rem;">
+              <input type="number" id="sysA1" value="2" style="width:60px;" /> x +
+              <input type="number" id="sysB1" value="3" style="width:60px;" /> y =
+              <input type="number" id="sysC1" value="8" style="width:60px;" />
+            </div>
+          </div>
+          <div class="field-group">
+            <label>a₂·x + b₂·y = c₂</label>
+            <div style="display:flex; gap:0.4rem;">
+              <input type="number" id="sysA2" value="5" style="width:60px;" /> x +
+              <input type="number" id="sysB2" value="-2" style="width:60px;" /> y =
+              <input type="number" id="sysC2" value="1" style="width:60px;" />
+            </div>
+          </div>
+          <button class="btn primary" id="sysSolveBtn">Решить</button>
+        </div>
+        <div class="result-box" id="sysResult">Введите коэффициенты.</div>
+      </div>
+    </div>
+
+    <!-- ===== ГЕОМЕТРИЯ ===== -->
+    <div class="tab-panel" id="panel-geometry">
+      <div class="service-card">
+        <h3>📐 Расстояние между точками</h3>
+        <div class="service-row">
+          <div class="field-group">
+            <label>Точка A (x1, y1)</label>
+            <div style="display:flex; gap:0.4rem;">
+              <input type="number" id="distAx" value="0" style="width:60px;" />
+              <input type="number" id="distAy" value="0" style="width:60px;" />
+            </div>
+          </div>
+          <div class="field-group">
+            <label>Точка B (x2, y2)</label>
+            <div style="display:flex; gap:0.4rem;">
+              <input type="number" id="distBx" value="3" style="width:60px;" />
+              <input type="number" id="distBy" value="4" style="width:60px;" />
+            </div>
+          </div>
+          <button class="btn primary" id="distBtn">Вычислить</button>
+        </div>
+        <div class="result-box" id="distResult">Введите координаты.</div>
+      </div>
+
+      <div class="service-card">
+        <h3>📐 Площадь треугольника</h3>
+        <div class="service-row">
+          <div class="field-group">
+            <label>Вершины: A, B, C</label>
+            <div style="display:flex; gap:0.4rem; flex-wrap:wrap;">
+              <input type="number" id="triAx" value="0" style="width:50px;" />
+              <input type="number" id="triAy" value="0" style="width:50px;" />
+              <input type="number" id="triBx" value="4" style="width:50px;" />
+              <input type="number" id="triBy" value="0" style="width:50px;" />
+              <input type="number" id="triCx" value="2" style="width:50px;" />
+              <input type="number" id="triCy" value="3" style="width:50px;" />
+            </div>
+          </div>
+          <button class="btn primary" id="triAreaBtn">Вычислить</button>
+        </div>
+        <div class="result-box" id="triAreaResult">Введите координаты вершин.</div>
+      </div>
+
+      <div class="service-card">
+        <h3>📐 Угол между векторами</h3>
+        <div class="service-row">
+          <div class="field-group">
+            <label>Вектор A (x1, y1)</label>
+            <div style="display:flex; gap:0.4rem;">
+              <input type="number" id="angAx" value="1" style="width:60px;" />
+              <input type="number" id="angAy" value="0" style="width:60px;" />
+            </div>
+          </div>
+          <div class="field-group">
+            <label>Вектор B (x2, y2)</label>
+            <div style="display:flex; gap:0.4rem;">
+              <input type="number" id="angBx" value="0" style="width:60px;" />
+              <input type="number" id="angBy" value="1" style="width:60px;" />
+            </div>
+          </div>
+          <button class="btn primary" id="angBtn">Вычислить</button>
+        </div>
+        <div class="result-box" id="angResult">Введите координаты векторов.</div>
+      </div>
+    </div>
+
+    <!-- ===== СТАТИСТИКА ===== -->
+    <div class="tab-panel" id="panel-stats">
+      <div class="service-card">
+        <h3>📊 Основная статистика</h3>
+        <div class="service-row">
+          <div class="field-group">
+            <label for="statsData">Данные (числа через запятую)</label>
+            <input type="text" id="statsData" value="1, 2, 3, 4, 5, 6, 7, 8, 9, 10" placeholder="например: 1, 2, 3, 4" />
+          </div>
+          <button class="btn primary" id="statsBtn">Вычислить</button>
+        </div>
+        <div class="result-box" id="statsResult">Введите данные.</div>
+        <div class="hint">Вычисляет: среднее, медиану, дисперсию, стандартное отклонение, минимум, максимум.</div>
+      </div>
+
+      <div class="service-card">
+        <h3>🎲 Генератор случайных чисел</h3>
+        <div class="service-row">
+          <div class="field-group">
+            <label for="randCount">Количество</label>
+            <input type="number" id="randCount" value="10" min="1" max="100" />
+          </div>
+          <div class="field-group">
+            <label for="randMin">От</label>
+            <input type="number" id="randMin" value="0" />
+          </div>
+          <div class="field-group">
+            <label for="randMax">До</label>
+            <input type="number" id="randMax" value="100" />
+          </div>
+          <button class="btn primary" id="randBtn">Сгенерировать</button>
+        </div>
+        <div class="result-box" id="randResult">Нажмите «Сгенерировать».</div>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+<div id="app-footer"></div>
+
+<script type="importmap">
+{
+  "imports": {
+    "../../assets/js/GMS-script-compiler.js": "../../assets/js/GMS-script-compiler.js"
+  }
+}
+</script>
+
+<script type="module">
+import { compile } from '../../assets/js/GMS-script-compiler.js';
+
+// ===== Утилиты =====
+function safeEval(expr) {
+  const sanitized = expr.replace(/[^0-9+\-*/()., eEpiPIaAcCoOsStTlLrRqQdDfFbB]/g, '');
+  const allowed = {
+    sin: Math.sin, cos: Math.cos, tan: Math.tan,
+    asin: Math.asin, acos: Math.acos, atan: Math.atan,
+    sqrt: Math.sqrt, exp: Math.exp, log: Math.log,
+    abs: Math.abs, pow: Math.pow,
+    PI: Math.PI, pi: Math.PI, E: Math.E, e: Math.E,
+  };
+  const tokenRegex = new RegExp(`^(?:[0-9.]+|${Object.keys(allowed).join('|')}|[+\\-*/()^, ])+$`, 'i');
+  if (!tokenRegex.test(sanitized)) throw new Error('Недопустимые символы');
+  const fn = new Function(...Object.keys(allowed), `return (${sanitized.replace(/\^/g, '**')});`);
+  return fn(...Object.values(allowed));
+}
+
+function parseNumberList(str) {
+  return str.split(',').map(s => parseFloat(s.trim())).filter(v => !isNaN(v));
+}
+
+function formatNumber(v) {
+  if (typeof v !== 'number' || !isFinite(v)) return String(v);
+  return parseFloat(v.toFixed(10)).toString();
+}
+
+// ===== Работа с GMS =====
+function runGMS(source) {
+  try {
+    const result = compile(source);
+    if (!result.success) {
+      throw new Error(result.errors.join('; '));
+    }
+    return result.html;
+  } catch (e) {
+    throw new Error(`Ошибка компиляции GMS: ${e.message}`);
+  }
+}
+
+function extractDescription(html) {
+  const wrapper = document.createElement('div');
+  wrapper.innerHTML = html;
+  const info = wrapper.querySelector('.info-panel');
+  if (info) return info.textContent.trim();
+  // fallback: ищем любой текст
+  return wrapper.textContent.trim();
+}
+
+function runGMSForResult(codeTemplate) {
+  const html = runGMS(codeTemplate);
+  return extractDescription(html);
+}
+
+// ===== Вкладки =====
+const tabs = document.querySelectorAll('.tab-btn');
+const panels = {
+  calc: document.getElementById('panel-calc'),
+  graph: document.getElementById('panel-graph'),
+  equations: document.getElementById('panel-equations'),
+  geometry: document.getElementById('panel-geometry'),
+  stats: document.getElementById('panel-stats'),
+};
+
+tabs.forEach(btn => {
+  btn.addEventListener('click', () => {
+    tabs.forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const tab = btn.dataset.tab;
+    Object.keys(panels).forEach(key => {
+      panels[key].classList.toggle('active', key === tab);
+    });
+  });
+});
+
+// ===== ЧИСЛЕННЫЙ КАЛЬКУЛЯТОР =====
+document.getElementById('calcBtn').addEventListener('click', () => {
+  const expr = document.getElementById('calcExpr').value.trim();
+  const resultBox = document.getElementById('calcResult');
+  try {
+    const result = safeEval(expr);
+    resultBox.textContent = `Результат: ${formatNumber(result)}`;
+    resultBox.classList.remove('error');
+  } catch (e) {
+    resultBox.textContent = `Ошибка: ${e.message}`;
+    resultBox.classList.add('error');
+  }
+});
+
+// ===== СИМВОЛЬНЫЙ КАЛЬКУЛЯТОР (через GMS) =====
+function symAction(action, extra = '') {
+  const expr = document.getElementById('symExpr').value.trim();
+  const resultBox = document.getElementById('symResult');
+  if (!expr) {
+    resultBox.textContent = 'Введите выражение.';
+    resultBox.classList.add('error');
+    return;
+  }
+  try {
+    let code;
+    if (action === 'simplify') {
+      code = `[ description = simplify("${expr}"); ]`;
+    } else if (action === 'expand') {
+      code = `[ description = expand("${expr}"); ]`;
+    } else if (action === 'derivative') {
+      code = `[ description = diff("${expr}", "x"); ]`;
+    } else if (action === 'integrate') {
+      code = `[ description = integrate("${expr}", "x"); ]`;
+    } else if (action === 'defintegral') {
+      const a = document.getElementById('symIntA').value.trim() || '0';
+      const b = document.getElementById('symIntB').value.trim() || '1';
+      code = `[ description = integrateDefinite("${expr}", "x", ${a}, ${b}); ]`;
+    } else {
+      throw new Error('Неизвестное действие');
+    }
+    const result = runGMSForResult(code);
+    resultBox.textContent = result || '(пустой результат)';
+    resultBox.classList.remove('error');
+  } catch (e) {
+    resultBox.textContent = `Ошибка: ${e.message}`;
+    resultBox.classList.add('error');
+  }
+}
+
+document.getElementById('symSimplifyBtn').addEventListener('click', () => symAction('simplify'));
+document.getElementById('symExpandBtn').addEventListener('click', () => symAction('expand'));
+document.getElementById('symDerivativeBtn').addEventListener('click', () => symAction('derivative'));
+document.getElementById('symIntegrateBtn').addEventListener('click', () => symAction('integrate'));
+document.getElementById('symDefIntegralBtn').addEventListener('click', () => symAction('defintegral'));
+
+// ===== ГРАФИКИ =====
+function renderGraph(funcStr, xmin, xmax, containerId, frameId) {
+  const code = `[
+    description = "График функции f(x) = ${funcStr}";
+    theme = dark;
+    field width = ${Math.abs(xmax - xmin) * 1.2};
+    field height = ${Math.abs(xmax - xmin) * 1.2};
+    show axes = true;
+    show grid = true;
+    grid size = 1;
+    func f(x) = ${funcStr};
+    draw Function {
+      name = "gr";
+      f = "f";
+      xmin = ${xmin};
+      xmax = ${xmax};
+      segments = 300;
+      color = #ff6b6b;
+      thickness = 3;
+    }
+  ]`;
+  try {
+    const result = compile(code);
+    if (!result.success) {
+      document.getElementById(containerId).querySelector('iframe').srcdoc = `Ошибка компиляции: ${result.errors.join('; ')}`;
+      return;
+    }
+    document.getElementById(frameId).srcdoc = result.html;
+  } catch (e) {
+    document.getElementById(containerId).querySelector('iframe').srcdoc = `Ошибка: ${e.message}`;
+  }
+}
+
+document.getElementById('graphBtn').addEventListener('click', () => {
+  const funcStr = document.getElementById('graphFunc').value.trim();
+  const xmin = parseFloat(document.getElementById('graphXmin').value) || -10;
+  const xmax = parseFloat(document.getElementById('graphXmax').value) || 10;
+  renderGraph(funcStr, xmin, xmax, 'graphContainer', 'graphFrame');
+});
+
+document.getElementById('surfBtn').addEventListener('click', () => {
+  const funcStr = document.getElementById('surfFunc').value.trim();
+  const xmin = parseFloat(document.getElementById('surfXmin').value) || -5;
+  const xmax = parseFloat(document.getElementById('surfXmax').value) || 5;
+  const ymin = parseFloat(document.getElementById('surfYmin').value) || -5;
+  const ymax = parseFloat(document.getElementById('surfYmax').value) || 5;
+  const code = `[
+    description = "Поверхность f(x,y) = ${funcStr}";
+    theme = dark;
+    field width = ${Math.abs(xmax - xmin) * 1.2};
+    field height = ${Math.abs(ymax - ymin) * 1.2};
+    show axes = true;
+    show grid = true;
+    func f(x, y) = ${funcStr};
+    draw Surface {
+      name = "surf";
+      f = "f";
+      xmin = ${xmin};
+      xmax = ${xmax};
+      ymin = ${ymin};
+      ymax = ${ymax};
+      grid = 30;
+      mode = "3d";
+      color = #4a90d9;
+    }
+  ]`;
+  try {
+    const result = compile(code);
+    if (!result.success) {
+      document.getElementById('surfContainer').querySelector('iframe').srcdoc = `Ошибка: ${result.errors.join('; ')}`;
+      return;
+    }
+    document.getElementById('surfFrame').srcdoc = result.html;
+  } catch (e) {
+    document.getElementById('surfContainer').querySelector('iframe').srcdoc = `Ошибка: ${e.message}`;
+  }
+});
+
+// ===== УРАВНЕНИЯ =====
+document.getElementById('eqSolveSymBtn').addEventListener('click', () => {
+  const expr = document.getElementById('eqExpr').value.trim();
+  const varName = document.getElementById('eqVar').value.trim() || 'x';
+  const resultBox = document.getElementById('eqResult');
+  if (!expr) {
+    resultBox.textContent = 'Введите уравнение.';
+    resultBox.classList.add('error');
+    return;
+  }
+  try {
+    const code = `[ description = solveSymbolic("${expr}", "${varName}"); ]`;
+    const result = runGMSForResult(code);
+    resultBox.textContent = result || 'Корней не найдено.';
+    resultBox.classList.remove('error');
+  } catch (e) {
+    resultBox.textContent = `Ошибка: ${e.message}`;
+    resultBox.classList.add('error');
+  }
+});
+
+document.getElementById('eqSolveNumBtn').addEventListener('click', () => {
+  const expr = document.getElementById('eqExpr').value.trim();
+  const varName = document.getElementById('eqVar').value.trim() || 'x';
+  const resultBox = document.getElementById('eqResult');
+  if (!expr) {
+    resultBox.textContent = 'Введите уравнение.';
+    resultBox.classList.add('error');
+    return;
+  }
+  try {
+    // Численное решение через findRoots (библиотека GMS) — встроенная функция findRoots(f, a, b)
+    // Для простоты используем численный поиск на интервале [-10, 10].
+    const code = `[
+      func f(${varName}) = ${expr};
+      description = "Корни: " + findRoots(f, -10, 10, 500);
+    ]`;
+    const result = runGMSForResult(code);
+    resultBox.textContent = result || 'Корней не найдено.';
+    resultBox.classList.remove('error');
+  } catch (e) {
+    resultBox.textContent = `Ошибка: ${e.message}`;
+    resultBox.classList.add('error');
+  }
+});
+
+// Системы уравнений (численно, через определители)
+document.getElementById('sysSolveBtn').addEventListener('click', () => {
+  const a1 = parseFloat(document.getElementById('sysA1').value);
+  const b1 = parseFloat(document.getElementById('sysB1').value);
+  const c1 = parseFloat(document.getElementById('sysC1').value);
+  const a2 = parseFloat(document.getElementById('sysA2').value);
+  const b2 = parseFloat(document.getElementById('sysB2').value);
+  const c2 = parseFloat(document.getElementById('sysC2').value);
+  const resultBox = document.getElementById('sysResult');
+  const det = a1 * b2 - a2 * b1;
+  if (Math.abs(det) < 1e-12) {
+    resultBox.textContent = 'Система вырождена (бесконечно много решений или нет решений).';
+    resultBox.classList.add('error');
+    return;
+  }
+  const x = (c1 * b2 - c2 * b1) / det;
+  const y = (a1 * c2 - a2 * c1) / det;
+  resultBox.textContent = `x = ${formatNumber(x)},  y = ${formatNumber(y)}`;
+  resultBox.classList.remove('error');
+});
+
+// ===== ГЕОМЕТРИЯ ===== (без изменений, остаются на JS)
+document.getElementById('distBtn').addEventListener('click', () => {
+  const ax = parseFloat(document.getElementById('distAx').value);
+  const ay = parseFloat(document.getElementById('distAy').value);
+  const bx = parseFloat(document.getElementById('distBx').value);
+  const by = parseFloat(document.getElementById('distBy').value);
+  const resultBox = document.getElementById('distResult');
+  if ([ax, ay, bx, by].some(isNaN)) {
+    resultBox.textContent = 'Введите все координаты.';
+    resultBox.classList.add('error');
+    return;
+  }
+  const d = Math.hypot(bx - ax, by - ay);
+  resultBox.textContent = `Расстояние: ${formatNumber(d)}`;
+  resultBox.classList.remove('error');
+});
+
+document.getElementById('triAreaBtn').addEventListener('click', () => {
+  const ax = parseFloat(document.getElementById('triAx').value);
+  const ay = parseFloat(document.getElementById('triAy').value);
+  const bx = parseFloat(document.getElementById('triBx').value);
+  const by = parseFloat(document.getElementById('triBy').value);
+  const cx = parseFloat(document.getElementById('triCx').value);
+  const cy = parseFloat(document.getElementById('triCy').value);
+  const resultBox = document.getElementById('triAreaResult');
+  if ([ax, ay, bx, by, cx, cy].some(isNaN)) {
+    resultBox.textContent = 'Введите все координаты.';
+    resultBox.classList.add('error');
+    return;
+  }
+  const area = Math.abs(ax * (by - cy) + bx * (cy - ay) + cx * (ay - by)) / 2;
+  resultBox.textContent = `Площадь: ${formatNumber(area)}`;
+  resultBox.classList.remove('error');
+});
+
+document.getElementById('angBtn').addEventListener('click', () => {
+  const ax = parseFloat(document.getElementById('angAx').value);
+  const ay = parseFloat(document.getElementById('angAy').value);
+  const bx = parseFloat(document.getElementById('angBx').value);
+  const by = parseFloat(document.getElementById('angBy').value);
+  const resultBox = document.getElementById('angResult');
+  if ([ax, ay, bx, by].some(isNaN)) {
+    resultBox.textContent = 'Введите все координаты.';
+    resultBox.classList.add('error');
+    return;
+  }
+  const dot = ax * bx + ay * by;
+  const magA = Math.hypot(ax, ay);
+  const magB = Math.hypot(bx, by);
+  if (magA === 0 || magB === 0) {
+    resultBox.textContent = 'Нулевой вектор.';
+    resultBox.classList.add('error');
+    return;
+  }
+  const cos = Math.max(-1, Math.min(1, dot / (magA * magB)));
+  const angle = Math.acos(cos) * 180 / Math.PI;
+  resultBox.textContent = `Угол: ${formatNumber(angle)}°`;
+  resultBox.classList.remove('error');
+});
+
+// ===== СТАТИСТИКА =====
+document.getElementById('statsBtn').addEventListener('click', () => {
+  const dataStr = document.getElementById('statsData').value.trim();
+  const resultBox = document.getElementById('statsResult');
+  const data = parseNumberList(dataStr);
+  if (data.length < 2) {
+    resultBox.textContent = 'Введите как минимум 2 числа.';
+    resultBox.classList.add('error');
+    return;
+  }
+  const sum = data.reduce((a, b) => a + b, 0);
+  const mean = sum / data.length;
+  const sorted = [...data].sort((a, b) => a - b);
+  const median = sorted.length % 2 === 0 ? (sorted[sorted.length/2 - 1] + sorted[sorted.length/2]) / 2 : sorted[Math.floor(sorted.length/2)];
+  const variance = data.reduce((s, x) => s + (x - mean) ** 2, 0) / data.length;
+  const stddev = Math.sqrt(variance);
+  const min = sorted[0];
+  const max = sorted[sorted.length - 1];
+  resultBox.textContent = `Среднее: ${formatNumber(mean)}\nМедиана: ${formatNumber(median)}\nДисперсия: ${formatNumber(variance)}\nСт. отклонение: ${formatNumber(stddev)}\nМин: ${formatNumber(min)}, Макс: ${formatNumber(max)}`;
+  resultBox.classList.remove('error');
+});
+
+document.getElementById('randBtn').addEventListener('click', () => {
+  const count = parseInt(document.getElementById('randCount').value) || 10;
+  const min = parseFloat(document.getElementById('randMin').value) || 0;
+  const max = parseFloat(document.getElementById('randMax').value) || 100;
+  const resultBox = document.getElementById('randResult');
+  if (count < 1 || count > 1000) {
+    resultBox.textContent = 'Количество должно быть от 1 до 1000.';
+    resultBox.classList.add('error');
+    return;
+  }
+  if (min >= max) {
+    resultBox.textContent = 'Минимум должен быть меньше максимума.';
+    resultBox.classList.add('error');
+    return;
+  }
+  const numbers = Array.from({ length: count }, () => min + Math.random() * (max - min));
+  resultBox.textContent = numbers.map(n => formatNumber(n)).join(', ');
+  resultBox.classList.remove('error');
+});
+
+// ===== Инициализация: построить пример графика =====
+window.addEventListener('load', () => {
+  document.getElementById('graphBtn').click();
+});
+
+</script>
+</body>
+</html>
