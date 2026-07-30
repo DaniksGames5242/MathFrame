@@ -1,4 +1,4 @@
-         function escapeHtml(text) {
+        function escapeHtml(text) {
             if (!text) return '';
             return text.replace(/&/g, '&amp;')
                        .replace(/</g, '&lt;')
@@ -711,6 +711,17 @@ function removeObjectBlocks(code) {
             if (field === 'name') return '_auto' + (++autoNameCounter);
             return null;
         }
+        // Настройка обновления объекта — общая для ЛЮБОГО типа блока: update = always
+        // (по умолчанию, до 60 раз в сек, как раньше) | event (пересчитывать только при
+        // реальном изменении сцены — драг/клик/тик Update) | once (пересчитать один раз при
+        // запуске и больше никогда). update interval — доп. троттлинг в секундах поверх
+        // always/event. См. рантайм-функцию gcShouldUpdate.
+        function parseUpdateFields(block, vars) {
+            const m = block.match(/(?:^|[^A-Za-z0-9_])update\s*=\s*"?(always|event|once)"?/);
+            const updateMode = m ? m[1] : 'always';
+            const updateInterval = parseNumberField(block, vars, 'update interval', null, false);
+            return { updateMode, updateInterval };
+        }
         // Цвет: #hex, ключевое слово default (-> def), либо имя переменной-строки с #hex
         function parseColorField(block, vars, field, def) {
             const m = block.match(new RegExp('(?:^|[^A-Za-z0-9_])' + field + '\\s*=\\s*(?:"([^"]*)"|\'([^\']*)\'|(#[0-9A-Fa-f]+|default|[a-zA-Z_][a-zA-Z0-9_]*))', 'i'));
@@ -1140,17 +1151,20 @@ function removeObjectBlocks(code) {
             const measure = parseBoolField(block, vars, 'measure', true);
 
             const arccolor = parseColorField(block, vars, 'arccolor', null);
+            const arccolorExpr = captureExprField(block, 'arccolor');
 
             const measurecolor = parseColorField(block, vars, 'measurecolor', null);
+            const measurecolorExpr = captureExprField(block, 'measurecolor');
 
             let radius = 1.0;
+            let radiusExpr = null;
             const radiusMatch = block.match(/radius\s*=\s*(-?[\d.]+(?:[eE][+-]?\d+)?|[a-zA-Z_][a-zA-Z0-9_]*)/);
             if (radiusMatch) {
                 let r = radiusMatch[1];
                 if (!isNaN(parseFloat(r))) {
                     radius = Math.abs(parseFloat(r));
                 } else if (vars[r] !== undefined) {
-                    if (typeof vars[r] === 'number') radius = vars[r];
+                    if (typeof vars[r] === 'number') { radius = vars[r]; radiusExpr = r; }
                     else radius = r;
                 } else {
                     radius = r;
@@ -1185,7 +1199,8 @@ function removeObjectBlocks(code) {
             // ниже дефолтного слоя линии (10), чтобы дуга гарантированно оказывалась под ней
             // даже если у линии задан нестандартный (но обычный) layer.
             const layer = parseNumberField(block, vars, 'layer', 5, false);
-            return { name, angleName, arc, measure, arccolor, measurecolor, radius, side, fractions, count, layer };
+            const { updateMode, updateInterval } = parseUpdateFields(block, vars);
+            return { name, angleName, arc, measure, arccolor, arccolorExpr, measurecolor, measurecolorExpr, radius, radiusExpr, side, fractions, count, layer, updateMode, updateInterval };
         }
 
         function parseEquallySingBlock(block, vars) {
@@ -1218,9 +1233,11 @@ function removeObjectBlocks(code) {
     }
 
     const color = parseColorField(block, vars, 'color', null);
+    const colorExpr = captureExprField(block, 'color');
     const layer = parseNumberField(block, vars, 'layer', 80, false);
+    const { updateMode, updateInterval } = parseUpdateFields(block, vars);
 
-    return { name, edges, type, color, layer };
+    return { name, edges, type, color, colorExpr, layer, updateMode, updateInterval };
 }
 
 // draw Vector
@@ -1257,13 +1274,17 @@ function parseVectorBlock(block, vars) {
     }
 
     const color = parseColorField(block, vars, 'color', null);
+    const colorExpr = captureExprField(block, 'color');
 
     const length = parseNumberField(block, vars, 'length', null, true);
+    const lengthExpr = captureExprField(block, 'length');
 
     const thickness = parseNumberField(block, vars, 'thickness', null, true);
+    const thicknessExpr = captureExprField(block, 'thickness');
 
     const layer = parseNumberField(block, vars, 'layer', 70, false);
-    return { name, edge, pos, direct, color, length, thickness, layer };
+    const { updateMode, updateInterval } = parseUpdateFields(block, vars);
+    return { name, edge, pos, direct, color, colorExpr, length, lengthExpr, thickness, thicknessExpr, layer, updateMode, updateInterval };
 }
 
 // draw InfLine
@@ -1296,13 +1317,16 @@ function parseInfLineBlock(block, vars) {
     }
 
     const color = parseColorField(block, vars, 'color', null);
+    const colorExpr = captureExprField(block, 'color');
 
     const thickness = parseNumberField(block, vars, 'thickness', null, true);
+    const thicknessExpr = captureExprField(block, 'thickness');
 
     const dotline = parseBoolField(block, vars, 'dotline', false);
 
     const layer = parseNumberField(block, vars, 'layer', 50, false);
-    return { name, edge, limit, color, thickness, dotline, layer };
+    const { updateMode, updateInterval } = parseUpdateFields(block, vars);
+    return { name, edge, limit, color, colorExpr, thickness, thicknessExpr, dotline, layer, updateMode, updateInterval };
 }
 
 // draw InfPlane — аналог draw InfLine, но для плоскостей (только 3D).
@@ -1322,14 +1346,17 @@ function parseInfPlaneBlock(block, vars) {
     }
 
     const color = parseColorField(block, vars, 'color', null);
+    const colorExpr = captureExprField(block, 'color');
     let opacity = parseNumberField(block, vars, 'opacity', 0.35, false);
     if (opacity < 0) opacity = 0;
     if (opacity > 1) opacity = 1;
+    const opacityExpr = captureExprField(block, 'opacity');
     const size = parseNumberField(block, vars, 'size', null, false);
     const grid = parseBoolField(block, vars, 'grid', false);
     const active = parseBoolField(block, vars, 'active', true);
     const layer = parseNumberField(block, vars, 'layer', 25, false);
-    return { name, figure, points, color, opacity, size, grid, active, activeExpr: parseActiveExpr(block), layer };
+    const { updateMode, updateInterval } = parseUpdateFields(block, vars);
+    return { name, figure, points, color, colorExpr, opacity, opacityExpr, size, grid, active, activeExpr: parseActiveExpr(block), layer, updateMode, updateInterval };
 }
 
 // draw Filling
@@ -1428,6 +1455,7 @@ function parseFillingBlock(block, vars) {
     if (func2 && !func) return null; // func2 без func не имеет смысла
 
     const color = parseColorField(block, vars, 'color', null);
+    const colorExpr = captureExprField(block, 'color');
 
     let mode = 'full';
     const modeMatch = block.match(/mode\s*=\s*(full|inside|outside|[a-zA-Z_][a-zA-Z0-9_]*)/);
@@ -1443,7 +1471,9 @@ function parseFillingBlock(block, vars) {
     let opacity = parseNumberField(block, vars, 'opacity', 0.5, false);
     if (opacity < 0) opacity = 0;
     if (opacity > 1) opacity = 1;
-    return { name, figure, line, side, circle, from, to, arc, shape, color, mode, layer, opacity, func, func2, funcXmin, funcXmax, funcSegments, activeExpr: parseActiveExpr(block) };
+    const opacityExpr = captureExprField(block, 'opacity');
+    const { updateMode, updateInterval } = parseUpdateFields(block, vars);
+    return { name, figure, line, side, circle, from, to, arc, shape, color, colorExpr, mode, layer, opacity, opacityExpr, updateMode, updateInterval, func, func2, funcXmin, funcXmax, funcSegments, activeExpr: parseActiveExpr(block) };
 }
 
 function parsePunctirBlock(block, vars) {
@@ -1463,8 +1493,10 @@ function parsePunctirBlock(block, vars) {
     if (!edge) return null;
 
     const color = parseColorField(block, vars, 'color', null);
+    const colorExpr = captureExprField(block, 'color');
 
     const thickness = parseNumberField(block, vars, 'thickness', null, true);
+    const thicknessExpr = captureExprField(block, 'thickness');
 
     let pattern = null;
     const patternMatch = block.match(/pattern\s*=\s*\(([\d.,\s]+)\)/);
@@ -1477,7 +1509,8 @@ function parsePunctirBlock(block, vars) {
     }
 
     const layer = parseNumberField(block, vars, 'layer', 60, false);
-    return { name, edge, color, thickness, pattern, layer };
+    const { updateMode, updateInterval } = parseUpdateFields(block, vars);
+    return { name, edge, color, colorExpr, thickness, thicknessExpr, pattern, layer, updateMode, updateInterval };
 }
 
         // Общие атрибуты коллизий для линий/кривых/фигур/окружностей/эллипсов/дуг (по умолчанию collision=false)
@@ -1500,6 +1533,10 @@ function parsePunctirBlock(block, vars) {
         }
         function parsePointCommonFields(block, vars) {
             const color = parseColorField(block, vars, 'color', null);
+            // Живая версия — вычисляется заново на каждой перерисовке (см. drawPoint/gcShouldUpdate),
+            // а не один раз при компиляции. color/size выше остаются как статический дефолт на
+            // случай, если captureExprField ничего не найдёт (поле вообще не задано).
+            const colorExpr = captureExprField(block, 'color');
             let textEnabled = false;
             let textValue = null;
             const textMatch = block.match(/text\s*=\s*(true\s*\(([^)]*)\)|false|[a-zA-Z_][a-zA-Z0-9_]*)/);
@@ -1536,6 +1573,7 @@ function parsePunctirBlock(block, vars) {
             const active = parseBoolField(block, vars, 'active', true);
             const activeExpr = parseActiveExpr(block);
             const size = parseNumberField(block, vars, 'size', 1, false);
+            const sizeExpr = captureExprField(block, 'size');
             let shape = 'circle';
             const shapeMatch = block.match(/shape\s*=\s*(circle|square|cross|[a-zA-Z_][a-zA-Z0-9_]*)/);
             if (shapeMatch) {
@@ -1565,12 +1603,14 @@ function parsePunctirBlock(block, vars) {
             // не "проваливались" внутрь примитивов сразу, без дополнительной настройки скрипта;
             // как и всё остальное здесь, отключается точечно: collideWithPrimitives = false.
             const collideWithPrimitives = parseBoolField(block, vars, 'collideWithPrimitives', true);
+            const { updateMode, updateInterval } = parseUpdateFields(block, vars);
 
             return {
-                color, textEnabled, textValue, textColor, dynamic, active, activeExpr, size, shape, textSize, pauseOnDrag, layer,
+                color, colorExpr, textEnabled, textValue, textColor, dynamic, active, activeExpr, size, sizeExpr, shape, textSize, pauseOnDrag, layer,
                 collision, collisionGroup, collisionMask, collisionMargin,
                 collideWithPoints, collideWithLines, collideWithCurves, collideWithCircles, collideWithEllipses, collideWithArcs,
                 collideWithFigures, collideWithClusters, collideWithBoundary, collideWithPrimitives,
+                updateMode, updateInterval,
             };
         }
 
@@ -1797,15 +1837,18 @@ function parsePunctirBlock(block, vars) {
             }
 
             const color = parseColorField(block, vars, 'color', null);
+            const colorExpr = captureExprField(block, 'color');
             const thickness = parseNumberField(block, vars, 'thickness', 2.5, true);
+            const thicknessExpr = captureExprField(block, 'thickness');
 
             const interact = parseBoolField(block, vars, 'interact', true);
 
             const active = parseBoolField(block, vars, 'active', true);
             const layer = parseNumberField(block, vars, 'layer', 10, false);
             const collisionFields = parseGeneralCollisionFields(block, vars, false);
+            const { updateMode, updateInterval } = parseUpdateFields(block, vars);
 
-            return { name, pointA, pointB, color, thickness, interact, active, activeExpr: parseActiveExpr(block), layer, ...collisionFields };
+            return { name, pointA, pointB, color, colorExpr, thickness, thicknessExpr, interact, active, activeExpr: parseActiveExpr(block), layer, updateMode, updateInterval, ...collisionFields };
         }
 
         function parseFigureBlock(block, vars) {
@@ -1876,11 +1919,17 @@ function parsePrimitiveBlock(block, vars) {
     const rotateDeg = parseXYZField(block, vars, 'rotate', { x: 0, y: 0, z: 0 });
 
     const edge = parseNumberField(block, vars, 'edge', 2, false);
+    const edgeExpr = captureExprField(block, 'edge');
     const width = parseNumberField(block, vars, 'width', edge, false);
+    const widthExpr = captureExprField(block, 'width');
     const height = parseNumberField(block, vars, 'height', 2, false);
+    const heightExpr = captureExprField(block, 'height');
     const depth = parseNumberField(block, vars, 'depth', edge, false);
+    const depthExpr = captureExprField(block, 'depth');
     const radius = parseNumberField(block, vars, 'radius', 1.5, false);
+    const radiusExpr = captureExprField(block, 'radius');
     const tube = parseNumberField(block, vars, 'tube', radius * 0.35, false);
+    const tubeExpr = captureExprField(block, 'tube');
     let sides = parseNumberField(block, vars, 'sides', type === 'pyramid' ? 4 : 6, false);
     sides = Math.max(3, Math.min(32, Math.round(sides)));
 
@@ -1966,10 +2015,15 @@ function parsePrimitiveBlock(block, vars) {
     if (!isFinite(volume) || isNaN(volume)) volume = 0;
     if (!isFinite(area) || isNaN(area)) area = 0;
 
+    const colorExpr = captureExprField(block, 'color');
+    const opacityExpr = captureExprField(block, 'opacity');
+    const { updateMode, updateInterval } = parseUpdateFields(block, vars);
+
     return {
         name, type, pos, rotateDeg,
-        edge, width, height, depth, radius, tube, sides,
-        color, opacity, wireframe, active, activeExpr, showInfo, textColor, textSize,
+        edge, edgeExpr, width, widthExpr, height, heightExpr, depth, depthExpr, radius, radiusExpr, tube, tubeExpr, sides,
+        color, colorExpr, opacity, opacityExpr, wireframe, active, activeExpr, showInfo, textColor, textSize,
+        updateMode, updateInterval,
         volume, area,
     };
 }
@@ -2008,6 +2062,7 @@ function parseVisualStyleFields(block, vars, overrides) {
         roughness: parseNumberField(block, vars, 'roughness', (o.roughness !== undefined) ? o.roughness : 1, false),
         metalness: parseNumberField(block, vars, 'metalness', (o.metalness !== undefined) ? o.metalness : 0, false),
         opacity: parseNumberField(block, vars, 'opacity', (o.opacity !== undefined) ? o.opacity : 1, false),
+        opacityExpr: captureExprField(block, 'opacity'),
         flatShading: parseBoolField(block, vars, 'flatShading', (o.flatShading !== undefined) ? o.flatShading : false),
         segments: parseNumberField(block, vars, 'segments', (o.segments !== undefined) ? o.segments : 16, false),
     };
@@ -2041,10 +2096,13 @@ function parseSectionBlock(block, vars) {
 
     const explode = parseNumberField(block, vars, 'explode', 0, false);
     const color = parseColorField(block, vars, 'color', null);
+    const colorExpr = captureExprField(block, 'color');
     const capColor = parseColorField(block, vars, 'capColor', null);
+    const capColorExpr = captureExprField(block, 'capColor');
     let opacity = parseNumberField(block, vars, 'opacity', 1, false);
     if (isNaN(opacity)) opacity = 1;
     opacity = Math.max(0, Math.min(1, opacity));
+    const opacityExpr = captureExprField(block, 'opacity');
     const wireframe = parseBoolField(block, vars, 'wireframe', false);
     const active = parseBoolField(block, vars, 'active', true);
     const activeExpr = parseActiveExpr(block);
@@ -2052,10 +2110,12 @@ function parseSectionBlock(block, vars) {
     const hideSource = parseBoolField(block, vars, 'hideSource', true);
     const textColor = parseColorField(block, vars, 'textColor', null);
     const textSize = parseNumberField(block, vars, 'textSize', 1, false);
+    const { updateMode, updateInterval } = parseUpdateFields(block, vars);
 
     return {
         name, source, normal, offset, keep, explode,
-        color, capColor, opacity, wireframe, active, activeExpr, showInfo, hideSource, textColor, textSize,
+        color, colorExpr, capColor, capColorExpr, opacity, opacityExpr, wireframe, active, activeExpr, showInfo, hideSource, textColor, textSize,
+        updateMode, updateInterval,
     };
 }
 function parseBooleanBlock(block, vars) {
@@ -2070,9 +2130,11 @@ function parseBooleanBlock(block, vars) {
     if (!parts || parts.length < 2) return null;
 
     const color = parseColorField(block, vars, 'color', null);
+    const colorExpr = captureExprField(block, 'color');
     let opacity = parseNumberField(block, vars, 'opacity', 1, false);
     if (isNaN(opacity)) opacity = 1;
     opacity = Math.max(0, Math.min(1, opacity));
+    const opacityExpr = captureExprField(block, 'opacity');
     const wireframe = parseBoolField(block, vars, 'wireframe', false);
     const active = parseBoolField(block, vars, 'active', true);
     const activeExpr = parseActiveExpr(block);
@@ -2080,8 +2142,9 @@ function parseBooleanBlock(block, vars) {
     const hideSource = parseBoolField(block, vars, 'hideSource', true);
     const textColor = parseColorField(block, vars, 'textColor', null);
     const textSize = parseNumberField(block, vars, 'textSize', 1, false);
+    const { updateMode, updateInterval } = parseUpdateFields(block, vars);
 
-    return { name, op, parts, color, opacity, wireframe, active, activeExpr, showInfo, hideSource, textColor, textSize };
+    return { name, op, parts, color, colorExpr, opacity, opacityExpr, wireframe, active, activeExpr, showInfo, hideSource, textColor, textSize, updateMode, updateInterval };
 }
 
 // new Truncate — усечение вершин тела (как «усечённый куб», «усечённый тетраэдр» и т.п.):
@@ -2101,9 +2164,11 @@ function parseTruncateBlock(block, vars) {
     fraction = Math.max(0.01, Math.min(0.5, fraction));
 
     const color = parseColorField(block, vars, 'color', null);
+    const colorExpr = captureExprField(block, 'color');
     let opacity = parseNumberField(block, vars, 'opacity', 1, false);
     if (isNaN(opacity)) opacity = 1;
     opacity = Math.max(0, Math.min(1, opacity));
+    const opacityExpr = captureExprField(block, 'opacity');
     const wireframe = parseBoolField(block, vars, 'wireframe', false);
     const active = parseBoolField(block, vars, 'active', true);
     const activeExpr = parseActiveExpr(block);
@@ -2111,8 +2176,9 @@ function parseTruncateBlock(block, vars) {
     const hideSource = parseBoolField(block, vars, 'hideSource', true);
     const textColor = parseColorField(block, vars, 'textColor', null);
     const textSize = parseNumberField(block, vars, 'textSize', 1, false);
+    const { updateMode, updateInterval } = parseUpdateFields(block, vars);
 
-    return { name, source, fraction, color, opacity, wireframe, active, activeExpr, showInfo, hideSource, textColor, textSize };
+    return { name, source, fraction, color, colorExpr, opacity, opacityExpr, wireframe, active, activeExpr, showInfo, hideSource, textColor, textSize, updateMode, updateInterval };
 }
 
 // new Hull — выпуклая оболочка объединённых вершин parts (одного или нескольких тел/точек).
@@ -2126,9 +2192,11 @@ function parseHullBlock(block, vars) {
     if (!parts || parts.length < 1) return null;
 
     const color = parseColorField(block, vars, 'color', null);
+    const colorExpr = captureExprField(block, 'color');
     let opacity = parseNumberField(block, vars, 'opacity', 1, false);
     if (isNaN(opacity)) opacity = 1;
     opacity = Math.max(0, Math.min(1, opacity));
+    const opacityExpr = captureExprField(block, 'opacity');
     const wireframe = parseBoolField(block, vars, 'wireframe', false);
     const active = parseBoolField(block, vars, 'active', true);
     const activeExpr = parseActiveExpr(block);
@@ -2136,8 +2204,9 @@ function parseHullBlock(block, vars) {
     const hideSource = parseBoolField(block, vars, 'hideSource', true);
     const textColor = parseColorField(block, vars, 'textColor', null);
     const textSize = parseNumberField(block, vars, 'textSize', 1, false);
+    const { updateMode, updateInterval } = parseUpdateFields(block, vars);
 
-    return { name, parts, color, opacity, wireframe, active, activeExpr, showInfo, hideSource, textColor, textSize };
+    return { name, parts, color, colorExpr, opacity, opacityExpr, wireframe, active, activeExpr, showInfo, hideSource, textColor, textSize, updateMode, updateInterval };
 }
 
 // new Minkowski — сумма Минковского parts (>=2 тел): A ⊕ B = { a + b : a ∈ A, b ∈ B }.
@@ -2153,9 +2222,11 @@ function parseMinkowskiBlock(block, vars) {
     if (!parts || parts.length < 2) return null;
 
     const color = parseColorField(block, vars, 'color', null);
+    const colorExpr = captureExprField(block, 'color');
     let opacity = parseNumberField(block, vars, 'opacity', 1, false);
     if (isNaN(opacity)) opacity = 1;
     opacity = Math.max(0, Math.min(1, opacity));
+    const opacityExpr = captureExprField(block, 'opacity');
     const wireframe = parseBoolField(block, vars, 'wireframe', false);
     const active = parseBoolField(block, vars, 'active', true);
     const activeExpr = parseActiveExpr(block);
@@ -2163,8 +2234,9 @@ function parseMinkowskiBlock(block, vars) {
     const hideSource = parseBoolField(block, vars, 'hideSource', true);
     const textColor = parseColorField(block, vars, 'textColor', null);
     const textSize = parseNumberField(block, vars, 'textSize', 1, false);
+    const { updateMode, updateInterval } = parseUpdateFields(block, vars);
 
-    return { name, parts, color, opacity, wireframe, active, activeExpr, showInfo, hideSource, textColor, textSize };
+    return { name, parts, color, colorExpr, opacity, opacityExpr, wireframe, active, activeExpr, showInfo, hideSource, textColor, textSize, updateMode, updateInterval };
 }
 
 // ---- Углы, специфичные для 3D (new Angle3D) ----
@@ -2308,13 +2380,16 @@ function parseCircleBlock(block, vars) {
     if (!type) return null;
 
     const color = parseColorField(block, vars, 'color', null);
+    const colorExpr = captureExprField(block, 'color');
     const thickness = parseNumberField(block, vars, 'thickness', 1.5, false);
+    const thicknessExpr = captureExprField(block, 'thickness');
 
     if (type === 'FromRadius') {
         const centerName = parsePointRefField(block, vars, 'center');
         if (!centerName) return null;
 
         let radius = null;
+        let radiusExpr = null;
         // Ищем радиус: число (включая отрицательные и научную запись — см. parseNumberField),
         // точка по имени, или буквальные координаты (x, y)
         const radiusRaw = block.match(/radius\s*=\s*(\([^)]*\)|"[^"]*"|-?[\d.]+(?:[eE][+-]?\d+)?|[a-zA-Z_][a-zA-Z0-9_]*)/);
@@ -2323,7 +2398,11 @@ function parseCircleBlock(block, vars) {
             if (!isNaN(parseFloat(r))) {
                 radius = Math.abs(parseFloat(r)); // отрицательное число — не ошибка, а модуль (радиус не бывает отрицательным)
             } else if (vars[r] !== undefined && typeof vars[r] === 'number') {
+                // Переменная-число: раньше подставлялась один раз при компиляции и больше не
+                // менялась. Сохраняем и как живое выражение — updateCircles() пересчитывает его
+                // каждый кадр, как уже давно делает для радиуса-через-точку (см. ниже).
                 radius = Math.abs(vars[r]);
+                radiusExpr = r;
             } else {
                 radius = resolvePointRef(r, vars); // имя точки (или буквальные координаты) — радиус = расстояние до неё
             }
@@ -2331,7 +2410,8 @@ function parseCircleBlock(block, vars) {
         if (radius === null) return null;
         const layer = parseNumberField(block, vars, 'layer', 20, false);
         const collisionFields = parseGeneralCollisionFields(block, vars, false);
-        return { name, type, centerName, radius, color, thickness, layer, ...collisionFields };
+        const { updateMode, updateInterval } = parseUpdateFields(block, vars);
+        return { name, type, centerName, radius, radiusExpr, color, colorExpr, thickness, thicknessExpr, layer, updateMode, updateInterval, ...collisionFields };
     } else if (type === 'FromPoints') {
         let pointNames = parsePointRefList(block, vars, 'points');
         if (!pointNames) {
@@ -2346,7 +2426,8 @@ function parseCircleBlock(block, vars) {
         if (!pointNames || pointNames.length !== 3) return null;
         const layer = parseNumberField(block, vars, 'layer', 20, false);
         const collisionFields = parseGeneralCollisionFields(block, vars, false);
-        return { name, type, pointNames, color, thickness, layer, ...collisionFields };
+        const { updateMode, updateInterval } = parseUpdateFields(block, vars);
+        return { name, type, pointNames, color, colorExpr, thickness, thicknessExpr, layer, updateMode, updateInterval, ...collisionFields };
     }
     return null;
 }
@@ -2363,10 +2444,13 @@ function parseArcBlock(block, vars) {
     else type = 'CenterRadius';
 
     const color = parseColorField(block, vars, 'color', null);
+    const colorExpr = captureExprField(block, 'color');
     const thickness = parseNumberField(block, vars, 'thickness', 2, false);
+    const thicknessExpr = captureExprField(block, 'thickness');
     const active = parseBoolField(block, vars, 'active', true);
     const layer = parseNumberField(block, vars, 'layer', 20, false);
-    const common = { name, type, color, thickness, active, layer, ...parseGeneralCollisionFields(block, vars, false) };
+    const { updateMode, updateInterval } = parseUpdateFields(block, vars);
+    const common = { name, type, color, colorExpr, thickness, thicknessExpr, active, layer, updateMode, updateInterval, ...parseGeneralCollisionFields(block, vars, false) };
 
     if (type === 'ThreePoints') {
         const pointNames = parsePointRefList(block, vars, 'points');
@@ -2378,11 +2462,12 @@ function parseArcBlock(block, vars) {
     if (!centerName) return null;
 
     let radius = null;
+    let radiusExpr = null;
     const radiusRaw = block.match(/radius\s*=\s*(\([^)]*\)|"[^"]*"|-?[\d.]+(?:[eE][+-]?\d+)?|[a-zA-Z_][a-zA-Z0-9_]*)/);
     if (radiusRaw) {
         const r = radiusRaw[1];
         if (!isNaN(parseFloat(r))) radius = Math.abs(parseFloat(r)); // отрицательное число — не ошибка, а модуль
-        else if (vars[r] !== undefined && typeof vars[r] === 'number') radius = Math.abs(vars[r]);
+        else if (vars[r] !== undefined && typeof vars[r] === 'number') { radius = Math.abs(vars[r]); radiusExpr = r; }
         else radius = resolvePointRef(r, vars); // радиус = расстояние от центра до этой точки
     }
 
@@ -2390,7 +2475,7 @@ function parseArcBlock(block, vars) {
     const to = parsePointRefField(block, vars, 'to');
     if (radius === null || !from || !to) return null;
 
-    return { ...common, centerName, radius, from, to };
+    return { ...common, centerName, radius, radiusExpr, from, to };
 }
 
 // Ellipse — интерактивный объект: центр (точка) + полуоси a/b (число или выражение) + поворот
@@ -2406,11 +2491,14 @@ function parseEllipseBlock(block, vars) {
     else type = 'FromCenter';
 
     const color = parseColorField(block, vars, 'color', null);
+    const colorExpr = captureExprField(block, 'color');
     const thickness = parseNumberField(block, vars, 'thickness', 2, false);
+    const thicknessExpr = captureExprField(block, 'thickness');
     const active = parseBoolField(block, vars, 'active', true);
     const dynamic = parseBoolField(block, vars, 'dynamic', true);
     const layer = parseNumberField(block, vars, 'layer', 20, false);
-    const common = { name, type, color, thickness, active, dynamic, layer, ...parseGeneralCollisionFields(block, vars, false) };
+    const { updateMode, updateInterval } = parseUpdateFields(block, vars);
+    const common = { name, type, color, colorExpr, thickness, thicknessExpr, active, dynamic, layer, updateMode, updateInterval, ...parseGeneralCollisionFields(block, vars, false) };
 
     if (type === 'FromPoints') {
         const pointNames = parsePointRefList(block, vars, 'points');
@@ -2470,10 +2558,16 @@ function parseCurveBlock(block, vars) {
             curveRadius = parseNumberField(block, vars, 'radius', 2, false);
         }
     }
+    const turnsExpr = captureExprField(block, 'turns');
+    const curveAExpr = captureExprField(block, 'a');
+    const curveBExpr = captureExprField(block, 'b');
+    const curveRadiusExpr = captureExprField(block, 'radius');
 
     const segments = parseNumberField(block, vars, 'segments', 50, false);
     const color = parseColorField(block, vars, 'color', null);
+    const colorExpr = captureExprField(block, 'color');
     const thickness = parseNumberField(block, vars, 'thickness', 2, false);
+    const thicknessExpr = captureExprField(block, 'thickness');
     const active = parseBoolField(block, vars, 'active', true);
     const layer = parseNumberField(block, vars, 'layer', 20, false);
     const collisionFields = parseGeneralCollisionFields(block, vars, false);
@@ -2487,10 +2581,12 @@ function parseCurveBlock(block, vars) {
     const showFrenet = parseBoolField(block, vars, 'showFrenet', false);
     const frenetCount = parseNumberField(block, vars, 'frenetCount', 8, false);
     const frenetScale = parseNumberField(block, vars, 'frenetScale', null, false);
+    const { updateMode, updateInterval } = parseUpdateFields(block, vars);
 
     return {
-        name, type, controlPoints, xExpr, yExpr, zExpr, segments, color, thickness, active, activeExpr: parseActiveExpr(block), layer,
-        centerName, a: curveA, b: curveB, radius: curveRadius, turns, colorBy, showFrenet, frenetCount, frenetScale, ...collisionFields
+        name, type, controlPoints, xExpr, yExpr, zExpr, segments, color, colorExpr, thickness, thicknessExpr, active, activeExpr: parseActiveExpr(block), layer,
+        centerName, a: curveA, aExpr: curveAExpr, b: curveB, bExpr: curveBExpr, radius: curveRadius, radiusExpr: curveRadiusExpr,
+        turns, turnsExpr, colorBy, showFrenet, frenetCount, frenetScale, updateMode, updateInterval, ...collisionFields
     };
 }
 
@@ -2520,8 +2616,16 @@ function parseFunctionGraphBlock(block, vars) {
     // вернуть старое поведение с фиксированным диапазоном.
     const extend = parseBoolField(block, vars, 'extend', !xminGiven && !xmaxGiven);
     const extendDistance = parseNumberField(block, vars, 'extendDistance', null, false);
+    // mode = manual (по умолчанию) — диапазон и число сегментов ровно те, что заданы (или extend,
+    // как раньше). mode = auto — диапазон ВСЕГДА равен текущей видимой части камеры (без запаса),
+    // а число сегментов пересчитывается каждый кадр так, чтобы примерно на каждые 2 пикселя
+    // холста приходился один сэмпл — то есть детализация сама растёт при приближении камеры
+    // и падает при отдалении, без участия автора скрипта.
+    const modeMatch = block.match(/(?:^|[^A-Za-z0-9_])mode\s*=\s*"?(auto|manual)"?/);
+    const mode = modeMatch ? modeMatch[1] : 'manual';
+    const { updateMode, updateInterval } = parseUpdateFields(block, vars);
 
-    return { name, funcName, xmin, xmax, segments, color, thickness, active, layer, grid, gridStep, extend, extendDistance };
+    return { name, funcName, xmin, xmax, segments, color, thickness, active, layer, grid, gridStep, extend, extendDistance, mode, updateMode, updateInterval };
 }
 
 // draw Surface — график функции двух переменных: contour (изолинии) или псевдо-3D (в 2D);
@@ -2586,8 +2690,11 @@ function parseSurfaceBlock(block, vars) {
     let opacity = parseNumberField(block, vars, 'opacity', 0.85, false);
     if (opacity < 0) opacity = 0;
     if (opacity > 1) opacity = 1;
+    const colorExpr = captureExprField(block, 'color');
+    const opacityExpr = captureExprField(block, 'opacity');
+    const { updateMode, updateInterval } = parseUpdateFields(block, vars);
 
-    return { name, type, funcName, xExpr, yExpr, zExpr, xmin, xmax, ymin, ymax, zmin, zmax, umin, umax, vmin, vmax, grid, mode, color, opacity, active, activeExpr: parseActiveExpr(block), layer, angle, levels, level };
+    return { name, type, funcName, xExpr, yExpr, zExpr, xmin, xmax, ymin, ymax, zmin, zmax, umin, umax, vmin, vmax, grid, mode, color, colorExpr, opacity, opacityExpr, active, activeExpr: parseActiveExpr(block), layer, angle, levels, level, updateMode, updateInterval };
 }
 
 // draw Chart — диаграммы: scatter / line строятся в координатах поля,
@@ -2633,6 +2740,7 @@ function parseChartBlock(block, vars) {
         radius: parseNumberField(block, vars, 'radius', 4, false),
         pointSize: parseNumberField(block, vars, 'pointSize', 4, false),
         color: parseColorField(block, vars, 'color', '#4a90d9'),
+        colorExpr: captureExprField(block, 'color'),
         regression: parseBoolField(block, vars, 'regression', false),
         showValues: parseBoolField(block, vars, 'showValues', false),
         showAxes: parseBoolField(block, vars, 'showAxes', true),
@@ -2667,7 +2775,8 @@ function parseChartBlock(block, vars) {
         // Круговой нужна заметно более гладкая дуга, чем маркеру-сфере, поэтому segments
         // по умолчанию выше общего значения — остальные поля схемы стандартные.
         ...parseVisualStyleFields(block, vars, { segments: 64 }),
-        interactive: parseInteractiveField(block, vars)
+        interactive: parseInteractiveField(block, vars),
+        ...parseUpdateFields(block, vars),
     };
 }
 
@@ -2711,14 +2820,17 @@ function parseTreeBlock(block, vars) {
         // перерисовке через __gcDefaultColor() — см. drawTreeDiagram. edgeColor (линии
         // связей) — сознательно оставлен фиксированным серо-голубым, это не чёрный/белый.
         color: parseColorField(block, vars, 'color', null),
+        colorExpr: captureExprField(block, 'color'),
         edgeColor: parseColorField(block, vars, 'edgeColor', '#90a4ae'),
+        edgeColorExpr: captureExprField(block, 'edgeColor'),
         labelColor: parseColorField(block, vars, 'labelColor', null),
         boxed: parseBoolField(block, vars, 'boxed', false),
         panelWidth: parseNumberField(block, vars, 'panelWidth', 8, false),
         panelHeight: parseNumberField(block, vars, 'panelHeight', 6, false),
         active: parseBoolField(block, vars, 'active', true),
         activeExpr: parseActiveExpr(block),
-        layer: parseNumberField(block, vars, 'layer', 22, false)
+        layer: parseNumberField(block, vars, 'layer', 22, false),
+        ...parseUpdateFields(block, vars),
     };
 }
 
@@ -2762,6 +2874,7 @@ function parseTableBlock(block, vars) {
         borders: parseBoolField(block, vars, 'borders', true),
         align: alignM ? alignM[1] : 'center',
         color: parseColorField(block, vars, 'color', null),
+        colorExpr: captureExprField(block, 'color'),
         // ИСКЛЮЧЕНИЕ из правила "близко к чёрному/белому -> за темой": headerBg — это ЗАЛИВКА
         // ФОНА шапки, а не цвет текста. Подпись в шапке красится тем же d.color ||
         // __gcDefaultColor(), что и обычные ячейки (см. drawTable) — если бы фон шапки ТОЖЕ
@@ -2776,7 +2889,8 @@ function parseTableBlock(block, vars) {
         interactive: parseInteractiveField(block, vars),
         active: parseBoolField(block, vars, 'active', true),
         activeExpr: parseActiveExpr(block),
-        layer: parseNumberField(block, vars, 'layer', 22, false)
+        layer: parseNumberField(block, vars, 'layer', 22, false),
+        ...parseUpdateFields(block, vars),
     };
 }
 
@@ -2802,14 +2916,17 @@ function parseFormulaBlock(block, vars) {
     if (latexExpr === null) latexExpr = captureExprField(block, 'text');
     if (latexExpr === null) return null;
     const size = parseNumberField(block, vars, 'size', 1, false);
+    const sizeExpr = captureExprField(block, 'size');
     const color = parseColorField(block, vars, 'color', null);
+    const colorExpr = captureExprField(block, 'color');
     const bg = parseColorField(block, vars, 'background', 'transparent');
     const alignM = block.match(/(?:^|[^A-Za-z0-9_])align\s*=\s*"?(left|center|right)"?/);
     const align = alignM ? alignM[1] : 'center';
     const display = parseBoolField(block, vars, 'display', false);
     const active = parseBoolField(block, vars, 'active', true);
     const layer = parseNumberField(block, vars, 'layer', 60, false);
-    return { name, posXExpr, posYExpr, latexExpr, size, color, bg, align, display, active, layer };
+    const { updateMode, updateInterval } = parseUpdateFields(block, vars);
+    return { name, posXExpr, posYExpr, latexExpr, size, sizeExpr, color, colorExpr, bg, align, display, active, layer, updateMode, updateInterval };
 }
 
 // draw Distribution — готовые визуализации распределений вероятностей, без необходимости
@@ -2870,10 +2987,13 @@ function parseDistributionBlock(block, vars) {
     }
 
     const color = parseColorField(block, vars, 'color', null);
+    const colorExpr = captureExprField(block, 'color');
     const thickness = parseNumberField(block, vars, 'thickness', 2, false);
+    const thicknessExpr = captureExprField(block, 'thickness');
     let opacity = parseNumberField(block, vars, 'opacity', 1, false);
     if (opacity < 0) opacity = 0;
     if (opacity > 1) opacity = 1;
+    const opacityExpr = captureExprField(block, 'opacity');
     const filled = parseBoolField(block, vars, 'filled', true);
 
     const hasHFrom = /(?:^|[^A-Za-z0-9_])highlightFrom\s*=/.test(block);
@@ -2887,14 +3007,15 @@ function parseDistributionBlock(block, vars) {
 
     const active = parseBoolField(block, vars, 'active', true);
     const layer = parseNumberField(block, vars, 'layer', 20, false);
+    const { updateMode, updateInterval } = parseUpdateFields(block, vars);
 
     return {
         anchor: parseAnchorField(block, 'world'),
         name, type, mu, sigma, n, p, lambda, a, b,
         xmin, xmax, kmax, segments,
-        color, thickness, opacity, filled,
+        color, colorExpr, thickness, thicknessExpr, opacity, opacityExpr, filled,
         highlightFrom, highlightTo, highlightColor, highlightOpacity,
-        active, layer,
+        active, layer, updateMode, updateInterval,
     };
 }
 
@@ -2911,11 +3032,14 @@ function parseLocusBlock(block, vars) {
     const from = parseNumberField(block, vars, 'from', 0, false);
     const to = parseNumberField(block, vars, 'to', 1, false);
     const color = parseColorField(block, vars, 'color', '#d9534f');
+    const colorExpr = captureExprField(block, 'color');
     const thickness = parseNumberField(block, vars, 'thickness', 2, false);
+    const thicknessExpr = captureExprField(block, 'thickness');
     const dashed = parseBoolField(block, vars, 'dashed', false);
     const active = parseBoolField(block, vars, 'active', true);
     const layer = parseNumberField(block, vars, 'layer', 18, false);
-    return { name, pointName, driverName, samples, from, to, color, thickness, dashed, active, layer };
+    const { updateMode, updateInterval } = parseUpdateFields(block, vars);
+    return { name, pointName, driverName, samples, from, to, color, colorExpr, thickness, thicknessExpr, dashed, active, layer, updateMode, updateInterval };
 }
 
 // draw Trace — след точки во времени (накапливается по кадрам, полезно для анимаций).
@@ -2927,11 +3051,14 @@ function parseTraceBlock(block, vars) {
     const maxPoints = parseNumberField(block, vars, 'maxPoints', 400, false);
     const minDist = parseNumberField(block, vars, 'minDist', 0.05, false);
     const color = parseColorField(block, vars, 'color', '#0275d8');
+    const colorExpr = captureExprField(block, 'color');
     const thickness = parseNumberField(block, vars, 'thickness', 2, false);
+    const thicknessExpr = captureExprField(block, 'thickness');
     const fade = parseBoolField(block, vars, 'fade', true);
     const active = parseBoolField(block, vars, 'active', true);
     const layer = parseNumberField(block, vars, 'layer', 18, false);
-    return { name, pointName, maxPoints, minDist, color, thickness, fade, active, layer };
+    const { updateMode, updateInterval } = parseUpdateFields(block, vars);
+    return { name, pointName, maxPoints, minDist, color, colorExpr, thickness, thicknessExpr, fade, active, layer, updateMode, updateInterval };
 }
 
 // draw Region — закрашенная область, заданная неравенством f(x, y) <op> level.
@@ -2947,11 +3074,14 @@ function parseRegionBlock(block, vars) {
     const op2M = block.match(/(?:^|[^A-Za-z0-9_])op2\s*=\s*"?(<=|>=|<|>)"?/);
     const combineM = block.match(/(?:^|[^A-Za-z0-9_])combine\s*=\s*"?(and|or)"?/);
     const color = parseColorField(block, vars, 'color', '#4a90d9');
+    const colorExpr = captureExprField(block, 'color');
     const opacity = parseNumberField(block, vars, 'opacity', 0.35, false);
+    const opacityExpr = captureExprField(block, 'opacity');
     const quality = parseNumberField(block, vars, 'quality', 3, false);
     const border = parseBoolField(block, vars, 'border', true);
     const active = parseBoolField(block, vars, 'active', true);
     const layer = parseNumberField(block, vars, 'layer', 5, false);
+    const { updateMode, updateInterval } = parseUpdateFields(block, vars);
     // 3D-альтернатива (билборд-панель): та же неявная область f(x,y) <op> level, только
     // растровая маска рисуется на отдельной панели в 3D-пространстве (pos = (x,y,z)), а не
     // поверх основной 2D-сцены. Настоящий объёмный аналог (область в пространстве, заданная
@@ -2981,7 +3111,8 @@ function parseRegionBlock(block, vars) {
         func2Name: f2M ? f2M[1] : null, op2: op2M ? op2M[1] : '<',
         level2: parseNumberField(block, vars, 'level2', 0, false),
         combine: combineM ? combineM[1] : 'and',
-        color, opacity, quality, border, active, activeExpr: parseActiveExpr(block), layer,
+        color, colorExpr, opacity, opacityExpr, quality, border, active, activeExpr: parseActiveExpr(block), layer,
+        updateMode, updateInterval,
         dim, pos3D, rotate3D, billboard,
         panelWidth: parseNumberField(block, vars, 'panelWidth', 8, false),
         panelHeight: parseNumberField(block, vars, 'panelHeight', 8, false),
@@ -3027,12 +3158,14 @@ function parseBifurcationBlock(block, vars) {
         keep: parseNumberField(block, vars, 'keep', 120, false),
         quality: parseNumberField(block, vars, 'quality', 2, false),
         color: parseColorField(block, vars, 'color', '#1a237e'),
+        colorExpr: captureExprField(block, 'color'),
         active: parseBoolField(block, vars, 'active', true),
         activeExpr: parseActiveExpr(block),
         layer: parseNumberField(block, vars, 'layer', 15, false),
         dim, pos3D, rotate3D, billboard,
         panelWidth: parseNumberField(block, vars, 'panelWidth', 8, false),
         panelHeight: parseNumberField(block, vars, 'panelHeight', 5, false),
+        ...parseUpdateFields(block, vars),
     };
 }
 
@@ -3069,7 +3202,9 @@ function parseCobwebBlock(block, vars) {
         xmin: parseNumberField(block, vars, 'xmin', 0, false),
         xmax: parseNumberField(block, vars, 'xmax', 1, false),
         color: parseColorField(block, vars, 'color', '#c62828'),
+        colorExpr: captureExprField(block, 'color'),
         curveColor: parseColorField(block, vars, 'curveColor', '#1565c0'),
+        curveColorExpr: captureExprField(block, 'curveColor'),
         showDiagonal: parseBoolField(block, vars, 'showDiagonal', true),
         active: parseBoolField(block, vars, 'active', true),
         activeExpr: parseActiveExpr(block),
@@ -3077,6 +3212,7 @@ function parseCobwebBlock(block, vars) {
         dim, pos3D, rotate3D, billboard,
         panelWidth: parseNumberField(block, vars, 'panelWidth', 6, false),
         panelHeight: parseNumberField(block, vars, 'panelHeight', 6, false),
+        ...parseUpdateFields(block, vars),
     };
 }
 
@@ -3111,12 +3247,14 @@ function parseIFSBlock(block, vars) {
         name, mapsExpr,
         iterations: parseNumberField(block, vars, 'iterations', 40000, false),
         color: parseColorField(block, vars, 'color', '#1b5e20'),
+        colorExpr: captureExprField(block, 'color'),
         pointSize: parseNumberField(block, vars, 'pointSize', 1, false),
         active: parseBoolField(block, vars, 'active', true),
         activeExpr: parseActiveExpr(block),
         layer: parseNumberField(block, vars, 'layer', 14, false),
         dim, pos3D,
         scale: parseNumberField(block, vars, 'scale', 1, false),
+        ...parseUpdateFields(block, vars),
     };
 }
 
@@ -3161,12 +3299,14 @@ function parseAutomatonBlock(block, vars) {
         posXExpr, posYExpr,
         // Почти чёрный цвет клеток автомата — нейтральный, default идёт за темой.
         color: parseColorField(block, vars, 'color', null),
+        colorExpr: captureExprField(block, 'color'),
         active: parseBoolField(block, vars, 'active', true),
         activeExpr: parseActiveExpr(block),
         layer: parseNumberField(block, vars, 'layer', 16, false),
         dim, pos3D, rotate3D, billboard,
         panelWidth: parseNumberField(block, vars, 'panelWidth', 8, false),
         panelHeight: parseNumberField(block, vars, 'panelHeight', 8, false),
+        ...parseUpdateFields(block, vars),
     };
 }
 
@@ -3200,13 +3340,16 @@ function parseVoronoiBlock(block, vars) {
         quality: parseNumberField(block, vars, 'quality', 3, false),
         // Тёмно-серые рёбра/сайты диаграммы Вороного — нейтральный цвет, default идёт за темой.
         color: parseColorField(block, vars, 'color', null),
+        colorExpr: captureExprField(block, 'color'),
         showSites: parseBoolField(block, vars, 'showSites', true),
         filled: parseBoolField(block, vars, 'filled', true),
         opacity: parseNumberField(block, vars, 'opacity', 0.45, false),
+        opacityExpr: captureExprField(block, 'opacity'),
         active: parseBoolField(block, vars, 'active', true),
         activeExpr: parseActiveExpr(block),
         layer: parseNumberField(block, vars, 'layer', 8, false),
         dim, pos3D,
+        ...parseUpdateFields(block, vars),
         rangeX: parseNumberField(block, vars, 'rangeX', 8, false),
         rangeY: parseNumberField(block, vars, 'rangeY', 8, false),
         rangeZ: parseNumberField(block, vars, 'rangeZ', 8, false),
@@ -3226,9 +3369,12 @@ function parseFourierBlock(block, vars) {
         speed: parseNumberField(block, vars, 'speed', 0.25, false),
         showCircles: parseBoolField(block, vars, 'showCircles', true),
         color: parseColorField(block, vars, 'color', '#ad1457'),
+        colorExpr: captureExprField(block, 'color'),
         circleColor: parseColorField(block, vars, 'circleColor', '#9e9e9e'),
+        circleColorExpr: captureExprField(block, 'circleColor'),
         active: parseBoolField(block, vars, 'active', true),
-        layer: parseNumberField(block, vars, 'layer', 24, false)
+        layer: parseNumberField(block, vars, 'layer', 24, false),
+        ...parseUpdateFields(block, vars),
     };
 }
 
@@ -3252,10 +3398,13 @@ function parseDiagramBlock(block, vars) {
         // Все три — нейтральные тёмные/светлый цвета (текст состояния, стрелка перехода,
         // подпись), не акцентные: default идёт за темой через __gcDefaultColor().
         color: parseColorField(block, vars, 'color', null),
+        colorExpr: captureExprField(block, 'color'),
         arrowColor: parseColorField(block, vars, 'arrowColor', null),
+        arrowColorExpr: captureExprField(block, 'arrowColor'),
         labelColor: parseColorField(block, vars, 'labelColor', null),
         active: parseBoolField(block, vars, 'active', true),
-        layer: parseNumberField(block, vars, 'layer', 24, false)
+        layer: parseNumberField(block, vars, 'layer', 24, false),
+        ...parseUpdateFields(block, vars),
     };
 }
 
@@ -3295,6 +3444,7 @@ function parseComplexBlock(block, vars) {
         quality: parseNumberField(block, vars, 'quality', 2, false),
         contours: parseBoolField(block, vars, 'contours', true),
         opacity: parseNumberField(block, vars, 'opacity', 1, false),
+        opacityExpr: captureExprField(block, 'opacity'),
         active: parseBoolField(block, vars, 'active', true),
         activeExpr: parseActiveExpr(block),
         layer: parseNumberField(block, vars, 'layer', -90, false),
@@ -3304,6 +3454,7 @@ function parseComplexBlock(block, vars) {
         centerRe: parseNumberField(block, vars, 'centerRe', 0, false),
         centerIm: parseNumberField(block, vars, 'centerIm', 0, false),
         scale: parseNumberField(block, vars, 'scale', 3, false),
+        ...parseUpdateFields(block, vars),
     };
 }
 
@@ -3358,12 +3509,16 @@ function parseHyperbolicBlock(block, vars) {
         showBoundary: parseBoolField(block, vars, 'showBoundary', true),
         // Тёмный цвет геодезических/границы — нейтральный, default идёт за темой.
         color: parseColorField(block, vars, 'color', null),
+        colorExpr: captureExprField(block, 'color'),
         tileColor: parseColorField(block, vars, 'tileColor', '#5b8db8'),
+        tileColorExpr: captureExprField(block, 'tileColor'),
         thickness: parseNumberField(block, vars, 'thickness', 1.4, false),
+        thicknessExpr: captureExprField(block, 'thickness'),
         active: parseBoolField(block, vars, 'active', true),
         activeExpr: parseActiveExpr(block),
         layer: parseNumberField(block, vars, 'layer', 12, false),
         dim, pos3D,
+        ...parseUpdateFields(block, vars),
     };
 }
 
@@ -3394,6 +3549,7 @@ function parseFractalBlock(block, vars) {
     const paletteMatch = block.match(/(?:^|[^A-Za-z0-9_])palette\s*=\s*"?(fire|ocean|gray|rainbow)"?/);
     const palette = paletteMatch ? paletteMatch[1] : 'ocean';
     const opacity = parseNumberField(block, vars, 'opacity', 1, false);
+    const opacityExpr = captureExprField(block, 'opacity');
     const active = parseBoolField(block, vars, 'active', true);
     const layer = parseNumberField(block, vars, 'layer', -100, false);
     if (is3DNative) {
@@ -3424,7 +3580,10 @@ function parseFractalBlock(block, vars) {
             iterations: Math.max(1, Math.round(parseNumberField(block, vars, 'iterations', type === 'mengersponge' ? 5 : (type === 'sierpinski3d' ? 12 : 10), false))),
             maxSteps: Math.max(8, Math.round(parseNumberField(block, vars, 'maxSteps', 128, false))),
             color: parseColorField(block, vars, 'color', '#4a90d9'),
+            colorExpr: captureExprField(block, 'color'),
             color2: parseColorField(block, vars, 'color2', '#ffaa44'),
+            color2Expr: captureExprField(block, 'color2'),
+            ...parseUpdateFields(block, vars),
         };
     }
     // 3D-альтернатива (билборд-панель): та же растровая математика Мандельброта/Жюлиа/
@@ -3450,7 +3609,7 @@ function parseFractalBlock(block, vars) {
         billboard = parseBoolField(block, vars, 'billboard', true);
     }
     return {
-        name, type, cReExpr, cImExpr, maxIter, quality, adaptiveIter, periodicityCheck, palette, opacity, active,
+        name, type, cReExpr, cImExpr, maxIter, quality, adaptiveIter, periodicityCheck, palette, opacity, opacityExpr, active,
         activeExpr: parseActiveExpr(block), layer, dim, pos3D, rotate3D, billboard,
         panelWidth: parseNumberField(block, vars, 'panelWidth', 8, false),
         panelHeight: parseNumberField(block, vars, 'panelHeight', 8, false),
@@ -3464,6 +3623,7 @@ function parseFractalBlock(block, vars) {
         centerReExpr: captureExprField(block, 'centerRe'),
         centerImExpr: captureExprField(block, 'centerIm'),
         scaleExpr: captureExprField(block, 'scale'),
+        ...parseUpdateFields(block, vars),
     };
 }
 
@@ -3510,11 +3670,13 @@ function parseImageBlock(block, vars) {
     const width = parseNumberField(block, vars, 'width', 5, false);
     const height = parseNumberField(block, vars, 'height', 5, false);
     const opacity = parseNumberField(block, vars, 'opacity', 1, false);
+    const opacityExpr = captureExprField(block, 'opacity');
     const active = parseBoolField(block, vars, 'active', true);
     const activeExpr = parseActiveExpr(block);
     const layer = parseNumberField(block, vars, 'layer', 15, false);
+    const { updateMode, updateInterval } = parseUpdateFields(block, vars);
 
-    return { name, src, dim, posName, pos3D, rotate3D, billboard, width, height, opacity, active, activeExpr, layer };
+    return { name, src, dim, posName, pos3D, rotate3D, billboard, width, height, opacity, opacityExpr, active, activeExpr, layer, updateMode, updateInterval };
 }
 
 // draw Histogram — гистограмма по данным (Задача 3), data — выражение (обычно имя переменной-вектора)
@@ -3526,6 +3688,7 @@ function parseHistogramBlock(block, vars) {
     if (dataExpr === null || dataExpr === '') return null;
     const bins = parseNumberField(block, vars, 'bins', 10, false);
     const color = parseColorField(block, vars, 'color', '#4a90d9');
+    const colorExpr = captureExprField(block, 'color');
     const active = parseBoolField(block, vars, 'active', true);
     const layer = parseNumberField(block, vars, 'layer', 20, false);
     // 3D-альтернатива (билборд-панель, Задача: 3D-аналоги для всех объектов): если задан
@@ -3575,7 +3738,8 @@ function parseHistogramBlock(block, vars) {
     const fieldHeight = parseNumberField(block, vars, 'height', 5, false);
     const panelWidth = parseNumberField(block, vars, 'panelWidth', 6, false);
     const panelHeight = parseNumberField(block, vars, 'panelHeight', 4, false);
-    return { name, dataExpr, bins, color, active, activeExpr: parseActiveExpr(block), layer, dim, pos3D, rotate3D, billboard, panelWidth, panelHeight, posPoint, anchor, fieldWidth, fieldHeight };
+    const { updateMode, updateInterval } = parseUpdateFields(block, vars);
+    return { name, dataExpr, bins, color, colorExpr, active, activeExpr: parseActiveExpr(block), layer, dim, pos3D, rotate3D, billboard, panelWidth, panelHeight, posPoint, anchor, fieldWidth, fieldHeight, updateMode, updateInterval };
 }
 
 // draw Scatter3D — настоящая 3D-статистика: облако точек с РЕАЛЬНЫМИ x,y,z-координатами
@@ -3668,9 +3832,11 @@ function parseFieldBlock(block, vars) {
     const grid = parseNumberField(block, vars, 'grid', 15, false);
     const scale = parseNumberField(block, vars, 'scale', 1, false);
     const color = parseColorField(block, vars, 'color', '#888888');
+    const colorExpr = captureExprField(block, 'color');
     const active = parseBoolField(block, vars, 'active', true);
     const layer = parseNumberField(block, vars, 'layer', 10, false);
-    return { name, pExpr: pMatch[1], qExpr: qMatch[1], rExpr, xmin, xmax, ymin, ymax, zmin, zmax, grid, scale, color, active, activeExpr: parseActiveExpr(block), layer };
+    const { updateMode, updateInterval } = parseUpdateFields(block, vars);
+    return { name, pExpr: pMatch[1], qExpr: qMatch[1], rExpr, xmin, xmax, ymin, ymax, zmin, zmax, grid, scale, color, colorExpr, active, activeExpr: parseActiveExpr(block), layer, updateMode, updateInterval };
 }
 
 // draw TensorField — тензорное поле ранга 2 (симметричный 3x3-тензор T(x,y,z): напряжения,
@@ -3703,16 +3869,18 @@ function parseTensorFieldBlock(block, vars) {
     const grid = parseNumberField(block, vars, 'grid', 4, false);
     const scale = parseNumberField(block, vars, 'scale', 1, false);
     const color = parseColorField(block, vars, 'color', '#4a90d9');
+    const colorExpr = captureExprField(block, 'color');
     const colorByM = block.match(/(?:^|[^A-Za-z0-9_])colorBy\s*=\s*"?(none|trace)"?/);
     const colorBy = colorByM ? colorByM[1] : 'none';
     const active = parseBoolField(block, vars, 'active', true);
     const layer = parseNumberField(block, vars, 'layer', 10, false);
+    const { updateMode, updateInterval } = parseUpdateFields(block, vars);
     return {
         name,
         txxExpr: txxM[1], tyyExpr: tyyM[1], tzzExpr: tzzM[1],
         txyExpr: txyM ? txyM[1] : '0', txzExpr: txzM ? txzM[1] : '0', tyzExpr: tyzM ? tyzM[1] : '0',
-        xmin, xmax, ymin, ymax, zmin, zmax, grid, scale, color, colorBy,
-        active, activeExpr: parseActiveExpr(block), layer,
+        xmin, xmax, ymin, ymax, zmin, zmax, grid, scale, color, colorExpr, colorBy,
+        active, activeExpr: parseActiveExpr(block), layer, updateMode, updateInterval,
     };
 }
 
@@ -3745,10 +3913,13 @@ function parseTrajectoryBlock(block, vars) {
     const steps = parseNumberField(block, vars, 'steps', 200, false);
     const dt = parseNumberField(block, vars, 'dt', 0.05, false);
     const color = parseColorField(block, vars, 'color', '#ff0000');
+    const colorExpr = captureExprField(block, 'color');
     const thickness = parseNumberField(block, vars, 'thickness', 2, false);
+    const thicknessExpr = captureExprField(block, 'thickness');
     const active = parseBoolField(block, vars, 'active', true);
     const layer = parseNumberField(block, vars, 'layer', 15, false);
-    return { name, systemName, fieldName, pExpr, qExpr, rExpr, start: startParts, steps, dt, color, thickness, active, activeExpr: parseActiveExpr(block), layer };
+    const { updateMode, updateInterval } = parseUpdateFields(block, vars);
+    return { name, systemName, fieldName, pExpr, qExpr, rExpr, start: startParts, steps, dt, color, colorExpr, thickness, thicknessExpr, active, activeExpr: parseActiveExpr(block), layer, updateMode, updateInterval };
 }
 
 // draw Graph — визуализация графа (Задача 5), graph — имя переменной, созданной через newGraph()/addNode/addEdge
@@ -3758,8 +3929,11 @@ function parseGraphDrawBlock(block, vars) {
     const graphMatch = block.match(/graph\s*=\s*"([^"]*)"/);
     if (!graphMatch) return null;
     const color = parseColorField(block, vars, 'color', null);
+    const colorExpr = captureExprField(block, 'color');
     const nodeColor = parseColorField(block, vars, 'nodeColor', null);
+    const nodeColorExpr = captureExprField(block, 'nodeColor');
     const edgeColor = parseColorField(block, vars, 'edgeColor', null);
+    const edgeColorExpr = captureExprField(block, 'edgeColor');
     // Белая подпись узла графа — нейтральный цвет, default идёт за темой.
     const labelColor = parseColorField(block, vars, 'labelColor', null);
     const nodeRadius = parseNumberField(block, vars, 'nodeRadius', 9, false);
@@ -3800,12 +3974,13 @@ function parseGraphDrawBlock(block, vars) {
         // Оба режима закрепления доступны и здесь: world (по умолчанию —
         // прежнее поведение) и screen.
         anchor: parseAnchorField(block, 'world'),
-        name, graphVar: graphMatch[1], color, nodeColor, edgeColor, labelColor, nodeRadius,
+        name, graphVar: graphMatch[1], color, colorExpr, nodeColor, nodeColorExpr, edgeColor, edgeColorExpr, labelColor, nodeRadius,
         directed, showWeights, labels, highlightExpr, highlightEdgesExpr, highlightColor, active,
         activeExpr: parseActiveExpr(block), layer, dim, pos3D, rotate3D, billboard,
         panelWidth: parseNumberField(block, vars, 'panelWidth', 8, false),
         panelHeight: parseNumberField(block, vars, 'panelHeight', 6, false),
         interactive,
+        ...parseUpdateFields(block, vars),
     };
 }
 
@@ -3874,7 +4049,8 @@ function parseDrawTextBlock(block, vars) {
     }
 
     const layer = parseNumberField(block, vars, 'layer', 45, false);
-    return { name, posXExpr, posYExpr, posZExpr, zGiven, textExpr, colorExpr, sizeExpr, activeExpr, layer };
+    const { updateMode, updateInterval } = parseUpdateFields(block, vars);
+    return { name, posXExpr, posYExpr, posZExpr, zGiven, textExpr, colorExpr, sizeExpr, activeExpr, layer, updateMode, updateInterval };
 }
 
         function parseClasterBlock(block, vars) {
@@ -3904,11 +4080,13 @@ function parseDrawTextBlock(block, vars) {
             // число, оно трактуется как поворот вокруг оси Z (аналог 2D-плоскости).
             // interact — можно ли перетаскивать кластер целиком мышью (только 2D).
             const rotate = parseNumberField(block, vars, 'rotate', 0, false);
+            const rotateExpr = captureExprField(block, 'rotate');
             const rotate3D = parseXYZField(block, vars, 'rotate', { x: 0, y: 0, z: rotate || 0 });
             const interact = parseBoolField(block, vars, 'interact', true);
             const collisionFields = parseGeneralCollisionFields(block, vars, false);
+            const { updateMode, updateInterval } = parseUpdateFields(block, vars);
 
-            return { name, elements, active, rotate, rotate3D, interact, ...collisionFields };
+            return { name, elements, active, rotate, rotateExpr, rotate3D, interact, updateMode, updateInterval, ...collisionFields };
         }
 
 let autoNameCounter = 0;
@@ -4995,7 +5173,12 @@ function parseCommands(codeBlock, vars) {
                 '                // Кортеж (a, b, ...) — та же запись, что и (x,y) везде в остальном DSL (Point pos=(x,y)\n',
                 '                // и т.п.); единственный элемент без запятой — это просто группировка, как раньше\n',
                 '                // ((a+b)*c), а два и больше — литерал-массив, совместимый с [a,b] (см. glReadPoints,\n',
-                '                // addNode и т.п., которым нужен именно массив [x,y]).\n',
+                '                // addNode и т.п., которым нужен именно массив [x,y]). Пустые скобки () — тоже\n',
+                '                // валидный литерал: пустой список (например, list row = (); перед заполнением\n',
+                '                // по индексу в цикле) — раньше здесь сразу вызывался parseExpr() без проверки на\n',
+                '                // закрывающую скобку, и () падало с \'Неожиданный токен в выражении\', обрывая весь\n',
+                '                // Start/Update целиком (см. историю правок, баг с нулями вместо чисел).\n',
+                '                if (atOp(\')\')) { next(); return { type: \'array\', items: [] }; }\n',
                 '                const items = [parseExpr()];\n',
                 '                while (atOp(\',\')) { next(); items.push(parseExpr()); }\n',
                 '                expectOp(\')\');\n',
@@ -5182,7 +5365,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             // «плашки»-фона, как было раньше): обычный шрифт страницы, нормальная межстрочная
             // высота; выравнивание берётся из description align (по умолчанию слева) и может
             // переопределяться по блокам через ::align=... фенсы (см. gcRenderDescriptionHtml).
-            '    .info-panel { font-size:', String(descSize), 'rem; margin-top:0.8rem; line-height:1.6; color:var(--gc-desc); }\n',
+            '    .info-panel { font-size:', String(descSize), 'rem; margin:0.8rem auto 0; max-width:800px; line-height:1.6; color:var(--gc-desc); position:relative; }\n',
             '    .info-panel p { margin:0 0 0.6em 0; }\n',
             '    .info-panel p:last-child { margin-bottom:0; }\n',
             '    .info-panel h1, .info-panel h2, .info-panel h3, .info-panel h4 { margin:0.7em 0 0.35em 0; font-weight:700; line-height:1.3; }\n',
@@ -5268,6 +5451,10 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '      const t = GC_THEMES[gcThemeName] || GC_THEMES.dark;\n',
             '      return t.defaultColor;\n',
             '    }\n',
+            '    function __gcButtonTextColor() {\n',
+            '      const t = GC_THEMES[gcThemeName] || GC_THEMES.dark;\n',
+            '      return t.buttonText;\n',
+            '    }\n',
             '    function __gcApplyThemeVars(t) {\n',
             '      const root = document.documentElement.style;\n',
             '      if (!GC_THEME_OVERRIDES.field) root.setProperty(\'--gc-field\', t.fieldColor);\n',
@@ -5280,28 +5467,41 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '      root.setProperty(\'--gc-input-bg\', t.inputBg);\n',
             '      root.setProperty(\'--gc-accent\', t.accent);\n',
             '    }\n',
-            '    // Переключить тему программно (доступна и из того же документа, и из iframe-сообщения).\n',
-            '    // Принимает только имя уже определённой темы — произвольные цвета так задать нельзя.\n',
-            '    window.geocompilerSetTheme = function(name) {\n',
+            '    function glLogSafe(msg) { try { if (window.logLevel !== \'silent\') console.warn(msg); } catch (e) {} }\n',
+            '    // Переключение темы регистрируется как ОДИН ИЗ НЕСКОЛЬКИХ обработчиков в общем\n',
+            '    // диспетчере window.__gcThemeSetters, а не как прямое присваивание\n',
+            '    // window.geocompilerSetTheme. Раньше при объединении 2D- и 3D-слоёв на одной странице\n',
+            '    // (draw Table { pos = (x,y,z) } и т.п. соседствуют с 2D-объектами) 2D- и 3D-скрипты —\n',
+            '    // это ДВА РАЗНЫХ замыкания в двух отдельных script-тегах, и каждый присваивал\n',
+            '    // window.geocompilerSetTheme самостоятельно; второй скрипт (3D, вставляется позже)\n',
+            '    // тихо перезаписывал функцию первого — переключение темы в комбинированной сцене на\n',
+            '    // деле обновляло только один слой. Общий список обработчиков решает это: каждый слой\n',
+            '    // добавляет туда СВОЙ обработчик, а сам window.geocompilerSetTheme и слушатель\n',
+            '    // postMessage создаются один раз (какой скрипт до этого дойдёт первым).\n',
+            '    window.__gcThemeSetters = window.__gcThemeSetters || [];\n',
+            '    window.__gcThemeSetters.push(function(name) {\n',
             '      if (!GC_THEMES[name]) { glLogSafe(\'Неизвестная тема: \' + name); return false; }\n',
             '      gcThemeName = name;\n',
             '      __gcApplyThemeVars(GC_THEMES[name]);\n',
-            // draw() при отсутствии перетаскивания/изменений сцены берёт закэшированный
-            // снимок канваса (sceneSnapshot) вместо полной перерисовки — эта оптимизация не
-            // знает, что сменилась тема, и молча отрисовывает СТАРЫЙ кадр. Именно поэтому
-            // color = default выглядел "замороженным": __gcDefaultColor() возвращал верное
-            // новое значение, но drawFull(), где эта функция вызывается, просто не выполнялся.
-            // markSceneChanged() форсирует полный проход перед вызовом draw().
             '      if (typeof markSceneChanged === \'function\') markSceneChanged();\n',
             '      if (typeof draw === \'function\') draw();\n',
             '      return true;\n',
-            '    };\n',
-            '    function glLogSafe(msg) { try { if (window.logLevel !== \'silent\') console.warn(msg); } catch (e) {} }\n',
-            '    window.addEventListener(\'message\', function(ev) {\n',
-            '      const data = ev && ev.data;\n',
-            '      if (!data || data.type !== \'geocompiler-set-theme\') return;\n',
-            '      window.geocompilerSetTheme(data.theme);\n',
             '    });\n',
+            '    if (!window.geocompilerSetTheme) {\n',
+            '      window.geocompilerSetTheme = function(name) {\n',
+            '        var ok = false;\n',
+            '        for (var i = 0; i < window.__gcThemeSetters.length; i++) { if (window.__gcThemeSetters[i](name)) ok = true; }\n',
+            '        return ok;\n',
+            '      };\n',
+            '    }\n',
+            '    if (!window.__gcThemeMsgListenerAdded) {\n',
+            '      window.__gcThemeMsgListenerAdded = true;\n',
+            '      window.addEventListener(\'message\', function(ev) {\n',
+            '        var data = ev && ev.data;\n',
+            '        if (!data || data.type !== \'geocompiler-set-theme\') return;\n',
+            '        window.geocompilerSetTheme(data.theme);\n',
+            '      });\n',
+            '    }\n',
             '\n',
             '    const pointsData = ', pointsJson, ';\n',
             '    const linesData = ', linesJson, ';\n',
@@ -5748,6 +5948,14 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '\n',
             '    function updateCircles() {\n',
             '      for (let c of circles) {\n',
+            '        if (gcShouldUpdate(c)) {\n',
+            '          c.__liveColor = c.colorExpr ? evaluate(c.colorExpr) : c.color;\n',
+            '          c.__liveThickness = c.thicknessExpr ? evaluate(c.thicknessExpr) : c.thickness;\n',
+            '          if (c.radiusExpr) {\n',
+            '            const rv = evaluate(c.radiusExpr);\n',
+            '            if (typeof rv === \'number\' && isFinite(rv)) c._radius = Math.abs(rv);\n',
+            '          }\n',
+            '        }\n',
             '        if (c.type === \'FromRadius\') {\n',
             '          const centerPoint = points.find(p => p.name === c._centerName);\n',
             '          if (!centerPoint) continue;\n',
@@ -5850,7 +6058,8 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '            name: a.name, type: \'ThreePoints\',\n',
             '            fromPoint: pts[0], midPoint: pts[1], toPoint: pts[2],\n',
             '            centerPoint: { pos: { x: 0, y: 0 } }, radius: 0,\n',
-            '            color: a.color || __gcDefaultColor(), thickness: a.thickness || 2,\n',
+            '            color: a.color || __gcDefaultColor(), colorExpr: a.colorExpr, thickness: a.thickness || 2, thicknessExpr: a.thicknessExpr,\n',
+            '            updateMode: a.updateMode || \'always\', updateInterval: a.updateInterval,\n',
             '            active: a.active !== false,\n',
             '            layer: (a.layer !== undefined && a.layer !== null) ? a.layer : 20,\n',
             '            collision: a.collision || false, collisionGroup: a.collisionGroup || 0, collisionMask: a.collisionMask || null, collisionMargin: a.collisionMargin || 0,\n',
@@ -5867,8 +6076,9 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '        if (typeof a.radius === \'number\') radiusNum = a.radius;\n',
             '        else radiusPoint = points.find(p => p.name === a.radius);\n',
             '        return {\n',
-            '          name: a.name, type: \'CenterRadius\', centerPoint, fromPoint, toPoint, radiusNum, radiusPoint,\n',
-            '          color: a.color || __gcDefaultColor(), thickness: a.thickness || 2,\n',
+            '          name: a.name, type: \'CenterRadius\', centerPoint, fromPoint, toPoint, radiusNum, radiusPoint, radiusExpr: a.radiusExpr,\n',
+            '          color: a.color || __gcDefaultColor(), colorExpr: a.colorExpr, thickness: a.thickness || 2, thicknessExpr: a.thicknessExpr,\n',
+            '          updateMode: a.updateMode || \'always\', updateInterval: a.updateInterval,\n',
             '          active: a.active !== false,\n',
             '          layer: (a.layer !== undefined && a.layer !== null) ? a.layer : 20,\n',
             '          collision: a.collision || false, collisionGroup: a.collisionGroup || 0, collisionMask: a.collisionMask || null, collisionMargin: a.collisionMargin || 0,\n',
@@ -5893,7 +6103,8 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '      ellipses = ellipsesData.map(e => {\n',
             '        const common = {\n',
             '          name: e.name, type: e.type,\n',
-            '          color: e.color || __gcDefaultColor(), thickness: e.thickness || 2,\n',
+            '          color: e.color || __gcDefaultColor(), colorExpr: e.colorExpr, thickness: e.thickness || 2, thicknessExpr: e.thicknessExpr,\n',
+            '          updateMode: e.updateMode || \'always\', updateInterval: e.updateInterval,\n',
             '          active: e.active !== false, dynamic: e.dynamic || false,\n',
             '          layer: (e.layer !== undefined && e.layer !== null) ? e.layer : 20,\n',
             '          collision: e.collision || false, collisionGroup: e.collisionGroup || 0, collisionMask: e.collisionMask || null, collisionMargin: e.collisionMargin || 0,\n',
@@ -5966,9 +6177,11 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '        return {\n',
             '          name: cv.name, type: cv.type, controlPoints, centerPoint,\n',
             '          xExpr: cv.xExpr, yExpr: cv.yExpr,\n',
-            '          a: cv.a, b: cv.b, radius: cv.radius, turns: (cv.turns === undefined || cv.turns === null) ? 3 : cv.turns,\n',
+            '          a: cv.a, aExpr: cv.aExpr, b: cv.b, bExpr: cv.bExpr, radius: cv.radius, radiusExpr: cv.radiusExpr,\n',
+            '          turns: (cv.turns === undefined || cv.turns === null) ? 3 : cv.turns, turnsExpr: cv.turnsExpr,\n',
             '          segments: cv.segments || 50,\n',
-            '          color: cv.color || __gcDefaultColor(), thickness: cv.thickness || 2,\n',
+            '          color: cv.color || __gcDefaultColor(), colorExpr: cv.colorExpr, thickness: cv.thickness || 2, thicknessExpr: cv.thicknessExpr,\n',
+            '          updateMode: cv.updateMode || \'always\', updateInterval: cv.updateInterval,\n',
             '          active: cv.active !== false,\n',
             '          layer: (cv.layer !== undefined && cv.layer !== null) ? cv.layer : 20,\n',
             '          collision: cv.collision || false, collisionGroup: cv.collisionGroup || 0, collisionMask: cv.collisionMask || null, collisionMargin: cv.collisionMargin || 0,\n',
@@ -5983,10 +6196,12 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '      drawFunctions = drawFunctionsData.map(d => ({\n',
             '        name: d.name, funcName: d.funcName,\n',
             '        xmin: d.xmin, xmax: d.xmax, segments: Math.max(2, d.segments || 100),\n',
-            '        color: d.color || __gcDefaultColor(), thickness: d.thickness || 2,\n',
+            '        color: d.color || __gcDefaultColor(), colorExpr: d.colorExpr, thickness: d.thickness || 2,\n',
             '        grid: d.grid || false, gridStep: d.gridStep || 1,\n',
             '        active: d.active !== false,\n',
             '        layer: (d.layer !== undefined && d.layer !== null) ? d.layer : 20,\n',
+            '        extend: !!d.extend, extendDistance: d.extendDistance, mode: d.mode || \'manual\',\n',
+            '        updateMode: d.updateMode || \'always\', updateInterval: d.updateInterval,\n',
             '      }));\n',
             '    }\n',
             '\n',
@@ -5994,7 +6209,8 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '      drawSurfaces = drawSurfacesData.map(d => ({\n',
             '        name: d.name, funcName: d.funcName,\n',
             '        xmin: d.xmin, xmax: d.xmax, ymin: d.ymin, ymax: d.ymax, grid: Math.max(2, d.grid || 20),\n',
-            '        mode: d.mode || \'contour\', color: d.color || __gcDefaultColor(), angle: (d.angle === undefined || d.angle === null) ? 30 : d.angle,\n',
+            '        mode: d.mode || \'contour\', color: d.color || __gcDefaultColor(), colorExpr: d.colorExpr, angle: (d.angle === undefined || d.angle === null) ? 30 : d.angle,\n',
+            '        updateMode: d.updateMode || \'always\', updateInterval: d.updateInterval,\n',
             '        active: d.active !== false,\n',
             '        layer: (d.layer !== undefined && d.layer !== null) ? d.layer : 20,\n',
             '      }));\n',
@@ -6007,6 +6223,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '        const obj = {\n',
             '          name: d.name, posPoint, src: d.src,\n',
             '          width: d.width || 5, height: d.height || 5, opacity: (d.opacity === undefined || d.opacity === null) ? 1 : d.opacity,\n',
+            '          opacityExpr: d.opacityExpr, updateMode: d.updateMode || \'always\', updateInterval: d.updateInterval,\n',
             '          active: d.active !== false,\n',
             '          layer: (d.layer !== undefined && d.layer !== null) ? d.layer : 15,\n',
             '          img: null, loaded: false, dirty: true,\n',
@@ -6137,6 +6354,10 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '    }\n',
             '    function applyClusterTransform(c) {\n',
             '      if (!c || !c.points || !c.relVectors || c.points.length !== c.relVectors.length) return;\n',
+            '      if (c.rotateExpr && gcShouldUpdate(c)) {\n',
+            '        const rv = evaluate(c.rotateExpr);\n',
+            '        if (typeof rv === \'number\' && isFinite(rv)) c.rotate = rv;\n',
+            '      }\n',
             '      const angleRad = (c.rotate || 0) * Math.PI / 180;\n',
             '      const cos = Math.cos(angleRad), sin = Math.sin(angleRad);\n',
             '      for (let i = 0; i < c.points.length; i++) {\n',
@@ -6210,6 +6431,8 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '          relVectors: relVectors,\n',
             '          center: { x: cx, y: cy },\n',
             '          rotate: c.rotate || 0,\n',
+            '          rotateExpr: c.rotateExpr,\n',
+            '          updateMode: c.updateMode || \'always\', updateInterval: c.updateInterval,\n',
             '          interact: c.interact !== undefined ? c.interact : true,\n',
             '          active: c.active !== undefined ? c.active : true,\n',
             '          collision: c.collision || false, collisionGroup: c.collisionGroup || 0, collisionMask: c.collisionMask || null, collisionMargin: c.collisionMargin || 0,\n',
@@ -6274,8 +6497,12 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '          arc: d.arc !== undefined ? d.arc : true,\n',
             '          measure: d.measure !== undefined ? d.measure : true,\n',
             '          arccolor: d.arccolor || __gcDefaultColor(),\n',
+            '          arccolorExpr: d.arccolorExpr,\n',
             '          measurecolor: d.measurecolor || __gcDefaultColor(),\n',
+            '          measurecolorExpr: d.measurecolorExpr,\n',
             '          radius: d.radius || 1,\n',
+            '          radiusExpr: d.radiusExpr,\n',
+            '          updateMode: d.updateMode || \'always\', updateInterval: d.updateInterval,\n',
             '          side: d.side || 1,\n',
             '          fractions: d.fractions || false,\n',
             '          count: Math.min(3, Math.max(1, d.count || 1)),\n',
@@ -6294,6 +6521,8 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '          edges: edges,\n',
             '          type: d.type || 1,\n',
             '          color: d.color || __gcDefaultColor(),\n',
+            '          colorExpr: d.colorExpr,\n',
+            '          updateMode: d.updateMode || \'always\', updateInterval: d.updateInterval,\n',
             '          layer: (d.layer !== undefined && d.layer !== null) ? d.layer : 80,\n',
             '          active: true,\n',
             '        };\n',
@@ -6310,8 +6539,12 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '          pos: d.pos || 0,\n',
             '          direct: d.direct || 1,\n',
             '          color: d.color || __gcDefaultColor(),\n',
+            '          colorExpr: d.colorExpr,\n',
             '          length: d.length || 12,\n',
+            '          lengthExpr: d.lengthExpr,\n',
             '          thickness: d.thickness || line.thickness || 2,\n',
+            '          thicknessExpr: d.thicknessExpr,\n',
+            '          updateMode: d.updateMode || \'always\', updateInterval: d.updateInterval,\n',
             '          layer: (d.layer !== undefined && d.layer !== null) ? d.layer : 70,\n',
             '          active: true,\n',
             '        };\n',
@@ -6331,7 +6564,10 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '          line: line,\n',
             '          limit: limitPoint || null,\n',
             '          color: d.color || null,\n',
+            '          colorExpr: d.colorExpr,\n',
             '          thickness: d.thickness || null,\n',
+            '          thicknessExpr: d.thicknessExpr,\n',
+            '          updateMode: d.updateMode || \'always\', updateInterval: d.updateInterval,\n',
             '          dotline: d.dotline || false,\n',
             '          layer: (d.layer !== undefined && d.layer !== null) ? d.layer : 50,\n',
             '          active: true,\n',
@@ -6345,7 +6581,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '          const ln = lines.find(l => l.name === d.line);\n',
             '          const sidePt = points.find(p => p.name === d.side);\n',
             '          if (!ln || !sidePt) return null;\n',
-            '          return { name: d.name, kind: \'halfplane\', line: ln, sidePoint: sidePt, color: d.color || __gcDefaultColor(), mode: d.mode || \'full\', layer: (d.layer !== undefined && d.layer !== null) ? d.layer : 30, opacity: (d.opacity === undefined || d.opacity === null) ? 0.5 : d.opacity, active: true };\n',
+            '          return { name: d.name, kind: \'halfplane\', line: ln, sidePoint: sidePt, color: d.color || __gcDefaultColor(), colorExpr: d.colorExpr, mode: d.mode || \'full\', layer: (d.layer !== undefined && d.layer !== null) ? d.layer : 30, opacity: (d.opacity === undefined || d.opacity === null) ? 0.5 : d.opacity, opacityExpr: d.opacityExpr, updateMode: d.updateMode || \'always\', updateInterval: d.updateInterval, active: true };\n',
             '        }\n',
             '        if (d.arc) {\n',
             '          const arcObj = arcs.find(a => a.name === d.arc);\n',
@@ -6354,14 +6590,14 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '            get center() { return { x: arcObj.centerPoint.pos.x, y: arcObj.centerPoint.pos.y }; },\n',
             '            get radius() { return arcObj.radiusNum !== null ? arcObj.radiusNum : (arcObj.radiusPoint ? Math.hypot(arcObj.radiusPoint.pos.x - arcObj.centerPoint.pos.x, arcObj.radiusPoint.pos.y - arcObj.centerPoint.pos.y) : 0); },\n',
             '          };\n',
-            '          return { name: d.name, kind: \'circleSector\', circle: pseudoCircle, fromPoint: arcObj.fromPoint, toPoint: arcObj.toPoint, shape: d.shape || \'sector\', color: d.color || __gcDefaultColor(), layer: (d.layer !== undefined && d.layer !== null) ? d.layer : 30, opacity: (d.opacity === undefined || d.opacity === null) ? 0.5 : d.opacity, active: true };\n',
+            '          return { name: d.name, kind: \'circleSector\', circle: pseudoCircle, fromPoint: arcObj.fromPoint, toPoint: arcObj.toPoint, shape: d.shape || \'sector\', color: d.color || __gcDefaultColor(), colorExpr: d.colorExpr, layer: (d.layer !== undefined && d.layer !== null) ? d.layer : 30, opacity: (d.opacity === undefined || d.opacity === null) ? 0.5 : d.opacity, opacityExpr: d.opacityExpr, updateMode: d.updateMode || \'always\', updateInterval: d.updateInterval, active: true };\n',
             '        }\n',
             '        if (d.circle) {\n',
             '          const c = circles.find(cc => cc.name === d.circle);\n',
             '          const fromPt = points.find(p => p.name === d.from);\n',
             '          const toPt = points.find(p => p.name === d.to);\n',
             '          if (!c || !fromPt || !toPt) return null;\n',
-            '          return { name: d.name, kind: \'circleSector\', circle: c, fromPoint: fromPt, toPoint: toPt, shape: d.shape || \'sector\', color: d.color || __gcDefaultColor(), layer: (d.layer !== undefined && d.layer !== null) ? d.layer : 30, opacity: (d.opacity === undefined || d.opacity === null) ? 0.5 : d.opacity, active: true };\n',
+            '          return { name: d.name, kind: \'circleSector\', circle: c, fromPoint: fromPt, toPoint: toPt, shape: d.shape || \'sector\', color: d.color || __gcDefaultColor(), colorExpr: d.colorExpr, layer: (d.layer !== undefined && d.layer !== null) ? d.layer : 30, opacity: (d.opacity === undefined || d.opacity === null) ? 0.5 : d.opacity, opacityExpr: d.opacityExpr, updateMode: d.updateMode || \'always\', updateInterval: d.updateInterval, active: true };\n',
             '        }\n',
             '        if (d.func) {\n',
             '          // Площадь под графиком (func2 не задан — нижняя граница это ось X, y=0)\n',
@@ -6373,7 +6609,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '          const xmin = (d.funcXmin !== undefined && d.funcXmin !== null) ? d.funcXmin : g1.xmin;\n',
             '          const xmax = (d.funcXmax !== undefined && d.funcXmax !== null) ? d.funcXmax : g1.xmax;\n',
             '          const segments = Math.max(2, (d.funcSegments !== undefined && d.funcSegments !== null) ? d.funcSegments : (g1.segments || 100));\n',
-            '          return { name: d.name, kind: \'funcArea\', graph: g1, graph2: g2, xmin: xmin, xmax: xmax, segments: segments, color: d.color || __gcDefaultColor(), layer: (d.layer !== undefined && d.layer !== null) ? d.layer : 30, opacity: (d.opacity === undefined || d.opacity === null) ? 0.5 : d.opacity, active: true };\n',
+            '          return { name: d.name, kind: \'funcArea\', graph: g1, graph2: g2, xmin: xmin, xmax: xmax, segments: segments, color: d.color || __gcDefaultColor(), colorExpr: d.colorExpr, layer: (d.layer !== undefined && d.layer !== null) ? d.layer : 30, opacity: (d.opacity === undefined || d.opacity === null) ? 0.5 : d.opacity, opacityExpr: d.opacityExpr, updateMode: d.updateMode || \'always\', updateInterval: d.updateInterval, active: true };\n',
             '        }\n',
             '        const fig = figures.find(f => f.name === d.figure);\n',
             '        if (!fig) return null;\n',
@@ -6382,9 +6618,12 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '          kind: \'polygon\',\n',
             '          figure: fig,\n',
             '          color: d.color || __gcDefaultColor(),\n',
+            '          colorExpr: d.colorExpr,\n',
             '          mode: d.mode || \'full\',\n',
             '          layer: (d.layer !== undefined && d.layer !== null) ? d.layer : 30,\n',
             '          opacity: (d.opacity === undefined || d.opacity === null) ? 0.5 : d.opacity,\n',
+            '          opacityExpr: d.opacityExpr,\n',
+            '          updateMode: d.updateMode || \'always\', updateInterval: d.updateInterval,\n',
             '          active: true,\n',
             '        };\n',
             '      }).filter(d => d !== null);\n',
@@ -6398,7 +6637,10 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '          name: d.name,\n',
             '          line: line,\n',
             '          color: d.color || null,\n',
+            '          colorExpr: d.colorExpr,\n',
             '          thickness: d.thickness || null,\n',
+            '          thicknessExpr: d.thicknessExpr,\n',
+            '          updateMode: d.updateMode || \'always\', updateInterval: d.updateInterval,\n',
             '          pattern: d.pattern || [6, 6],\n',
             '          layer: (d.layer !== undefined && d.layer !== null) ? d.layer : 60,\n',
             '          active: true,\n',
@@ -6899,6 +7141,14 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '    function drawAngleArc(drawObj) {\n',
             '      const angle = drawObj.angle;\n',
             '      if (!angle || !angle.vertex || !angle.line1 || !angle.line2) return;\n',
+            '      if (gcShouldUpdate(drawObj)) {\n',
+            '        drawObj.__liveArcColor = drawObj.arccolorExpr ? evaluate(drawObj.arccolorExpr) : drawObj.arccolor;\n',
+            '        drawObj.__liveMeasureColor = drawObj.measurecolorExpr ? evaluate(drawObj.measurecolorExpr) : drawObj.measurecolor;\n',
+            '        if (drawObj.radiusExpr) {\n',
+            '          const rv = evaluate(drawObj.radiusExpr);\n',
+            '          if (typeof rv === \'number\' && isFinite(rv)) drawObj.radius = Math.abs(rv);\n',
+            '        }\n',
+            '      }\n',
             '      const v = angle.vertex;\n',
             '      const p1 = (angle.line1.pA === v) ? angle.line1.pB : angle.line1.pA;\n',
             '      const p2 = (angle.line2.pA === v) ? angle.line2.pB : angle.line2.pA;\n',
@@ -6963,13 +7213,13 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '          ctx.lineTo(q1.x, q1.y);\n',
             '          ctx.lineTo(q2.x, q2.y);\n',
             '          ctx.lineTo(pB.x, pB.y);\n',
-            '          ctx.strokeStyle = drawObj.arccolor || __gcDefaultColor();\n',
+            '          ctx.strokeStyle = drawObj.__liveArcColor || __gcDefaultColor();\n',
             '          ctx.lineWidth = 1.5;\n',
             '          ctx.stroke();\n',
             '        } else {\n',
             '          ctx.beginPath();\n',
             '          ctx.arc(vPix.x, vPix.y, rK, start, end, ccw);\n',
-            '          ctx.strokeStyle = drawObj.arccolor || __gcDefaultColor();\n',
+            '          ctx.strokeStyle = drawObj.__liveArcColor || __gcDefaultColor();\n',
             '          ctx.lineWidth = 1.5;\n',
             '          ctx.stroke();\n',
             '        }\n',
@@ -6985,7 +7235,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '        const ty = vPix.y + textRadius * Math.sin(midAngle);\n',
             '        if (!drawObj.fractions) measureVal = Math.round(measureVal);\n',
             '        else measureVal = parseFloat(measureVal.toFixed(2));\n',
-            '        ctx.fillStyle = drawObj.measurecolor || __gcDefaultColor();\n',
+            '        ctx.fillStyle = drawObj.__liveMeasureColor || __gcDefaultColor();\n',
             '        ctx.font = \'14px sans-serif\';\n',
             '        ctx.textAlign = \'center\';\n',
             '        ctx.textBaseline = \'middle\';\n',
@@ -7001,13 +7251,21 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '      const radiusPix = circle.radius * scale;\n',
             '      ctx.beginPath();\n',
             '      ctx.arc(centerPix.x, centerPix.y, radiusPix, 0, 2 * Math.PI);\n',
-            '      ctx.strokeStyle = circle.color || __gcDefaultColor();\n',
-            '      ctx.lineWidth = circle.thickness || 1.5;\n',
+            '      ctx.strokeStyle = circle.__liveColor || circle.color || __gcDefaultColor();\n',
+            '      ctx.lineWidth = circle.__liveThickness || circle.thickness || 1.5;\n',
             '      ctx.stroke();\n',
             '    }\n',
             '\n',
             '    function drawArc(a) {\n',
             '      if (!a || !a.centerPoint) return;\n',
+            '      if (gcShouldUpdate(a)) {\n',
+            '        a.__liveColor = a.colorExpr ? evaluate(a.colorExpr) : a.color;\n',
+            '        a.__liveThickness = a.thicknessExpr ? evaluate(a.thicknessExpr) : a.thickness;\n',
+            '        if (a.radiusExpr) {\n',
+            '          const rv = evaluate(a.radiusExpr);\n',
+            '          if (typeof rv === \'number\' && isFinite(rv)) a.radiusNum = Math.abs(rv);\n',
+            '        }\n',
+            '      }\n',
             '      const radius = a.type === \'ThreePoints\' ? a.radius : (a.radiusNum !== null ? a.radiusNum : (a.radiusPoint ? Math.hypot(a.radiusPoint.pos.x - a.centerPoint.pos.x, a.radiusPoint.pos.y - a.centerPoint.pos.y) : 0));\n',
             '      if (!(radius > 0)) return;\n',
             '      const centerPix = fieldToPixel(a.centerPoint.pos.x, a.centerPoint.pos.y);\n',
@@ -7026,14 +7284,18 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '      }\n',
             '      ctx.beginPath();\n',
             '      ctx.arc(centerPix.x, centerPix.y, r, a1, a2, anticlockwise);\n',
-            '      ctx.strokeStyle = a.color || __gcDefaultColor();\n',
-            '      ctx.lineWidth = a.thickness || 2;\n',
+            '      ctx.strokeStyle = a.__liveColor || __gcDefaultColor();\n',
+            '      ctx.lineWidth = a.__liveThickness || 2;\n',
             '      ctx.lineCap = \'round\';\n',
             '      ctx.stroke();\n',
             '    }\n',
             '\n',
             '    function drawEllipse(e) {\n',
             '      if (!e || !e.centerPoint) return;\n',
+            '      if (gcShouldUpdate(e)) {\n',
+            '        e.__liveColor = e.colorExpr ? evaluate(e.colorExpr) : e.color;\n',
+            '        e.__liveThickness = e.thicknessExpr ? evaluate(e.thicknessExpr) : e.thickness;\n',
+            '      }\n',
             '      const centerPix = fieldToPixel(e.centerPoint.pos.x, e.centerPoint.pos.y);\n',
             '      const scale = fieldScale();\n',
             '      const rx = Math.abs(e.a) * scale, ry = Math.abs(e.b) * scale;\n',
@@ -7041,8 +7303,8 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '      const rotRad = -(e.rotate || 0) * Math.PI / 180;\n',
             '      ctx.beginPath();\n',
             '      ctx.ellipse(centerPix.x, centerPix.y, rx, ry, rotRad, 0, 2 * Math.PI);\n',
-            '      ctx.strokeStyle = e.color || __gcDefaultColor();\n',
-            '      ctx.lineWidth = e.thickness || 2;\n',
+            '      ctx.strokeStyle = e.__liveColor || __gcDefaultColor();\n',
+            '      ctx.lineWidth = e.__liveThickness || 2;\n',
             '      ctx.stroke();\n',
             '    }\n',
             '\n',
@@ -7066,12 +7328,16 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '      if (curve.type === \'spiral\' || curve.type === \'cycloid\' || curve.type === \'involute\') {\n',
             '        if (!curve.centerPoint) return null;\n',
             '        const cx = curve.centerPoint.pos.x, cy = curve.centerPoint.pos.y;\n',
-            '        const theta = t * (curve.turns || 3) * 2 * Math.PI;\n',
+            '        const liveTurns = (curve.__liveTurns !== undefined) ? curve.__liveTurns : curve.turns;\n',
+            '        const theta = t * (liveTurns || 3) * 2 * Math.PI;\n',
             '        if (curve.type === \'spiral\') {\n',
-            '          const r = (curve.a || 0) + (curve.b === undefined || curve.b === null ? 1 : curve.b) * theta;\n',
+            '          const liveA = (curve.__liveA !== undefined) ? curve.__liveA : curve.a;\n',
+            '          const liveB = (curve.__liveB !== undefined) ? curve.__liveB : curve.b;\n',
+            '          const r = (liveA || 0) + (liveB === undefined || liveB === null ? 1 : liveB) * theta;\n',
             '          return { x: cx + r * Math.cos(theta), y: cy + r * Math.sin(theta) };\n',
             '        }\n',
-            '        const R = curve.radius === undefined || curve.radius === null ? 2 : curve.radius;\n',
+            '        const liveRadius = (curve.__liveRadius !== undefined) ? curve.__liveRadius : curve.radius;\n',
+            '        const R = liveRadius === undefined || liveRadius === null ? 2 : liveRadius;\n',
             '        if (curve.type === \'cycloid\') {\n',
             '          return { x: cx + R * (theta - Math.sin(theta)), y: cy + R * (1 - Math.cos(theta)) };\n',
             '        }\n',
@@ -7105,6 +7371,14 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '    }\n',
             '\n',
             '    function drawCurve(cv) {\n',
+            '      if (gcShouldUpdate(cv)) {\n',
+            '        cv.__liveColor = cv.colorExpr ? evaluate(cv.colorExpr) : cv.color;\n',
+            '        cv.__liveThickness = cv.thicknessExpr ? evaluate(cv.thicknessExpr) : cv.thickness;\n',
+            '        if (cv.aExpr) { const v = evaluate(cv.aExpr); if (typeof v === \'number\' && isFinite(v)) cv.__liveA = v; }\n',
+            '        if (cv.bExpr) { const v = evaluate(cv.bExpr); if (typeof v === \'number\' && isFinite(v)) cv.__liveB = v; }\n',
+            '        if (cv.radiusExpr) { const v = evaluate(cv.radiusExpr); if (typeof v === \'number\' && isFinite(v)) cv.__liveRadius = Math.abs(v); }\n',
+            '        if (cv.turnsExpr) { const v = evaluate(cv.turnsExpr); if (typeof v === \'number\' && isFinite(v)) cv.__liveTurns = v; }\n',
+            '      }\n',
             '      const n = Math.max(2, cv.segments || 50);\n',
             '      const pts = [];\n',
             '      for (let i = 0; i <= n; i++) {\n',
@@ -7116,8 +7390,8 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '      const p0 = fieldToPixel(pts[0].x, pts[0].y);\n',
             '      ctx.moveTo(p0.x, p0.y);\n',
             '      for (let i = 1; i < pts.length; i++) { const p = fieldToPixel(pts[i].x, pts[i].y); ctx.lineTo(p.x, p.y); }\n',
-            '      ctx.strokeStyle = cv.color || __gcDefaultColor();\n',
-            '      ctx.lineWidth = cv.thickness || 2;\n',
+            '      ctx.strokeStyle = cv.__liveColor || __gcDefaultColor();\n',
+            '      ctx.lineWidth = cv.__liveThickness || 2;\n',
             '      ctx.lineCap = \'round\';\n',
             '      ctx.stroke();\n',
             '    }\n',
@@ -7277,20 +7551,58 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '    function drawFunctionGraph(d) {\n',
             '      if (!GL_USER_FUNCS[d.funcName]) return;\n',
             '      if (d.grid) drawAxesGrid(d.gridStep || 1);\n',
+            '      // update = always/event/once (+ interval) гейтит только пересчёт точек (дорогая\n',
+            '      // часть — вызов пользовательской функции на каждый сэмпл); при "не обновлять\n',
+            '      // сейчас" переиспользуем d.__cachedPts вместо повторного сэмплирования.\n',
+            '      if (gcShouldUpdate(d) || !d.__cachedPts) {\n',
             '      let gxmin = d.xmin, gxmax = d.xmax;\n',
-            '      if (d.extend) {\n',
+            '      let segCount = d.segments;\n',
+            '      if (d.mode === \'auto\') {\n',
+            '        // Диапазон — ровно текущая видимая по X часть камеры (без запаса, в отличие от\n',
+            '        // extend), а число сэмплов подгоняется под ширину холста в пикселях, так что\n',
+            '        // детализация растёт при приближении и падает при отдалении сама по себе.\n',
+            '        const tl = pixelToField(0, 0), br = pixelToField(width, height);\n',
+            '        gxmin = Math.min(tl.x, br.x); gxmax = Math.max(tl.x, br.x);\n',
+            '        segCount = Math.max(20, Math.min(2000, Math.round(width / 2)));\n',
+            '      } else if (d.extend) {\n',
             '        const tl = pixelToField(0, 0), br = pixelToField(width, height);\n',
             '        const vxmin = Math.min(tl.x, br.x), vxmax = Math.max(tl.x, br.x);\n',
             '        const margin = (typeof d.extendDistance === \'number\') ? d.extendDistance : (vxmax - vxmin) * 0.2;\n',
             '        gxmin = vxmin - margin; gxmax = vxmax + margin;\n',
             '      }\n',
             '      const pts = [];\n',
-            '      for (let i = 0; i <= d.segments; i++) {\n',
-            '        const x = gxmin + (gxmax - gxmin) * i / d.segments;\n',
+            '      for (let i = 0; i <= segCount; i++) {\n',
+            '        const x = gxmin + (gxmax - gxmin) * i / segCount;\n',
             '        let y;\n',
             '        try { y = glCallUserFunc(d.funcName, [x]); } catch (e) { y = NaN; }\n',
             '        pts.push((typeof y === \'number\' && isFinite(y)) ? { x, y } : null);\n',
             '      }\n',
+            '      // Устранимые особенности (например sin(x)/x в x=0, где предел существует, но\n',
+            '      // наивное вычисление даёт 0/0=NaN ровно в точке сэмпла) раньше рвали график —\n',
+            '      // видимый пропуск в один сэмпл шириной, обычно ровно посередине, если диапазон\n',
+            '      // симметричен. Одиночные/парные NaN-сэмплы, у которых по обе стороны есть\n',
+            '      // конечные соседи в пределах пары шагов, заполняем линейной интерполяцией —\n',
+            '      // это лечит устранимые особенности, не трогая настоящие асимптоты/разрывы\n',
+            '      // (у них NaN тянется на много сэмплов подряд, и здесь не найдётся близкого\n',
+            '      // конечного соседа с обеих сторон).\n',
+            '      const __gcMaxGapFill = 2;\n',
+            '      for (let i = 0; i < pts.length; i++) {\n',
+            '        if (pts[i] !== null) continue;\n',
+            '        let j = i;\n',
+            '        while (j < pts.length && pts[j] === null) j++;\n',
+            '        const gapLen = j - i;\n',
+            '        if (gapLen > __gcMaxGapFill || i === 0 || j >= pts.length) { i = j - 1; continue; }\n',
+            '        const left = pts[i - 1], right = pts[j];\n',
+            '        for (let k = i; k < j; k++) {\n',
+            '          const t = (k - (i - 1)) / (j - (i - 1));\n',
+            '          const xk = gxmin + (gxmax - gxmin) * k / segCount;\n',
+            '          pts[k] = { x: xk, y: left.y + (right.y - left.y) * t };\n',
+            '        }\n',
+            '        i = j - 1;\n',
+            '      }\n',
+            '      d.__cachedPts = pts;\n',
+            '      }\n',
+            '      const pts = d.__cachedPts;\n',
             '      ctx.strokeStyle = d.color || __gcDefaultColor();\n',
             '      ctx.lineWidth = d.thickness || 2;\n',
             '      ctx.lineCap = \'round\';\n',
@@ -7321,7 +7633,8 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '      const levelList = [];\n',
             '      if (hasSingleLevel) levelList.push(d.level);\n',
             '      else { const levels = Math.max(1, Math.floor(d.levels || 8)); for (let L = 1; L < levels + 1; L++) levelList.push(zmin + (zmax - zmin) * L / (levels + 1)); }\n',
-            '      ctx.strokeStyle = d.color || __gcDefaultColor();\n',
+            '      if (gcShouldUpdate(d)) { d.__liveColor = d.colorExpr ? evaluate(d.colorExpr) : d.color; }\n',
+            '      ctx.strokeStyle = d.__liveColor || __gcDefaultColor();\n',
             '      ctx.lineWidth = hasSingleLevel ? 2 : 1.2;\n',
             '      for (const level of levelList) {\n',
             '        ctx.beginPath();\n',
@@ -7417,8 +7730,12 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '      const center = fieldToPixel(d.posPoint.pos.x, d.posPoint.pos.y);\n',
             '      const scale = fieldScale();\n',
             '      const wPix = d.width * scale, hPix = d.height * scale;\n',
+            '      if (gcShouldUpdate(d)) {\n',
+            '        const ov = d.opacityExpr ? evaluate(d.opacityExpr) : d.opacity;\n',
+            '        d.__liveOpacity = (typeof ov === \'number\' && isFinite(ov)) ? ov : d.opacity;\n',
+            '      }\n',
             '      ctx.save();\n',
-            '      ctx.globalAlpha = Math.max(0, Math.min(1, d.opacity));\n',
+            '      ctx.globalAlpha = Math.max(0, Math.min(1, d.__liveOpacity === undefined ? d.opacity : d.__liveOpacity));\n',
             '      ctx.drawImage(d.img, center.x - wPix / 2, center.y - hPix / 2, wPix, hPix);\n',
             '      ctx.restore();\n',
             '    }\n',
@@ -7473,8 +7790,9 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '        chartX = 20; chartBottom = height - 20; chartW = width * 0.4; chartH = height * 0.3;\n',
             '      }\n',
             '      const barW = chartW / bins;\n',
+            '      if (gcShouldUpdate(d)) { d.__liveColor = d.colorExpr ? evaluate(d.colorExpr) : d.color; }\n',
             '      ctx.save();\n',
-            '      ctx.fillStyle = d.color || \'#4a90d9\';\n',
+            '      ctx.fillStyle = d.__liveColor || \'#4a90d9\';\n',
             '      for (let i = 0; i < bins; i++) {\n',
             '        const barH = (counts[i] / maxCount) * chartH;\n',
             '        ctx.fillRect(chartX + i * barW, chartBottom - barH, Math.max(1, barW - 1), barH);\n',
@@ -7487,11 +7805,12 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '    }\n',
             '\n',
             '    function drawField(d) {\n',
+            '      if (gcShouldUpdate(d)) { d.__liveColor = d.colorExpr ? evaluate(d.colorExpr) : d.color; }\n',
             '      const nGrid = Math.max(1, d.grid || 15);\n',
             '      const stepX = (d.xmax - d.xmin) / nGrid, stepY = (d.ymax - d.ymin) / nGrid;\n',
             '      const cellSize = Math.min(Math.abs(stepX), Math.abs(stepY));\n',
             '      ctx.save();\n',
-            '      ctx.strokeStyle = d.color || \'#888888\'; ctx.lineWidth = 1;\n',
+            '      ctx.strokeStyle = d.__liveColor || \'#888888\'; ctx.lineWidth = 1;\n',
             '      for (let i = 0; i <= nGrid; i++) {\n',
             '        for (let j = 0; j <= nGrid; j++) {\n',
             '          const x = d.xmin + i * stepX, y = d.ymin + j * stepY;\n',
@@ -7546,8 +7865,9 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '    function drawTrajectory(d) {\n',
             '      const pts = computeTrajectoryPoints(d);\n',
             '      if (pts.length < 2) return;\n',
+            '      if (gcShouldUpdate(d)) { d.__liveColor = d.colorExpr ? evaluate(d.colorExpr) : d.color; d.__liveThickness = d.thicknessExpr ? evaluate(d.thicknessExpr) : d.thickness; }\n',
             '      ctx.save();\n',
-            '      ctx.strokeStyle = d.color || \'#ff0000\'; ctx.lineWidth = d.thickness || 2; ctx.lineCap = \'round\';\n',
+            '      ctx.strokeStyle = d.__liveColor || \'#ff0000\'; ctx.lineWidth = d.__liveThickness || 2; ctx.lineCap = \'round\';\n',
             '      ctx.beginPath();\n',
             '      const p0 = fieldToPixel(pts[0].x, pts[0].y);\n',
             '      ctx.moveTo(p0.x, p0.y);\n',
@@ -7719,18 +8039,19 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '    }\n',
             '    function drawRegion(d) {\n',
             '        if (!GL_USER_FUNCS[d.funcName]) return;\n',
+            '        if (gcShouldUpdate(d)) { d.__liveColor = d.colorExpr ? evaluate(d.colorExpr) : d.color; }\n',
             '        const q = Math.max(1, Math.floor(d.quality || 3));\n',
             '        const w = Math.max(2, Math.floor(width / q)), h = Math.max(2, Math.floor(height / q));\n',
             '        const tl = pixelToField(0, 0), br = pixelToField(width, height);\n',
             '        const key = [d.funcName, d.op, d.level, d.func2Name, d.op2, d.level2, d.combine, w, h,\n',
-            '            tl.x.toFixed(5), tl.y.toFixed(5), br.x.toFixed(5), br.y.toFixed(5), d.color, glUserFuncVersion].join(\'|\');\n',
+            '            tl.x.toFixed(5), tl.y.toFixed(5), br.x.toFixed(5), br.y.toFixed(5), d.__liveColor, glUserFuncVersion].join(\'|\');\n',
             '        if (!d._cache || d._cacheKey !== key) {\n',
             '            const off = document.createElement(\'canvas\');\n',
             '            off.width = w; off.height = h;\n',
             '            const octx = off.getContext(\'2d\');\n',
             '            const img = octx.createImageData(w, h);\n',
             '            const data = img.data;\n',
-            '            const rgb = hexToRgbSurface(d.color || \'#4a90d9\');\n',
+            '            const rgb = hexToRgbSurface(d.__liveColor || \'#4a90d9\');\n',
             '            const has2 = !!(d.func2Name && GL_USER_FUNCS[d.func2Name]);\n',
             '            for (let py = 0; py < h; py++) {\n',
             '                const fy = tl.y + (br.y - tl.y) * (py + 0.5) / h;\n',
@@ -7754,7 +8075,8 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '            d._cache = off; d._cacheKey = key;\n',
             '        }\n',
             '        ctx.save();\n',
-            '        ctx.globalAlpha = Math.max(0, Math.min(1, d.opacity === undefined ? 0.35 : d.opacity));\n',
+            '        const liveOp = d.opacityExpr ? evaluate(d.opacityExpr) : d.opacity;\n',
+            '        ctx.globalAlpha = Math.max(0, Math.min(1, (typeof liveOp === \'number\' && isFinite(liveOp)) ? liveOp : (d.opacity === undefined ? 0.35 : d.opacity)));\n',
             '        ctx.imageSmoothingEnabled = false;\n',
             '        ctx.drawImage(d._cache, 0, 0, width, height);\n',
             '        ctx.restore();\n',
@@ -7819,9 +8141,10 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '            d._pts = pts; d._key = key;\n',
             '        }\n',
             '        if (!d._pts.length) return;\n',
+            '        if (gcShouldUpdate(d)) { d.__liveColor = d.colorExpr ? evaluate(d.colorExpr) : d.color; d.__liveThickness = d.thicknessExpr ? evaluate(d.thicknessExpr) : d.thickness; }\n',
             '        ctx.save();\n',
-            '        ctx.strokeStyle = d.color || \'#d9534f\';\n',
-            '        ctx.lineWidth = d.thickness || 2;\n',
+            '        ctx.strokeStyle = d.__liveColor || \'#d9534f\';\n',
+            '        ctx.lineWidth = d.__liveThickness || 2;\n',
             '        if (d.dashed) ctx.setLineDash([6, 5]);\n',
             '        ctx.beginPath();\n',
             '        let started = false, prev = null;\n',
@@ -7853,19 +8176,20 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '    }\n',
             '    function drawTrace(d) {\n',
             '        if (!d._pts || d._pts.length < 2) return;\n',
+            '        if (gcShouldUpdate(d)) { d.__liveColor = d.colorExpr ? evaluate(d.colorExpr) : d.color; d.__liveThickness = d.thicknessExpr ? evaluate(d.thicknessExpr) : d.thickness; }\n',
             '        ctx.save();\n',
-            '        ctx.lineWidth = d.thickness || 2;\n',
+            '        ctx.lineWidth = d.__liveThickness || 2;\n',
             '        ctx.lineCap = \'round\';\n',
             '        if (d.fade) {\n',
             '            for (let i = 1; i < d._pts.length; i++) {\n',
             '                const a = fieldToPixel(d._pts[i - 1].x, d._pts[i - 1].y);\n',
             '                const b = fieldToPixel(d._pts[i].x, d._pts[i].y);\n',
             '                ctx.globalAlpha = i / d._pts.length;\n',
-            '                ctx.strokeStyle = d.color || \'#0275d8\';\n',
+            '                ctx.strokeStyle = d.__liveColor || \'#0275d8\';\n',
             '                ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();\n',
             '            }\n',
             '        } else {\n',
-            '            ctx.strokeStyle = d.color || \'#0275d8\';\n',
+            '            ctx.strokeStyle = d.__liveColor || \'#0275d8\';\n',
             '            ctx.beginPath();\n',
             '            for (let i = 0; i < d._pts.length; i++) {\n',
             '                const pix = fieldToPixel(d._pts[i].x, d._pts[i].y);\n',
@@ -7927,9 +8251,11 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '                d._lastTex = texStr;\n',
             '            }\n',
             '            const pix = fieldToPixel(fx, fy);\n',
-            '            d._el.style.color = d.color || __gcDefaultColor();\n',
+            '            const liveColor = d.colorExpr ? evaluate(d.colorExpr) : d.color;\n',
+            '            const liveSize = d.sizeExpr ? evaluate(d.sizeExpr) : d.size;\n',
+            '            d._el.style.color = liveColor || __gcDefaultColor();\n',
             '            d._el.style.background = d.bg && d.bg !== \'transparent\' ? d.bg : \'transparent\';\n',
-            '            d._el.style.fontSize = (16 * (d.size || 1)) + \'px\';\n',
+            '            d._el.style.fontSize = (16 * (liveSize || 1)) + \'px\';\n',
             '            d._el.style.zIndex = String(d.layer === undefined ? 60 : d.layer);\n',
             '            d._el.style.left = pix.x + \'px\';\n',
             '            d._el.style.top = pix.y + \'px\';\n',
@@ -7970,6 +8296,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '    }\n',
             '\n',
             '    function drawChart(d) {\n',
+            '        if (gcShouldUpdate(d)) { d.__liveColor = d.colorExpr ? evaluate(d.colorExpr) : d.color; }\n',
             '        let raw, labels = null;\n',
             '        try { raw = glCoerceArrayData(evaluate(d.dataExpr)); } catch (e) { return; }\n',
             '        if (d.labelsExpr) { try { labels = glCoerceArrayData(evaluate(d.labelsExpr)); } catch (e) { labels = null; } }\n',
@@ -8005,7 +8332,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '        if (!pts.length) return;\n',
             '        ctx.save();\n',
             '        if (d.type === \'line\') {\n',
-            '            ctx.strokeStyle = d.color || \'#4a90d9\';\n',
+            '            ctx.strokeStyle = d.__liveColor || \'#4a90d9\';\n',
             '            ctx.lineWidth = 2;\n',
             '            ctx.beginPath();\n',
             '            for (let i = 0; i < pts.length; i++) {\n',
@@ -8015,7 +8342,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '            ctx.stroke();\n',
             '        }\n',
             '        if (d.type === \'scatter\' || d.markers) {\n',
-            '            ctx.fillStyle = d.color || \'#4a90d9\';\n',
+            '            ctx.fillStyle = d.__liveColor || \'#4a90d9\';\n',
             '            const r = Math.max(1, d.pointSize || 4);\n',
             '            for (const pt of pts) {\n',
             '                const p = gcAnchorToPixel(d)(pt.x, pt.y);\n',
@@ -8067,7 +8394,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '            const h = (vals[i] / mx) * H;\n',
             '            const x = origin.x + i * bw;\n',
             '            if (d.interactive) d._barRects.push({ i: i, x: x, w: bw, baseline: origin.y, H: H, mx: mx });\n',
-            '            ctx.fillStyle = glChartColor(i, d.color);\n',
+            '            ctx.fillStyle = glChartColor(i, d.__liveColor);\n',
             '            ctx.fillRect(x + bw * 0.12, origin.y - h, bw * 0.76, h);\n',
             '            if (d.showValues) {\n',
             '                ctx.fillStyle = \'#333333\';\n',
@@ -8108,7 +8435,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '        for (let i = 0; i < vals.length; i++) {\n',
             '            const frac = Math.abs(vals[i]) / total;\n',
             '            const a1 = a0 + frac * 2 * Math.PI;\n',
-            '            ctx.fillStyle = glChartColor(i, d.color);\n',
+            '            ctx.fillStyle = glChartColor(i, d.__liveColor);\n',
             '            ctx.beginPath();\n',
             '            ctx.moveTo(c.x, c.y);\n',
             '            ctx.arc(c.x, c.y, R, a0, a1);\n',
@@ -8174,7 +8501,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '            const bw = slotW * 0.5;\n',
             '            ctx.strokeStyle = \'#37474f\';\n',
             '            ctx.lineWidth = 1.5;\n',
-            '            ctx.fillStyle = glChartColor(s, d.color);\n',
+            '            ctx.fillStyle = glChartColor(s, d.__liveColor);\n',
             '            // коробка Q1..Q3\n',
             '            ctx.beginPath();\n',
             '            ctx.rect(cx - bw / 2, toY(q3), bw, Math.max(1, toY(q1) - toY(q3)));\n',
@@ -8260,6 +8587,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '        return root;\n',
             '    }\n',
             '    function drawTreeDiagram(d) {\n',
+            '        if (gcShouldUpdate(d)) { d.__liveColor = d.colorExpr ? evaluate(d.colorExpr) : d.color; d.__liveEdgeColor = d.edgeColorExpr ? evaluate(d.edgeColorExpr) : d.edgeColor; }\n',
             '        let raw;\n',
             '        try { raw = glCoerceArrayData(evaluate(d.dataExpr)); } catch (e) { return; }\n',
             '        const root = glTreeNorm(raw);\n',
@@ -8279,7 +8607,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '        const shift = ax - (minX + maxX) / 2;\n',
             '        ctx.save();\n',
             '        // рёбра\n',
-            '        ctx.strokeStyle = d.edgeColor || \'#90a4ae\';\n',
+            '        ctx.strokeStyle = d.__liveEdgeColor || \'#90a4ae\';\n',
             '        ctx.lineWidth = 1.8;\n',
             '        (function edges(n) {\n',
             '            const p = gcAnchorToPixel(d)(n.x + shift, n.y + ay);\n',
@@ -8296,7 +8624,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '        const R = d.nodeRadius || 11;\n',
             '        (function nodes(n) {\n',
             '            const p = gcAnchorToPixel(d)(n.x + shift, n.y + ay);\n',
-            '            ctx.fillStyle = d.color || __gcDefaultColor();\n',
+            '            ctx.fillStyle = d.__liveColor || __gcDefaultColor();\n',
             '            if (d.boxed) {\n',
             '                const w = Math.max(R * 2, ctx.measureText(n.label).width + 14);\n',
             '                ctx.beginPath();\n',
@@ -8324,6 +8652,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             // выражения. Без этого отвязывания следующий же кадр пересчитал бы dataExpr заново
             // и стёр правку пользователя.
             '    function drawTable(d) {\n',
+            '        if (gcShouldUpdate(d)) { d.__liveColor = d.colorExpr ? evaluate(d.colorExpr) : d.color; }\n',
             '        let rows;\n',
             '        if (d.interactive && d._editable) {\n',
             '            rows = d._editable;\n',
@@ -8366,7 +8695,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '                }\n',
             '                const val = rows[r][c];\n',
             '                if (val === undefined || val === null) continue;\n',
-            '                ctx.fillStyle = d.color || __gcDefaultColor();\n',
+            '                ctx.fillStyle = d.__liveColor || __gcDefaultColor();\n',
             '                if (d.header && r === 0) ctx.font = \'bold \' + Math.max(9, 13 * (d.fontSize || 1)) + \'px sans-serif\';\n',
             '                else ctx.font = Math.max(9, 13 * (d.fontSize || 1)) + \'px sans-serif\';\n',
             '                let tx = x + cw / 2;\n',
@@ -8427,7 +8756,8 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '            d._cache = off; d._cacheKey = key;\n',
             '        }\n',
             '        ctx.save();\n',
-            '        ctx.globalAlpha = Math.max(0, Math.min(1, d.opacity === undefined ? 1 : d.opacity));\n',
+            '        const liveOp = d.opacityExpr ? evaluate(d.opacityExpr) : d.opacity;\n',
+            '        ctx.globalAlpha = Math.max(0, Math.min(1, (typeof liveOp === \'number\' && isFinite(liveOp)) ? liveOp : (d.opacity === undefined ? 1 : d.opacity)));\n',
             '        ctx.imageSmoothingEnabled = q > 1;\n',
             '        ctx.drawImage(d._cache, 0, 0, width, height);\n',
             '        ctx.restore();\n',
@@ -8540,13 +8870,18 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '        }\n',
             '    }\n',
             '    function drawHyperbolic(d) {\n',
+            '        if (gcShouldUpdate(d)) {\n',
+            '          d.__liveColor = d.colorExpr ? evaluate(d.colorExpr) : d.color;\n',
+            '          d.__liveTileColor = d.tileColorExpr ? evaluate(d.tileColorExpr) : d.tileColor;\n',
+            '          d.__liveThickness = d.thicknessExpr ? evaluate(d.thicknessExpr) : d.thickness;\n',
+            '        }\n',
             '        const scale = d.radius || 8;\n',
             '        const cx = 0, cy = 0;\n',
             '        ctx.save();\n',
             '        if (d.model === \'halfplane\') {\n',
             '            // Полуплоскость: геодезические — вертикальные лучи и полуокружности с центром на оси\n',
-            '            ctx.strokeStyle = d.color || __gcDefaultColor();\n',
-            '            ctx.lineWidth = d.thickness || 1.4;\n',
+            '            ctx.strokeStyle = d.__liveColor || __gcDefaultColor();\n',
+            '            ctx.lineWidth = d.__liveThickness || 1.4;\n',
             '            const p1 = fieldToPixel(-FIELD_WIDTH / 2, 0), p2 = fieldToPixel(FIELD_WIDTH / 2, 0);\n',
             '            ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke();\n',
             '            let pairs = null;\n',
@@ -8593,8 +8928,8 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '                d._tiles = glHypTiling(d.tilingP, d.tilingQ, d.depth);\n',
             '                d._tileKey = key;\n',
             '            }\n',
-            '            ctx.strokeStyle = d.tileColor || \'#5b8db8\';\n',
-            '            ctx.lineWidth = d.thickness || 1.4;\n',
+            '            ctx.strokeStyle = d.__liveTileColor || \'#5b8db8\';\n',
+            '            ctx.lineWidth = d.__liveThickness || 1.4;\n',
             '            ctx.beginPath();\n',
             '            for (const poly of d._tiles) {\n',
             '                for (let i = 0; i < poly.length; i++) {\n',
@@ -8606,8 +8941,8 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '        let pairs = null;\n',
             '        try { if (d.geodesicsExpr) pairs = evaluate(d.geodesicsExpr); } catch (e) { pairs = null; }\n',
             '        if (Array.isArray(pairs) && pairs.length) {\n',
-            '            ctx.strokeStyle = d.color || __gcDefaultColor();\n',
-            '            ctx.lineWidth = (d.thickness || 1.4) + 0.8;\n',
+            '            ctx.strokeStyle = d.__liveColor || __gcDefaultColor();\n',
+            '            ctx.lineWidth = (d.__liveThickness || 1.4) + 0.8;\n',
             '            ctx.beginPath();\n',
             '            for (const pr of pairs) {\n',
             '                if (!Array.isArray(pr) || pr.length < 2) continue;\n',
@@ -8620,7 +8955,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '        let pts = null;\n',
             '        try { if (d.pointsExpr) pts = evaluate(d.pointsExpr); } catch (e) { pts = null; }\n',
             '        if (Array.isArray(pts)) {\n',
-            '            ctx.fillStyle = d.color || __gcDefaultColor();\n',
+            '            ctx.fillStyle = d.__liveColor || __gcDefaultColor();\n',
             '            for (const P of pts) {\n',
             '                if (!Array.isArray(P)) continue;\n',
             '                const pix = fieldToPixel(cx + P[0] * scale, cy + P[1] * scale);\n',
@@ -8636,16 +8971,17 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '    // ---- Бифуркационная диаграмма ----\n',
             '    function drawBifurcation(d) {\n',
             '        if (!GL_USER_FUNCS[d.funcName]) return;\n',
+            '        if (gcShouldUpdate(d)) { d.__liveColor = d.colorExpr ? evaluate(d.colorExpr) : d.color; }\n',
             '        const q = Math.max(1, Math.floor(d.quality || 2));\n',
             '        const w = Math.max(2, Math.floor(width / q)), h = Math.max(2, Math.floor(height / q));\n',
-            '        const key = [d.funcName, d.rmin, d.rmax, d.ymin, d.ymax, d.x0, d.skip, d.keep, w, h, glUserFuncVersion].join(\'|\');\n',
+            '        const key = [d.funcName, d.rmin, d.rmax, d.ymin, d.ymax, d.x0, d.skip, d.keep, w, h, d.__liveColor, glUserFuncVersion].join(\'|\');\n',
             '        if (!d._cache || d._cacheKey !== key) {\n',
             '            const off = document.createElement(\'canvas\');\n',
             '            off.width = w; off.height = h;\n',
             '            const octx = off.getContext(\'2d\');\n',
             '            const img = octx.createImageData(w, h);\n',
             '            const data = img.data;\n',
-            '            const rgb = hexToRgbSurface(d.color || \'#1a237e\');\n',
+            '            const rgb = hexToRgbSurface(d.__liveColor || \'#1a237e\');\n',
             '            const skip = Math.max(0, Math.floor(d.skip)), keep = Math.max(1, Math.floor(d.keep));\n',
             '            for (let px = 0; px < w; px++) {\n',
             '                const r = d.rmin + (d.rmax - d.rmin) * px / (w - 1);\n',
@@ -8678,10 +9014,11 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '    // ---- Паутинная диаграмма ----\n',
             '    function drawCobweb(d) {\n',
             '        if (!GL_USER_FUNCS[d.funcName]) return;\n',
+            '        if (gcShouldUpdate(d)) { d.__liveColor = d.colorExpr ? evaluate(d.colorExpr) : d.color; d.__liveCurveColor = d.curveColorExpr ? evaluate(d.curveColorExpr) : d.curveColor; }\n',
             '        const f = (x) => glCallUserFunc(d.funcName, [x]);\n',
             '        ctx.save();\n',
             '        // график функции\n',
-            '        ctx.strokeStyle = d.curveColor || \'#1565c0\';\n',
+            '        ctx.strokeStyle = d.__liveCurveColor || \'#1565c0\';\n',
             '        ctx.lineWidth = 2;\n',
             '        ctx.beginPath();\n',
             '        const N = 200;\n',
@@ -8708,7 +9045,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '        let x0 = 0.5;\n',
             '        try { if (d.x0Expr) x0 = evaluate(d.x0Expr); } catch (e) { x0 = 0.5; }\n',
             '        if (typeof x0 !== \'number\' || !isFinite(x0)) x0 = 0.5;\n',
-            '        ctx.strokeStyle = d.color || \'#c62828\';\n',
+            '        ctx.strokeStyle = d.__liveColor || \'#c62828\';\n',
             '        ctx.lineWidth = 1.4;\n',
             '        ctx.beginPath();\n',
             '        let x = x0;\n',
@@ -8734,16 +9071,17 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '        let maps;\n',
             '        try { maps = evaluate(d.mapsExpr); } catch (e) { return; }\n',
             '        if (!Array.isArray(maps) || !maps.length) return;\n',
+            '        if (gcShouldUpdate(d)) { d.__liveColor = d.colorExpr ? evaluate(d.colorExpr) : d.color; }\n',
             '        const tl = pixelToField(0, 0), br = pixelToField(width, height);\n',
             '        const key = [JSON.stringify(maps), d.iterations, width, height,\n',
-            '            tl.x.toFixed(4), tl.y.toFixed(4), br.x.toFixed(4), br.y.toFixed(4)].join(\'|\');\n',
+            '            tl.x.toFixed(4), tl.y.toFixed(4), br.x.toFixed(4), br.y.toFixed(4), d.__liveColor].join(\'|\');\n',
             '        if (!d._cache || d._cacheKey !== key) {\n',
             '            const off = document.createElement(\'canvas\');\n',
             '            off.width = width; off.height = height;\n',
             '            const octx = off.getContext(\'2d\');\n',
             '            const img = octx.createImageData(width, height);\n',
             '            const data = img.data;\n',
-            '            const rgb = hexToRgbSurface(d.color || \'#1b5e20\');\n',
+            '            const rgb = hexToRgbSurface(d.__liveColor || \'#1b5e20\');\n',
             '            // нормируем вероятности\n',
             '            let total = 0;\n',
             '            for (const m of maps) total += (m.length > 6 ? m[6] : 1);\n',
@@ -8781,8 +9119,9 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '        if (typeof ax !== \'number\' || !isFinite(ax)) ax = 0;\n',
             '        if (typeof ay !== \'number\' || !isFinite(ay)) ay = 0;\n',
             '        const cs = d.cellSize || 0.25;\n',
+            '        if (gcShouldUpdate(d)) { d.__liveColor = d.colorExpr ? evaluate(d.colorExpr) : d.color; }\n',
             '        ctx.save();\n',
-            '        ctx.fillStyle = d.color || __gcDefaultColor();\n',
+            '        ctx.fillStyle = d.__liveColor || __gcDefaultColor();\n',
             '        const scale = gcAnchorScale(d);\n',
             '        const pxSize = Math.max(1, cs * scale);\n',
             '        if (d.type === \'life\') {\n',
@@ -8876,10 +9215,11 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '        try { raw = evaluate(d.sitesExpr); } catch (e) { return; }\n',
             '        const sites = glReadPoints(raw);\n',
             '        if (sites.length < 1) return;\n',
+            '        if (gcShouldUpdate(d)) { d.__liveColor = d.colorExpr ? evaluate(d.colorExpr) : d.color; }\n',
             '        ctx.save();\n',
             '        if (d.mode === \'hull\') {\n',
             '            const hull = glConvexHull(raw);\n',
-            '            ctx.strokeStyle = d.color || __gcDefaultColor();\n',
+            '            ctx.strokeStyle = d.__liveColor || __gcDefaultColor();\n',
             '            ctx.lineWidth = 2;\n',
             '            ctx.beginPath();\n',
             '            for (let i = 0; i < hull.length; i++) {\n',
@@ -8890,7 +9230,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '            ctx.stroke();\n',
             '        } else if (d.mode === \'delaunay\') {\n',
             '            const tris = glDelaunay(sites);\n',
-            '            ctx.strokeStyle = d.color || __gcDefaultColor();\n',
+            '            ctx.strokeStyle = d.__liveColor || __gcDefaultColor();\n',
             '            ctx.lineWidth = 1.2;\n',
             '            ctx.beginPath();\n',
             '            for (const t of tris) {\n',
@@ -8992,8 +9332,9 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '        }\n',
             '        const t = elapsedTime * (d.speed || 0.25);\n',
             '        let cx = 0, cy = 0;\n',
+            '        if (gcShouldUpdate(d)) { d.__liveColor = d.colorExpr ? evaluate(d.colorExpr) : d.color; d.__liveCircleColor = d.circleColorExpr ? evaluate(d.circleColorExpr) : d.circleColor; }\n',
             '        ctx.save();\n',
-            '        ctx.strokeStyle = d.circleColor || \'#9e9e9e\';\n',
+            '        ctx.strokeStyle = d.__liveCircleColor || \'#9e9e9e\';\n',
             '        ctx.lineWidth = 1;\n',
             '        for (const c of d._coeffs) {\n',
             '            const ang = 2 * Math.PI * c.k * t;\n',
@@ -9017,7 +9358,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '        if (!d._trail) d._trail = [];\n',
             '        d._trail.push({ x: cx, y: cy });\n',
             '        if (d._trail.length > 1200) d._trail.shift();\n',
-            '        ctx.strokeStyle = d.color || \'#ad1457\';\n',
+            '        ctx.strokeStyle = d.__liveColor || \'#ad1457\';\n',
             '        ctx.lineWidth = 2;\n',
             '        ctx.beginPath();\n',
             '        for (let i = 0; i < d._trail.length; i++) {\n',
@@ -9030,6 +9371,10 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '\n',
             '    // ---- Помеченные диаграммы: категории, автоматы, цепи Маркова ----\n',
             '    function drawDiagram(d) {\n',
+            '        if (gcShouldUpdate(d)) {\n',
+            '          d.__liveColor = d.colorExpr ? evaluate(d.colorExpr) : d.color;\n',
+            '          d.__liveArrowColor = d.arrowColorExpr ? evaluate(d.arrowColorExpr) : d.arrowColor;\n',
+            '        }\n',
             '        let nodes, arrows = [], accepting = [];\n',
             '        try { nodes = evaluate(d.nodesExpr); } catch (e) { return; }\n',
             '        try { if (d.arrowsExpr) arrows = evaluate(d.arrowsExpr) || []; } catch (e) { arrows = []; }\n',
@@ -9055,8 +9400,8 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '            pairSeen[pk] = (pairSeen[pk] || 0) + 1;\n',
             '            const ord = pairSeen[pk];\n',
             '            const p1 = gcAnchorToPixel(d)(a.x, a.y), p2 = gcAnchorToPixel(d)(b.x, b.y);\n',
-            '            ctx.strokeStyle = d.arrowColor || __gcDefaultColor();\n',
-            '            ctx.fillStyle = d.arrowColor || __gcDefaultColor();\n',
+            '            ctx.strokeStyle = d.__liveArrowColor || __gcDefaultColor();\n',
+            '            ctx.fillStyle = d.__liveArrowColor || __gcDefaultColor();\n',
             '            ctx.lineWidth = 1.6;\n',
             '            let mx, my, angEnd;\n',
             '            if (String(ar[0]) === String(ar[1])) {\n',
@@ -9108,7 +9453,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '            if (!Array.isArray(nd) || nd.length < 3) continue;\n',
             '            const label = String(nd[0]);\n',
             '            const p = gcAnchorToPixel(d)(nd[1], nd[2]);\n',
-            '            ctx.fillStyle = d.color || __gcDefaultColor();\n',
+            '            ctx.fillStyle = d.__liveColor || __gcDefaultColor();\n',
             '            if (d.boxed) {\n',
             '                const w2 = Math.max(R * 2, ctx.measureText(label).width + 16);\n',
             '                ctx.fillRect(p.x - w2 / 2, p.y - R, w2, R * 2);\n',
@@ -9155,9 +9500,14 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '                else if (e && e.a !== undefined) { hlEdgeSet[edgeKey(e.a, e.b)] = true; hlEdgeSet[edgeKey(e.b, e.a)] = true; }\n',
             '            }\n',
             '        }\n',
-            '        const base = d.color || __gcDefaultColor();\n',
-            '        const eCol = d.edgeColor || base;\n',
-            '        const nCol = d.nodeColor || base;\n',
+            '        if (gcShouldUpdate(d)) {\n',
+            '          d.__liveColor = d.colorExpr ? evaluate(d.colorExpr) : d.color;\n',
+            '          d.__liveNodeColor = d.nodeColorExpr ? evaluate(d.nodeColorExpr) : d.nodeColor;\n',
+            '          d.__liveEdgeColor = d.edgeColorExpr ? evaluate(d.edgeColorExpr) : d.edgeColor;\n',
+            '        }\n',
+            '        const base = d.__liveColor || __gcDefaultColor();\n',
+            '        const eCol = d.__liveEdgeColor || base;\n',
+            '        const nCol = d.__liveNodeColor || base;\n',
             '        const R = d.nodeRadius === undefined ? 9 : d.nodeRadius;\n',
             '        ctx.save();\n',
             '        // кратные рёбра между одной парой разводим дугами\n',
@@ -9251,7 +9601,8 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '    function drawEquallySing(d) {\n',
             '        const edges = d.edges;\n',
             '        const type = d.type;\n',
-            '        const color = d.color;\n',
+            '        if (gcShouldUpdate(d)) { d.__liveColor = d.colorExpr ? evaluate(d.colorExpr) : d.color; }\n',
+            '        const color = d.__liveColor || __gcDefaultColor();\n',
             '        for (let line of edges) {\n',
             '            const pA = line.pA.pos, pB = line.pB.pos;\n',
             '            const midX = (pA.x + pB.x) / 2, midY = (pA.y + pB.y) / 2;\n',
@@ -9291,6 +9642,10 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '    function drawInfLine(d) {\n',
             '        const line = d.line;\n',
             '        if (!line) return;\n',
+            '        if (gcShouldUpdate(d)) {\n',
+            '          d.__liveColor = d.colorExpr ? evaluate(d.colorExpr) : d.color;\n',
+            '          d.__liveThickness = d.thicknessExpr ? evaluate(d.thicknessExpr) : d.thickness;\n',
+            '        }\n',
             '        const pA = line.pA.pos, pB = line.pB.pos;\n',
             '        const dx = pB.x - pA.x, dy = pB.y - pA.y;\n',
             '        const len = Math.hypot(dx, dy);\n',
@@ -9314,8 +9669,8 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '        }\n',
             '        const pStart = fieldToPixel(startX, startY);\n',
             '        const pEnd = fieldToPixel(endX, endY);\n',
-            '        ctx.strokeStyle = d.color || line.color || __gcDefaultColor();\n',
-            '        ctx.lineWidth = d.thickness || line.thickness || 2;\n',
+            '        ctx.strokeStyle = d.__liveColor || line.color || __gcDefaultColor();\n',
+            '        ctx.lineWidth = d.__liveThickness || line.thickness || 2;\n',
             '        if (d.dotline) { ctx.setLineDash([6, 6]); } else { ctx.setLineDash([]); }\n',
             '        ctx.beginPath(); ctx.moveTo(pStart.x, pStart.y); ctx.lineTo(pEnd.x, pEnd.y); ctx.stroke();\n',
             '        ctx.setLineDash([]);\n',
@@ -9324,6 +9679,11 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '    function drawVector(d) {\n',
             '        const line = d.line;\n',
             '        if (!line) return;\n',
+            '        if (gcShouldUpdate(d)) {\n',
+            '          d.__liveColor = d.colorExpr ? evaluate(d.colorExpr) : d.color;\n',
+            '          d.__liveLength = d.lengthExpr ? evaluate(d.lengthExpr) : d.length;\n',
+            '          d.__liveThickness = d.thicknessExpr ? evaluate(d.thicknessExpr) : d.thickness;\n',
+            '        }\n',
             '        const pA = line.pA.pos, pB = line.pB.pos;\n',
             '        const t = (d.pos + 1) / 2;\n',
             '        const x = pA.x + (pB.x - pA.x) * t;\n',
@@ -9333,15 +9693,15 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '        if (len < 0.001) return;\n',
             '        const dir = d.direct;\n',
             '        const angle = Math.atan2(dy, dx) + (dir < 0 ? Math.PI : 0);\n',
-            '        const arrowLen = d.length || 12;\n',
+            '        const arrowLen = d.__liveLength || d.length || 12;\n',
             '        const angleOffset = 0.45;\n',
             '        const p = fieldToPixel(x, y);\n',
             '        const tipOff = 0.3;\n',
             '        const tipX = x + Math.cos(angle) * tipOff;\n',
             '        const tipY = y + Math.sin(angle) * tipOff;\n',
             '        const tip = fieldToPixel(tipX, tipY);\n',
-            '        ctx.strokeStyle = d.color;\n',
-            '        ctx.lineWidth = d.thickness || line.thickness || 2;\n',
+            '        ctx.strokeStyle = d.__liveColor || d.color;\n',
+            '        ctx.lineWidth = d.__liveThickness || d.thickness || line.thickness || 2;\n',
             '        ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(tip.x, tip.y); ctx.stroke();\n',
             '        const ang = Math.atan2(tip.y - p.y, tip.x - p.x);\n',
             '        const a1 = ang + angleOffset, a2 = ang - angleOffset;\n',
@@ -9355,9 +9715,14 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '    }\n',
             '\n',
             '    function drawFilling(d) {\n',
+            '        if (gcShouldUpdate(d)) {\n',
+            '          d.__liveColor = d.colorExpr ? evaluate(d.colorExpr) : d.color;\n',
+            '          const ov = d.opacityExpr ? evaluate(d.opacityExpr) : d.opacity;\n',
+            '          d.__liveOpacity = (typeof ov === \'number\' && isFinite(ov)) ? Math.max(0, Math.min(1, ov)) : d.opacity;\n',
+            '        }\n',
             '        ctx.save();\n',
-            '        ctx.globalAlpha = (d.opacity === undefined || d.opacity === null) ? 0.5 : d.opacity;\n',
-            '        ctx.fillStyle = d.color;\n',
+            '        ctx.globalAlpha = (d.__liveOpacity === undefined || d.__liveOpacity === null) ? 0.5 : d.__liveOpacity;\n',
+            '        ctx.fillStyle = d.__liveColor || d.color;\n',
             '        if (d.kind === \'halfplane\') {\n',
             '            const poly = computeHalfPlanePolygon(d.line, d.sidePoint);\n',
             '            if (poly.length >= 3) {\n',
@@ -9420,7 +9785,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '            fillingOffCtx.clearRect(0, 0, width, height);\n',
             '            fillingOffCtx.globalCompositeOperation = \'source-over\';\n',
             '            fillingOffCtx.globalAlpha = 1;\n',
-            '            fillingOffCtx.fillStyle = d.color;\n',
+            '            fillingOffCtx.fillStyle = d.__liveColor || d.color;\n',
             '            fillingOffCtx.fill(path, \'nonzero\');\n',
             '            fillingOffCtx.globalCompositeOperation = \'destination-out\';\n',
             '            fillingOffCtx.fill(path, \'evenodd\');\n',
@@ -9510,6 +9875,12 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '        return 0;\n',
             '    }\n',
             '    function drawDistribution(d) {\n',
+            '        if (gcShouldUpdate(d)) {\n',
+            '          d.__liveColor = d.colorExpr ? evaluate(d.colorExpr) : d.color;\n',
+            '          d.__liveThickness = d.thicknessExpr ? evaluate(d.thicknessExpr) : d.thickness;\n',
+            '          const ov = d.opacityExpr ? evaluate(d.opacityExpr) : d.opacity;\n',
+            '          d.__liveOpacity = (typeof ov === \'number\' && isFinite(ov)) ? Math.max(0, Math.min(1, ov)) : d.opacity;\n',
+            '        }\n',
             '        if (d.type === \'binomial\' || d.type === \'poisson\') drawDistributionBars(d);\n',
             '        else drawDistributionCurve(d);\n',
             '    }\n',
@@ -9546,8 +9917,8 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '        }\n',
             '        ctx.save();\n',
             '        if (d.filled) {\n',
-            '            ctx.globalAlpha = ((d.opacity === undefined || d.opacity === null) ? 1 : d.opacity) * 0.35;\n',
-            '            ctx.fillStyle = d.color || __gcDefaultColor();\n',
+            '            ctx.globalAlpha = ((d.__liveOpacity === undefined || d.__liveOpacity === null) ? 1 : d.__liveOpacity) * 0.35;\n',
+            '            ctx.fillStyle = d.__liveColor || __gcDefaultColor();\n',
             '            fillCurveAgainstZero(pts, n);\n',
             '        }\n',
             '        // Подсветка P(highlightFrom <= X <= highlightTo) — отдельная более узкая заливка поверх основной.\n',
@@ -9567,8 +9938,8 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '            }\n',
             '        }\n',
             '        ctx.globalAlpha = 1;\n',
-            '        ctx.strokeStyle = d.color || __gcDefaultColor();\n',
-            '        ctx.lineWidth = d.thickness || 2;\n',
+            '        ctx.strokeStyle = d.__liveColor || __gcDefaultColor();\n',
+            '        ctx.lineWidth = d.__liveThickness || 2;\n',
             '        ctx.lineCap = \'round\';\n',
             '        ctx.beginPath();\n',
             '        let started = false;\n',
@@ -9588,8 +9959,8 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '            let prob; try { prob = distributionPmf(d, k); } catch (e) { prob = NaN; }\n',
             '            if (!(typeof prob === \'number\' && isFinite(prob)) || prob <= 0) continue;\n',
             '            const isHi = d.highlightFrom !== null && d.highlightFrom !== undefined && d.highlightTo !== null && d.highlightTo !== undefined && k >= d.highlightFrom && k <= d.highlightTo;\n',
-            '            ctx.globalAlpha = isHi ? ((d.highlightOpacity === undefined || d.highlightOpacity === null) ? 0.5 : d.highlightOpacity) : ((d.opacity === undefined || d.opacity === null) ? 1 : d.opacity);\n',
-            '            ctx.fillStyle = isHi ? (d.highlightColor || \'#e07a5f\') : (d.color || __gcDefaultColor());\n',
+            '            ctx.globalAlpha = isHi ? ((d.highlightOpacity === undefined || d.highlightOpacity === null) ? 0.5 : d.highlightOpacity) : ((d.__liveOpacity === undefined || d.__liveOpacity === null) ? 1 : d.__liveOpacity);\n',
+            '            ctx.fillStyle = isHi ? (d.highlightColor || \'#e07a5f\') : (d.__liveColor || __gcDefaultColor());\n',
             '            const pTop = gcAnchorToPixel(d)(k - barHalfWidth, prob);\n',
             '            const pBot = gcAnchorToPixel(d)(k + barHalfWidth, 0);\n',
             '            ctx.fillRect(Math.min(pTop.x, pBot.x), Math.min(pTop.y, pBot.y), Math.abs(pBot.x - pTop.x), Math.abs(pBot.y - pTop.y));\n',
@@ -9625,11 +9996,15 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '    function drawPunctir(d) {\n',
             '        const line = d.line;\n',
             '        if (!line) return;\n',
+            '        if (gcShouldUpdate(d)) {\n',
+            '          d.__liveColor = d.colorExpr ? evaluate(d.colorExpr) : d.color;\n',
+            '          d.__liveThickness = d.thicknessExpr ? evaluate(d.thicknessExpr) : d.thickness;\n',
+            '        }\n',
             '        const pA = line.pA.pos, pB = line.pB.pos;\n',
             '        const posA = fieldToPixel(pA.x, pA.y);\n',
             '        const posB = fieldToPixel(pB.x, pB.y);\n',
-            '        ctx.strokeStyle = d.color || line.color || __gcDefaultColor();\n',
-            '        ctx.lineWidth = d.thickness || line.thickness || 2;\n',
+            '        ctx.strokeStyle = d.__liveColor || line.color || __gcDefaultColor();\n',
+            '        ctx.lineWidth = d.__liveThickness || line.thickness || 2;\n',
             '        ctx.setLineDash(d.pattern || [6, 6]);\n',
             '        ctx.beginPath(); ctx.moveTo(posA.x, posA.y); ctx.lineTo(posB.x, posB.y); ctx.stroke();\n',
             '        ctx.setLineDash([]);\n',
@@ -9677,9 +10052,13 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '        push(l.layer, () => {\n',
             '          const posA = fieldToPixel(l.pA.pos.x, l.pA.pos.y);\n',
             '          const posB = fieldToPixel(l.pB.pos.x, l.pB.pos.y);\n',
+            '          if (gcShouldUpdate(l)) {\n',
+            '            l.__liveColor = l.colorExpr ? evaluate(l.colorExpr) : l.color;\n',
+            '            l.__liveThickness = l.thicknessExpr ? evaluate(l.thicknessExpr) : l.thickness;\n',
+            '          }\n',
             '          ctx.beginPath(); ctx.moveTo(posA.x, posA.y); ctx.lineTo(posB.x, posB.y);\n',
-            '          ctx.strokeStyle = l.color || __gcDefaultColor();\n',
-            '          ctx.lineWidth = l.thickness || 2.5;\n',
+            '          ctx.strokeStyle = l.__liveColor || __gcDefaultColor();\n',
+            '          ctx.lineWidth = l.__liveThickness || 2.5;\n',
             '          ctx.lineCap = \'round\';\n',
             '          ctx.stroke();\n',
             '        });\n',
@@ -9838,15 +10217,22 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '          const pos = fieldToPixel(p.pos.x, p.pos.y);\n',
             '          if (isNaN(pos.x) || isNaN(pos.y)) return;\n',
             '          p.px = pos.x; p.py = pos.y;\n',
-            '          const r = VERTEX_RADIUS * (p.size || 1);\n',
+            '          // update = always/event/once (+ interval) — см. gcShouldUpdate. Между\n',
+            '          // обновлениями переиспользуем последний вычисленный цвет/размер, а не\n',
+            '          // читаем p.color/p.size заново (те к тому же статичны при простом =var).\n',
+            '          if (gcShouldUpdate(p)) {\n',
+            '            p.__liveColor = p.colorExpr ? evaluate(p.colorExpr) : p.color;\n',
+            '            p.__liveSize = p.sizeExpr ? evaluate(p.sizeExpr) : p.size;\n',
+            '          }\n',
+            '          const r = VERTEX_RADIUS * (p.__liveSize || 1);\n',
             '          const shape = p.shape || \'circle\';\n',
-            '          ctx.fillStyle = p.color || __gcDefaultColor();\n',
+            '          ctx.fillStyle = p.__liveColor || __gcDefaultColor();\n',
             '          if (shape === \'square\') {\n',
             '            ctx.fillRect(pos.x - r, pos.y - r, r * 2, r * 2);\n',
             '            ctx.strokeStyle = \'#ffffff\'; ctx.lineWidth = 1.5; ctx.strokeRect(pos.x - r, pos.y - r, r * 2, r * 2);\n',
             '            ctx.fillStyle = \'#ffffff\'; ctx.fillRect(pos.x - r/2.5, pos.y - r/2.5, r/1.25, r/1.25);\n',
             '          } else if (shape === \'cross\') {\n',
-            '            ctx.strokeStyle = p.color || __gcDefaultColor(); ctx.lineWidth = Math.max(2, r * 0.5); ctx.lineCap = \'round\';\n',
+            '            ctx.strokeStyle = p.__liveColor || __gcDefaultColor(); ctx.lineWidth = Math.max(2, r * 0.5); ctx.lineCap = \'round\';\n',
             '            ctx.beginPath(); ctx.moveTo(pos.x - r, pos.y - r); ctx.lineTo(pos.x + r, pos.y + r);\n',
             '            ctx.moveTo(pos.x + r, pos.y - r); ctx.lineTo(pos.x - r, pos.y + r); ctx.stroke();\n',
             '          } else {\n',
@@ -9899,13 +10285,19 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '      const overlay = document.getElementById(\'formulaOverlay\');\n',
             '      while (overlay.firstChild) overlay.removeChild(overlay.firstChild);\n',
             '      for (let d of drawTexts) {\n',
-            '        const posX = evaluate(d.posXExpr);\n',
-            '        const posY = evaluate(d.posYExpr);\n',
-            '        const text = evaluate(d.textExpr);\n',
-            '        let color = evaluate(d.colorExpr);\n',
-            '        if (color === \'default\') color = __gcDefaultColor();\n',
-            '        const size = evaluate(d.sizeExpr);\n',
-            '        const active = evaluate(d.activeExpr);\n',
+            '        // Настройка update = always/event/once (+ update interval) — см. gcShouldUpdate.\n',
+            '        // Когда обновление не требуется, переиспользуем последние вычисленные значения\n',
+            '        // вместо повторного evaluate() всех живых выражений объекта.\n',
+            '        if (gcShouldUpdate(d)) {\n',
+            '          d.__posX = evaluate(d.posXExpr);\n',
+            '          d.__posY = evaluate(d.posYExpr);\n',
+            '          d.__text = evaluate(d.textExpr);\n',
+            '          let c = evaluate(d.colorExpr);\n',
+            '          d.__color = (c === \'default\') ? __gcDefaultColor() : c;\n',
+            '          d.__size = evaluate(d.sizeExpr);\n',
+            '          d.__active = evaluate(d.activeExpr);\n',
+            '        }\n',
+            '        const posX = d.__posX, posY = d.__posY, text = d.__text, color = d.__color, size = d.__size, active = d.__active;\n',
             '        if (!active) continue;\n',
             '        if (posX === undefined || posY === undefined || text === undefined) continue;\n',
             '        const isFormula = typeof katex !== \'undefined\' && typeof text === \'string\' && (text.includes(\'\\\\(\') || text.includes(\'\\\\[\'));\n',
@@ -9944,7 +10336,139 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '    let sceneSnapshot = null;\n',
             '    let sceneChangedThisFrame = true;\n',
             '    function markDirty(obj) { if (obj) obj.dirty = true; }\n',
-            '    function markSceneChanged() { sceneChangedThisFrame = true; }\n',
+            '    function markSceneChanged() { sceneChangedThisFrame = true; window.__gcEventTick = (window.__gcEventTick || 0) + 1; }\n',
+            '    function gcShouldUpdate(obj) {\n',
+            '      if (!obj.__gcUpdateInit) {\n',
+            '        obj.__gcUpdateInit = true;\n',
+            '        obj.__updatedOnce = false;\n',
+            '        obj.__lastEventTick = -1;\n',
+            '        obj.__lastUpdateMs = -Infinity;\n',
+            '        return true;\n',
+            '      }\n',
+            '      const mode = obj.updateMode || \'always\';\n',
+            '      if (mode === \'once\') return false;\n',
+            '      const interval = obj.updateInterval;\n',
+            '      if (typeof interval === \'number\' && interval > 0) {\n',
+            '        const now = (typeof performance !== \'undefined\' && performance.now) ? performance.now() : Date.now();\n',
+            '        if (now - obj.__lastUpdateMs < interval * 1000) return false;\n',
+            '        obj.__lastUpdateMs = now;\n',
+            '      }\n',
+            '      if (mode === \'event\') {\n',
+            '        const tick = window.__gcEventTick || 0;\n',
+            '        if (tick === obj.__lastEventTick) return false;\n',
+            '        obj.__lastEventTick = tick;\n',
+            '        return true;\n',
+            '      }\n',
+            '      return true;\n',
+            '    }\n',
+            '    // ---- Анимация ----\n',
+            '    // animate(имяПеременной, значениеДо, длительностьСек, easing, задержкаСек, режим) запускает\n',
+            '    // плавное изменение ЛЮБОЙ числовой глобальной переменной от текущего значения к целевому.\n',
+            '    // Поскольку почти все параметры объектов (color/radius/thickness/opacity и т.п. — см. правки\n',
+            '    // "живых" полей) сами читают значение переменной каждый кадр через evaluate(), анимация\n',
+            '    // переменной автоматически анимирует ЛЮБОЕ поле, которое от неё зависит — отдельно\n',
+            '    // помечать элементы не нужно. animateColor — то же самое, но для #hex-цвета (плавная\n',
+            '    // интерполяция по каналам RGB, а не как число). Тикает независимо от наличия Update{} —\n',
+            '    // см. gcStartAnimLoop ниже.\n',
+            '    window.__gcAnimations = window.__gcAnimations || {};\n',
+            '    function gcEase(name, t) {\n',
+            '      switch (name) {\n',
+            '        case \'linear\': return t;\n',
+            '        case \'easeInQuad\': return t * t;\n',
+            '        case \'easeOutQuad\': return 1 - (1 - t) * (1 - t);\n',
+            '        case \'easeInOutQuad\': return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;\n',
+            '        case \'easeInCubic\': return t * t * t;\n',
+            '        case \'easeOutCubic\': return 1 - Math.pow(1 - t, 3);\n',
+            '        case \'easeInOutCubic\': return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;\n',
+            '        case \'easeInElastic\': { if (t === 0 || t === 1) return t; const c4 = (2 * Math.PI) / 3; return -Math.pow(2, 10 * t - 10) * Math.sin((t * 10 - 10.75) * c4); }\n',
+            '        case \'easeOutElastic\': { if (t === 0 || t === 1) return t; const c4 = (2 * Math.PI) / 3; return Math.pow(2, -10 * t) * Math.sin((t * 10 - 0.75) * c4) + 1; }\n',
+            '        case \'easeOutBounce\': {\n',
+            '          const n1 = 7.5625, d1 = 2.75;\n',
+            '          if (t < 1 / d1) return n1 * t * t;\n',
+            '          else if (t < 2 / d1) { t -= 1.5 / d1; return n1 * t * t + 0.75; }\n',
+            '          else if (t < 2.5 / d1) { t -= 2.25 / d1; return n1 * t * t + 0.9375; }\n',
+            '          else { t -= 2.625 / d1; return n1 * t * t + 0.984375; }\n',
+            '        }\n',
+            '        case \'easeInBounce\': return 1 - gcEase(\'easeOutBounce\', 1 - t);\n',
+            '        case \'easeInBack\': { const c1 = 1.70158, c3 = c1 + 1; return c3 * t * t * t - c1 * t * t; }\n',
+            '        case \'easeOutBack\': { const c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2); }\n',
+            '        default: return t;\n',
+            '      }\n',
+            '    }\n',
+            '    function gcHexToRgbAnim(hex) {\n',
+            '      hex = String(hex || \'#000000\').replace(\'#\', \'\');\n',
+            '      if (hex.length === 3) hex = hex.split(\'\').map(function(c) { return c + c; }).join(\'\');\n',
+            '      const num = parseInt(hex, 16) || 0;\n',
+            '      return { r: (num >> 16) & 255, g: (num >> 8) & 255, b: num & 255 };\n',
+            '    }\n',
+            '    function gcRgbToHexAnim(r, g, b) {\n',
+            '      const c = (Math.max(0, Math.min(255, Math.round(r))) << 16) | (Math.max(0, Math.min(255, Math.round(g))) << 8) | Math.max(0, Math.min(255, Math.round(b)));\n',
+            '      return \'#\' + (\'000000\' + c.toString(16)).slice(-6);\n',
+            '    }\n',
+            '    function glAnimate(varName, to, duration, easing, delay, mode) {\n',
+            '      const cur = window[varName];\n',
+            '      const durationVal = Math.max(0.0001, (duration === undefined || duration === null) ? 1 : duration);\n',
+            '      const common = { elapsed: 0, duration: durationVal, delay: Math.max(0, delay || 0), easing: easing || \'linear\', mode: mode || \'once\', done: false };\n',
+            '      // Единая animate() сама определяет по типу целевого значения, что анимировать:\n',
+            '      // #hex-строка -> плавная интерполяция по каналам RGB, число -> обычная числовая\n',
+            '      // интерполяция. Отдельной animateColor() больше нет — не нужно помнить, какую из\n',
+            '      // двух функций вызывать для какого поля.\n',
+            '      if (typeof to === \'string\' && to.charAt(0) === \'#\') {\n',
+            '        const fromHex = (typeof cur === \'string\' && cur.charAt(0) === \'#\') ? cur : to;\n',
+            '        window.__gcAnimations[varName] = Object.assign({ isColor: true, fromRgb: gcHexToRgbAnim(fromHex), toRgb: gcHexToRgbAnim(to) }, common);\n',
+            '      } else {\n',
+            '        const from = (typeof cur === \'number\' && isFinite(cur)) ? cur : 0;\n',
+            '        window.__gcAnimations[varName] = Object.assign({ isColor: false, from: from, to: to }, common);\n',
+            '      }\n',
+            '      gcStartAnimLoop();\n',
+            '    }\n',
+            '    function glStopAnimation(varName) { delete window.__gcAnimations[varName]; }\n',
+            '    function glIsAnimating(varName) { const a = window.__gcAnimations[varName]; return !!(a && !a.done); }\n',
+            '    function glAnimationProgress(varName) {\n',
+            '      const a = window.__gcAnimations[varName];\n',
+            '      if (!a) return 0;\n',
+            '      return Math.max(0, Math.min(1, (a.elapsed - a.delay) / a.duration));\n',
+            '    }\n',
+            '    function gcHasActiveAnimations() {\n',
+            '      for (const k in window.__gcAnimations) { if (!window.__gcAnimations[k].done) return true; }\n',
+            '      return false;\n',
+            '    }\n',
+            '    function gcTickAnimations(dt) {\n',
+            '      for (const key in window.__gcAnimations) {\n',
+            '        const a = window.__gcAnimations[key];\n',
+            '        if (a.done) continue;\n',
+            '        a.elapsed += dt;\n',
+            '        if (a.elapsed < a.delay) continue;\n',
+            '        let t = (a.elapsed - a.delay) / a.duration;\n',
+            '        let finished = t >= 1;\n',
+            '        t = Math.max(0, Math.min(1, t));\n',
+            '        const eased = gcEase(a.easing, t);\n',
+            '        if (a.isColor) {\n',
+            '          const r = a.fromRgb.r + (a.toRgb.r - a.fromRgb.r) * eased;\n',
+            '          const g = a.fromRgb.g + (a.toRgb.g - a.fromRgb.g) * eased;\n',
+            '          const b = a.fromRgb.b + (a.toRgb.b - a.fromRgb.b) * eased;\n',
+            '          window[key] = gcRgbToHexAnim(r, g, b);\n',
+            '        } else {\n',
+            '          window[key] = a.from + (a.to - a.from) * eased;\n',
+            '        }\n',
+            '        if (finished) {\n',
+            '          if (a.mode === \'loop\') { a.elapsed = a.delay; }\n',
+            '          else if (a.mode === \'yoyo\') {\n',
+            '            a.elapsed = a.delay;\n',
+            '            if (a.isColor) { const tmp = a.fromRgb; a.fromRgb = a.toRgb; a.toRgb = tmp; }\n',
+            '            else { const tmp = a.from; a.from = a.to; a.to = tmp; }\n',
+            '          } else { a.done = true; }\n',
+            '        }\n',
+            '      }\n',
+            '      markSceneChanged();\n',
+            '    }\n',
+            '    let __gcAnimLoopRunning = false;\n',
+            '    let __gcLastFrameTime = null;\n',
+            '    function gcStartAnimLoop() {\n',
+            '      if (__gcAnimLoopRunning) return;\n',
+            '      __gcAnimLoopRunning = true;\n',
+            '      runUpdate();\n',
+            '    }\n',
             '    // UI-контролы — это DOM-элементы, а не то, что рисуется на canvas, поэтому их\n',
             '    // видимость нужно синхронизировать отдельно (а не просто внутри drawFull) —\n',
             '    // вызывается из draw() при каждой перерисовке, чтобы кластер/activeExpr/active,\n',
@@ -10034,6 +10558,49 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '            y: (clientY - rect.top) * scaleY \n',
             '        };\n',
             '    }\n',
+            '\n',
+            '    // ---- Ввод: клавиатура, клики мышью и касания (позиция в координатах поля),\n',
+            '    // тип устройства. Отдельные обработчики, не связанные с перетаскиванием точек/UI,\n',
+            '    // чтобы не трогать хрупкую логику onPointerDown/Move/Up — просто читают события\n',
+            '    // параллельно. Значения читаются как обычные переменные (mouseX, isKeyDown(...) и\n',
+            '    // т.п.) из Start/Update/draw Text, т.к. пишутся в window.\n',
+            '    window.deviceType = IS_TOUCH_DEVICE ? \'mobile\' : \'desktop\';\n',
+            '    window.mouseX = 0; window.mouseY = 0; window.mouseDown = false;\n',
+            '    window.mouseClickX = 0; window.mouseClickY = 0; window.mouseClickCount = 0;\n',
+            '    window.touchX = 0; window.touchY = 0; window.touchActive = false; window.touchCount = 0;\n',
+            '    window.lastKey = \'\'; window.keyPressCount = 0;\n',
+            '    window.__gcKeysDown = window.__gcKeysDown || new Set();\n',
+            '    const __gcKeysDown = window.__gcKeysDown;\n',
+            '    canvas.addEventListener(\'mousemove\', function(e) {\n',
+            '        const pos = getPointerPos(e);\n',
+            '        const f = pixelToField(pos.x, pos.y);\n',
+            '        window.mouseX = f.x; window.mouseY = f.y;\n',
+            '    });\n',
+            '    canvas.addEventListener(\'mousedown\', function(e) { window.mouseDown = true; });\n',
+            '    window.addEventListener(\'mouseup\', function(e) { window.mouseDown = false; });\n',
+            '    canvas.addEventListener(\'click\', function(e) {\n',
+            '        const pos = getPointerPos(e);\n',
+            '        const f = pixelToField(pos.x, pos.y);\n',
+            '        window.mouseClickX = f.x; window.mouseClickY = f.y; window.mouseClickCount++;\n',
+            '    });\n',
+            '    canvas.addEventListener(\'touchstart\', function(e) {\n',
+            '        const pos = getPointerPos(e);\n',
+            '        const f = pixelToField(pos.x, pos.y);\n',
+            '        window.touchX = f.x; window.touchY = f.y; window.touchActive = true; window.touchCount++;\n',
+            '    }, { passive: true });\n',
+            '    canvas.addEventListener(\'touchmove\', function(e) {\n',
+            '        const pos = getPointerPos(e);\n',
+            '        const f = pixelToField(pos.x, pos.y);\n',
+            '        window.touchX = f.x; window.touchY = f.y;\n',
+            '    }, { passive: true });\n',
+            '    window.addEventListener(\'touchend\', function(e) { if (!e.touches || e.touches.length === 0) window.touchActive = false; });\n',
+            '    window.addEventListener(\'touchcancel\', function(e) { if (!e.touches || e.touches.length === 0) window.touchActive = false; });\n',
+            '    window.addEventListener(\'keydown\', function(e) {\n',
+            '        __gcKeysDown.add(e.key.toLowerCase());\n',
+            '        window.lastKey = e.key; window.keyPressCount++;\n',
+            '    });\n',
+            '    window.addEventListener(\'keyup\', function(e) { __gcKeysDown.delete(e.key.toLowerCase()); });\n',
+            '    function __gcIsKeyDown(key) { return __gcKeysDown.has(String(key).toLowerCase()); }\n',
             '\n',
             '    // draw Table { interactive = true } — редактирование ячейки кликом. Только один\n',            '    // редактор открыт одновременно: открытие нового закрывает (и фиксирует) предыдущий,\n',            '    // иначе при быстром переключении между ячейками старое поле осталось бы висеть в DOM.\n',            '    let gcActiveTableEditor = null;\n',            '    function gcCommitTableEditor() {\n',            '        if (!gcActiveTableEditor) return;\n',            '        const { input, d, r, c } = gcActiveTableEditor;\n',            '        const raw = input.value.trim();\n',            '        const num = Number(raw);\n',            '        d._editable[r][c] = (raw !== \'\' && isFinite(num)) ? num : raw;\n',            '        if (input.parentNode) input.parentNode.removeChild(input);\n',            '        gcActiveTableEditor = null;\n',            '        markSceneChanged(); draw();\n',            '    }\n',            '    function gcCancelTableEditor() {\n',            '        if (!gcActiveTableEditor) return;\n',            '        const { input } = gcActiveTableEditor;\n',            '        if (input.parentNode) input.parentNode.removeChild(input);\n',            '        gcActiveTableEditor = null;\n',            '    }\n',            '    function gcOpenTableCellEditor(d, cell) {\n',            '        gcCommitTableEditor();\n',            '        const input = document.createElement(\'input\');\n',            '        input.type = \'text\';\n',            '        input.className = \'gc-table-cell-editor\';\n',            '        input.value = String(d._editable[cell.r][cell.c]);\n',            '        input.style.cssText = \'position:absolute; left:\' + cell.x + \'px; top:\' + cell.y + \'px; \' +\n',            '            \'width:\' + cell.w + \'px; height:\' + cell.h + \'px; box-sizing:border-box; \' +\n',            '            \'font:\' + Math.max(9, 13 * (d.fontSize || 1)) + \'px sans-serif; text-align:center; \' +\n',            '            \'pointer-events:auto; border:2px solid #4a90d9; z-index:20;\';\n',            '        input.addEventListener(\'keydown\', function(ev) {\n',            '            if (ev.key === \'Enter\') { ev.preventDefault(); gcCommitTableEditor(); }\n',            '            else if (ev.key === \'Escape\') { ev.preventDefault(); gcCancelTableEditor(); }\n',            '            ev.stopPropagation();\n',            '        });\n',            '        input.addEventListener(\'blur\', gcCommitTableEditor);\n',            '        input.addEventListener(\'mousedown\', function(ev) { ev.stopPropagation(); });\n',            '        uiOverlay.appendChild(input);\n',            '        gcActiveTableEditor = { input: input, d: d, r: cell.r, c: cell.c };\n',            '        input.focus(); input.select();\n',            '    }\n',            '\n',            '    function onPointerDown(e) {\n',
               '      try {\n',
@@ -12245,6 +12812,11 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
     };
 
     const GL_BUILTINS = {
+        isKeyDown: (key) => !!(window.__gcKeysDown && window.__gcKeysDown.has(String(key).toLowerCase())),
+        animate: (varName, to, duration, easing, delay, mode) => { glAnimate(varName, to, duration, easing, delay, mode); return null; },
+        stopAnimation: (varName) => { glStopAnimation(varName); return null; },
+        isAnimating: (varName) => glIsAnimating(varName),
+        animationProgress: (varName) => glAnimationProgress(varName),
         sin: (x) => glIsComplex(x) ? glComplexSin(x) : Math.sin(x),
         cos: (x) => glIsComplex(x) ? glComplexCos(x) : Math.cos(x),
         tan: (x) => glIsComplex(x) ? glComplexDiv(glComplexSin(x), glComplexCos(x)) : Math.tan(x),
@@ -12304,7 +12876,18 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
         randomChoice: (arr) => arr[Math.floor(Math.random() * arr.length)],
         dot: (v, w) => v.reduce((s, x, i) => s + x * w[i], 0),
         norm: (v) => Math.sqrt(v.reduce((s, x) => s + x * x, 0)),
-        len: (v) => v.length,
+        len: (v) => {
+            if (v === null || v === undefined) throw new Error('len(): аргумент отсутствует (null/undefined)');
+            if (typeof v.length === 'number') return v.length;
+            // Частый случай: len() случайно вызвали на объекте графа/поста ({nodes, edges}
+            // или {els, leq}) вместо конкретного массива внутри него — раньше это тихо
+            // возвращало undefined, и значение потом невозможно было отличить от
+            // "переменная не существует" (см. правку резолвера идентификаторов). Теперь —
+            // явная и понятная ошибка сразу в месте вызова.
+            if (v.edges && typeof v.edges.length === 'number') throw new Error('len(): аргумент — объект графа; используйте len(g.edges) или len(graphNodes(g))');
+            if (v.els && typeof v.els.length === 'number') throw new Error('len(): аргумент — объект poset; используйте len(posetElements(p))');
+            throw new Error('len(): аргумент не является массивом/строкой (нет свойства length)');
+        },
         length: (v) => v.length,
         push: (arr, val) => { arr.push(val); return arr; },
         pop: (arr) => arr.pop(),
@@ -13420,7 +14003,13 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
         for (let col = 0; col < n; col++) {
             let piv = col;
             for (let r = col + 1; r < n; r++) if (Math.abs(A[r][col]) > Math.abs(A[piv][col])) piv = r;
-            if (Math.abs(A[piv][col]) < 1e-12) throw new Error('Матрица вырождена');
+            // Раньше здесь был throw — из-за чего один вызов inv() на вырожденной матрице
+            // обрывал ВЕСЬ Start/Update (см. glRun/glExecStatements: исключение прерывает
+            // весь блок операторов, а не только текущее присваивание), и все остальные,
+            // никак не связанные с этой матрицей вычисления в том же блоке тоже не
+            // выполнялись. det()/solveLinear() для такого же случая уже давно возвращают
+            // 0/null вместо исключения — приводим inv() к тому же поведению.
+            if (Math.abs(A[piv][col]) < 1e-12) return null;
             const tmp = A[col]; A[col] = A[piv]; A[piv] = tmp;
             const pivVal = A[col][col];
             for (let c = 0; c < 2 * n; c++) A[col][c] /= pivVal;
@@ -13534,6 +14123,14 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             if (u === end) break;
             visited.add(u);
             for (let nb of glGraphNeighbors(g, u)) {
+                // Уже финализированные (visited) вершины не релаксируем — это не просто
+                // оптимизация, а необходимое условие корректности: без этой проверки
+                // ребро с отрицательным весом (граф не ориентированный, поэтому оно
+                // "туда-обратно" всегда отрицательный цикл) может переписать prev[] так,
+                // что в prev[] образуется цикл (A указывает на B, B указывает на A), и
+                // восстановление пути ниже уходит в бесконечный цикл — реальный баг,
+                // вешавший страницу целиком на графах с отрицательными весами.
+                if (visited.has(nb.node)) continue;
                 const alt = dist[u] + nb.weight;
                 if (alt < (dist[nb.node] === undefined ? Infinity : dist[nb.node])) { dist[nb.node] = alt; prev[nb.node] = u; }
             }
@@ -13541,7 +14138,16 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
         if (dist[end] === undefined || !isFinite(dist[end])) return null;
         const path = [end];
         let cur = end;
-        while (prev[cur] !== undefined) { cur = prev[cur]; path.unshift(cur); }
+        // Доп. защита от зависания: даже если где-то ещё найдётся способ создать цикл
+        // в prev[] (алгоритм Дейкстры в принципе не гарантирует корректность при
+        // отрицательных весах), путь не может быть длиннее числа вершин графа —
+        // после этого останавливаемся, а не крутимся вечно.
+        const maxSteps = Object.keys(g.nodes).length + 1;
+        let guard = 0;
+        while (prev[cur] !== undefined) {
+            cur = prev[cur]; path.unshift(cur);
+            if (++guard > maxSteps) break;
+        }
         return { path, distance: dist[end] };
     }
 
@@ -14423,6 +15029,15 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
     // классы, центр, классы сопряжённости) работают через них универсально.
     // ======================================================================
     function glGKey(x) { return typeof x === 'object' ? JSON.stringify(x) : String(x); }
+    // Подгруппа как аргумент часто приходит либо голым массивом элементов, либо
+    // целиком объектом группы (например, из alternatingGroup(4) или groupGenerated(...)) —
+    // раньше функции ниже ожидали строго массив и падали с "sub is not iterable", если
+    // передали объект группы, хотя это самый естественный способ его получить.
+    function glGroupElsOf(sub) {
+        if (Array.isArray(sub)) return sub;
+        if (sub && Array.isArray(sub.els)) return sub.els;
+        throw new Error('Подгруппа должна быть массивом элементов или объектом группы (с полем els)');
+    }
     function glMakeGroup(els, mul, id, name) {
         const g = { __type: 'group', els: els, mul: mul, id: id, name: name || 'G' };
         g.index = {};
@@ -14535,6 +15150,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
         return out;
     }
     function glGroupCosets(g, sub, side) {
+        sub = glGroupElsOf(sub);
         const subKeys = {};
         for (const s of sub) subKeys[glGKey(s)] = true;
         const seen = {}, out = [];
@@ -14547,6 +15163,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
         return out;
     }
     function glGroupIsNormal(g, sub) {
+        sub = glGroupElsOf(sub);
         const subKeys = {};
         for (const s of sub) subKeys[glGKey(s)] = true;
         for (const a of g.els) {
@@ -14582,6 +15199,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
     }
     // Фактор-группа по нормальной подгруппе: элементы — смежные классы
     function glGroupQuotient(g, sub) {
+        sub = glGroupElsOf(sub);
         if (!glGroupIsNormal(g, sub)) return null;
         const cosets = glGroupCosets(g, sub, 'left');
         const repOf = {};
@@ -15337,7 +15955,15 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             case 'ident':
                 if (node.name in ctx) return ctx[node.name];
                 if (GL_USER_FUNCS[node.name]) return glMakeFuncWrapper(node.name);
-                if (window[node.name] !== undefined) return window[node.name];
+                // ВАЖНО: проверяем именно наличие свойства (in), а не "!== undefined".
+                // Раньше здесь было "window[node.name] !== undefined", из-за чего переменная,
+                // которой законно присвоили значение undefined (например, из-за отдельного бага
+                // в len() на не-массиве — см. историю правок), навсегда становилась
+                // неотличима от "переменная не существует": да, она формально ЕСТЬ на window,
+                // но с значением undefined, и код после присваивания выбрасывал "Неизвестный
+                // идентификатор" при каждой попытке её прочитать — вместо того чтобы вернуть
+                // undefined как обычное (пусть и бесполезное) значение выражения.
+                if (node.name in window) return window[node.name];
                 // математические константы (пользовательские set pi = ... имеют приоритет через window)
                 if (node.name === 'pi' || node.name === 'PI') return Math.PI;
                 if (node.name === 'tau') return 2 * Math.PI;
@@ -15665,18 +16291,26 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '    // ---- Текст под холстом: {выражение} → живые переменные, лёгкий markdown, KaTeX ----\n',
             ...gcSharedMarkdownKatexLines('    '),
             '    let __gcLastDescRendered = null;\n',
+            '    let __gcLastDescAlign = null;\n',
             '    function updateDescription() {\n',
             '      // В совмещённой 2D+3D сцене за #infoText отвечает 3D-скрипт (updateDescription3D)\n',
             '      // — оба читают одни и те же переменные (через синхронизирующий Proxy, см.\n',
             '      // generate3D), так что дублировать перерисовку тут незачем.\n',
             '      if (typeof window.__gcCombined !== \'undefined\' && window.__gcCombined) return;\n',
-            '      if (!infoPanel || !GC_DESCRIPTION_RAW) return;\n',
+            '      if (!infoPanel) return;\n',
+            '      if (!GC_DESCRIPTION_RAW) { infoPanel.style.display = \'none\'; return; }\n',
+            '      infoPanel.style.display = \'\';\n',
+            '      const liveAlign = (window.descAlign === \'left\' || window.descAlign === \'center\' || window.descAlign === \'right\') ? window.descAlign : GC_DESCRIPTION_ALIGN;\n',
+            '      const offX = (typeof window.descOffsetX === \'number\') ? window.descOffsetX : 0;\n',
+            '      const offY = (typeof window.descOffsetY === \'number\') ? window.descOffsetY : 0;\n',
+            '      infoPanel.style.transform = (offX || offY) ? (\'translate(\' + offX + \'px,\' + offY + \'px)\') : \'\';\n',
             '      let substituted;\n',
             '      try { substituted = gcSubstitutePlaceholders(GC_DESCRIPTION_RAW, function(expr) { return evaluate(expr); }); }\n',
             '      catch (e) { substituted = GC_DESCRIPTION_RAW; }\n',
-            '      if (substituted === __gcLastDescRendered) return;\n',
+            '      if (substituted === __gcLastDescRendered && liveAlign === __gcLastDescAlign) return;\n',
             '      __gcLastDescRendered = substituted;\n',
-            '      infoPanel.innerHTML = gcRenderDescriptionHtml(substituted, GC_DESCRIPTION_ALIGN);\n',
+            '      __gcLastDescAlign = liveAlign;\n',
+            '      infoPanel.innerHTML = gcRenderDescriptionHtml(substituted, liveAlign);\n',
             '    }\n',
             '\n',
             ...gcSharedUIBuilderLines('    '),
@@ -15697,7 +16331,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '            registerUserFunc: function(name, ast) { GL_USER_FUNCS[name] = { params: [\'x\'], bodyAst: ast }; glUserFuncVersion++; },\n',
             '            onFormulaError: function(funcName, label, message) { glLog(\'warn\', \'Формула "\' + funcName + \'" (поле "\' + label + \'"): \' + message); },\n',
             '            defaultColor: function() { return __gcDefaultColor(); },\n',
-            '            buttonTextColor: function() { return __gcDefaultColor(); },\n',
+            '            buttonTextColor: function() { return __gcButtonTextColor(); },\n',
             '        });\n',
             '    }\n',
             '\n',
@@ -15768,27 +16402,40 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '\n',
             '    resizeCanvas(); createUI();\n',
             '    if (startCode && startCode.trim()) { (async function() { await Start(); figures.forEach(applyFigureTransform); clusters.forEach(applyClusterTransform); updateScene(); draw(); })(); }\n',
-            '    if (updateCode && updateCode.trim()) {\n',
-            '      let updateRunning = false;\n',
-            '      async function runUpdate() {\n',
-            '        if (updateRunning) return; updateRunning = true;\n',
-            '        try {\n',
-            '          const draggedPt = draggedPointIndex !== -1 ? points[draggedPointIndex] : null;\n',
-            '          if (isDragging && draggedPt && draggedPt.pauseOnDrag !== false) { /* пауза анимации на время перетаскивания этой точки */ } else {\n',
+            '    // runUpdate теперь ВСЕГДА определена (а не только при непустом Update{}), потому что\n',
+            '    // анимации (animate()/animateColor()) должны тикать даже если автор скрипта вообще не\n',
+            '    // писал блок Update — см. gcStartAnimLoop, который лениво запускает этот же цикл.\n',
+            '    let updateRunning = false;\n',
+            '    const hasUpdateBlock = !!(updateCode && updateCode.trim());\n',
+            '    async function runUpdate() {\n',
+            '      if (updateRunning) return; updateRunning = true;\n',
+            '      try {\n',
+            '        if (!window.__gcAnimOwner) window.__gcAnimOwner = \'2d\';\n',
+            '        if (window.__gcAnimOwner === \'2d\') {\n',
+            '          const now = (typeof performance !== \'undefined\' && performance.now) ? performance.now() / 1000 : Date.now() / 1000;\n',
+            '          const dt = (__gcLastFrameTime === null) ? 0 : Math.min(0.25, Math.max(0, now - __gcLastFrameTime));\n',
+            '          __gcLastFrameTime = now;\n',
+            '          gcTickAnimations(dt);\n',
+            '        }\n',
+            '        const draggedPt = draggedPointIndex !== -1 ? points[draggedPointIndex] : null;\n',
+            '        if (isDragging && draggedPt && draggedPt.pauseOnDrag !== false) { /* пауза анимации на время перетаскивания этой точки */ } else {\n',
+            '          if (hasUpdateBlock) {\n',
             '            await Update();\n',
             '            for (let p of points) {\n',
             '              if (p.hidden || p.lineName || p.circleName || p.ellipseName || p.curveName || p.arcName || p.graphName || p.construct || p.transform) continue;\n',
             '              if (p.pos.x < -FIELD_WIDTH/2) p.pos.x = -FIELD_WIDTH/2; if (p.pos.x > FIELD_WIDTH/2) p.pos.x = FIELD_WIDTH/2;\n',
             '              if (p.pos.y < -FIELD_HEIGHT/2) p.pos.y = -FIELD_HEIGHT/2; if (p.pos.y > FIELD_HEIGHT/2) p.pos.y = FIELD_HEIGHT/2;\n',
             '            }\n',
-            '            figures.forEach(applyFigureTransform); clusters.forEach(applyClusterTransform); updateScene();\n',
-            '            if (window.autoRedraw !== false) draw();\n',
             '          }\n',
-            '        } catch(e) { console.error(\'Ошибка в цикле Update:\', e); }\n',
-            '        updateRunning = false; requestAnimationFrame(runUpdate);\n',
-            '      }\n',
-            '      runUpdate();\n',
+            '          figures.forEach(applyFigureTransform); clusters.forEach(applyClusterTransform); updateScene();\n',
+            '          if (window.autoRedraw !== false) draw();\n',
+            '        }\n',
+            '      } catch(e) { console.error(\'Ошибка в цикле Update:\', e); }\n',
+            '      updateRunning = false;\n',
+            '      if (hasUpdateBlock || gcHasActiveAnimations()) { requestAnimationFrame(runUpdate); }\n',
+            '      else { __gcAnimLoopRunning = false; }\n',
             '    }\n',
+            '    if (hasUpdateBlock) { __gcAnimLoopRunning = true; runUpdate(); }\n',
             '\n',
 
             '    window.__gc2D_canvas = canvas;\n',
@@ -15826,6 +16473,15 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
         const frameWidth = (typeof params['frame width'] === 'number') ? params['frame width'] : 1;
         const descColor = params['description color'] || theme.descColor;
         const descSize = (typeof params['description size'] === 'number') ? params['description size'] : 0.85;
+
+        // Явные переопределения цвета автором примера — при смене темы из iframe эти
+        // значения не должны затираться пресетом (см. такой же механизм в generate2D).
+        const themeOverrides = {
+            field: !!params['field color'],
+            frame: !!params['frame color'],
+            desc: !!params['description color'],
+        };
+        const themeOverridesJson = jsonForScript(themeOverrides);
 
         const themesJson = jsonForScript(THEME_PRESETS);
         const themeNameJson = jsonForScript(themeName);
@@ -15970,7 +16626,7 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '    .controls .ui-item { display:flex; align-items:center; gap:6px; }\n',
             // .info-panel — тот же обычный читаемый текст, что и в 2D (см. generate2D):
             // без моноширинного шрифта и фоновой «плашки», нормальный шрифт страницы.
-            '    .info-panel { font-size:', String(descSize), 'rem; margin-top:0.8rem; line-height:1.6; color:var(--gc-desc); }\n',
+            '    .info-panel { font-size:', String(descSize), 'rem; margin:0.8rem auto 0; max-width:800px; line-height:1.6; color:var(--gc-desc); position:relative; }\n',
             '    .info-panel p { margin:0 0 0.6em 0; }\n',
             '    .info-panel p:last-child { margin-bottom:0; }\n',
             '    .info-panel h1, .info-panel h2, .info-panel h3, .info-panel h4 { margin:0.7em 0 0.35em 0; font-weight:700; line-height:1.3; }\n',
@@ -16000,6 +16656,37 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '(function() {\n',
             '  const THEMES = ', themesJson, ';\n',
             '  let themeName = ', themeNameJson, ';\n',
+            '  const GC_THEME_OVERRIDES = ', themeOverridesJson, ';\n',
+            // Живой аналог __gcDefaultColor() из 2D: раньше в 3D "default"-цвет подставлялся
+            // КОМПИЛЯТОРОМ прямо в текст выходного файла ('..., theme.defaultColor, ...') —
+            // то есть был буквально впечатанной строкой, а не значением, которое можно
+            // пересчитать в рантайме. Переключение темы в 3D было невозможно в принципе, даже
+            // теоретически: window.geocompilerSetTheme у 3D-страниц просто не существовало.
+            '  function __gcDefaultColor3D() {\n',
+            '    return (THEMES[themeName] || THEMES.dark).defaultColor;\n',
+            '  }\n',
+            '  function __gcButtonTextColor3D() {\n',
+            '    return (THEMES[themeName] || THEMES.dark).buttonText;\n',
+            '  }\n',
+            '  // Аналог __gcApplyThemeVars из 2D: обновляет CSS-переменные (описание, поле,\n',
+            '  // рамка холста, цвета элементов управления) при переключении темы в 3D. Раньше\n',
+            '  // этого не было вовсе — при смене темы у 3D-сцены material-цвета точек/линий/углов\n',
+            '  // обновлялись, а текст описания, рамка canvas-wrapper и стили кнопок/полей ввода\n',
+            '  // оставались зафиксированы цветом СТАРОЙ темы (заданным один раз при генерации\n',
+            '  // страницы) — отсюда, например, нечитаемый текст описания при переключении на\n',
+            '  // светлую тему в 3D-сценах.\n',
+            '  function __gcApplyThemeVars3D(t) {\n',
+            '    const root = document.documentElement.style;\n',
+            '    if (!GC_THEME_OVERRIDES.field) root.setProperty(\'--gc-field\', t.fieldColor);\n',
+            '    if (!GC_THEME_OVERRIDES.frame) root.setProperty(\'--gc-frame\', t.frameColor);\n',
+            '    if (!GC_THEME_OVERRIDES.desc) root.setProperty(\'--gc-desc\', t.descColor);\n',
+            '    root.setProperty(\'--gc-control-bg\', t.controlBg);\n',
+            '    root.setProperty(\'--gc-control-border\', t.controlBorder);\n',
+            '    root.setProperty(\'--gc-control-text\', t.controlText);\n',
+            '    root.setProperty(\'--gc-button-text\', t.buttonText);\n',
+            '    root.setProperty(\'--gc-input-bg\', t.inputBg);\n',
+            '    root.setProperty(\'--gc-accent\', t.accent);\n',
+            '  }\n',
             '  const GC_DESCRIPTION_RAW = ', descriptionJson, ';\n',
             '  const GC_DESCRIPTION_ALIGN = ', descAlignJson, ';\n',
             '  const wrapper = document.getElementById(\'canvasWrapper\');\n',
@@ -16126,6 +16813,37 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '  }\n',
             '  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));\n',
             '\n',
+            '  // Ввод: клавиатура/мышь/касания (аналогично 2D, см. GMS-script-compiler.js generate2D).\n',
+            '  // Для 3D координаты мыши/касания даются в пикселях относительно canvas (0,0 — левый\n',
+            '  // верхний угол), а не в мировых координатах — перевод пикселей в 3D-точку требует\n',
+            '  // рейкастинга по конкретной геометрии сцены и не имеет единственного \'\'field\'\'-смысла,\n',
+            '  // как в 2D. window.deviceType/isKeyDown те же самые и не дублируются между слоями,\n',
+            '  // если сцена комбинированная (см. window.__gcKeysDown, единый для 2D и 3D).\n',
+            '  window.deviceType = ((\'ontouchstart\' in window) || (navigator.maxTouchPoints > 0)) ? \'mobile\' : \'desktop\';\n',
+            '  if (typeof window.mouseX !== \'number\') { window.mouseX = 0; window.mouseY = 0; window.mouseDown = false; }\n',
+            '  if (typeof window.mouseClickCount !== \'number\') { window.mouseClickX = 0; window.mouseClickY = 0; window.mouseClickCount = 0; }\n',
+            '  if (typeof window.touchCount !== \'number\') { window.touchX = 0; window.touchY = 0; window.touchActive = false; window.touchCount = 0; }\n',
+            '  if (typeof window.keyPressCount !== \'number\') { window.lastKey = \'\'; window.keyPressCount = 0; }\n',
+            '  window.__gcKeysDown = window.__gcKeysDown || new Set();\n',
+            '  function __gcGetPointerPos3D(e) {\n',
+            '    const rect = canvas.getBoundingClientRect();\n',
+            '    const scaleX = canvas.width / rect.width, scaleY = canvas.height / rect.height;\n',
+            '    let clientX, clientY;\n',
+            '    if (e.touches && e.touches[0]) { clientX = e.touches[0].clientX; clientY = e.touches[0].clientY; }\n',
+            '    else { clientX = e.clientX; clientY = e.clientY; }\n',
+            '    return { x: (clientX - rect.left) * scaleX, y: (clientY - rect.top) * scaleY };\n',
+            '  }\n',
+            '  canvas.addEventListener(\'mousemove\', function(e) { const p = __gcGetPointerPos3D(e); window.mouseX = p.x; window.mouseY = p.y; });\n',
+            '  canvas.addEventListener(\'mousedown\', function(e) { window.mouseDown = true; });\n',
+            '  window.addEventListener(\'mouseup\', function(e) { window.mouseDown = false; });\n',
+            '  canvas.addEventListener(\'click\', function(e) { const p = __gcGetPointerPos3D(e); window.mouseClickX = p.x; window.mouseClickY = p.y; window.mouseClickCount++; });\n',
+            '  canvas.addEventListener(\'touchstart\', function(e) { const p = __gcGetPointerPos3D(e); window.touchX = p.x; window.touchY = p.y; window.touchActive = true; window.touchCount++; }, { passive: true });\n',
+            '  canvas.addEventListener(\'touchmove\', function(e) { const p = __gcGetPointerPos3D(e); window.touchX = p.x; window.touchY = p.y; }, { passive: true });\n',
+            '  window.addEventListener(\'touchend\', function(e) { if (!e.touches || e.touches.length === 0) window.touchActive = false; });\n',
+            '  window.addEventListener(\'touchcancel\', function(e) { if (!e.touches || e.touches.length === 0) window.touchActive = false; });\n',
+            '  window.addEventListener(\'keydown\', function(e) { window.__gcKeysDown.add(e.key.toLowerCase()); window.lastKey = e.key; window.keyPressCount++; });\n',
+            '  window.addEventListener(\'keyup\', function(e) { window.__gcKeysDown.delete(e.key.toLowerCase()); });\n',
+            '\n',
             '  scene.add(new THREE.AmbientLight(0xffffff, 0.65));\n',
             '  const keyLight = new THREE.DirectionalLight(0xffffff, 0.7);\n',
             '  keyLight.position.set(1, 1.4, 1);\n',
@@ -16211,7 +16929,7 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '  const worldScale = Math.max(fieldW, fieldH, fieldD) / 20;\n',
             '  const IS_TOUCH_DEVICE_3D = (\'ontouchstart\' in window) || (navigator.maxTouchPoints > 0);\n',
             '  const pointObjs = pointsData.map(function(p) {\n',
-            '    const color = p.color || \'', theme.defaultColor, '\';\n',
+            '    const color = p.color || __gcDefaultColor3D();\n',
             '    const r = Math.max(0.16 * (p.size || 1) * worldScale, 0.03) * (IS_TOUCH_DEVICE_3D ? 1.6 : 1);\n',
             '    let geo;\n',
             '    if (p.shape === \'square\') geo = new THREE.BoxGeometry(r * 1.7, r * 1.7, r * 1.7);\n',
@@ -16233,7 +16951,7 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '      labelLayer.appendChild(label);\n',
             '    }\n',
             '    return {\n',
-            '      name: p.name, mesh: mesh, label: label, active: p.active !== false, activeExpr: p.activeExpr, dynamic: !!p.dynamic,\n',
+            '      name: p.name, mesh: mesh, label: label, isDefaultColor: !p.color, active: p.active !== false, activeExpr: p.activeExpr, dynamic: !!p.dynamic,\n',
             '      // Точки "на чём-то" (см. update3DConstrainedPoints ниже, определяется после того как\n',
             '      // все объекты сцены — линии/кривые/фигуры/плоскости — уже готовы) — сырые поля как\n',
             '      // они пришли из компилятора, ничего не резолвится здесь заранее.\n',
@@ -16257,14 +16975,14 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '  const lineObjs = linesData.map(function(l) {\n',
             '    const a = findPoint(l.pointA), b = findPoint(l.pointB);\n',
             '    if (!a || !b) return null;\n',
-            '    const color = l.color || \'', theme.defaultColor, '\';\n',
+            '    const color = l.color || __gcDefaultColor3D();\n',
             '    const radius = Math.max(0.035 * (l.thickness || 2.5) / 2.5 * worldScale, 0.008);\n',
             '    const geo = new THREE.CylinderGeometry(radius, radius, 1, 8, 1);\n',
             '    const mat = new THREE.MeshStandardMaterial({ color: color, roughness: 0.5 });\n',
             '    const mesh = new THREE.Mesh(geo, mat);\n',
             '    mesh.visible = l.active !== false;\n',
             '    scene.add(mesh);\n',
-            '    return { name: l.name, a: a, b: b, mesh: mesh, active: l.active !== false, activeExpr: l.activeExpr };\n',
+            '    return { name: l.name, a: a, b: b, mesh: mesh, isDefaultColor: !l.color, active: l.active !== false, activeExpr: l.activeExpr };\n',
             '  }).filter(function(x) { return x !== null; });\n',
             '\n',
             '  function updateLineMesh(lo) {\n',
@@ -16346,7 +17064,7 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '  const vectorObjs = drawVectorsData.map(function(d) {\n',
             '    const lineObj = lineObjs.find(function(l) { return l.name === d.edge; });\n',
             '    if (!lineObj) return null;\n',
-            '    const color = d.color || \'', theme.defaultColor, '\';\n',
+            '    const color = d.color || __gcDefaultColor3D();\n',
             // Наконечник должен читаться как ЗНАК направления на отрезке, а не как
             // самостоятельный конус в половину сцены. В 2D это 12px при поле ~800px, то есть
             // примерно 0.015 ширины поля; worldScale = max(field)/20, поэтому 0.3*worldScale
@@ -16433,7 +17151,7 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '      label.textContent = pr.name + \': S = \' + fmtMetric(pr.area) + \', V = \' + fmtMetric(pr.volume);\n',
             '      labelLayer.appendChild(label);\n',
             '    }\n',
-            '    return { name: pr.name, type: pr.type, mesh: mesh, label: label, active: pr.active !== false, activeExpr: pr.activeExpr, area: pr.area, volume: pr.volume, colorHex: color, hiddenByDerived: false };\n',
+            '    return { name: pr.name, type: pr.type, mesh: mesh, label: label, active: pr.active !== false, activeExpr: pr.activeExpr, area: pr.area, volume: pr.volume, colorHex: color, colorExpr: pr.colorExpr, opacityExpr: pr.opacityExpr, updateMode: pr.updateMode || \'always\', updateInterval: pr.updateInterval, hiddenByDerived: false, def: pr, dims: { edge: pr.edge, width: pr.width, height: pr.height, depth: pr.depth, radius: pr.radius, tube: pr.tube, sides: pr.sides } };\n',
             '  });\n',
             '\n',
             '  // ---------- Настоящие объёмные 3D-фракталы (Mandelbulb/Menger sponge/тетраэдр Серпинского) ----------\n',
@@ -16530,7 +17248,7 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '    \'  vec3 rayDir = normalize(vLocalPos - camLocal);\',\n',
             '    \'  vec3 p = camLocal;\',\n',
             '    \'  float totalDist = 0.0;\',\n',
-            '    \'  float maxDist = uSize * 6.0;\',\n',
+            '    \'  float maxDist = length(camLocal) + uSize * 6.0;\',\n',
             '    \'  bool hit = false;\',\n',
             '    \'  float trap = 0.0;\',\n',
             '    \'  for (int i = 0; i < 256; i++) {\',\n',
@@ -16578,7 +17296,7 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '    mesh.rotation.set(rot.x * Math.PI / 180, rot.y * Math.PI / 180, rot.z * Math.PI / 180);\n',
             '    mesh.visible = d.active !== false;\n',
             '    scene.add(mesh);\n',
-            '    return { name: d.name, mesh: mesh, mat: mat, active: d.active !== false, activeExpr: d.activeExpr };\n',
+            '    return { name: d.name, mesh: mesh, mat: mat, active: d.active !== false, activeExpr: d.activeExpr, colorExpr: d.colorExpr, color2Expr: d.color2Expr, updateMode: d.updateMode || \'always\', updateInterval: d.updateInterval };\n',
             '  });\n',
             '  for (const fo of fractal3DObjs) { if (window[fo.name] === undefined) window[fo.name] = fo; }\n',
             '\n',
@@ -17214,8 +17932,8 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '  const angleObjs = drawAnglesData.map(function(d) {\n',
             '    const def = findAngleDef(d.angleName);\n',
             '    if (!def) return null;\n',
-            '    const arcColor = d.arccolor || \'', theme.defaultColor, '\';\n',
-            '    const measureColor = d.measurecolor || \'', theme.defaultColor, '\';\n',
+            '    const arcColor = d.arccolor || __gcDefaultColor3D();\n',
+            '    const measureColor = d.measurecolor || __gcDefaultColor3D();\n',
             '    const arcGeo = new THREE.BufferGeometry();\n',
             '    const arcMat = new THREE.LineBasicMaterial({ color: arcColor });\n',
             '    const arcMesh = new THREE.LineSegments(arcGeo, arcMat);\n',
@@ -17236,6 +17954,7 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '      fractions: !!d.fractions,\n',
             '      count: Math.min(3, Math.max(1, d.count || 1)),\n',
             '      mesh: arcMesh, label: label,\n',
+            '      isDefaultColor: !d.arccolor, isDefaultMeasureColor: !d.measurecolor,\n',
             '      labelPos: new THREE.Vector3(),\n',
             '    };\n',
             '  }).filter(function(x) { return x !== null; });\n',
@@ -17424,8 +18143,8 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '    return { V: V, d1: d1, d2: d2 };\n',
             '  }\n',
             '  const angle3DObjs = angles3DData.filter(function(d) { return d.type !== \'solid\'; }).map(function (d) {\n',
-            '    const arcColor = d.arccolor || \'', theme.defaultColor, '\';\n',
-            '    const measureColor = d.measurecolor || \'', theme.defaultColor, '\';\n',
+            '    const arcColor = d.arccolor || __gcDefaultColor3D();\n',
+            '    const measureColor = d.measurecolor || __gcDefaultColor3D();\n',
             '    const arcGeo = new THREE.BufferGeometry();\n',
             '    const arcMat = new THREE.LineBasicMaterial({ color: arcColor });\n',
             '    const arcMesh = new THREE.LineSegments(arcGeo, arcMat);\n',
@@ -17439,6 +18158,7 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '    }\n',
             '    return {\n',
             '      name: d.name, def: d, mesh: arcMesh, label: label,\n',
+            '      isDefaultColor: !d.arccolor, isDefaultMeasureColor: !d.measurecolor,\n',
             '      active: d.active !== false, activeExpr: d.activeExpr,\n',
             '      measure: 0, labelPos: new THREE.Vector3(),\n',
             '    };\n',
@@ -17524,8 +18244,8 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '    return { V: V, dirs: dirs, steradians: Math.abs(total) };\n',
             '  }\n',
             '  const solidAngleObjs = angles3DData.filter(function(d) { return d.type === \'solid\'; }).map(function(d) {\n',
-            '    const arcColor = d.arccolor || \'', theme.defaultColor, '\';\n',
-            '    const measureColor = d.measurecolor || \'', theme.defaultColor, '\';\n',
+            '    const arcColor = d.arccolor || __gcDefaultColor3D();\n',
+            '    const measureColor = d.measurecolor || __gcDefaultColor3D();\n',
             '    const capGeo = new THREE.BufferGeometry();\n',
             '    const capMat = new THREE.MeshBasicMaterial({ color: arcColor, transparent: true, opacity: 0.35, side: THREE.DoubleSide, depthWrite: false });\n',
             '    const capMesh = new THREE.Mesh(capGeo, capMat);\n',
@@ -17541,7 +18261,7 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '      label.style.color = measureColor;\n',
             '      labelLayer.appendChild(label);\n',
             '    }\n',
-            '    return { name: d.name, def: d, capMesh: capMesh, edgeMesh: edgeMesh, label: label, active: d.active !== false, activeExpr: d.activeExpr, measure: 0, labelPos: new THREE.Vector3() };\n',
+            '    return { name: d.name, def: d, capMesh: capMesh, edgeMesh: edgeMesh, label: label, isDefaultColor: !d.arccolor, isDefaultMeasureColor: !d.measurecolor, active: d.active !== false, activeExpr: d.activeExpr, measure: 0, labelPos: new THREE.Vector3() };\n',
             '  });\n',
             '  function updateSolidAngleObj(so) {\n',
             '    const def = so.def;\n',
@@ -17610,6 +18330,126 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             ...gcSharedExprParserLines(),
             '  function g3Parse(src) { return glCreateParser(glTokenize(src)).parseExpr(); }\n',
             '  function g3ParseProgram(src) { return glCreateParser(glTokenize(src)).parseProgram(); }\n',
+            '  const g3ExprAstCache = new Map();\n',
+            '  function g3Evaluate(exprSrc) {\n',
+            '    if (exprSrc === undefined || exprSrc === null) return undefined;\n',
+            '    try {\n',
+            '      let ast = g3ExprAstCache.get(exprSrc);\n',
+            '      if (!ast) { ast = g3Parse(String(exprSrc)); if (g3ExprAstCache.size > 500) g3ExprAstCache.clear(); g3ExprAstCache.set(exprSrc, ast); }\n',
+            '      return g3Eval(ast, {});\n',
+            '    } catch (e) { return undefined; }\n',
+            '  }\n',
+            '  function gcShouldUpdate3D(obj) {\n',
+            '    if (!obj.__gcUpdateInit) {\n',
+            '      obj.__gcUpdateInit = true; obj.__lastEventTick = -1; obj.__lastUpdateMs = -Infinity;\n',
+            '      return true;\n',
+            '    }\n',
+            '    const mode = obj.updateMode || \'always\';\n',
+            '    if (mode === \'once\') return false;\n',
+            '    const interval = obj.updateInterval;\n',
+            '    if (typeof interval === \'number\' && interval > 0) {\n',
+            '      const now = (typeof performance !== \'undefined\' && performance.now) ? performance.now() : Date.now();\n',
+            '      if (now - obj.__lastUpdateMs < interval * 1000) return false;\n',
+            '      obj.__lastUpdateMs = now;\n',
+            '    }\n',
+            '    if (mode === \'event\') {\n',
+            '      const tick = window.__gcEventTick || 0;\n',
+            '      if (tick === obj.__lastEventTick) return false;\n',
+            '      obj.__lastEventTick = tick;\n',
+            '      return true;\n',
+            '    }\n',
+            '    return true;\n',
+            '  }\n',
+            '  // ---- Анимация (3D) — то же самое, что и в 2D (см. generate2D): state в window.__gcAnimations\n',
+            '  // общий для обоих движков, поэтому анимация, запущенная из 2D-слоя совмещённой сцены,\n',
+            '  // корректно тикает и здесь. В 3D цикл animate() крутится всегда сам по себе — ленивый\n',
+            '  // запуск (как в 2D) не нужен, просто тикаем каждый кадр.\n',
+            '  window.__gcAnimations = window.__gcAnimations || {};\n',
+            '  function gcEase(name, t) {\n',
+            '    switch (name) {\n',
+            '      case \'linear\': return t;\n',
+            '      case \'easeInQuad\': return t * t;\n',
+            '      case \'easeOutQuad\': return 1 - (1 - t) * (1 - t);\n',
+            '      case \'easeInOutQuad\': return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;\n',
+            '      case \'easeInCubic\': return t * t * t;\n',
+            '      case \'easeOutCubic\': return 1 - Math.pow(1 - t, 3);\n',
+            '      case \'easeInOutCubic\': return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;\n',
+            '      case \'easeInElastic\': { if (t === 0 || t === 1) return t; const c4 = (2 * Math.PI) / 3; return -Math.pow(2, 10 * t - 10) * Math.sin((t * 10 - 10.75) * c4); }\n',
+            '      case \'easeOutElastic\': { if (t === 0 || t === 1) return t; const c4 = (2 * Math.PI) / 3; return Math.pow(2, -10 * t) * Math.sin((t * 10 - 0.75) * c4) + 1; }\n',
+            '      case \'easeOutBounce\': {\n',
+            '        const n1 = 7.5625, d1 = 2.75;\n',
+            '        if (t < 1 / d1) return n1 * t * t;\n',
+            '        else if (t < 2 / d1) { t -= 1.5 / d1; return n1 * t * t + 0.75; }\n',
+            '        else if (t < 2.5 / d1) { t -= 2.25 / d1; return n1 * t * t + 0.9375; }\n',
+            '        else { t -= 2.625 / d1; return n1 * t * t + 0.984375; }\n',
+            '      }\n',
+            '      case \'easeInBounce\': return 1 - gcEase(\'easeOutBounce\', 1 - t);\n',
+            '      case \'easeInBack\': { const c1 = 1.70158, c3 = c1 + 1; return c3 * t * t * t - c1 * t * t; }\n',
+            '      case \'easeOutBack\': { const c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2); }\n',
+            '      default: return t;\n',
+            '    }\n',
+            '  }\n',
+            '  function gcHexToRgbAnim(hex) {\n',
+            '    hex = String(hex || \'#000000\').replace(\'#\', \'\');\n',
+            '    if (hex.length === 3) hex = hex.split(\'\').map(function(c) { return c + c; }).join(\'\');\n',
+            '    const num = parseInt(hex, 16) || 0;\n',
+            '    return { r: (num >> 16) & 255, g: (num >> 8) & 255, b: num & 255 };\n',
+            '  }\n',
+            '  function gcRgbToHexAnim(r, g, b) {\n',
+            '    const c = (Math.max(0, Math.min(255, Math.round(r))) << 16) | (Math.max(0, Math.min(255, Math.round(g))) << 8) | Math.max(0, Math.min(255, Math.round(b)));\n',
+            '    return \'#\' + (\'000000\' + c.toString(16)).slice(-6);\n',
+            '  }\n',
+            '  function glAnimate(varName, to, duration, easing, delay, mode) {\n',
+            '    const cur = window[varName];\n',
+            '    const durationVal = Math.max(0.0001, (duration === undefined || duration === null) ? 1 : duration);\n',
+            '    const common = { elapsed: 0, duration: durationVal, delay: Math.max(0, delay || 0), easing: easing || \'linear\', mode: mode || \'once\', done: false };\n',
+            '    if (typeof to === \'string\' && to.charAt(0) === \'#\') {\n',
+            '      const fromHex = (typeof cur === \'string\' && cur.charAt(0) === \'#\') ? cur : to;\n',
+            '      window.__gcAnimations[varName] = Object.assign({ isColor: true, fromRgb: gcHexToRgbAnim(fromHex), toRgb: gcHexToRgbAnim(to) }, common);\n',
+            '    } else {\n',
+            '      const from = (typeof cur === \'number\' && isFinite(cur)) ? cur : 0;\n',
+            '      window.__gcAnimations[varName] = Object.assign({ isColor: false, from: from, to: to }, common);\n',
+            '    }\n',
+            '  }\n',
+            '  function glStopAnimation(varName) { delete window.__gcAnimations[varName]; }\n',
+            '  function glIsAnimating(varName) { const a = window.__gcAnimations[varName]; return !!(a && !a.done); }\n',
+            '  function glAnimationProgress(varName) {\n',
+            '    const a = window.__gcAnimations[varName];\n',
+            '    if (!a) return 0;\n',
+            '    return Math.max(0, Math.min(1, (a.elapsed - a.delay) / a.duration));\n',
+            '  }\n',
+            '  function gcHasActiveAnimations() {\n',
+            '    for (const k in window.__gcAnimations) { if (!window.__gcAnimations[k].done) return true; }\n',
+            '    return false;\n',
+            '  }\n',
+            '  function gcTickAnimations(dt) {\n',
+            '    for (const key in window.__gcAnimations) {\n',
+            '      const a = window.__gcAnimations[key];\n',
+            '      if (a.done) continue;\n',
+            '      a.elapsed += dt;\n',
+            '      if (a.elapsed < a.delay) continue;\n',
+            '      let t = (a.elapsed - a.delay) / a.duration;\n',
+            '      let finished = t >= 1;\n',
+            '      t = Math.max(0, Math.min(1, t));\n',
+            '      const eased = gcEase(a.easing, t);\n',
+            '      if (a.isColor) {\n',
+            '        const r = a.fromRgb.r + (a.toRgb.r - a.fromRgb.r) * eased;\n',
+            '        const g = a.fromRgb.g + (a.toRgb.g - a.fromRgb.g) * eased;\n',
+            '        const b = a.fromRgb.b + (a.toRgb.b - a.fromRgb.b) * eased;\n',
+            '        window[key] = gcRgbToHexAnim(r, g, b);\n',
+            '      } else {\n',
+            '        window[key] = a.from + (a.to - a.from) * eased;\n',
+            '      }\n',
+            '      if (finished) {\n',
+            '        if (a.mode === \'loop\') { a.elapsed = a.delay; }\n',
+            '        else if (a.mode === \'yoyo\') {\n',
+            '          a.elapsed = a.delay;\n',
+            '          if (a.isColor) { const tmp = a.fromRgb; a.fromRgb = a.toRgb; a.toRgb = tmp; }\n',
+            '          else { const tmp = a.from; a.from = a.to; a.to = tmp; }\n',
+            '        } else { a.done = true; }\n',
+            '      }\n',
+            '    }\n',
+            '  }\n',
             '  // ---- Графы (портировано из 2D-движка: glGraphNeighbors/BFS/DFS/Dijkstra/MST/LayoutForce) —\n',
             '  // раньше в 3D не было НИ ОДНОЙ из этих функций (как и range/random/push и т.п. ниже),\n',
             '  // поэтому newGraph()/addNode()/bfs() и т.д. в Start/Update молча возвращали NaN. ----------\n',
@@ -17648,13 +18488,15 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '      if (u === null || u === end) break;\n',
             '      visited.add(u);\n',
             '      for (const nb of g3GraphNeighbors(g, u)) {\n',
+            '        if (visited.has(nb.node)) continue;\n',
             '        const alt = dist[u] + nb.weight;\n',
             '        if (alt < (dist[nb.node] === undefined ? Infinity : dist[nb.node])) { dist[nb.node] = alt; prev[nb.node] = u; }\n',
             '      }\n',
             '    }\n',
             '    if (dist[end] === undefined || !isFinite(dist[end])) return null;\n',
             '    const path = [end]; let cur = end;\n',
-            '    while (prev[cur] !== undefined) { cur = prev[cur]; path.unshift(cur); }\n',
+            '    const maxSteps = Object.keys(g.nodes).length + 1; let guard = 0;\n',
+            '    while (prev[cur] !== undefined) { cur = prev[cur]; path.unshift(cur); if (++guard > maxSteps) break; }\n',
             '    return { path: path, distance: dist[end] };\n',
             '  }\n',
             '  function g3GraphMST(g) {\n',
@@ -17752,7 +18594,13 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '    randomChoice: function(arr) { return arr[Math.floor(Math.random() * arr.length)]; },\n',
             '    push: function(arr, val) { arr.push(val); return arr; },\n',
             '    pop: function(arr) { return arr.pop(); },\n',
-            '    len: function(v) { return v.length; },\n',
+            '    len: function(v) {\n',
+            '      if (v === null || v === undefined) throw new Error(\'len(): аргумент отсутствует (null/undefined)\');\n',
+            '      if (typeof v.length === \'number\') return v.length;\n',
+            '      if (v.edges && typeof v.edges.length === \'number\') throw new Error(\'len(): аргумент — объект графа; используйте len(g.edges) или len(graphNodes(g))\');\n',
+            '      if (v.els && typeof v.els.length === \'number\') throw new Error(\'len(): аргумент — объект poset; используйте len(posetElements(p))\');\n',
+            '      throw new Error(\'len(): аргумент не является массивом/строкой (нет свойства length)\');\n',
+            '    },\n',
             '    length: function(v) { return v.length; },\n',
             '    mean: function(arr) { return arr.reduce(function(s, x) { return s + x; }, 0) / arr.length; },\n',
             '    variance: function(arr) { const mu = arr.reduce(function(s, x) { return s + x; }, 0) / arr.length; return arr.reduce(function(s, x) { return s + (x - mu) * (x - mu); }, 0) / arr.length; },\n',
@@ -18091,14 +18939,22 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '  }\n',
             ...gcSharedMarkdownKatexLines('  '),
             '  let __gcLastDescRendered3D = null;\n',
+            '  let __gcLastDescAlign3D = null;\n',
             '  function updateDescription3D() {\n',
-            '    if (!infoText || !GC_DESCRIPTION_RAW) return;\n',
+            '    if (!infoText) return;\n',
+            '    if (!GC_DESCRIPTION_RAW) { infoText.style.display = \'none\'; return; }\n',
+            '    infoText.style.display = \'\';\n',
+            '    const liveAlign = (window.descAlign === \'left\' || window.descAlign === \'center\' || window.descAlign === \'right\') ? window.descAlign : GC_DESCRIPTION_ALIGN;\n',
+            '    const offX = (typeof window.descOffsetX === \'number\') ? window.descOffsetX : 0;\n',
+            '    const offY = (typeof window.descOffsetY === \'number\') ? window.descOffsetY : 0;\n',
+            '    infoText.style.transform = (offX || offY) ? (\'translate(\' + offX + \'px,\' + offY + \'px)\') : \'\';\n',
             '    let substituted;\n',
             '    try { substituted = gcSubstitutePlaceholders(GC_DESCRIPTION_RAW, gcEvalPlaceholder3D); }\n',
             '    catch (e) { substituted = GC_DESCRIPTION_RAW; }\n',
-            '    if (substituted === __gcLastDescRendered3D) return;\n',
+            '    if (substituted === __gcLastDescRendered3D && liveAlign === __gcLastDescAlign3D) return;\n',
             '    __gcLastDescRendered3D = substituted;\n',
-            '    infoText.innerHTML = gcRenderDescriptionHtml(substituted, GC_DESCRIPTION_ALIGN);\n',
+            '    __gcLastDescAlign3D = liveAlign;\n',
+            '    infoText.innerHTML = gcRenderDescriptionHtml(substituted, liveAlign);\n',
             '  }\n',
             '  // Единая точка вызова функции по имени с готовыми значениями аргументов (а не AST) —\n',
             '  // нужна там, где функция вызывается не через выражение с \'(\' (draw Surface { f = "..." },\n',
@@ -18804,7 +19660,15 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '    group.position.set(d.pos3D.x, d.pos3D.y, d.pos3D.z);\n',
             '    scene.add(group);\n',
             '    const colorBy = (d.colorBy === \'value\' || d.colorBy === \'z\') ? d.colorBy : \'none\';\n',
-            '    const shape = d.shape || \'sphere\';\n',
+            '    // Раскраска по значению для InstancedMesh (shape=sphere/cube/...) технически\n',
+            '    // опирается на InstancedMesh.setColorAt()/instanceColor — этого API и связанных\n',
+            '    // шейдерных чанков нет в версии three.js, закреплённой в проекте (r128; API\n',
+            '    // появилось в r131), поэтому раскраска молча не работала для объёмных маркеров.\n',
+            '    // \'flat\' (THREE.Points + PointsMaterial vertexColors) поддерживает поверершинный\n',
+            '    // цвет в любой версии three.js, поэтому при активном colorBy принудительно\n',
+            '    // используем его — форма маркера теряется, зато цвет по значению реально виден.\n',
+            '    const requestedShape = d.shape || \'sphere\';\n',
+            '    const shape = (colorBy !== \'none\') ? \'flat\' : requestedShape;\n',
             '    let points = null;\n',
             '    if (shape === \'flat\') {\n',
             '      const geo = new THREE.BufferGeometry();\n',
@@ -19017,7 +19881,7 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '  // чтобы работать с любым выражением мини-языка (в т.ч. пользовательскими func). ----------\n',
             '  const curveObjs = curvesData.map(function(cv) {\n',
             '    if (cv.active === false && !cv.activeExpr) return null;\n',
-            '    const color = cv.color || \'', theme.defaultColor, '\';\n',
+            '    const color = cv.color || __gcDefaultColor3D();\n',
             '    const n = Math.max(2, cv.segments || 50);\n',
             '    const colorBy = (cv.colorBy === \'curvature\' || cv.colorBy === \'torsion\') ? cv.colorBy : \'none\';\n',
             '    const geo = new THREE.BufferGeometry();\n',
@@ -19033,7 +19897,7 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '    scene.add(mesh);\n',
             '    const frenetGroup = cv.showFrenet ? new THREE.Group() : null;\n',
             '    if (frenetGroup) scene.add(frenetGroup);\n',
-            '    const obj = { name: cv.name, type: cv.type, n: n, mesh: mesh, colorBy: colorBy, showFrenet: !!cv.showFrenet, frenetCount: Math.max(1, Math.min(60, Math.round(cv.frenetCount || 8))), frenetScale: cv.frenetScale, frenetGroup: frenetGroup, frenetArrows: [], activeExpr: cv.activeExpr, active: cv.active !== false };\n',
+            '    const obj = { name: cv.name, type: cv.type, n: n, mesh: mesh, colorBy: colorBy, isDefaultColor: !cv.color, showFrenet: !!cv.showFrenet, frenetCount: Math.max(1, Math.min(60, Math.round(cv.frenetCount || 8))), frenetScale: cv.frenetScale, frenetGroup: frenetGroup, frenetArrows: [], activeExpr: cv.activeExpr, active: cv.active !== false };\n',
             '    if (cv.type === \'bezier\') {\n',
             '      obj.controlPoints = (cv.controlPoints || []).map(findPoint).filter(function(x) { return x; });\n',
             '      if (obj.controlPoints.length < 2) return null;\n',
@@ -19367,7 +20231,7 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '    to.div.style.left = sx + \'px\';\n',
             '    to.div.style.top = sy + \'px\';\n',
             '    to.div.textContent = g3EvalTextExpr(d.textExpr);\n',
-            '    to.div.style.color = (d.colorExpr && d.colorExpr !== \'default\' && !d.colorExpr.match(/^[a-zA-Z_]/)) ? d.colorExpr : (\'', theme.defaultColor, '\');\n',
+            '    to.div.style.color = (d.colorExpr && d.colorExpr !== \'default\' && !d.colorExpr.match(/^[a-zA-Z_]/)) ? d.colorExpr : __gcDefaultColor3D();\n',
             '    const sizeNum = parseFloat(d.sizeExpr); to.div.style.fontSize = (0.8 * (isFinite(sizeNum) ? sizeNum : 1)) + \'rem\';\n',
             '  }\n',
             '\n',
@@ -19394,8 +20258,8 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '      parseFormula: function(src) { return g3Parse(src); },\n',
             '      registerUserFunc: function(name, ast) { G3_FUNCS[name] = { params: [\'x\'], ast: ast }; g3UserFuncVersion++; },\n',
             '      onFormulaError: function() {},\n',
-            '      defaultColor: function() { return \'', theme.defaultColor, '\'; },\n',
-            '      buttonTextColor: function() { return \'#ffffff\'; },\n',
+            '      defaultColor: function() { return __gcDefaultColor3D(); },\n',
+            '      buttonTextColor: function() { return __gcButtonTextColor3D(); },\n',
             '    });\n',
             '  }\n',
             '  createUI();\n',
@@ -20113,7 +20977,7 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '  // крышки. CylinderGeometry с thetaLength для этого не годится: она оставляет два\n',
             '  // радиальных среза открытыми, и сектор виден насквозь. ----------\n',
             '  const GC_STAT_PALETTE = [\'#e74c3c\', \'#3498db\', \'#2ecc71\', \'#f39c12\', \'#9b59b6\', \'#1abc9c\', \'#e67e22\', \'#34495e\'];\n',
-            '  const GC_LABEL_DEFAULT_COLOR = \'', theme.defaultColor, '\';\n',
+            '  function GC_LABEL_DEFAULT_COLOR_FN() { return __gcDefaultColor3D(); }\n',
             '  function gcPieSectorGeometry(a0, a1, rOuter, rInner, depth, segments) {\n',
             '    const shape = new THREE.Shape();\n',
             '    const seg = Math.max(8, Math.min(256, Math.round(segments || 64)));\n',
@@ -20247,7 +21111,7 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '        div.style.pointerEvents = \'none\';\n',
             '        div.style.whiteSpace = \'nowrap\';\n',
             '        div.style.fontSize = (0.8 * ((typeof d.labelSize === \'number\') ? d.labelSize : 1)) + \'rem\';\n',
-            '        div.style.color = d.labelColor || GC_LABEL_DEFAULT_COLOR;\n',
+            '        div.style.color = d.labelColor || GC_LABEL_DEFAULT_COLOR_FN();\n',
             '        textLayer.appendChild(div);\n',
             '        co.labelDivs.push(div);\n',
             '        co.labelAnchors.push(lp);\n',
@@ -20445,11 +21309,11 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '    const R = Math.max(8, Math.min(24, d.nodeRadius || 11));\n',
             '    (function nodes(n) {\n',
             '      const p = toPix(n);\n',
-            '      ctx.fillStyle = d.color || \'#37474f\';\n',
+            '      ctx.fillStyle = d.color || __gcDefaultColor3D();\n',
             '      ctx.font = Math.max(10, R) + \'px sans-serif\';\n',
             '      if (d.boxed) { const bw = Math.max(R * 2, ctx.measureText(n.label).width + 14); ctx.beginPath(); ctx.rect(p.x - bw / 2, p.y - R, bw, R * 2); ctx.fill(); }\n',
             '      else { ctx.beginPath(); ctx.arc(p.x, p.y, R, 0, 2 * Math.PI); ctx.fill(); }\n',
-            '      ctx.fillStyle = d.labelColor || \'#ffffff\'; ctx.textAlign = \'center\'; ctx.textBaseline = \'middle\';\n',
+            '      ctx.fillStyle = d.labelColor || __gcDefaultColor3D(); ctx.textAlign = \'center\'; ctx.textBaseline = \'middle\';\n',
             '      ctx.fillText(n.label, p.x, p.y);\n',
             '      for (const c of n.children) nodes(c);\n',
             '    })(root);\n',
@@ -20603,7 +21467,7 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '      ctx.beginPath(); ctx.arc(p.x, p.y, R, 0, 2 * Math.PI); ctx.fill();\n',
             '      if (isHl) { ctx.strokeStyle = \'#ffffff\'; ctx.lineWidth = 2; ctx.stroke(); }\n',
             '      if (d.labels) {\n',
-            '        ctx.fillStyle = d.labelColor || \'#ffffff\';\n',
+            '        ctx.fillStyle = d.labelColor || __gcDefaultColor3D();\n',
             '        ctx.font = Math.max(9, R * 1.1) + \'px sans-serif\'; ctx.textAlign = \'center\'; ctx.textBaseline = \'middle\';\n',
             '        ctx.fillText(String(n.label), p.x, p.y);\n',
             '      }\n',
@@ -20970,7 +21834,7 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '    ctx.clearRect(0, 0, w, h);\n',
             '    ctx.fillStyle = \'rgba(255,255,255,0.92)\'; ctx.fillRect(0, 0, w, h);\n',
             '    ao.panel.texture.needsUpdate = true;\n',
-            '    ctx.fillStyle = d.color || \'#212121\';\n',
+            '    ctx.fillStyle = d.color || __gcDefaultColor3D();\n',
             '    if (d.type === \'life\') {\n',
             '      let grid = null;\n',
             '      if (ao.genAst) { try { grid = g3Eval(ao.genAst, {}); } catch (e) { grid = null; } }\n',
@@ -21107,11 +21971,11 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '      if (d.model === \'halfspace\') {\n',
             '        // Граница абсолюта — плоскость z = 0 (сетка-плоскость, а не сфера); "внутренность" — z > 0.\n',
             '        const geo = new THREE.PlaneGeometry(rad * 4, rad * 4, 8, 8);\n',
-            '        const mat = new THREE.MeshBasicMaterial({ color: d.color || \'#2c3e50\', wireframe: true, transparent: true, opacity: 0.35 });\n',
+            '        const mat = new THREE.MeshBasicMaterial({ color: d.color || __gcDefaultColor3D(), wireframe: true, transparent: true, opacity: 0.35 });\n',
             '        sphereMesh = new THREE.Mesh(geo, mat);\n',
             '      } else {\n',
             '        const geo = new THREE.SphereGeometry(rad, 24, 16);\n',
-            '        const mat = new THREE.MeshBasicMaterial({ color: d.color || \'#2c3e50\', wireframe: true, transparent: true, opacity: 0.35 });\n',
+            '        const mat = new THREE.MeshBasicMaterial({ color: d.color || __gcDefaultColor3D(), wireframe: true, transparent: true, opacity: 0.35 });\n',
             '        sphereMesh = new THREE.Mesh(geo, mat);\n',
             '      }\n',
             '      group.add(sphereMesh);\n',
@@ -21119,14 +21983,18 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '    let geodesicsAst = null, pointsAst = null;\n',
             '    if (d.geodesicsExpr) { try { geodesicsAst = g3Parse(d.geodesicsExpr); } catch (e) {} }\n',
             '    if (d.pointsExpr) { try { pointsAst = g3Parse(d.pointsExpr); } catch (e) {} }\n',
-            '    return { name: d.name, group: group, sphereMesh: sphereMesh, geodesicsAst: geodesicsAst, pointsAst: pointsAst, def: d, geodesicMeshes: [], pointMeshes: [], builtKey: null, active: d.active !== false, activeExpr: d.activeExpr };\n',
+            // isDefaultColor запоминает, что sphereMesh получил цвет ИЗ ТЕМЫ (color = default
+            // или поле не задано), а не явно указанный пользователем — при переключении темы
+            // обновлять материал нужно только в этом случае, иначе явно заданный цвет тоже
+            // начал бы "плыть" при смене темы, чего быть не должно.
+            '    return { name: d.name, group: group, sphereMesh: sphereMesh, sphereMeshIsDefaultColor: !d.color, geodesicsAst: geodesicsAst, pointsAst: pointsAst, def: d, geodesicMeshes: [], pointMeshes: [], builtKey: null, active: d.active !== false, activeExpr: d.activeExpr };\n',
             '  });\n',
             '  function gcRebuildHyperbolic3D(ho) {\n',
             '    const d = ho.def;\n',
             '    let geodesics = null, pts = null;\n',
             '    if (ho.geodesicsAst) { try { geodesics = g3Eval(ho.geodesicsAst, {}); } catch (e) { geodesics = null; } }\n',
             '    if (ho.pointsAst) { try { pts = g3Eval(ho.pointsAst, {}); } catch (e) { pts = null; } }\n',
-            '    const key = JSON.stringify(geodesics) + \'|\' + JSON.stringify(pts) + \'|\' + d.radius + \'|\' + d.model;\n',
+            '    const key = JSON.stringify(geodesics) + \'|\' + JSON.stringify(pts) + \'|\' + d.radius + \'|\' + d.model + \'|\' + themeName;\n',
             '    if (ho.builtKey === key) return;\n',
             '    ho.builtKey = key;\n',
             '    ho.geodesicMeshes.forEach(function(m) { ho.group.remove(m); });\n',
@@ -21150,7 +22018,7 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '        const s = isHalfSpace ? 1 : radius;\n',
             '        for (let i = 0; i < arc.length; i++) { positions[i * 3] = arc[i].x * s; positions[i * 3 + 1] = arc[i].y * s; positions[i * 3 + 2] = arc[i].z * s; }\n',
             '        geo.setAttribute(\'position\', new THREE.BufferAttribute(positions, 3));\n',
-            '        const mesh = new THREE.Line(geo, new THREE.LineBasicMaterial({ color: d.color || \'#2c3e50\' }));\n',
+            '        const mesh = new THREE.Line(geo, new THREE.LineBasicMaterial({ color: d.color || __gcDefaultColor3D() }));\n',
             '        ho.group.add(mesh);\n',
             '        ho.geodesicMeshes.push(mesh);\n',
             '      }\n',
@@ -21159,7 +22027,7 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '      for (const P of pts) {\n',
             '        if (!Array.isArray(P) || P.length < 3) continue;\n',
             '        const s = isHalfSpace ? 1 : radius;\n',
-            '        const mesh = new THREE.Mesh(new THREE.SphereGeometry(radius * 0.02, 8, 6), new THREE.MeshBasicMaterial({ color: d.color || \'#2c3e50\' }));\n',
+            '        const mesh = new THREE.Mesh(new THREE.SphereGeometry(radius * 0.02, 8, 6), new THREE.MeshBasicMaterial({ color: d.color || __gcDefaultColor3D() }));\n',
             '        mesh.position.set(P[0] * s, P[1] * s, P[2] * s);\n',
             '        ho.group.add(mesh);\n',
             '        ho.pointMeshes.push(mesh);\n',
@@ -21167,6 +22035,68 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '    }\n',
             '  }\n',
             '  for (const ho of hyperbolicObjs) { if (window[ho.name] === undefined) window[ho.name] = ho; }\n',
+            '  // Переключение темы в 3D. Раньше 3D-страницы не поддерживали geocompilerSetTheme\n',
+            '  // ВООБЩЕ — theme.defaultColor подставлялся компилятором прямо в текст файла. Теперь\n',
+            '  // __gcDefaultColor3D() читает текущую тему в рантайме, и для элементов, которые\n',
+            '  // ПЕРЕСТРАИВАЮТСЯ каждый кадр (панели статистики, гиперболические геодезики,\n',
+            '  // draw Text3D), этого уже достаточно — они сами подхватят новый цвет на следующем\n',
+            '  // тике requestAnimationFrame. Но часть материалов (точки, отрезки, дуги углов,\n',
+            '  // граница гиперболической модели) создаётся ОДИН РАЗ при загрузке сцены — для них\n',
+            '  // нужно явно пройтись по массивам объектов и переустановить цвет материала/подписи,\n',
+            '  // и только у тех, чей цвет пришёл из темы (isDefaultColor), а не указан явно.\n',
+            '  window.__gcThemeSetters = window.__gcThemeSetters || [];\n',
+            '  window.__gcThemeSetters.push(function(name) {\n',
+            '    if (!THEMES[name]) return false;\n',
+            '    themeName = name;\n',
+            '    __gcApplyThemeVars3D(THEMES[name]);\n',
+            '    var c = __gcDefaultColor3D();\n',
+            '    for (var i = 0; i < pointObjs.length; i++) { var po = pointObjs[i]; if (po.isDefaultColor && po.mesh && po.mesh.material) po.mesh.material.color.set(c); }\n',
+            '    for (var j = 0; j < lineObjs.length; j++) { var lo = lineObjs[j]; if (lo.isDefaultColor && lo.mesh && lo.mesh.material) lo.mesh.material.color.set(c); }\n',
+            '    function updateAngleColors(list) {\n',
+            '      for (var k = 0; k < list.length; k++) {\n',
+            '        var ao = list[k];\n',
+            '        if (ao.isDefaultColor) {\n',
+            '          if (ao.mesh && ao.mesh.material) ao.mesh.material.color.set(c);\n',
+            '          if (ao.capMesh && ao.capMesh.material) ao.capMesh.material.color.set(c);\n',
+            '          if (ao.edgeMesh && ao.edgeMesh.material) ao.edgeMesh.material.color.set(c);\n',
+            '        }\n',
+            '        if (ao.isDefaultMeasureColor && ao.label) ao.label.style.color = c;\n',
+            '      }\n',
+            '    }\n',
+            '    updateAngleColors(angleObjs);\n',
+            '    updateAngleColors(angle3DObjs);\n',
+            '    updateAngleColors(solidAngleObjs);\n',
+            '    for (var h = 0; h < hyperbolicObjs.length; h++) {\n',
+            '      var ho2 = hyperbolicObjs[h];\n',
+            '      if (ho2.sphereMeshIsDefaultColor && ho2.sphereMesh && ho2.sphereMesh.material) ho2.sphereMesh.material.color.set(c);\n',
+            '    }\n',
+            '    for (var cu = 0; cu < curveObjs.length; cu++) {\n',
+            '      var co2 = curveObjs[cu];\n',
+            '      if (co2.isDefaultColor && co2.colorBy === \'none\' && co2.mesh && co2.mesh.material) co2.mesh.material.color.set(c);\n',
+            '    }\n',
+            '    if (typeof chartVolumeObjs !== \'undefined\') {\n',
+            '      for (var v = 0; v < chartVolumeObjs.length; v++) {\n',
+            '        var co = chartVolumeObjs[v];\n',
+            '        if (co.def && !co.def.labelColor && co.labelDivs) { for (var d2 = 0; d2 < co.labelDivs.length; d2++) co.labelDivs[d2].style.color = c; }\n',
+            '      }\n',
+            '    }\n',
+            '    return true;\n',
+            '  });\n',
+            '  if (!window.geocompilerSetTheme) {\n',
+            '    window.geocompilerSetTheme = function(name) {\n',
+            '      var ok = false;\n',
+            '      for (var s2 = 0; s2 < window.__gcThemeSetters.length; s2++) { if (window.__gcThemeSetters[s2](name)) ok = true; }\n',
+            '      return ok;\n',
+            '    };\n',
+            '  }\n',
+            '  if (!window.__gcThemeMsgListenerAdded) {\n',
+            '    window.__gcThemeMsgListenerAdded = true;\n',
+            '    window.addEventListener(\'message\', function(ev) {\n',
+            '      var data = ev && ev.data;\n',
+            '      if (!data || data.type !== \'geocompiler-set-theme\') return;\n',
+            '      window.geocompilerSetTheme(data.theme);\n',
+            '    });\n',
+            '  }\n',
             '\n',
             '  // ---------- draw Voronoi (3D): voronoi — точные выпуклые ячейки (последовательное\n',
             '  // отсечение бокса rangeX/Y/Z полупространствами-бисекторами каждой пары сайтов, тот же\n',
@@ -21321,13 +22251,13 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '    try { raw = g3Eval(vo.sitesAst, {}); } catch (e) { return; }\n',
             '    const sites = gcReadSites3D(raw);\n',
             '    if (!sites.length) return;\n',
-            '    const key = JSON.stringify(sites) + \'|\' + d.mode + \'|\' + d.resolution + \'|\' + d.rangeX + \'|\' + d.rangeY + \'|\' + d.rangeZ + \'|\' + d.showSites + \'|\' + d.filled + \'|\' + d.color + \'|\' + d.opacity;\n',
+            '    const key = JSON.stringify(sites) + \'|\' + d.mode + \'|\' + d.resolution + \'|\' + d.rangeX + \'|\' + d.rangeY + \'|\' + d.rangeZ + \'|\' + d.showSites + \'|\' + d.filled + \'|\' + d.color + \'|\' + d.opacity + \'|\' + themeName;\n',
             '    if (vo.cacheKey === key) return;\n',
             '    vo.cacheKey = key;\n',
             '    gcClearVoronoiMeshes3D(vo);\n',
             '    const halfX = (d.rangeX || 8) / 2, halfY = (d.rangeY || 8) / 2, halfZ = (d.rangeZ || 8) / 2;\n',
             '    const opacity = (d.opacity === undefined || d.opacity === null) ? 0.45 : d.opacity;\n',
-            '    const baseColor = d.color || \'#37474f\';\n',
+            '    const baseColor = d.color || __gcDefaultColor3D();\n',
             '    if (d.mode === \'hull\') {\n',
             '      const pts = sites.map(function(s) { return new THREE.Vector3(s.x, s.y, s.z); });\n',
             '      const tris = gcFilterDegenerateTris3D(convexHull3D(pts));\n',
@@ -21824,21 +22754,71 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '  }\n',
             '  clusters.forEach(applyClusterTransform3D);\n',
             '\n',
+            '  let __g3LastFrameTime = null;\n',
             '  function animate() {\n',
             '    requestAnimationFrame(animate);\n',
-            '    elapsedTime = (typeof window.__gcCombined !== \'undefined\' && window.__gcCombined && typeof window.__gcElapsedTime === \'number\')\n',
+            '    const combined = typeof window.__gcCombined !== \'undefined\' && window.__gcCombined;\n',
+            '    elapsedTime = (combined && typeof window.__gcElapsedTime === \'number\')\n',
             '      ? window.__gcElapsedTime\n',
             '      : (performance.now() - glStartTime3D) / 1000;\n',
+            '    // В совмещённой 2D+3D сцене тикать анимации должен только ОДИН из двух движков —\n',
+            '    // иначе общее состояние window.__gcAnimations считалось бы дважды за кадр и\n',
+            '    // анимация шла бы вдвое быстрее. Кто первый вызвал тик — тот и \'владеет\' до конца\n',
+            '    // жизни страницы (простой mutex через window.__gcAnimOwner); это же решает и\n',
+            '    // обратную проблему — если в 2D нет ни Update{}, ни ещё не запущенных анимаций,\n',
+            '    // 3D просто становится владельцем сам, и тиканье не теряется вовсе.\n',
+            '    if (!window.__gcAnimOwner) window.__gcAnimOwner = \'3d\';\n',
+            '    if (window.__gcAnimOwner === \'3d\') {\n',
+            '      const dt = (__g3LastFrameTime === null) ? 0 : Math.min(0.25, Math.max(0, elapsedTime - __g3LastFrameTime));\n',
+            '      __g3LastFrameTime = elapsedTime;\n',
+            '      gcTickAnimations(dt);\n',
+            '    }\n',
             '    updateGridLOD();\n',
             '    try { updateDescription3D(); } catch (e) { console.warn(\'описание:\', e); }\n',
             '    clusters.forEach(applyClusterTransform3D);\n',
             '    for (const p of pointObjs) { p.active = g3IsObjectActive(p); p.mesh.visible = p.active; }\n',
             '    update3DConstrainedPoints();\n',
-            '    for (const pr of primitiveObjs) { pr.active = g3IsObjectActive(pr); pr.mesh.visible = pr.active && !pr.hiddenByDerived; }\n',
+            '    for (const pr of primitiveObjs) {\n',
+            '      pr.active = g3IsObjectActive(pr);\n',
+            '      pr.mesh.visible = pr.active && !pr.hiddenByDerived;\n',
+            '      if (gcShouldUpdate3D(pr)) {\n',
+            '        if (pr.mesh.material) {\n',
+            '          if (pr.colorExpr) { const cv = g3Evaluate(pr.colorExpr); if (cv) pr.mesh.material.color.set(cv); }\n',
+            '          if (pr.opacityExpr) {\n',
+            '            const ov = g3Evaluate(pr.opacityExpr);\n',
+            '            if (typeof ov === \'number\' && isFinite(ov)) { const c2 = Math.max(0, Math.min(1, ov)); pr.mesh.material.opacity = c2; pr.mesh.material.transparent = c2 < 1; }\n',
+            '          }\n',
+            '        }\n',
+            '        // Размеры (edge/width/height/depth/radius/tube) через переменную раньше\n',
+            '        // замораживались один раз при компиляции — геометрия примитива никогда не\n',
+            '        // менялась, даже если скрипт явно менял значение переменной. Пересобираем\n',
+            '        // THREE-геометрию заново, только если хоть один размер реально изменился\n',
+            '        // (полная пересборка на каждый кадр была бы избыточно дорогой).\n',
+            '        const d = pr.def, dm = pr.dims;\n',
+            '        let dimsChanged = false;\n',
+            '        const tryDim = function(key, expr) {\n',
+            '          if (!expr) return;\n',
+            '          const v = g3Evaluate(expr);\n',
+            '          if (typeof v === \'number\' && isFinite(v) && Math.abs(v) > 1e-9 && dm[key] !== Math.abs(v)) { dm[key] = Math.abs(v); dimsChanged = true; }\n',
+            '        };\n',
+            '        tryDim(\'edge\', d.edgeExpr); tryDim(\'width\', d.widthExpr); tryDim(\'height\', d.heightExpr);\n',
+            '        tryDim(\'depth\', d.depthExpr); tryDim(\'radius\', d.radiusExpr); tryDim(\'tube\', d.tubeExpr);\n',
+            '        if (dimsChanged) {\n',
+            '          pr.mesh.geometry.dispose();\n',
+            '          pr.mesh.geometry = buildPrimitiveGeometry({ type: pr.type, edge: dm.edge, width: dm.width, height: dm.height, depth: dm.depth, radius: dm.radius, tube: dm.tube, sides: dm.sides });\n',
+            '        }\n',
+            '      }\n',
+            '    }\n',
             '    for (const fo of fractal3DObjs) {\n',
             '      fo.active = g3IsObjectActive(fo);\n',
             '      fo.mesh.visible = fo.active;\n',
-            '      if (fo.active) { fo.mesh.updateMatrixWorld(); fo.mat.uniforms.uInvModelMatrix.value.copy(fo.mesh.matrixWorld).invert(); }\n',
+            '      if (fo.active) {\n',
+            '        fo.mesh.updateMatrixWorld(); fo.mat.uniforms.uInvModelMatrix.value.copy(fo.mesh.matrixWorld).invert();\n',
+            '        if (gcShouldUpdate3D(fo)) {\n',
+            '          if (fo.colorExpr) { const cv = g3Evaluate(fo.colorExpr); if (cv) fo.mat.uniforms.uColor1.value.set(cv); }\n',
+            '          if (fo.color2Expr) { const cv2 = g3Evaluate(fo.color2Expr); if (cv2) fo.mat.uniforms.uColor2.value.set(cv2); }\n',
+            '        }\n',
+            '      }\n',
             '    }\n',
             '    for (const dr of derivedObjs) {\n',
             '      dr.active = g3IsObjectActive(dr);\n',
