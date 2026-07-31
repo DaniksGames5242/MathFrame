@@ -1027,7 +1027,7 @@ a, button, .section-card, .mf-card, .theme-option, .account-circle {
     border: none; opacity: 1;
   }
   .modal::after { display: none; }
-  .modal-header { margin-top: .6rem; }
+  .modal-header { margin-top: .6rem; } 
 }
 
 /* ============================================================================
