@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <title>Форум — MathFrame</title>
 <style>
 :root{ --card2:rgba(255,255,255,.04); --danger:#ef4444; --gold:#f59e0b; --radius:.7rem; }
@@ -22,7 +22,7 @@ main{max-width:980px;margin:0 auto;padding:1.5rem 1rem 4rem}
 .searchbox .ic{position:absolute;left:.65rem;top:50%;transform:translateY(-50%);color:var(--text-secondary)}
 select{background:var(--bg-card);color:var(--text-primary);border:1px solid var(--border);border-radius:.5rem;padding:.5rem .7rem}
 .tag-chip{display:inline-flex;align-items:center;gap:.3rem;padding:.2rem .7rem;border-radius:2rem;font-size:.78rem;
-  background:rgba(129,140,248,.15);color:var(--accent);border:1px solid rgba(129,140,248,.3)}
+  background:var(--accent-soft);color:var(--accent);border:1px solid var(--accent)}
 .reco-chip{background:rgba(245,158,11,.13);color:var(--gold);border-color:rgba(245,158,11,.3)}
 .topic-badge{display:inline-flex;align-items:center;gap:.3rem;padding:.3rem .8rem;border-radius:.5rem;font-size:.82rem;
   background:rgba(245,158,11,.13);color:var(--gold);border:1px solid rgba(245,158,11,.3);text-decoration:none;transition:.2s}
@@ -47,7 +47,7 @@ select{background:var(--bg-card);color:var(--text-primary);border:1px solid var(
 .article-head h1{font-size:1.8rem;margin:.3rem 0}
 .author-row{display:flex;align-items:center;gap:.6rem;color:var(--text-secondary);font-size:.88rem;flex-wrap:wrap}
 .author-row span{display:inline-flex;align-items:center;gap:.3rem}
-.badge-author{background:rgba(129,140,248,.18);color:var(--accent);padding:.1rem .55rem;border-radius:1rem;font-size:.72rem;font-weight:700}
+.badge-author{background:var(--accent-soft);color:var(--accent);padding:.1rem .55rem;border-radius:1rem;font-size:.72rem;font-weight:700}
 .content-body{line-height:1.7;font-size:1.02rem}
 .content-body img{max-width:100%;border-radius:.5rem;margin:.5rem 0}
 .content-body audio{width:100%;margin:.5rem 0}
@@ -107,7 +107,7 @@ input.plain:focus{border-color:var(--accent)}
 .topic-list{max-height:260px;overflow-y:auto;margin-top:.6rem;border:1px solid var(--border);border-radius:.5rem}
 .topic-item{padding:.6rem .9rem;border-bottom:1px solid var(--border);cursor:pointer;font-size:.9rem}
 .topic-item:last-child{border-bottom:none}
-.topic-item:hover{background:rgba(129,140,248,.1);color:var(--accent)}
+.topic-item:hover{background:var(--accent-soft);color:var(--accent)}
 .editor-overlay{z-index:250 !important}
 .editor-modal{max-width:760px;z-index:251 !important}
 #topicOverlay{z-index:400 !important}
@@ -119,14 +119,77 @@ input.plain:focus{border-color:var(--accent)}
 .toast{background:var(--bg-card);border:1px solid var(--border);color:var(--text-primary);padding:.7rem 1.1rem;
   border-radius:.5rem;font-size:.85rem;box-shadow:0 10px 25px rgba(0,0,0,.3);animation:toastIn .25s ease;backdrop-filter:blur(10px)}
 @keyframes toastIn{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}
+
+/* ===== МОБИЛЬНЫЙ СЛОЙ (раньше на этой странице не было ни одного @media) ===== */
+main{
+  padding-left:max(1rem,var(--safe-l));
+  padding-right:max(1rem,var(--safe-r));
+  padding-bottom:calc(4rem + var(--safe-b));
+}
+
+/* Вложенные ответы: отступ рос без предела и на узком экране выдавливал текст
+   за край. Ограничиваем глубину визуального сдвига. */
+.children{margin-left:1rem}
+@media (max-width:640px){
+  .children{margin-left:.5rem}
+  .children .children{margin-left:.35rem}
+  .children .children .children{margin-left:0;border-left:2px dotted var(--border)}
+  .reply{padding-left:.65rem}
+}
+
+@media (max-width:640px){
+  main{padding-top:1rem}
+  .card{padding:1rem 1.05rem;border-radius:var(--r)}
+  .card h3{font-size:1.08rem}
+  .card .meta{gap:.55rem;font-size:.76rem}
+  .card .excerpt{font-size:.85rem}
+  .article-head h1{font-size:1.35rem}
+  .toolbar-row{gap:.45rem}
+  .searchbox{min-width:0;flex:1 1 100%}
+  .toolbar-row select{flex:1 1 auto;min-width:0}
+  .content-body{font-size:.97rem}
+  #toasts{left:max(1rem,var(--safe-l));right:max(1rem,var(--safe-r))}
+  .toast{width:100%}
+}
+
+/* Зоны нажатия: кнопки панели редактора и голосования были мельче 44px */
+@media (pointer:coarse){
+  .tb-btn{width:42px;height:42px;font-size:.95rem}
+  .vote-btn{min-height:38px;padding:.35rem .8rem}
+  .link-btn{min-height:36px;display:inline-flex;align-items:center}
+  .topic-item{padding:.85rem .9rem}
+}
+
+/* :hover залипает после тапа — карточка так и оставалась приподнятой */
+@media (hover:none),(pointer:coarse){
+  .card:hover{transform:none;box-shadow:none;border-color:var(--border)}
+  .card:active{transform:scale(.99);border-color:var(--accent)}
+  .topic-badge:hover{transform:none}
+  .tb-btn:hover,.vote-btn:hover,.link-btn:hover{border-color:var(--border);color:inherit}
+}
+
+/* Длинные формулы, ссылки и код не должны рвать вёрстку */
+.content-body,.reply-body,.card .excerpt{overflow-wrap:anywhere}
+.content-body pre,.reply-body pre{max-width:100%}
+.editable{overflow-wrap:anywhere}
+
+/* Форум = раздел «волны»: карточки получают общий язык — угловые засечки */
+.card{position:relative}
+.card::after{
+  content:'';position:absolute;right:-1px;bottom:-1px;width:9px;height:9px;
+  border:1.5px solid var(--accent);border-left:0;border-top:0;
+  border-bottom-right-radius:3px;opacity:0;transition:opacity .25s
+}
+.card:hover::after{opacity:.55}
+
 </style>
-<link rel="stylesheet" href="../assets/css/common.css" />
+<link rel="stylesheet" href="/assets/css/common.css" />
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 </head>
-<body>
+<body data-page="forum">
 
 <div id="app-header"></div>
 
@@ -144,9 +207,10 @@ input.plain:focus{border-color:var(--accent)}
 
 <div id="toasts"></div>
 
-<script>var PAGE_ROOT = '../';</script>
-<script src="../assets/js/auth.js"></script>
-<script src="../assets/js/common.js"></script>
+<script>var PAGE_ROOT = '/';</script>
+<script src="/assets/js/mathframe-ui.js"></script>
+<script src="/assets/js/auth.js"></script>
+<script src="/assets/js/common.js"></script>
 <script>
 const db = firebase.firestore();
 

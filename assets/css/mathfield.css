@@ -1,0 +1,271 @@
+/* ============================================================================
+   MathField + MFKeyboard — оформление
+   Подключается ПОСЛЕ common.css: использует его токены (--accent, --border…).
+   ========================================================================== */
+
+/* ============================ 1. ПОЛЕ ФОРМУЛЫ ========================== */
+.mfld {
+  display: block;
+  font-family: var(--font-math, 'MFMath', Georgia, serif);
+  font-size: clamp(1.25rem, 4.6vw, 1.7rem);
+  line-height: 1;
+  color: var(--text-primary);
+  background: var(--bg-sunken);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r);
+  padding: 1rem .9rem;
+  min-height: 3.4em;
+  overflow-x: auto;
+  overflow-y: hidden;
+  white-space: nowrap;
+  cursor: text;
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: border-color var(--t), box-shadow var(--t), background var(--t);
+}
+.mfld.mfld-focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+  background: var(--bg-raised);
+}
+.mfld::-webkit-scrollbar { height: 6px; }
+
+.mfld-row { display: inline-flex; align-items: center; vertical-align: middle; }
+.mfld-ch  { display: inline-block; padding: 0 .01em; }
+.mfld-num { font-family: var(--font-display, Georgia, serif); font-style: normal; }
+.mfld-var { font-style: italic; }
+.mfld-fn  { font-family: var(--font-display, Georgia, serif); font-style: normal; padding: 0 .06em; }
+.mfld-op  { font-style: normal; padding: 0 .22em; }
+
+/* Курсор — тонкая мигающая черта в «зазоре» между атомами */
+.mfld-gap { display: inline-block; width: 0; position: relative; }
+.mfld-gap.mfld-cursor::after {
+  content: '';
+  position: absolute; left: -1px; top: -0.62em;
+  width: 1.6px; height: 1.24em;
+  background: var(--accent);
+  border-radius: 1px;
+  animation: mfldBlink 1.05s steps(1) infinite;
+}
+@keyframes mfldBlink { 0%,55% { opacity: 1; } 56%,100% { opacity: 0; } }
+
+/* Пустое поле — видимая «дырка», сразу понятно, куда вводить */
+.mfld-ph {
+  display: inline-block;
+  width: .74em; height: .92em;
+  border: 1.5px dashed var(--border-strong);
+  border-radius: 3px;
+  vertical-align: middle;
+}
+.mfld-row.mfld-empty { min-width: .74em; }
+
+/* ---- дробь ---- */
+.mfld-frac {
+  display: inline-flex; flex-direction: column; align-items: center;
+  vertical-align: middle;
+  margin: 0 .18em;
+  font-size: .96em;
+}
+.mfld-frac-n, .mfld-frac-d { padding: 0 .3em; display: block; }
+.mfld-frac-n { margin-bottom: .1em; }
+.mfld-frac-d { margin-top: .1em; }
+.mfld-frac-bar {
+  display: block; width: 100%; height: 1.4px;
+  background: currentColor; border-radius: 1px;
+}
+
+/* ---- корень: радикал — растягивающийся SVG, чтобы накрывать любое выражение ---- */
+.mfld-sqrt { display: inline-flex; align-items: stretch; vertical-align: middle; margin: 0 .1em; }
+.mfld-sqrt-sign { display: flex; align-items: stretch; width: .62em; flex: 0 0 auto; }
+.mfld-sqrt-sign svg { width: 100%; height: 100%; display: block; }
+.mfld-sqrt-rad {
+  border-top: 1.4px solid currentColor;
+  padding: .16em .22em 0 .1em;
+  display: flex; align-items: center;
+}
+.mfld-sqrt-idx {
+  font-size: .56em;
+  align-self: flex-start;
+  margin-right: -.28em;
+  margin-top: -.1em;
+  z-index: 1;
+}
+
+/* ---- степень и индекс ---- */
+.mfld-sup, .mfld-sub {
+  display: inline-block; font-size: .68em; vertical-align: baseline;
+}
+.mfld-sup { position: relative; top: -.62em; margin-left: .03em; }
+.mfld-sub { position: relative; top:  .34em; margin-left: .03em; }
+
+/* ---- скобки, модуль, норма: растягиваются по высоте содержимого ---- */
+.mfld-paren, .mfld-abs { display: inline-flex; align-items: stretch; vertical-align: middle; }
+.mfld-delim {
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1em;
+  transform: scaleY(var(--dscale, 1.18));
+  padding: 0 .06em;
+  color: var(--text-secondary);
+}
+.mfld-delim-body { display: flex; align-items: center; padding: 0 .05em; }
+
+/* ---- черта / вектор / шляпка сверху ---- */
+.mfld-accent { display: inline-flex; flex-direction: column; align-items: center; vertical-align: middle; }
+.mfld-accent-mark { font-size: .7em; line-height: .6; height: .5em; }
+.mfld-accent-bar > .mfld-accent-body { border-top: 1.4px solid currentColor; padding-top: .06em; }
+.mfld-accent-body { display: flex; align-items: center; }
+
+/* ---- большие операторы ∫ ∑ ∏ ---- */
+.mfld-bigop { display: inline-flex; align-items: center; vertical-align: middle; margin: 0 .12em; }
+.mfld-bigop-stack { display: inline-flex; flex-direction: column; align-items: center; }
+.mfld-bigop-sign { font-size: 1.72em; line-height: .82; }
+.mfld-bigop-lim  { font-size: .5em; line-height: 1.1; }
+.mfld-bigop-body { padding-left: .16em; display: flex; align-items: center; }
+.mfld-bigop-dv   { font-style: italic; }
+
+/* ---- предел ---- */
+.mfld-lim { display: inline-flex; align-items: center; vertical-align: middle; margin: 0 .12em; }
+.mfld-lim-stack { display: inline-flex; flex-direction: column; align-items: center; }
+.mfld-lim-word { font-family: var(--font-display, Georgia, serif); font-style: normal; font-size: .82em; }
+.mfld-lim-to { font-size: .5em; line-height: 1.1; }
+.mfld-lim-body { padding-left: .22em; display: flex; align-items: center; }
+
+/* ============================ 2. КЛАВИАТУРА ============================ */
+.mfkb {
+  background: var(--bg-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.mfkb-bar {
+  display: flex; align-items: center; gap: .5rem;
+  padding: .3rem .5rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-sunken);
+}
+.mfkb-tabs { display: flex; gap: .1rem; flex: 1; min-width: 0; overflow-x: auto; }
+.mfkb-tabs::-webkit-scrollbar { display: none; }
+.mfkb-tab {
+  font-family: var(--font-math, Georgia, serif);
+  font-size: 1.02rem;
+  background: none; border: none;
+  color: var(--text-secondary);
+  padding: .48rem .8rem;
+  border-radius: var(--r-sm);
+  cursor: pointer; white-space: nowrap;
+  border-bottom: 2px solid transparent;
+  transition: color var(--t), border-color var(--t), background var(--t);
+}
+.mfkb-tab:hover { color: var(--text-primary); }
+.mfkb-tab.on { color: var(--accent); border-bottom-color: var(--accent); }
+
+.mfkb-bar-side { display: flex; gap: .25rem; flex: 0 0 auto; }
+.mfkb-icon {
+  width: 34px; height: 34px;
+  display: flex; align-items: center; justify-content: center;
+  background: none; border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  color: var(--text-secondary);
+  font-family: var(--font-display, Georgia, serif);
+  font-size: .95rem;
+  cursor: pointer;
+  transition: color var(--t), border-color var(--t), background var(--t), transform var(--t);
+}
+.mfkb-icon:hover { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+.mfkb-collapse svg { transition: transform var(--t) var(--e-out); }
+.mfkb-collapsed .mfkb-collapse svg { transform: rotate(180deg); }
+
+/* Свёрнутое состояние: остаётся только полоса вкладок */
+.mfkb-pad {
+  display: flex; flex-direction: column; gap: 6px;
+  padding: 8px;
+  padding-bottom: max(8px, var(--safe-b, 0px));
+  max-height: 60vh;
+  transition: max-height var(--t-slow) var(--e-out), opacity var(--t), padding var(--t-slow);
+}
+.mfkb-collapsed .mfkb-pad {
+  max-height: 0; opacity: 0; padding-top: 0; padding-bottom: 0;
+  overflow: hidden; pointer-events: none;
+}
+
+.mfkb-row { display: flex; gap: 6px; }
+.mfkb-spacer { flex: 0 0 10px; }
+
+.mfkb-key {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 46px;
+  display: flex; align-items: center; justify-content: center;
+  position: relative;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  color: var(--text-primary);
+  font-family: var(--font-math, Georgia, serif);
+  font-size: 1.06rem;
+  cursor: pointer;
+  transition: background .12s, border-color .12s, transform .08s;
+}
+.mfkb-key:hover { border-color: var(--accent); background: var(--accent-soft); }
+.mfkb-key.press { transform: scale(.94); background: var(--accent-soft); border-color: var(--accent); }
+.mfkb-key.on { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+
+/* Шаблоны-конструкции (дробь, корень, ∫) выделены цветом — как в референсе */
+.mfkb-tpl { color: var(--accent); font-size: .98rem; }
+/* Служебные (⌫ ‹ › ↵ ⇧) — приглушённый фон, всегда на одних местах */
+.mfkb-sys { background: var(--bg-sunken); color: var(--text-secondary); font-size: 1.1rem; }
+.mfkb-sys:hover { color: var(--text-primary); }
+
+/* Подсказка на греческих клавишах: какая латинская буква на этом месте */
+.mfkb-hint {
+  position: absolute; top: 3px; right: 5px;
+  font-family: var(--font-mono, monospace);
+  font-size: .56rem;
+  color: var(--text-tertiary);
+  pointer-events: none;
+}
+
+@media (max-width: 560px) {
+  .mfkb-key { height: 42px; font-size: 1rem; border-radius: 8px; }
+  .mfkb-row { gap: 5px; }
+  .mfkb-pad { gap: 5px; padding: 6px; }
+  .mfkb-spacer { flex: 0 0 4px; }
+  .mfkb-hint { display: none; }   /* на телефоне подсказки только мешают */
+}
+@media (pointer: coarse) {
+  .mfkb-key { height: 46px; }     /* палец: не меньше 44px */
+  .mfkb-key:hover { border-color: var(--border); background: var(--bg-card); }
+}
+
+/* ============================ 3. ОКНО СПРАВКИ ========================== */
+.mfkb-help-modal { max-width: 560px; }
+.mfkb-help-lead { color: var(--text-secondary); font-size: .93rem; margin-bottom: 1.1rem; }
+.mfkb-help-h {
+  font-family: var(--font-mono, monospace);
+  font-size: .7rem; letter-spacing: .14em; text-transform: uppercase;
+  color: var(--text-tertiary); font-weight: 500;
+  margin: 1.3rem 0 .6rem;
+}
+.mfkb-help-table { width: 100%; border-collapse: collapse; font-size: .89rem; }
+.mfkb-help-table td { padding: .34rem .4rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+.mfkb-help-table td:first-child { width: 42%; }
+.mfkb-help-table td:last-child { color: var(--text-secondary); }
+.mfkb-help-list { margin: 0; padding-left: 1.1rem; font-size: .89rem; color: var(--text-secondary); }
+.mfkb-help-list li { margin-bottom: .45rem; }
+.mfkb-help-list code, .mfkb-help-lead code {
+  font-family: var(--font-mono, monospace); font-size: .88em;
+  background: var(--bg-sunken); padding: .1em .35em; border-radius: 4px;
+}
+kbd {
+  font-family: var(--font-mono, monospace); font-size: .8em;
+  background: var(--bg-sunken);
+  border: 1px solid var(--border-strong);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  padding: .16em .45em;
+  color: var(--text-primary);
+  white-space: nowrap;
+}

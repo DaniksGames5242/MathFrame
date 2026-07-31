@@ -2,25 +2,25 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>Справочник — MathFrame</title>
 
   <style>
     @font-face {
       font-family: 'BodyFont';
-      src: url('../assets/fonts/body-font.otf') format('opentype');
+      src: url('/assets/fonts/body-font.otf') format('opentype');
       font-weight: 400;
       font-style: normal;
     }
     @font-face {
       font-family: 'BodyFont';
-      src: url('../assets/fonts/body-font-bold.otf') format('opentype');
+      src: url('/assets/fonts/body-font-bold.otf') format('opentype');
       font-weight: 700;
       font-style: normal;
     }
   </style>
 
-  <link rel="stylesheet" href="../assets/css/common.css" />
+  <link rel="stylesheet" href="/assets/css/common.css" />
 
   <!-- ===== INLINE СПРАВОЧНИК CSS ===== -->
   <style>
@@ -975,11 +975,162 @@
       .spr-title { font-size: 1.6rem; }
       .spr-topbar { flex-direction: column; align-items: stretch; }
     }
+
+    /* ===== ПОШАГОВОЕ ДОКАЗАТЕЛЬСТВО (topic.type === 'proof') ===== */
+    .proof-prologue { margin-bottom: 0.5rem; }
+    .proof-steps {
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+    }
+    .proof-step {
+      border: 1px solid var(--border);
+      border-radius: 0.6rem;
+      overflow: hidden;
+      transition: border-color 0.2s;
+    }
+    .proof-step.expanded { border-color: var(--accent); }
+    .proof-step-header {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      gap: 0.7rem;
+      padding: 0.7rem 0.9rem;
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      text-align: left;
+      font: inherit;
+      color: var(--text-primary);
+    }
+    .proof-step-header:hover { background: rgba(99, 102, 241, 0.06); }
+    .proof-step-num {
+      flex: 0 0 auto;
+      width: 1.6rem;
+      height: 1.6rem;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.85rem;
+      font-weight: 600;
+      background: rgba(99, 102, 241, 0.12);
+      color: var(--accent);
+    }
+    .proof-step.expanded .proof-step-num { background: var(--accent); color: #fff; }
+    .proof-step-title { flex: 1 1 auto; font-weight: 500; }
+    .proof-step-chevron {
+      flex: 0 0 auto;
+      transition: transform 0.25s ease;
+      color: var(--text-secondary, var(--text-primary));
+      opacity: 0.7;
+    }
+    .proof-step.expanded .proof-step-chevron { transform: rotate(180deg); }
+    .proof-step-body {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.3s ease;
+    }
+    .proof-step.expanded .proof-step-body { max-height: 4000px; }
+    .proof-step-body-inner { padding: 0 0.9rem 0.9rem; }
+    .proof-step-body-inner > *:first-child { margin-top: 0; }
+    .proof-steps-nav {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.9rem;
+      margin-top: 0.4rem;
+    }
+    .proof-nav-btn {
+      width: 2.2rem;
+      height: 2.2rem;
+      border-radius: 50%;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text-primary);
+      font-size: 1.1rem;
+      cursor: pointer;
+      transition: background 0.2s, border-color 0.2s, opacity 0.2s;
+    }
+    .proof-nav-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+    .proof-nav-btn:disabled { opacity: 0.3; cursor: default; }
+    .proof-steps-dots { display: flex; align-items: center; gap: 0.45rem; }
+    .proof-step-dot {
+      width: 0.5rem;
+      height: 0.5rem;
+      border-radius: 50%;
+      background: var(--border);
+      cursor: pointer;
+      transition: background 0.2s, transform 0.2s;
+    }
+    .proof-step-dot:hover { transform: scale(1.3); }
+    .proof-step-dot.current { background: var(--accent); }
+
+    /* ===== ПРАКТИЧЕСКОЕ ЗАДАНИЕ (topic.type === 'example') ===== */
+    .spr-task { margin-top: 1.5rem; }
+    .spr-task-panel {
+      border: 1px solid var(--border);
+      border-radius: 0.75rem;
+      padding: 1rem 1.1rem 1.2rem;
+      background: rgba(99, 102, 241, 0.04);
+    }
+    .spr-task-heading {
+      font-weight: 600;
+      font-size: 0.95rem;
+      color: var(--accent);
+      margin-bottom: 0.5rem;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    .spr-task-question { margin-bottom: 0.8rem; color: var(--text-primary); }
+    .spr-task-options { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 0.9rem; }
+    .spr-task-option {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.55rem;
+      padding: 0.5rem 0.7rem;
+      border: 1px solid var(--border);
+      border-radius: 0.5rem;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+    }
+    .spr-task-option:hover { border-color: var(--accent); }
+    .spr-task-option input { margin-top: 0.2rem; }
+    .spr-task-option-correct { border-color: #22c55e; background: rgba(34, 197, 94, 0.08); }
+    .spr-task-option-wrong { border-color: #ef4444; background: rgba(239, 68, 68, 0.08); }
+    .spr-task-input {
+      width: 100%;
+      max-width: 16rem;
+      padding: 0.55rem 0.8rem;
+      border-radius: 0.5rem;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text-primary);
+      font: inherit;
+      margin-bottom: 0.9rem;
+      display: block;
+    }
+    .spr-task-check-btn {
+      padding: 0.55rem 1.2rem;
+      border-radius: 0.5rem;
+      border: none;
+      background: var(--accent);
+      color: #fff;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .spr-task-check-btn:hover { background: var(--accent-hover); }
+    .spr-task-feedback { margin-top: 0.8rem; font-weight: 500; }
+    .spr-task-feedback-ok { color: #22c55e; }
+    .spr-task-feedback-bad { color: #ef4444; }
+    .spr-task-feedback-warn { color: #eab308; }
+    .spr-task-explanation { margin-top: 0.5rem; font-weight: 400; color: var(--text-primary); }
   </style>
 
   <!-- KaTeX -->
-  <link rel="stylesheet" href="../assets/lib/katex/katex.min.css" />
-  <script defer src="../assets/lib/katex/katex.min.js"></script>
+  <link rel="stylesheet" href="/assets/lib/katex/katex.min.css" />
+  <script defer src="/assets/lib/katex/katex.min.js"></script>
 
   <!-- Firebase -->
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
@@ -4818,16 +4969,16 @@
 </xsl:stylesheet>
   </script>
 </head>
-<body>
+<body data-page="reference">
 
   <div id="app-header"></div>
 
   <!-- Загрузочный экран -->
   <div class="spr-loader" id="sprLoader">
     <div class="spr-loader-logo">
-      <img src="../assets/img/logo.png" alt="MathFrame"
-           data-light-src="../assets/img/logo-light.png"
-           data-dark-src="../assets/img/logo.png" />
+      <img src="/assets/img/logo.png" alt="MathFrame"
+           data-light-src="/assets/img/logo-light.png"
+           data-dark-src="/assets/img/logo.png" />
     </div>
     <div class="spr-loader-text">Загрузка справочника…</div>
   </div>
@@ -4838,9 +4989,11 @@
 
   <div id="app-footer"></div>
 
-  <script>var PAGE_ROOT = '../';</script>
-  <script src="../assets/js/auth.js"></script>
-  <script src="../assets/js/common.js"></script>
+  <script>var PAGE_ROOT = '/';</script>
+  <link rel="stylesheet" href="/assets/css/mathfield.css" />
+  <script src="/assets/js/mathframe-ui.js"></script>
+  <script src="/assets/js/auth.js"></script>
+  <script src="/assets/js/common.js"></script>
 
   <script type="module">
     // =====================================================================
@@ -4851,7 +5004,7 @@
 
       const PAGE_ROOT = window.PAGE_ROOT || './';
       const CONFIG_URL = PAGE_ROOT + 'data/topics/config.json';
-      const COMPILER_URL = PAGE_ROOT + 'assets/js/GMS-script-compiler.js';
+      const COMPILER_URL = PAGE_ROOT + 'assets/js/gms-compiler.js';
 
       // ---- Состояние ----
       let topics = [];
@@ -4861,6 +5014,14 @@
       const referrerOf = new Map();
       let currentId = null;
       let compilerModulePromise = null;
+      // ---- Пошаговое доказательство (topic.type === 'proof') ----
+      // currentProofStepIndex — индекс (с нуля) текущего РАЗВЁРНУТОГО пункта в аккордеоне
+      // описания; используется и для подсветки/сворачивания пунктов, и для того, чтобы
+      // сообщить интерактивному примеру (iframe), какой "шаг"-кластер показывать — см.
+      // sendStepToFrame(). Индекс + 1 = номер GMS-кластера (step = 1, 2, 3, ...), так как
+      // авторам сцены естественнее нумеровать шаги с единицы, как и пункты доказательства.
+      let currentProofStepIndex = 0;
+      let proofStepsTotal = 0;
       let lastQuery = '';
       let katexCheckInterval = null;
       let isFirstRender = true;
@@ -4999,6 +5160,7 @@
                   <div class="spr-body" id="sprBody">
                     <div class="spr-description" id="sprDescription"></div>
                     <div class="spr-example" id="sprExample"></div>
+                    <div class="spr-task" id="sprTask" hidden></div>
                   </div>
                 </div>
                 <div class="spr-empty-state" id="sprEmptyState" hidden></div>
@@ -5050,6 +5212,7 @@
           title: document.getElementById('sprTitle'),
           description: document.getElementById('sprDescription'),
           example: document.getElementById('sprExample'),
+          task: document.getElementById('sprTask'),
           classFilter: document.getElementById('sprClassFilter'),
           typeFilter: document.getElementById('sprTypeFilter'),
           sortMode: document.getElementById('sprSortMode'),
@@ -5433,20 +5596,21 @@
               if (!childrenWrap) return;
 
               if (isExpanded) {
+                // Раньше здесь сначала (пока .expanded ещё висит — контейнер в grid-template-rows:1fr,
+                // полную высоту) уводили дочерние li в opacity:0 и ждали fadeOutMs, и ТОЛЬКО ПОТОМ
+                // снимали .expanded, запуская сжатие высоты (transition 0.42s) — сворачивание
+                // выглядело так, будто оно долго "думает", прежде чем реально начать схлопываться.
+                // Теперь оба перехода (сжатие высоты и угасание дочерних строк) стартуют
+                // ОДНОВРЕМЕННО, как и при разворачивании — так же быстро и отзывчиво.
                 childrenWrap.classList.remove('expanding');
                 childrenWrap.classList.add('collapsing');
+                childrenWrap.classList.remove('expanded');
                 toggleBtn.classList.remove('expanded');
+                expanded.delete(id);
                 if (topic.type === 'folder') { icon.innerHTML = getIconForType('folder', false); popIcon(icon); }
-                void childrenWrap.offsetHeight;
-
-                const fadeOutMs = 320 + kids.length * 30;
                 setTimeout(() => {
-                  expanded.delete(id);
-                  childrenWrap.classList.remove('expanded');
-                  setTimeout(() => {
-                    childrenWrap.classList.remove('collapsing');
-                  }, 440);
-                }, fadeOutMs);
+                  childrenWrap.classList.remove('collapsing');
+                }, 440);
               } else {
                 childrenWrap.classList.remove('collapsing');
                 childrenWrap.classList.add('expanding');
@@ -5814,6 +5978,7 @@
         renderNavButtons(id);
         renderDescription(topic);
         renderExample(topic);
+        renderTask(topic);
 
         if (!opts.skipScroll) {
           window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -5855,6 +6020,10 @@
       }
 
       function renderDescription(topic) {
+        if (topic.type === 'proof') {
+          renderProofDescription(topic);
+          return;
+        }
         els.description.innerHTML = topic.description || '';
         els.description.querySelectorAll('a[href^="topic:"]').forEach(a => {
           const targetId = a.getAttribute('href').slice('topic:'.length);
@@ -5867,6 +6036,131 @@
         if (lastQuery && els.optHighlight.checked) {
           highlightTextInElement(els.description, lastQuery);
         }
+      }
+
+      // ===================================================================
+      // ПОШАГОВОЕ ДОКАЗАТЕЛЬСТВО (topic.type === 'proof')
+      // ===================================================================
+      // Описание темы типа "доказательство" делится на пункты (пошаговое доказательство):
+      // любые заголовки (h1-h6) в САМОМ НАЧАЛЕ описания остаются статичным "прологом" над
+      // аккордеоном (обычно это заголовок вида <h2>Название</h2>, дублирующий topic.title),
+      // а каждый следующий элемент верхнего уровня описания становится ОДНИМ пунктом
+      // аккордеона — по порядку. Все пункты всегда свёрнуты, кроме текущего; клик по
+      // заголовку пункта разворачивает именно его, стрелочки внизу листают пункты по
+      // одному (с ограничением по краям — на первом пункте недоступна "‹", на последнем —
+      // "›"). Текущий пункт (currentProofStepIndex) также транслируется в интерактивный
+      // пример (iframe) как номер GMS-кластера (step = индекс + 1) через sendStepToFrame —
+      // см. renderExample.
+      function renderProofDescription(topic) {
+        const raw = topic.description || '';
+        const parseContainer = document.createElement('div');
+        parseContainer.innerHTML = raw;
+
+        const children = Array.from(parseContainer.childNodes).filter(n => {
+          return !(n.nodeType === Node.TEXT_NODE && !n.textContent.trim());
+        });
+
+        let splitAt = 0;
+        while (splitAt < children.length && children[splitAt].nodeType === Node.ELEMENT_NODE && /^H[1-6]$/.test(children[splitAt].tagName)) {
+          splitAt++;
+        }
+        const prologueNodes = children.slice(0, splitAt);
+        const stepNodes = children.slice(splitAt);
+
+        // Если делить нечего (пустое описание или только заголовок) — просто показываем
+        // как обычную тему, без аккордеона.
+        if (stepNodes.length === 0) {
+          els.description.innerHTML = raw;
+          renderMathInContainer(els.description);
+          return;
+        }
+
+        currentProofStepIndex = 0;
+        proofStepsTotal = stepNodes.length;
+
+        els.description.innerHTML = '';
+        const prologueWrap = document.createElement('div');
+        prologueWrap.className = 'proof-prologue';
+        prologueNodes.forEach(n => prologueWrap.appendChild(n.cloneNode(true)));
+        if (prologueNodes.length > 0) els.description.appendChild(prologueWrap);
+
+        const stepsWrap = document.createElement('div');
+        stepsWrap.className = 'proof-steps';
+
+        const stepEls = [];
+        stepNodes.forEach((node, i) => {
+          const stepEl = document.createElement('div');
+          stepEl.className = 'proof-step';
+          stepEl.dataset.index = String(i);
+
+          const header = document.createElement('button');
+          header.type = 'button';
+          header.className = 'proof-step-header';
+          header.innerHTML = `<span class="proof-step-num">${i + 1}</span><span class="proof-step-title">Пункт ${i + 1}</span><span class="proof-step-chevron">▾</span>`;
+          header.addEventListener('click', () => setProofStep(i));
+
+          const body = document.createElement('div');
+          body.className = 'proof-step-body';
+          const bodyInner = document.createElement('div');
+          bodyInner.className = 'proof-step-body-inner';
+          bodyInner.appendChild(node.cloneNode(true));
+          body.appendChild(bodyInner);
+
+          stepEl.appendChild(header);
+          stepEl.appendChild(body);
+          stepsWrap.appendChild(stepEl);
+          stepEls.push(stepEl);
+        });
+
+        const nav = document.createElement('div');
+        nav.className = 'proof-steps-nav';
+        const prevBtn = document.createElement('button');
+        prevBtn.type = 'button';
+        prevBtn.className = 'proof-nav-btn proof-nav-prev';
+        prevBtn.setAttribute('aria-label', 'Предыдущий пункт');
+        prevBtn.textContent = '‹';
+        prevBtn.addEventListener('click', () => setProofStep(currentProofStepIndex - 1));
+        const dots = document.createElement('div');
+        dots.className = 'proof-steps-dots';
+        stepNodes.forEach((_, i) => {
+          const dot = document.createElement('span');
+          dot.className = 'proof-step-dot';
+          dot.dataset.index = String(i);
+          dot.addEventListener('click', () => setProofStep(i));
+          dots.appendChild(dot);
+        });
+        const nextBtn = document.createElement('button');
+        nextBtn.type = 'button';
+        nextBtn.className = 'proof-nav-btn proof-nav-next';
+        nextBtn.setAttribute('aria-label', 'Следующий пункт');
+        nextBtn.textContent = '›';
+        nextBtn.addEventListener('click', () => setProofStep(currentProofStepIndex + 1));
+        nav.appendChild(prevBtn);
+        nav.appendChild(dots);
+        nav.appendChild(nextBtn);
+        stepsWrap.appendChild(nav);
+
+        els.description.appendChild(stepsWrap);
+
+        // Формулы рендерятся один раз для всего аккордеона сразу (все пункты присутствуют
+        // в DOM одновременно, скрыты только через CSS) — переключение пунктов после этого
+        // не требует повторного вызова KaTeX.
+        renderMathInContainer(els.description);
+        if (lastQuery && els.optHighlight.checked) {
+          highlightTextInElement(els.description, lastQuery);
+        }
+
+        function setProofStep(i) {
+          i = Math.max(0, Math.min(stepEls.length - 1, i));
+          currentProofStepIndex = i;
+          stepEls.forEach((el, idx) => el.classList.toggle('expanded', idx === i));
+          dots.querySelectorAll('.proof-step-dot').forEach((d, idx) => d.classList.toggle('current', idx === i));
+          prevBtn.disabled = (i === 0);
+          nextBtn.disabled = (i === stepEls.length - 1);
+          const frame = document.getElementById('sprExampleFrame');
+          if (frame) sendStepToFrame(frame, i + 1);
+        }
+        setProofStep(0);
       }
 
       // ===================================================================
@@ -5883,6 +6177,14 @@
 
       function sendThemeToFrame(frame) {
         try { frame.contentWindow.postMessage({ type: 'geocompiler-set-theme', theme: currentTheme() }, '*'); } catch (e) {}
+      }
+
+      // Сообщает интерактивному примеру, какой "шаг" (GMS-кластер с полем step) сейчас
+      // активен — используется только для тем типа "доказательство" (см.
+      // renderProofDescription/setProofStep). step здесь — 1-based номер, совпадающий с
+      // полем step в кластерах GMS-сцены.
+      function sendStepToFrame(frame, step) {
+        try { frame.contentWindow.postMessage({ type: 'geocompiler-set-step', step: step }, '*'); } catch (e) {}
       }
 
       async function renderExample(topic) {
@@ -5924,6 +6226,7 @@
             status.hidden = true;
             frame.classList.add('loaded');
             sendThemeToFrame(frame);
+            if (topic.type === 'proof') sendStepToFrame(frame, currentProofStepIndex + 1);
           }, { once: true });
           frame.srcdoc = result.html;
         } catch (e) {
@@ -5934,6 +6237,146 @@
 
       function escapeHtml(text) {
         return (text || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+      }
+
+      // ===================================================================
+      // ПРАКТИЧЕСКОЕ ЗАДАНИЕ (topic.type === 'example')
+      // ===================================================================
+      // Необязательное поле topic.task описывает задание с проверкой ответа —
+      // варианты ответа (одиночный/множественный выбор) или поле ввода (число/строка).
+      // Формат (все поля, кроме type и question, необязательны):
+      //   topic.task = {
+      //     type: 'choice' | 'input',
+      //     question: '<p>...</p>',                 // HTML условия задачи
+      //     options: [{ text: '...', correct: true|false }, ...],  // для type = 'choice'
+      //     multiple: false,                         // допускать несколько верных вариантов
+      //     answer: '25',                             // для type = 'input': эталонный ответ
+      //     tolerance: 0.01,                          // для числового ответа — допуск
+      //     explanation: '<p>...</p>',                // HTML-пояснение, показывается после проверки
+      //   }
+      // Если topic.task отсутствует (как у большинства тем типа "пример" на сегодня),
+      // панель просто скрывается — это не ломает темы без задания.
+      function renderTask(topic) {
+        const task = topic.task;
+        if (topic.type !== 'example' || !task || (task.type !== 'choice' && task.type !== 'input')) {
+          els.task.hidden = true;
+          els.task.innerHTML = '';
+          return;
+        }
+        els.task.hidden = false;
+        els.task.innerHTML = '';
+
+        const wrap = document.createElement('div');
+        wrap.className = 'spr-task-panel';
+
+        const heading = document.createElement('div');
+        heading.className = 'spr-task-heading';
+        heading.textContent = 'Практическое задание';
+        wrap.appendChild(heading);
+
+        if (task.question) {
+          const q = document.createElement('div');
+          q.className = 'spr-task-question';
+          q.innerHTML = task.question;
+          wrap.appendChild(q);
+        }
+
+        const form = document.createElement('div');
+        form.className = 'spr-task-form';
+
+        let getSelection = () => null;
+
+        if (task.type === 'choice') {
+          const options = Array.isArray(task.options) ? task.options : [];
+          const inputType = task.multiple ? 'checkbox' : 'radio';
+          const optsWrap = document.createElement('div');
+          optsWrap.className = 'spr-task-options';
+          const inputs = [];
+          options.forEach((opt, i) => {
+            const label = document.createElement('label');
+            label.className = 'spr-task-option';
+            const input = document.createElement('input');
+            input.type = inputType;
+            input.name = 'sprTaskOption';
+            input.value = String(i);
+            const span = document.createElement('span');
+            span.innerHTML = opt.text || '';
+            label.appendChild(input);
+            label.appendChild(span);
+            optsWrap.appendChild(label);
+            inputs.push({ input, correct: !!opt.correct, label });
+          });
+          form.appendChild(optsWrap);
+          getSelection = () => inputs;
+        } else {
+          const input = document.createElement('input');
+          input.type = 'text';
+          input.className = 'spr-task-input';
+          input.placeholder = 'Ваш ответ…';
+          form.appendChild(input);
+          getSelection = () => input;
+        }
+
+        const checkBtn = document.createElement('button');
+        checkBtn.type = 'button';
+        checkBtn.className = 'spr-task-check-btn';
+        checkBtn.textContent = 'Проверить';
+        form.appendChild(checkBtn);
+
+        const feedback = document.createElement('div');
+        feedback.className = 'spr-task-feedback';
+
+        wrap.appendChild(form);
+        wrap.appendChild(feedback);
+        els.task.appendChild(wrap);
+        renderMathInContainer(wrap);
+
+        checkBtn.addEventListener('click', () => {
+          feedback.className = 'spr-task-feedback';
+          if (task.type === 'choice') {
+            const inputs = getSelection();
+            const anySelected = inputs.some(o => o.input.checked);
+            if (!anySelected) {
+              feedback.textContent = 'Выберите хотя бы один вариант.';
+              feedback.classList.add('spr-task-feedback-warn');
+              return;
+            }
+            const isCorrect = inputs.every(o => o.input.checked === o.correct);
+            inputs.forEach(o => {
+              o.label.classList.toggle('spr-task-option-correct', o.correct);
+              o.label.classList.toggle('spr-task-option-wrong', o.input.checked && !o.correct);
+            });
+            feedback.textContent = isCorrect ? 'Верно!' : 'Неверно. Правильные варианты подсвечены.';
+            feedback.classList.add(isCorrect ? 'spr-task-feedback-ok' : 'spr-task-feedback-bad');
+          } else {
+            const input = getSelection();
+            const userVal = (input.value || '').trim();
+            if (!userVal) {
+              feedback.textContent = 'Введите ответ.';
+              feedback.classList.add('spr-task-feedback-warn');
+              return;
+            }
+            let isCorrect;
+            const expected = task.answer;
+            const userNum = parseFloat(userVal.replace(',', '.'));
+            const expectedNum = (typeof expected === 'number') ? expected : parseFloat(String(expected).replace(',', '.'));
+            if (!isNaN(userNum) && !isNaN(expectedNum)) {
+              const tol = (typeof task.tolerance === 'number') ? task.tolerance : 0;
+              isCorrect = Math.abs(userNum - expectedNum) <= tol;
+            } else {
+              isCorrect = userVal.toLowerCase() === String(expected || '').trim().toLowerCase();
+            }
+            feedback.textContent = isCorrect ? 'Верно!' : 'Неверно, попробуйте ещё раз.';
+            feedback.classList.add(isCorrect ? 'spr-task-feedback-ok' : 'spr-task-feedback-bad');
+          }
+          if (task.explanation) {
+            const expl = document.createElement('div');
+            expl.className = 'spr-task-explanation';
+            expl.innerHTML = task.explanation;
+            feedback.appendChild(expl);
+            renderMathInContainer(expl);
+          }
+        });
       }
 
       function setupThemeSync() {

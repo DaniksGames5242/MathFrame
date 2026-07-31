@@ -1,4 +1,4 @@
-        function escapeHtml(text) {
+function escapeHtml(text) {
             if (!text) return '';
             return text.replace(/&/g, '&amp;')
                        .replace(/</g, '&lt;')
@@ -4085,8 +4085,15 @@ function parseDrawTextBlock(block, vars) {
             const interact = parseBoolField(block, vars, 'interact', true);
             const collisionFields = parseGeneralCollisionFields(block, vars, false);
             const { updateMode, updateInterval } = parseUpdateFields(block, vars);
+            // step — необязательный номер "пункта" пошагового доказательства (proof-режим).
+            // Кластер с этим полем виден ТОЛЬКО когда window.__gcCurrentStep равен этому
+            // номеру; кластеры без step ведут себя как раньше (управляются только active).
+            // Переключение шага приходит СНАРУЖИ (из родительской страницы — аккордеон
+            // описания темы типа "доказательство") через postMessage; внутри самой сцены
+            // никаких кнопок переключения не добавляется — см. gcSetStep/g3SetStep.
+            const step = parseNumberField(block, vars, 'step', null, false);
 
-            return { name, elements, active, rotate, rotateExpr, rotate3D, interact, updateMode, updateInterval, ...collisionFields };
+            return { name, elements, active, rotate, rotateExpr, rotate3D, interact, step, updateMode, updateInterval, ...collisionFields };
         }
 
 let autoNameCounter = 0;
@@ -5224,6 +5231,10 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
         const themeName = (params.theme === 'light' || params.theme === 'dark') ? params.theme : 'dark';
         const theme = THEME_PRESETS[themeName];
 
+        // Пошаговый режим (проф-режим): как анимируется переключение между кластерами-пунктами (see gcSetStep). Выбор автора сцены, никаких элементов управления внутри самой сцены не добавляется намеренно.
+        const gcStepAnimation = ['fade', 'slide', 'scale', 'none'].includes(params['steps animation']) ? params['steps animation'] : 'fade';
+        const gcStepDuration = (typeof params['steps duration'] === 'number' && params['steps duration'] >= 0) ? params['steps duration'] : 0.6;
+
         const fieldWidth = (typeof params['field width'] === 'number') ? params['field width'] : 50;
         const fieldHeight = (typeof params['field height'] === 'number') ? params['field height'] : 30;
         const fieldColor = params['field color'] || theme.fieldColor;
@@ -5503,10 +5514,29 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '      });\n',
             '    }\n',
             '\n',
+            '    // \u041f\u0435\u0440\u0435\u043a\u043b\u044e\u0447\u0435\u043d\u0438\u0435 \u0448\u0430\u0433\u0430 \u0434\u043e\u043a\u0430\u0437\u0430\u0442\u0435\u043b\u044c\u0441\u0442\u0432\u0430 \u043f\u0440\u0438\u0445\u043e\u0434\u0438\u0442 \u0421\u041d\u0410\u0420\u0423\u0416\u0418 (\u0441\u043c. \u0433\u0435\u043e\u043a\u043e\u043c\u043f\u0438\u043b\u044f\u0442\u043e\u0440-\u0432\u044c\u044e\u0432\u0435\u0440 \u0442\u0435\u043c\u044b \u0442\u0438\u043f\u0430 \"\u0434\u043e\u043a\u0430\u0437\u0430\u0442\u0435\u043b\u044c\u0441\u0442\u0432\u043e\"); \u0432\u043d\u0443\u0442\u0440\u0438 \u0441\u0430\u043c\u043e\u0439 \u0441\u0446\u0435\u043d\u044b \u043d\u0435\u0442 \u043d\u0438\u043a\u0430\u043a\u0438\u0445 \u043a\u043d\u043e\u043f\u043e\u043a \u043f\u0435\u0440\u0435\u043a\u043b\u044e\u0447\u0435\u043d\u0438\u044f \u2014 \u0441\u043c. gcSetStep \u043d\u0438\u0436\u0435 \u043f\u043e \u0444\u0430\u0439\u043b\u0443 (\u0440\u044f\u0434\u043e\u043c \u0441 draw()).\n',
+            '    window.__gcStepSetters = window.__gcStepSetters || [];\n',
+            '    window.__gcStepSetters.push(function(step) { if (typeof gcSetStep === \'function\') gcSetStep(step); return true; });\n',
+            '    if (!window.geocompilerSetStep) {\n',
+            '      window.geocompilerSetStep = function(step) {\n',
+            '        for (var i = 0; i < window.__gcStepSetters.length; i++) window.__gcStepSetters[i](step);\n',
+            '      };\n',
+            '    }\n',
+            '    if (!window.__gcStepMsgListenerAdded) {\n',
+            '      window.__gcStepMsgListenerAdded = true;\n',
+            '      window.addEventListener(\'message\', function(ev) {\n',
+            '        var data = ev && ev.data;\n',
+            '        if (!data || data.type !== \'geocompiler-set-step\') return;\n',
+            '        window.geocompilerSetStep(data.step);\n',
+            '      });\n',
+            '    }\n',
+            '\n',
             '    const pointsData = ', pointsJson, ';\n',
             '    const linesData = ', linesJson, ';\n',
             '    const figuresData = ', figuresJson, ';\n',
             '    const clustersData = ', clustersJson, ';\n',
+            '    const gcStepAnimation = ', jsonForScript(gcStepAnimation), ';\n',
+            '    const gcStepDuration = ', String(gcStepDuration), ';\n',
             '    const anglesData = ', anglesJson, ';\n',
             '    const drawAnglesData = ', drawAnglesJson, ';\n',
             '    const drawEquallyData = ', drawEquallyJson, ';\n',
@@ -5692,6 +5722,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '      for (let c of clusters) {\n',
             '        if (c.elements.includes(obj)) {\n',
             '          if (!c.active) return false;\n',
+            '          if (c.step !== undefined && c.step !== null && c.step !== window.__gcCurrentStep) return false;\n',
             '          break;\n',
             '        }\n',
             '      }\n',
@@ -6435,6 +6466,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '          updateMode: c.updateMode || \'always\', updateInterval: c.updateInterval,\n',
             '          interact: c.interact !== undefined ? c.interact : true,\n',
             '          active: c.active !== undefined ? c.active : true,\n',
+            '          step: (c.step !== undefined && c.step !== null) ? c.step : undefined,\n',
             '          collision: c.collision || false, collisionGroup: c.collisionGroup || 0, collisionMask: c.collisionMask || null, collisionMargin: c.collisionMargin || 0,\n',
             '          collideWithPoints: c.collideWithPoints || false, collideWithLines: c.collideWithLines || false, collideWithCurves: c.collideWithCurves || false,\n',
             '          collideWithCircles: c.collideWithCircles || false, collideWithEllipses: c.collideWithEllipses || false, collideWithArcs: c.collideWithArcs || false,\n',
@@ -10481,6 +10513,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '    }\n',
             '\n',
             '    function draw() {\n',
+            '      if (window.__gcStepTransitionActive) return;\n',
               '    try {\n',
             '      syncUIVisibility();\n',
             '      const stale = !sceneSnapshot || sceneSnapshot.width !== width || sceneSnapshot.height !== height;\n',
@@ -10505,6 +10538,71 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
               '      try { ctx.clearRect(0, 0, width, height); } catch (e2) {}\n',
               '    }\n',
             '    }\n',
+            '\n',
+            '    // ===== Проф-режим: переключение шагов (кластеры с полем step) =====\n',
+            '    // Строго снаружи: никаких кнопок/стрелочек внутри этой сцены нет — переключение\n',
+            '    // приходит снаружи через postMessage (аккордеон описания темы типа "доказательство").\n',
+            '    // Переход между шагами анимируется на уровне битмапов холста (снимок "до" и "после"),\n',
+            '    // а не поля-в-поле через opacity каждого объекта — это работает одинаково для ЛЮБОГО\n',
+            '    // содержимого сцены (точки/фигуры/графики/таблицы и т.д.), без необходимости добавлять\n',
+            '    // opacity в каждый тип объекта.\n',
+            '    window.__gcCurrentStep = (typeof window.__gcCurrentStep === \'number\') ? window.__gcCurrentStep : (function() {\n',
+            '      let min = null;\n',
+            '      for (const c0 of clustersData) { if (c0.step !== undefined && c0.step !== null) { if (min === null || c0.step < min) min = c0.step; } }\n',
+            '      return min === null ? 1 : min;\n',
+            '    })();\n',
+            '    window.__gcStepTransitionActive = false;\n',
+            '    let __gcStepTransRAF = null;\n',
+            '    function __gcCaptureCanvasSnapshot() {\n',
+            '      try {\n',
+            '        const c = document.createElement(\'canvas\');\n',
+            '        c.width = canvas.width; c.height = canvas.height;\n',
+            '        c.getContext(\'2d\').drawImage(canvas, 0, 0);\n',
+            '        return c;\n',
+            '      } catch (e) { return null; }\n',
+            '    }\n',
+            '    function __gcRunStepTransition(before, after, animName, durationSec) {\n',
+            '      const duration = Math.max(0.01, durationSec || 0.6) * 1000;\n',
+            '      const start = performance.now();\n',
+            '      window.__gcStepTransitionActive = true;\n',
+            '      function frame(now) {\n',
+            '        const t = Math.max(0, Math.min(1, (now - start) / duration));\n',
+            '        const eased = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;\n',
+            '        ctx.save();\n',
+            '        ctx.clearRect(0, 0, canvas.width, canvas.height);\n',
+            '        if (animName === \'slide\') {\n',
+            '          const w = canvas.width;\n',
+            '          ctx.globalAlpha = 1;\n',
+            '          if (before) ctx.drawImage(before, -w * eased, 0);\n',
+            '          if (after) ctx.drawImage(after, w * (1 - eased), 0);\n',
+            '        } else if (animName === \'scale\') {\n',
+            '          if (before) { ctx.save(); ctx.globalAlpha = Math.max(0, 1 - eased); ctx.translate(canvas.width / 2, canvas.height / 2); ctx.scale(1 - eased, 1 - eased); ctx.translate(-canvas.width / 2, -canvas.height / 2); ctx.drawImage(before, 0, 0); ctx.restore(); }\n',
+            '          if (after) { ctx.save(); ctx.globalAlpha = Math.max(0, eased); ctx.translate(canvas.width / 2, canvas.height / 2); ctx.scale(eased, eased); ctx.translate(-canvas.width / 2, -canvas.height / 2); ctx.drawImage(after, 0, 0); ctx.restore(); }\n',
+            '        } else {\n',
+            '          ctx.globalAlpha = 1;\n',
+            '          if (before) ctx.drawImage(before, 0, 0);\n',
+            '          ctx.globalAlpha = eased;\n',
+            '          if (after) ctx.drawImage(after, 0, 0);\n',
+            '        }\n',
+            '        ctx.restore();\n',
+            '        if (t < 1) { __gcStepTransRAF = requestAnimationFrame(frame); }\n',
+            '        else { window.__gcStepTransitionActive = false; __gcStepTransRAF = null; draw(); }\n',
+            '      }\n',
+            '      if (__gcStepTransRAF) cancelAnimationFrame(__gcStepTransRAF);\n',
+            '      __gcStepTransRAF = requestAnimationFrame(frame);\n',
+            '    }\n',
+            '    function gcSetStep(step) {\n',
+            '      if (step === undefined || step === null) return;\n',
+            '      if (step === window.__gcCurrentStep) return;\n',
+            '      const before = __gcCaptureCanvasSnapshot();\n',
+            '      window.__gcCurrentStep = step;\n',
+            '      figures.forEach(applyFigureTransform); clusters.forEach(applyClusterTransform);\n',
+            '      updateScene(); window.__gcStepTransitionActive = false; draw();\n',
+            '      if (gcStepAnimation === \'none\' || !gcStepDuration || gcStepDuration <= 0) return;\n',
+            '      const after = __gcCaptureCanvasSnapshot();\n',
+            '      __gcRunStepTransition(before, after, gcStepAnimation, gcStepDuration);\n',
+            '    }\n',
+            '    window.gcSetStep = gcSetStep;\n',
             '\n',
             '    // ===== DRAG & DROP =====\n',
             '    let dragMode = null;\n',
@@ -16465,6 +16563,10 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
         const themeName = (params.theme === 'light' || params.theme === 'dark') ? params.theme : 'dark';
         const theme = THEME_PRESETS[themeName];
 
+        // Пошаговый режим (проф-режим): как анимируется переключение между кластерами-пунктами (see gcSetStep). Выбор автора сцены, никаких элементов управления внутри самой сцены не добавляется намеренно.
+        const gcStepAnimation = ['fade', 'slide', 'scale', 'none'].includes(params['steps animation']) ? params['steps animation'] : 'fade';
+        const gcStepDuration = (typeof params['steps duration'] === 'number' && params['steps duration'] >= 0) ? params['steps duration'] : 0.6;
+
         const fieldWidth = (typeof params['field width'] === 'number') ? params['field width'] : 50;
         const fieldHeight = (typeof params['field height'] === 'number') ? params['field height'] : 30;
         const fieldDepth = (typeof params['field depth'] === 'number') ? params['field depth'] : fieldWidth;
@@ -16701,6 +16803,8 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '  const linesData = ', linesJson, ';\n',
             '  const figuresData = ', figuresJson, ';\n',
             '  const clustersData = ', clustersJson, ';\n',
+            '  const gcStepAnimation = ', jsonForScript(gcStepAnimation), ';\n',
+            '  const gcStepDuration = ', String(gcStepDuration), ';\n',
             '  const fillingsData = ', fillingsJson, ';\n',
             '  const anglesData = ', anglesJson, ';\n',
             '  const drawAnglesData = ', drawAnglesJson, ';\n',
@@ -20184,6 +20288,7 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '    for (const c of clusters) {\n',
             '      if (c.elements.includes(obj)) {\n',
             '        if (!c.active) return false;\n',
+            '        if (c.step !== undefined && c.step !== null && c.step !== window.__gcCurrentStep) return false;\n',
             '        break;\n',
             '      }\n',
             '    }\n',
@@ -22089,12 +22194,20 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '      return ok;\n',
             '    };\n',
             '  }\n',
-            '  if (!window.__gcThemeMsgListenerAdded) {\n',
-            '    window.__gcThemeMsgListenerAdded = true;\n',
+            '  // \u041f\u0435\u0440\u0435\u043a\u043b\u044e\u0447\u0435\u043d\u0438\u0435 \u0448\u0430\u0433\u0430 \u0434\u043e\u043a\u0430\u0437\u0430\u0442\u0435\u043b\u044c\u0441\u0442\u0432\u0430 (\u0442\u043e \u0436\u0435 \u0441\u0430\u043c\u043e\u0435, \u0447\u0442\u043e \u0438 \u0432 generate2D) \u2014 gcSetStep \u043e\u043f\u0440\u0435\u0434\u0435\u043b\u0435\u043d\u0430 \u043d\u0438\u0436\u0435 \u043f\u043e \u0444\u0430\u0439\u043b\u0443 (\u0440\u044f\u0434\u043e\u043c \u0441 animate()), \u043d\u043e \u0432\u044b\u0437\u044b\u0432\u0430\u0435\u0442\u0441\u044f \u0442\u043e\u043b\u044c\u043a\u043e \u0430\u0441\u0438\u043d\u0445\u0440\u043e\u043d\u043d\u043e (\u0447\u0435\u0440\u0435\u0437 postMessage), \u043f\u043e\u044d\u0442\u043e\u043c\u0443 \u043f\u043e\u0440\u044f\u0434\u043e\u043a \u043e\u0431\u044a\u044f\u0432\u043b\u0435\u043d\u0438\u044f \u0437\u0434\u0435\u0441\u044c \u043d\u0435 \u0432\u0430\u0436\u0435\u043d.\n',
+            '  window.__gcStepSetters = window.__gcStepSetters || [];\n',
+            '  window.__gcStepSetters.push(function(step) { if (typeof gcSetStep === \'function\') gcSetStep(step); return true; });\n',
+            '  if (!window.geocompilerSetStep) {\n',
+            '    window.geocompilerSetStep = function(step) {\n',
+            '      for (var i = 0; i < window.__gcStepSetters.length; i++) window.__gcStepSetters[i](step);\n',
+            '    };\n',
+            '  }\n',
+            '  if (!window.__gcStepMsgListenerAdded) {\n',
+            '    window.__gcStepMsgListenerAdded = true;\n',
             '    window.addEventListener(\'message\', function(ev) {\n',
             '      var data = ev && ev.data;\n',
-            '      if (!data || data.type !== \'geocompiler-set-theme\') return;\n',
-            '      window.geocompilerSetTheme(data.theme);\n',
+            '      if (!data || data.type !== \'geocompiler-set-step\') return;\n',
+            '      window.geocompilerSetStep(data.step);\n',
             '    });\n',
             '  }\n',
             '\n',
@@ -22425,9 +22538,87 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '      center: center,\n',
             '      rotate3D: c.rotate3D || { x: 0, y: 0, z: 0 },\n',
             '      active: c.active !== false,\n',
+            '      step: (c.step !== undefined && c.step !== null) ? c.step : undefined,\n',
             '    };\n',
             '  });\n',
             '  for (const c of clusters) { applyClusterTransform3D(c); if (window[c.name] === undefined) window[c.name] = c; }\n',
+            '  // ===== Проф-режим (3D): переключение шагов через кластеры с полем step =====\n',
+            '  // Три.js рендерит непрерывно (animate() тикает всегда), поэтому вместо снимка\n',
+            '  // всего холста "на паузе" (как в 2D) используется прозрачный canvas-оверлей поверх\n',
+            '  // WebGL-холста: он на время перехода показывает композит из двух снимков кадра\n',
+            '  // ("до" и "после"), а под ним сцена уже честно отрисовывает новый шаг — по\n',
+            '  // завершении перехода оверлей просто прячется, открывая живой рендер.\n',
+            '  window.__gcCurrentStep = (typeof window.__gcCurrentStep === \'number\') ? window.__gcCurrentStep : (function() {\n',
+            '    let min = null;\n',
+            '    for (const c0 of clustersData) { if (c0.step !== undefined && c0.step !== null) { if (min === null || c0.step < min) min = c0.step; } }\n',
+            '    return min === null ? 1 : min;\n',
+            '  })();\n',
+            '  let __gcStepOverlay3D = null;\n',
+            '  function __gcGetStepOverlay3D() {\n',
+            '    if (__gcStepOverlay3D && __gcStepOverlay3D.isConnected) return __gcStepOverlay3D;\n',
+            '    const wrap = canvas.parentElement;\n',
+            '    if (wrap && getComputedStyle(wrap).position === \'static\') wrap.style.position = \'relative\';\n',
+            '    const oc = document.createElement(\'canvas\');\n',
+            '    oc.style.position = \'absolute\'; oc.style.left = \'0\'; oc.style.top = \'0\';\n',
+            '    oc.style.width = \'100%\'; oc.style.height = \'100%\'; oc.style.pointerEvents = \'none\'; oc.style.zIndex = \'50\';\n',
+            '    oc.style.display = \'none\';\n',
+            '    if (wrap) wrap.appendChild(oc); else document.body.appendChild(oc);\n',
+            '    __gcStepOverlay3D = oc;\n',
+            '    return oc;\n',
+            '  }\n',
+            '  function __gcCaptureGLFrame3D() {\n',
+            '    try {\n',
+            '      const c = document.createElement(\'canvas\');\n',
+            '      c.width = canvas.width; c.height = canvas.height;\n',
+            '      c.getContext(\'2d\').drawImage(canvas, 0, 0);\n',
+            '      return c;\n',
+            '    } catch (e) { return null; }\n',
+            '  }\n',
+            '  let __gcStepOverlayRAF3D = null;\n',
+            '  function __gcRunStepTransition3D(before, after, animName, durationSec) {\n',
+            '    const overlay = __gcGetStepOverlay3D();\n',
+            '    overlay.width = canvas.width; overlay.height = canvas.height;\n',
+            '    overlay.style.display = \'block\';\n',
+            '    const octx = overlay.getContext(\'2d\');\n',
+            '    const duration = Math.max(0.01, durationSec || 0.6) * 1000;\n',
+            '    const start = performance.now();\n',
+            '    function frame(now) {\n',
+            '      const t = Math.max(0, Math.min(1, (now - start) / duration));\n',
+            '      const eased = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;\n',
+            '      octx.clearRect(0, 0, overlay.width, overlay.height);\n',
+            '      if (animName === \'slide\') {\n',
+            '        const w = overlay.width;\n',
+            '        octx.globalAlpha = 1;\n',
+            '        if (before) octx.drawImage(before, -w * eased, 0);\n',
+            '        if (after) octx.drawImage(after, w * (1 - eased), 0);\n',
+            '      } else if (animName === \'scale\') {\n',
+            '        if (before) { octx.save(); octx.globalAlpha = Math.max(0, 1 - eased); octx.translate(overlay.width / 2, overlay.height / 2); octx.scale(1 - eased, 1 - eased); octx.translate(-overlay.width / 2, -overlay.height / 2); octx.drawImage(before, 0, 0); octx.restore(); }\n',
+            '        if (after) { octx.save(); octx.globalAlpha = Math.max(0, eased); octx.translate(overlay.width / 2, overlay.height / 2); octx.scale(eased, eased); octx.translate(-overlay.width / 2, -overlay.height / 2); octx.drawImage(after, 0, 0); octx.restore(); }\n',
+            '      } else {\n',
+            '        octx.globalAlpha = 1;\n',
+            '        if (before) octx.drawImage(before, 0, 0);\n',
+            '        octx.globalAlpha = eased;\n',
+            '        if (after) octx.drawImage(after, 0, 0);\n',
+            '      }\n',
+            '      if (t < 1) { __gcStepOverlayRAF3D = requestAnimationFrame(frame); }\n',
+            '      else { overlay.style.display = \'none\'; __gcStepOverlayRAF3D = null; }\n',
+            '    }\n',
+            '    if (__gcStepOverlayRAF3D) cancelAnimationFrame(__gcStepOverlayRAF3D);\n',
+            '    __gcStepOverlayRAF3D = requestAnimationFrame(frame);\n',
+            '  }\n',
+            '  function gcSetStep(step) {\n',
+            '    if (step === undefined || step === null) return;\n',
+            '    if (step === window.__gcCurrentStep) return;\n',
+            '    const before = __gcCaptureGLFrame3D();\n',
+            '    window.__gcCurrentStep = step;\n',
+            '    if (gcStepAnimation === \'none\' || !gcStepDuration || gcStepDuration <= 0) return;\n',
+            '    requestAnimationFrame(function() {\n',
+            '      const after = __gcCaptureGLFrame3D();\n',
+            '      __gcRunStepTransition3D(before, after, gcStepAnimation, gcStepDuration);\n',
+            '    });\n',
+            '  }\n',
+            '  window.gcSetStep = gcSetStep;\n',
+            '\n',
             '  for (const p of pointObjs) { if (window[p.name] === undefined) window[p.name] = p; }\n',
             '  for (const l of lineObjs) { if (window[l.name] === undefined) window[l.name] = l; }\n',
             '  for (const f of figureObjs) { if (window[f.name] === undefined) window[f.name] = f; }\n',
@@ -22945,9 +23136,10 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
                                'show grid', 'show grid x', 'show grid y', 'show grid z', 'grid size',
                                'grid color', 'axes color', 'grid adaptive', '2D layer',
                                'show boundary', 'boundary color',
-                               'snap', 'snap grid', 'snap distance'];
+                               'snap', 'snap grid', 'snap distance',
+                               'steps animation', 'steps duration'];
             const requiredKeys = [];
-            const numericKeys = ['field width', 'field height', 'field depth', 'frame width', 'description size', 'camera start zoom', 'axes size', 'grid size', 'snap grid', 'snap distance', 'camera fov', 'camera near', 'camera far'];
+            const numericKeys = ['field width', 'field height', 'field depth', 'frame width', 'description size', 'camera start zoom', 'axes size', 'grid size', 'snap grid', 'snap distance', 'camera fov', 'camera near', 'camera far', 'steps duration'];
             // zoom limits = (min, max) дистанция камеры от центра сцены (только 3D)
             // camera start rot = (азимут, полярный угол) в градусах — начальный поворот камеры (только 3D)
             const tupleKeys = ['camera zoom limits', 'camera start offset', 'zoom limits', 'camera start rot'];
@@ -23031,6 +23223,9 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
                     } else if (key === 'description align') {
                         if (value === 'left' || value === 'center' || value === 'right') parsedValue = value;
                         else { errors.push({ line: lineNum, message: `description align должно быть "left", "center" или "right"` }); continue; }
+                    } else if (key === 'steps animation') {
+                        if (['fade', 'slide', 'scale', 'none'].includes(value)) parsedValue = value;
+                        else { errors.push({ line: lineNum, message: `steps animation должно быть одним из: fade, slide, scale, none` }); continue; }
                     } else if (tupleKeys.includes(key)) {
                         const m = value.match(/^\(\s*([-\d.]+)\s*,\s*([-\d.]+)\s*\)$/);
                         if (!m) { errors.push({ line: lineNum, message: `Некорректный формат для "${key}", ожидается (a, b)` }); continue; }

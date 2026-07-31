@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>MathFrame — интерактивная математика</title>
+  <meta name="description" content="Вся математика в одном месте: интерактивные примеры, пошаговые доказательства, калькуляторы и живое сообщество." />
+
+  <style>
+    @font-face { font-family:'LogoFont'; src:url('/assets/fonts/logo-font.otf') format('opentype');
+                 font-weight:700; font-style:normal; font-display:swap; }
+    @font-face { font-family:'BodyFont'; src:url('/assets/fonts/body-font.otf') format('opentype');
+                 font-weight:400; font-style:normal; font-display:swap; }
+    @font-face { font-family:'BodyFont'; src:url('/assets/fonts/body-font-bold.otf') format('opentype');
+                 font-weight:700; font-style:normal; font-display:swap; }
+  </style>
+  <link rel="stylesheet" href="/assets/css/common.css" />
+
+  <style>
+  /* ======================================================================
+     ГЛАВНАЯ — оформление только этой страницы.
+     Всё остальное (сетка-подложка, засечки, кнопки, карточки, мобильный
+     слой) приходит из общей дизайн-системы /assets/css/common.css.
+
+     Что убрано по сравнению с прежней версией и почему:
+       • .side-window с картинками side-left.png / side-right.png —
+         они и были источником выезда за край на узких экранах, а фон
+         теперь рисуется процедурно (см. mathframe-ui.js);
+       • hero-bg.webp — не нужен по той же причине;
+       • min-height:100vh — на iOS 100vh больше видимой области, низ уезжал
+         под адресную строку; теперь svh с запасным вариантом.
+     ====================================================================== */
+
+  .hero{
+    position:relative;
+    display:grid;
+    grid-template-columns:1.05fr .95fr;
+    align-items:center;
+    gap:3rem;
+    max-width:1180px;
+    margin:0 auto;
+    padding:3rem clamp(1rem,4vw,1.5rem) 4rem;
+    padding-left:max(clamp(1rem,4vw,1.5rem),var(--safe-l));
+    padding-right:max(clamp(1rem,4vw,1.5rem),var(--safe-r));
+    min-height:calc(100vh - var(--header-height));
+    overflow:hidden;
+  }
+  @supports (min-height:100svh){
+    .hero{min-height:calc(100svh - var(--header-height) - var(--safe-t))}
+  }
+  .hero-content{position:relative;z-index:2}
+
+  .hero-logo{
+    height:64px;width:auto;margin-bottom:.9rem;
+    animation:heroPop .7s var(--e-spring) both;
+  }
+  @keyframes heroPop{from{opacity:0;transform:scale(.86) translateY(10px)}to{opacity:1;transform:none}}
+
+  .hero h1{
+    font-family:'LogoFont',var(--font-display);
+    font-size:clamp(2.7rem,6.2vw,4.5rem);
+    line-height:1.02;letter-spacing:-.035em;
+    margin:.2rem 0 .5rem;
+  }
+  /* Словесный знак: вторая половина — математическим курсивом, читается как формула */
+  .hero h1 .w2{
+    font-family:var(--font-math);font-style:italic;
+    color:var(--accent);text-shadow:0 0 34px var(--accent-glow);
+  }
+
+  /* Тезис подан как определение в учебнике — это «фишка» главной */
+  .definition{
+    position:relative;border-left:2px solid var(--accent);
+    padding:.35rem 0 .35rem 1.1rem;margin:1.3rem 0 1.9rem;max-width:46ch;
+  }
+  .definition p{color:var(--text-secondary);font-size:1.04rem;margin:0}
+  .definition-kw{
+    font-family:var(--font-display);font-weight:700;font-style:italic;
+    color:var(--accent);margin-right:.35rem;
+  }
+  .definition::after{content:'∎';color:var(--accent);opacity:.6;margin-left:.4rem;font-size:.9em}
+
+  .hero-actions{display:flex;gap:.8rem;flex-wrap:wrap}
+  .hero-meta{
+    display:flex;gap:1.8rem;flex-wrap:wrap;
+    margin-top:2.2rem;padding-top:1.3rem;border-top:1px solid var(--border);
+  }
+  .hero-meta div{display:flex;flex-direction:column;gap:.1rem}
+  .hero-meta b{
+    font-family:var(--font-display);font-size:1.45rem;font-weight:700;
+    color:var(--text-primary);line-height:1;
+  }
+  .hero-meta span{
+    font-family:var(--font-mono);font-size:.67rem;letter-spacing:.13em;
+    text-transform:uppercase;color:var(--text-tertiary);
+  }
+
+  /* ---- саморисующееся доказательство Пифагора: SVG + stroke-dashoffset ---- */
+  .hero-figure{position:relative;z-index:2;display:flex;justify-content:center}
+  .hero-figure svg{width:100%;max-width:430px;height:auto;overflow:visible}
+  .draw{
+    stroke-dasharray:var(--len,400);stroke-dashoffset:var(--len,400);
+    animation:drawIn 1.4s var(--e-out) forwards;animation-delay:var(--d,0s);
+  }
+  @keyframes drawIn{to{stroke-dashoffset:0}}
+  .figFade{opacity:0;animation:figFade .8s var(--e-out) forwards;animation-delay:var(--d,0s)}
+  @keyframes figFade{to{opacity:1}}
+  .fig-axis{stroke:var(--border-strong);stroke-width:1;fill:none}
+  .fig-tri{stroke:var(--accent);stroke-width:2.2;fill:var(--accent-soft)}
+  .fig-sq-a{stroke:var(--accent-2);stroke-width:1.8;fill:rgba(86,220,200,.12)}
+  .fig-sq-b{stroke:var(--accent-3);stroke-width:1.8;fill:rgba(242,180,92,.12)}
+  .fig-sq-c{stroke:var(--accent);stroke-width:1.8;fill:rgba(91,140,255,.12)}
+  .fig-pt{fill:var(--accent)}
+  .fig-lbl{font-family:var(--font-math);font-style:italic;font-size:15px;fill:var(--text-secondary)}
+  .fig-group{animation:figFloat 9s var(--e-inout) 2.6s infinite;transform-origin:center}
+  @keyframes figFloat{0%,100%{transform:translateY(0) rotate(0)}50%{transform:translateY(-9px) rotate(-.5deg)}}
+
+  /* ---- разделы ---- */
+  .band{padding:1rem 0 2rem}
+  .band-head{
+    max-width:1180px;margin:0 auto 1.8rem;
+    padding:0 clamp(1rem,4vw,1.5rem);
+    padding-left:max(clamp(1rem,4vw,1.5rem),var(--safe-l));
+    padding-right:max(clamp(1rem,4vw,1.5rem),var(--safe-r));
+  }
+  .band-head h2{font-size:clamp(1.6rem,3vw,2.2rem);margin:.55rem 0 .6rem}
+  .band-head p{color:var(--text-secondary);max-width:56ch}
+  .card-num{
+    position:absolute;top:1rem;right:1.15rem;
+    font-family:var(--font-mono);font-size:.67rem;letter-spacing:.12em;
+    color:var(--text-tertiary);
+  }
+
+  @media (max-width:900px){
+    .hero{grid-template-columns:1fr;gap:1.8rem;padding-top:2rem;min-height:0}
+    .hero-figure{order:-1;max-width:320px;margin:0 auto}
+    .hero-logo{height:52px}
+  }
+  @media (max-width:640px){
+    .hero{padding-top:1.4rem;padding-bottom:2.4rem}
+    .definition{margin:1rem 0 1.5rem}
+    .definition p{font-size:.97rem}
+    .hero-meta{gap:1.2rem;margin-top:1.6rem}
+    .hero-meta b{font-size:1.2rem}
+    /* На телефоне одна главная кнопка на всю ширину — в неё легко попасть */
+    .hero-actions{gap:.6rem}
+    .hero-actions .btn{flex:1 1 100%}
+  }
+  </style>
+
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
+</head>
+
+<body data-page="home">
+
+  <div id="app-header"></div>
+
+  <main>
+    <!-- data-mf-tracers: сюда движок кладёт частицы, сносимые полем потока -->
+    <section class="hero" id="hero" data-mf-tracers>
+      <div class="hero-content">
+        <img id="heroLogo" src="/assets/img/logo.png" alt="" class="hero-logo"
+             data-light-src="/assets/img/logo-light.png"
+             data-dark-src="/assets/img/logo.png"
+             onerror="this.style.display='none'" />
+
+        <h1>Math<span class="w2">Frame</span></h1>
+
+        <div class="definition">
+          <p>
+            <span class="definition-kw">Определение.</span>
+            Пространство, в котором у каждой теоремы есть интерактивная модель,
+            у каждого доказательства — построение по шагам, а у каждой задачи — проверка.
+          </p>
+        </div>
+
+        <div class="hero-actions">
+          <a href="/spravochnik/" class="btn btn-primary">Открыть справочник</a>
+          <a href="#" class="btn btn-outline" id="loginBtn">Войти</a>
+          <a href="#" class="btn" id="registerBtn">Регистрация</a>
+        </div>
+
+        <div class="hero-meta">
+          <div><b>7—11</b><span>классы</span></div>
+          <div><b>2D · 3D</b><span>движок сцен</span></div>
+          <div><b>GMS</b><span>язык сцен</span></div>
+        </div>
+      </div>
+
+      <div class="hero-figure" aria-hidden="true">
+        <svg viewBox="0 0 340 320" role="presentation">
+          <g class="fig-group">
+            <path class="fig-axis draw" style="--len:300;--d:.1s" d="M40 250 H300"/>
+            <path class="fig-axis draw" style="--len:230;--d:.1s" d="M40 250 V40"/>
+            <path class="fig-sq-a draw" style="--len:370;--d:1.15s" d="M130 250 V160 H40 V250 Z"/>
+            <path class="fig-sq-b draw" style="--len:370;--d:1.45s" d="M130 250 H220 V320 H130 Z"/>
+            <path class="fig-sq-c draw" style="--len:520;--d:1.75s" d="M130 160 L220 250 L310 160 L220 70 Z"/>
+            <path class="fig-tri draw" style="--len:320;--d:.65s" d="M130 250 L130 160 L220 250 Z"/>
+            <path class="figFade" style="--d:1.05s" d="M130 235 H145 V250"
+                  stroke="var(--accent)" stroke-width="1.5" fill="none"/>
+            <circle class="fig-pt figFade" style="--d:.95s" cx="130" cy="250" r="4"/>
+            <circle class="fig-pt figFade" style="--d:1s"   cx="130" cy="160" r="4"/>
+            <circle class="fig-pt figFade" style="--d:1.05s" cx="220" cy="250" r="4"/>
+            <text class="fig-lbl figFade" style="--d:2s"    x="108" y="208">a</text>
+            <text class="fig-lbl figFade" style="--d:2.05s" x="171" y="272">b</text>
+            <text class="fig-lbl figFade" style="--d:2.1s"  x="169" y="198">c</text>
+            <text class="fig-lbl figFade" style="--d:2.35s" x="236" y="300"
+                  font-size="18" fill="var(--accent)">c² = a² + b²</text>
+          </g>
+        </svg>
+      </div>
+    </section>
+
+    <div class="band">
+      <div class="band-head mf-above">
+        <span class="mf-label">Разделы</span>
+        <h2 class="mf-axis-title">Пять инструментов</h2>
+        <p>Каждый — самостоятельный инструмент, но все они говорят на одном языке сцен.</p>
+      </div>
+
+      <section class="sections">
+        <div class="section-card mf-ticks">
+          <span class="card-num">§ 01</span>
+          <h3>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+            </svg>
+            Справочник
+          </h3>
+          <p>Все темы математики с интерактивными примерами и пошаговыми доказательствами.</p>
+          <a href="/spravochnik/">Открыть</a>
+        </div>
+
+        <div class="section-card mf-ticks">
+          <span class="card-num">§ 02</span>
+          <h3>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="3"/>
+              <path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/>
+            </svg>
+            Мини‑сервисы
+          </h3>
+          <p>Калькуляторы, графики, решатели и конвертеры — с двумерным вводом формул.</p>
+          <a href="/mini-services/">Попробовать</a>
+        </div>
+
+        <div class="section-card mf-ticks">
+          <span class="card-num">§ 03</span>
+          <h3>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+            </svg>
+            Форум
+          </h3>
+          <p>Обсуждайте задачи, разбирайте решения, помогайте друг другу.</p>
+          <a href="/forum/">Перейти</a>
+        </div>
+
+        <div class="section-card mf-ticks">
+          <span class="card-num">§ 04</span>
+          <h3>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round">
+              <rect x="4" y="8" width="16" height="12" rx="3"/>
+              <path d="M12 3v5M9 14h.01M15 14h.01"/>
+            </svg>
+            AI‑агент
+          </h3>
+          <p>Объяснение или решение от помощника, который понимает контекст темы.</p>
+          <a href="/ai-agent/">Задать вопрос</a>
+        </div>
+
+        <div class="section-card mf-ticks">
+          <span class="card-num">§ 05</span>
+          <h3>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>
+            </svg>
+            Песочница
+          </h3>
+          <p>Программируйте интерактивные сцены на языке GMS — в 2D и 3D.</p>
+          <a href="/playground/">Открыть редактор</a>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <div id="app-footer"></div>
+
+  <script>var PAGE_ROOT = '/';</script>
+  <script src="/assets/js/mathframe-ui.js"></script>
+  <script src="/assets/js/auth.js"></script>
+  <script src="/assets/js/common.js"></script>
+
+  <script>
+  /* Логотип подстраивается под тему; если файла нет — просто прячется
+     (onerror в разметке), страница от этого не ломается. */
+  (function () {
+    var logo = document.getElementById('heroLogo');
+    if (!logo) return;
+    function apply() {
+      var light = document.documentElement.classList.contains('light');
+      var src = light ? logo.dataset.lightSrc : logo.dataset.darkSrc;
+      if (src && logo.getAttribute('src') !== src) logo.setAttribute('src', src);
+    }
+    apply();
+    try {
+      new MutationObserver(apply).observe(document.documentElement,
+        { attributes: true, attributeFilter: ['class'] });
+    } catch (e) {}
+  })();
+  </script>
+</body>
+</html>
