@@ -23,26 +23,23 @@
      слой) приходит из общей дизайн-системы /assets/css/common.css.
 
      Что убрано по сравнению с прежней версией и почему:
-       • .side-window с картинками side-left.png / side-right.png —
-         они и были источником выезда за край на узких экранах, а фон
-         теперь рисуется процедурно (см. mathframe-ui.js);
+       • .side-window с картинками side-left.png / side-right.png — убраны
+         совсем: они наезжали на текст и выезжали за край на узких экранах;
        • hero-bg.webp — не нужен по той же причине;
        • min-height:100vh — на iOS 100vh больше видимой области, низ уезжал
          под адресную строку; теперь svh с запасным вариантом.
      ====================================================================== */
 
 
-  /* ===== ФОН HERO И БОКОВЫЕ ПАНЕЛИ (возвращены) =====
-     Порядок слоёв в hero снизу вверх:
-       1. background-image  — картинка hero-bg (самый низ)
-       2. canvas трассеров  — z-index:1, ставит mathframe-ui.js
-       3. .hero-content     — z-index:2
-       4. .side-window      — z-index:3, поверх частиц
-     Если файлов картинок нет, background-image просто не отрисуется и
-     останется background-color — страница не ломается. */
+  /* ===== ФОН HERO =====
+     Порядок слоёв снизу вверх:
+       1. background-image      — картинка hero-bg
+       2. canvas трассеров      — z-index:1, ставит mathframe-ui.js
+       3. .hero::after          — z-index:2, растворяющий градиент внизу
+       4. .hero-inner (контент) — z-index:3
+     Если картинки нет, background-image не отрисуется и останется
+     background-color — страница не ломается. */
   :root{
-    --side-left-width:650px;  --side-left-top:33%;  --side-left-offset:3%;
-    --side-right-width:600px; --side-right-top:23%; --side-right-offset:3%;
     --hero-bg-dark:url('/assets/img/hero-bg.webp');
     --hero-bg-light:url('/assets/img/hero-bg-light.webp');
     --hero-bg:var(--hero-bg-dark);
@@ -53,25 +50,6 @@
     --hero-bg-color:#f0f4ff;
   }
 
-  .side-window{
-    position:absolute;z-index:3;
-    background:none;border:none;padding:0;
-    filter:drop-shadow(0 10px 20px rgba(0,0,0,.6));
-    opacity:0;
-    animation:fadeInSide .8s ease forwards;animation-delay:.6s;
-    pointer-events:none;
-  }
-  .side-window img{width:100%;height:auto;display:block}
-  .side-window.left{
-    left:var(--side-left-offset);top:var(--side-left-top);
-    width:var(--side-left-width);transform:translateX(-25px);
-  }
-  .side-window.right{
-    right:var(--side-right-offset);top:var(--side-right-top);
-    width:var(--side-right-width);transform:translateX(25px);
-  }
-  @keyframes fadeInSide{to{opacity:1;transform:translateX(0)}}
-  @media (max-width:1024px){ .side-window{display:none} }
 
   /* Hero занимает ВСЮ ширину окна: иначе фоновая картинка обрезалась бы по
      1180px и по бокам оставались полосы, а боковые панели (они позиционируются
@@ -95,8 +73,35 @@
     background-repeat:no-repeat;
     transition:background-color .4s ease, background-image .4s ease;
   }
+  /* Растворение низа hero в фоне страницы: картинка и частицы плавно уходят
+     в --bg-body, поэтому стык с блоком разделов не читается как линия.
+     Градиент перекрывает и фон, и трассеры (z-index:2), но лежит под
+     контентом (.hero-inner, z-index:3), чтобы не гасить текст и кнопки.
+     Высота в vh с потолком в px: на низких экранах градиент не должен
+     съедать половину первого экрана. */
+  .hero::after{
+    content:'';
+    position:absolute;left:0;right:0;bottom:0;
+    height:min(22vh,180px);
+    z-index:2;
+    pointer-events:none;
+    background:linear-gradient(to bottom,
+      rgba(0,0,0,0) 0%,
+      color-mix(in srgb, var(--bg-body) 55%, transparent) 55%,
+      var(--bg-body) 100%);
+  }
+  /* Резервный вариант там, где нет color-mix */
+  @supports not (color: color-mix(in srgb, red 50%, transparent)){
+    .hero::after{
+      background:linear-gradient(to bottom, rgba(2,4,8,0) 0%, rgba(2,4,8,.6) 55%, #04060c 100%);
+    }
+    html.light .hero::after{
+      background:linear-gradient(to bottom, rgba(251,252,254,0) 0%, rgba(251,252,254,.6) 55%, #fbfcfe 100%);
+    }
+  }
+
   .hero-inner{
-    position:relative;z-index:2;
+    position:relative;z-index:3;
     display:grid;
     grid-template-columns:1.05fr .95fr;
     align-items:center;
@@ -175,7 +180,7 @@
   @keyframes figFloat{0%,100%{transform:translateY(0) rotate(0)}50%{transform:translateY(-9px) rotate(-.5deg)}}
 
   /* ---- разделы ---- */
-  .band{padding:1rem 0 2rem}
+  .band{padding:.5rem 0 2rem}
   .band-head{
     max-width:1180px;margin:0 auto 1.8rem;
     padding:0 clamp(1rem,4vw,1.5rem);
@@ -220,19 +225,6 @@
   <main>
     <!-- data-mf-tracers: сюда движок кладёт частицы, сносимые полем потока -->
     <section class="hero" id="hero" data-mf-tracers>
-      <div class="side-window left" id="sideLeft" aria-hidden="true">
-        <img id="sideLeftImg" src="/assets/img/side-left.png" alt=""
-             data-light-src="/assets/img/side-left-light.png"
-             data-dark-src="/assets/img/side-left.png"
-             onerror="this.parentNode.style.display='none'" />
-      </div>
-      <div class="side-window right" id="sideRight" aria-hidden="true">
-        <img id="sideRightImg" src="/assets/img/side-right.png" alt=""
-             data-light-src="/assets/img/side-right-light.png"
-             data-dark-src="/assets/img/side-right.png"
-             onerror="this.parentNode.style.display='none'" />
-      </div>
-
       <div class="hero-inner">
       <div class="hero-content">
         <img id="heroLogo" src="/assets/img/logo.png" alt="" class="hero-logo"
@@ -382,10 +374,10 @@
   <script src="/assets/js/common.js"></script>
 
   <script>
-  /* Картинки, зависящие от темы (логотип и боковые панели).
-     Если файла нет — onerror в разметке прячет элемент, страница не ломается. */
+  /* Логотип подстраивается под тему. Если файла нет — onerror в разметке
+     прячет картинку, страница от этого не ломается. */
   (function () {
-    var themed = ['heroLogo', 'sideLeftImg', 'sideRightImg']
+    var themed = ['heroLogo']
       .map(function (id) { return document.getElementById(id); })
       .filter(Boolean);
     function apply() {
@@ -402,56 +394,6 @@
     } catch (e) {}
   })();
 
-  /* Боковые панели: прозрачность, порог показа и параллакс.
-     Прежний порог (ratio >= 4.7/3) оставлял панели на планшетах в альбомной
-     ориентации, где они наезжали на текст. Теперь дополнительно требуем, чтобы
-     между панелями оставалось достаточно места под контент. */
-  (function () {
-    var SIDE_OPACITY = 0.9;
-    var MIN_WIDTH = 1280;          // раньше 1024 — этого не хватало
-    var ASPECT_MIN = 4.7 / 3;
-
-    var L = document.getElementById('sideLeft');
-    var R = document.getElementById('sideRight');
-    if (!L || !R) return;
-
-    var on = false;
-    function check() {
-      var ratio = window.innerWidth / window.innerHeight;
-      on = window.innerWidth >= MIN_WIDTH && ratio >= ASPECT_MIN;
-      L.style.display = on ? '' : 'none';
-      R.style.display = on ? '' : 'none';
-      if (on) { L.style.opacity = String(SIDE_OPACITY); R.style.opacity = String(SIDE_OPACITY); }
-    }
-    check();
-    window.addEventListener('resize', check);
-
-    function settle(el) {
-      el.style.animation = 'none';
-      el.style.opacity = String(SIDE_OPACITY);
-      el.style.transform = 'translateX(0)';
-    }
-    L.addEventListener('animationend', function () { settle(L); }, { once: true });
-    R.addEventListener('animationend', function () { settle(R); }, { once: true });
-    setTimeout(function () { settle(L); settle(R); }, 1600);
-
-    var reduced = false;
-    try { reduced = matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
-    if (reduced) return;
-
-    var raf = null, tx = 0, ty = 0;
-    document.addEventListener('pointermove', function (e) {
-      if (!on || (e.pointerType && e.pointerType !== 'mouse')) return;
-      tx = (e.clientX / window.innerWidth - 0.5);
-      ty = (e.clientY / window.innerHeight - 0.5);
-      if (raf) return;
-      raf = requestAnimationFrame(function () {
-        raf = null;
-        L.style.transform = 'translate(' + (tx * 12).toFixed(2) + 'px,' + (ty * 12).toFixed(2) + 'px)';
-        R.style.transform = 'translate(' + (-tx * 9).toFixed(2) + 'px,' + (-ty * 9).toFixed(2) + 'px)';
-      });
-    }, { passive: true });
-  })();
   </script>
 </body>
 </html>
