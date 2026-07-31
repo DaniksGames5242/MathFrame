@@ -562,27 +562,38 @@
     nav.__mfNav = true;
     var ind = el('span', 'mf-nav-indicator', nav);
 
-    function moveTo(a, on) {
-      if (!a) { ind.classList.remove('mf-on'); return; }
+    function moveTo(a) {
       var nr = nav.getBoundingClientRect(), ar = a.getBoundingClientRect();
-      if (!ar.width) { ind.classList.remove('mf-on'); return; }
+      if (!ar.width) return;
       ind.style.width = ar.width + 'px';
       ind.style.transform = 'translateX(' + (ar.left - nr.left) + 'px)';
-      if (on) ind.classList.add('mf-on');
+      ind.classList.add('mf-on');
     }
-    function activeLink() { return nav.querySelector('a.active'); }
-    function reset() { moveTo(activeLink(), true); }
+    function hide() { ind.classList.remove('mf-on'); }
 
+    // Индикатор — реакция на наведение. Текущий раздел помечает статическое
+    // подчёркивание в CSS (a.active::after), поэтому полоска есть всегда, даже
+    // если JS не отработал, и не зависит от того, нашла ли шапка активную
+    // ссылку. Раньше индикатор в покое вставал под .active, и на главной, где
+    // common.js не помечает активной ни одну ссылку (её просто нет в меню),
+    // не было видно вообще ничего.
     nav.querySelectorAll('a').forEach(function (a) {
-      a.addEventListener('pointerenter', function () { moveTo(a, true); });
+      a.addEventListener('pointerenter', function (e) {
+        if (e.pointerType && e.pointerType !== 'mouse') return;
+        moveTo(a);
+      });
     });
-    nav.addEventListener('pointerleave', reset);
-    window.addEventListener('resize', reset);
-    requestAnimationFrame(reset);
-    setTimeout(reset, 300);
-    // шрифты догружаются и меняют ширину ссылок — пересчитываем
-    if (document.fonts && document.fonts.ready) {
-      document.fonts.ready.then(reset).catch(function () {});
+    nav.addEventListener('pointerleave', hide);
+    window.addEventListener('resize', hide);
+
+    // Рядом с логотипом ставим словесный знак, если его нет в разметке:
+    // common.js рисует только картинку, а «Math⁠Frame» — часть фирменного стиля.
+    var logo = document.querySelector('#app-header .logo-container');
+    if (logo && !logo.querySelector('.logo-wordmark')) {
+      var wm = document.createElement('span');
+      wm.className = 'logo-wordmark';
+      wm.innerHTML = 'Math<em>Frame</em>';
+      logo.appendChild(wm);
     }
   }
 
