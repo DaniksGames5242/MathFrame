@@ -12,7 +12,7 @@
     { "source": "/pages/gms-ide.html", "destination": "/admin/gms-ide", "permanent": true }
   ],
   "rewrites": [
-    { "source": "/", "destination": "/pages/home.html" },
+    { "source": "/", "destination": "/pages/home.html" }, 
     { "source": "/spravochnik", "destination": "/pages/spravochnik.html" },
     { "source": "/forum", "destination": "/pages/forum.html" },
     { "source": "/ai-agent", "destination": "/pages/ai-agent.html" },
