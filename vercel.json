@@ -3,23 +3,23 @@
   "redirects": [
     { "source": "/index.html", "destination": "/", "permanent": true },
     { "source": "/pages/home.html", "destination": "/", "permanent": true },
-    { "source": "/pages/spravochnik.html", "destination": "/spravochnik", "permanent": true },
-    { "source": "/pages/forum.html", "destination": "/forum", "permanent": true },
-    { "source": "/pages/ai-agent.html", "destination": "/ai-agent", "permanent": true },
-    { "source": "/pages/mini-services.html", "destination": "/mini-services", "permanent": true },
-    { "source": "/pages/playground.html", "destination": "/playground", "permanent": true },
-    { "source": "/pages/admin.html", "destination": "/admin", "permanent": true },
-    { "source": "/pages/gms-ide.html", "destination": "/admin/gms-ide", "permanent": true }
+    { "source": "/pages/spravochnik.html", "destination": "/spravochnik/", "permanent": true },
+    { "source": "/pages/forum.html", "destination": "/forum/", "permanent": true },
+    { "source": "/pages/ai-agent.html", "destination": "/ai-agent/", "permanent": true },
+    { "source": "/pages/mini-services.html", "destination": "/mini-services/", "permanent": true },
+    { "source": "/pages/playground.html", "destination": "/playground/", "permanent": true },
+    { "source": "/pages/admin.html", "destination": "/admin/", "permanent": true },
+    { "source": "/pages/gms-ide.html", "destination": "/admin/gms-ide/", "permanent": true }
   ],
   "rewrites": [
     { "source": "/", "destination": "/pages/home.html" },
-    { "source": "/spravochnik", "destination": "/pages/spravochnik.html" },
-    { "source": "/forum", "destination": "/pages/forum.html" },
-    { "source": "/ai-agent", "destination": "/pages/ai-agent.html" },
-    { "source": "/mini-services", "destination": "/pages/mini-services.html" },
-    { "source": "/playground", "destination": "/pages/playground.html" },
-    { "source": "/admin", "destination": "/pages/admin.html" },
-    { "source": "/admin/gms-ide", "destination": "/pages/gms-ide.html" }
+    { "source": "/spravochnik/", "destination": "/pages/spravochnik.html" },
+    { "source": "/forum/", "destination": "/pages/forum.html" },
+    { "source": "/ai-agent/", "destination": "/pages/ai-agent.html" },
+    { "source": "/mini-services/", "destination": "/pages/mini-services.html" },
+    { "source": "/playground/", "destination": "/pages/playground.html" },
+    { "source": "/admin/", "destination": "/pages/admin.html" },
+    { "source": "/admin/gms-ide/", "destination": "/pages/gms-ide.html" }
   ],
   "headers": [
     {
