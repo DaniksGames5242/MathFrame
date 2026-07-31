@@ -549,11 +549,17 @@
     }, { passive: true });
   }
 
-  /* -------------------------------------------------------------------- 6. nav */
+  /* -------------------------------------------------------------------- 6. nav
+     Шапку рисует common.js, причём иногда ПОЗЖЕ, чем отрабатывает boot()
+     (например, после ответа Firebase). Раньше initNav в этом случае просто
+     выходил и больше не возвращался — поэтому на сайте индикатор не появлялся,
+     хотя в автономном превью со статической шапкой всё работало.
+     Теперь ждём появления шапки в DOM. */
   function initNav() {
     var nav = document.getElementById('app-nav');
-    if (!nav) return;
-    if (nav.querySelector('.mf-nav-indicator')) return;
+    if (!nav) { waitForNav(); return; }
+    if (nav.__mfNav) return;
+    nav.__mfNav = true;
     var ind = el('span', 'mf-nav-indicator', nav);
 
     function moveTo(a, on) {
@@ -572,9 +578,28 @@
     });
     nav.addEventListener('pointerleave', reset);
     window.addEventListener('resize', reset);
-    // шапку рисует common.js — ссылки могут появиться на кадр позже
     requestAnimationFrame(reset);
     setTimeout(reset, 300);
+    // шрифты догружаются и меняют ширину ссылок — пересчитываем
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(reset).catch(function () {});
+    }
+  }
+
+  var navWatcher = null;
+  function waitForNav() {
+    if (navWatcher || !window.MutationObserver) return;
+    navWatcher = new MutationObserver(function () {
+      if (document.getElementById('app-nav')) {
+        navWatcher.disconnect(); navWatcher = null;
+        initNav();
+      }
+    });
+    navWatcher.observe(document.body, { childList: true, subtree: true });
+    // страховка на случай, если шапка так и не появится
+    setTimeout(function () {
+      if (navWatcher) { navWatcher.disconnect(); navWatcher = null; }
+    }, 15000);
   }
 
   /* ----------------------------------------------------------------- 7. reveal */
