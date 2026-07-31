@@ -12,7 +12,7 @@
     { "source": "/pages/gms-ide.html", "destination": "/admin/gms-ide", "permanent": true }
   ],
   "rewrites": [
-    { "source": "/", "destination": "/pages/home.html" }, 
+    { "source": "/", "destination": "/pages/home.html" },
     { "source": "/spravochnik", "destination": "/pages/spravochnik.html" },
     { "source": "/forum", "destination": "/pages/forum.html" },
     { "source": "/ai-agent", "destination": "/pages/ai-agent.html" },
@@ -23,7 +23,34 @@
   ],
   "headers": [
     {
-      "source": "/assets/(.*)",
+      "//": "CSS и JS лежат под постоянными именами (common.css, mathframe-ui.js), без хеша в имени. Долгий immutable-кэш для них НЕЛЬЗЯ: браузер не перезапрашивает файл даже при обычной перезагрузке, и правки не доезжают. no-cache не значит «не кэшировать» — файл кэшируется, но каждый раз сверяется с сервером и отдаётся 304, если не менялся.",
+      "source": "/assets/css/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, no-cache" }
+      ]
+    },
+    {
+      "source": "/assets/js/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, no-cache" }
+      ]
+    },
+    {
+      "//": "Картинки меняются редко, но всё же меняются — неделя без immutable.",
+      "source": "/assets/img/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=604800" }
+      ]
+    },
+    {
+      "//": "Шрифты и вендорные библиотеки не меняются никогда — им immutable уместен.",
+      "source": "/assets/fonts/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+      ]
+    },
+    {
+      "source": "/assets/lib/(.*)",
       "headers": [
         { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
       ]
