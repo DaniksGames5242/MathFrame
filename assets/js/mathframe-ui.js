@@ -366,19 +366,32 @@
     var P = [];
     var SCALE = 2.7;
 
+    // Границы засева в координатах поля.
+    // Отображение p -> пиксели масштабируется по МЕНЬШЕЙ стороне (чтобы поток
+    // не искажался), поэтому на широком блоке квадрат [-SCALE, SCALE]² покрывает
+    // лишь центральную часть, и по краям частиц не было. Считаем видимую область
+    // честно, отдельно по каждой оси.
+    var BX = SCALE, BY = SCALE;
+    function updateBounds(w, h) {
+      var mn = Math.min(w, h) || 1;
+      BX = SCALE * w / mn;
+      BY = SCALE * h / mn;
+    }
+
     function spawn(p) {
-      p.x = (Math.random() * 2 - 1) * SCALE;
-      p.y = (Math.random() * 2 - 1) * SCALE;
+      p.x = (Math.random() * 2 - 1) * BX;
+      p.y = (Math.random() * 2 - 1) * BY;
       p.life = 0;
       p.max = 90 + Math.random() * 190;
       p.w = 0.5 + Math.random() * 1.1;
     }
+    updateBounds(host.clientWidth * dpr, host.clientHeight * dpr);
     for (var i = 0; i < N; i++) { var p = {}; spawn(p); p.life = Math.random() * p.max; P.push(p); }
 
     function resize() {
       var w = Math.max(1, Math.floor(host.clientWidth * dpr));
       var h = Math.max(1, Math.floor(host.clientHeight * dpr));
-      if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+      if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; updateBounds(w, h); }
     }
 
     var out = [0, 0];
@@ -410,7 +423,7 @@
           p.x += nx * step; p.y += ny * step;
           p.life += 1;
 
-          if (p.life > p.max || Math.abs(p.x) > SCALE * 1.2 || Math.abs(p.y) > SCALE * 1.2) {
+          if (p.life > p.max || Math.abs(p.x) > BX * 1.15 || Math.abs(p.y) > BY * 1.15) {
             spawn(p); continue;
           }
           // p-пространство -> пиксели
