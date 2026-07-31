@@ -73,14 +73,16 @@
   @keyframes fadeInSide{to{opacity:1;transform:translateX(0)}}
   @media (max-width:1024px){ .side-window{display:none} }
 
+  /* Hero занимает ВСЮ ширину окна: иначе фоновая картинка обрезалась бы по
+     1180px и по бокам оставались полосы, а боковые панели (они позиционируются
+     absolute относительно .hero) уезжали к центру вместо краёв экрана.
+     Ограничение ширины перенесено внутрь, на .hero-inner. */
   .hero{
     position:relative;
-    display:grid;
-    grid-template-columns:1.05fr .95fr;
+    width:100%;
+    display:flex;
+    justify-content:center;
     align-items:center;
-    gap:3rem;
-    max-width:1180px;
-    margin:0 auto;
     padding:3rem clamp(1rem,4vw,1.5rem) 4rem;
     padding-left:max(clamp(1rem,4vw,1.5rem),var(--safe-l));
     padding-right:max(clamp(1rem,4vw,1.5rem),var(--safe-r));
@@ -92,6 +94,15 @@
     background-position:center;
     background-repeat:no-repeat;
     transition:background-color .4s ease, background-image .4s ease;
+  }
+  .hero-inner{
+    position:relative;z-index:2;
+    display:grid;
+    grid-template-columns:1.05fr .95fr;
+    align-items:center;
+    gap:3rem;
+    width:100%;
+    max-width:1180px;
   }
   @supports (min-height:100svh){
     .hero{min-height:calc(100svh - var(--header-height) - var(--safe-t))}
@@ -180,7 +191,8 @@
   }
 
   @media (max-width:900px){
-    .hero{grid-template-columns:1fr;gap:1.8rem;padding-top:2rem;min-height:0}
+    .hero{padding-top:2rem;min-height:0}
+    .hero-inner{grid-template-columns:1fr;gap:1.8rem}
     .hero-figure{order:-1;max-width:320px;margin:0 auto}
     .hero-logo{height:52px}
   }
@@ -221,6 +233,7 @@
              onerror="this.parentNode.style.display='none'" />
       </div>
 
+      <div class="hero-inner">
       <div class="hero-content">
         <img id="heroLogo" src="/assets/img/logo.png" alt="" class="hero-logo"
              data-light-src="/assets/img/logo-light.png"
@@ -264,13 +277,21 @@
             <circle class="fig-pt figFade" style="--d:.95s" cx="130" cy="250" r="4"/>
             <circle class="fig-pt figFade" style="--d:1s"   cx="130" cy="160" r="4"/>
             <circle class="fig-pt figFade" style="--d:1.05s" cx="220" cy="250" r="4"/>
-            <text class="fig-lbl figFade" style="--d:2s"    x="108" y="208">a</text>
-            <text class="fig-lbl figFade" style="--d:2.05s" x="171" y="272">b</text>
-            <text class="fig-lbl figFade" style="--d:2.1s"  x="169" y="198">c</text>
-            <text class="fig-lbl figFade" style="--d:2.35s" x="236" y="300"
+            <!-- a: середина катета (130,205), выносим влево от линии -->
+            <text class="fig-lbl figFade" style="--d:2s" x="122" y="205"
+                  text-anchor="end" dominant-baseline="middle">a</text>
+            <!-- b: середина катета (175,250), выносим вниз -->
+            <text class="fig-lbl figFade" style="--d:2.05s" x="175" y="266"
+                  text-anchor="middle" dominant-baseline="middle">b</text>
+            <!-- c: середина гипотенузы (175,205) + отступ по внешней нормали (1,-1)/√2 -->
+            <text class="fig-lbl figFade" style="--d:2.1s" x="188" y="192"
+                  text-anchor="middle" dominant-baseline="middle">c</text>
+            <text class="fig-lbl figFade" style="--d:2.35s" x="250" y="298"
+                  text-anchor="middle" dominant-baseline="middle"
                   font-size="18" fill="var(--accent)">c² = a² + b²</text>
           </g>
         </svg>
+      </div>
       </div>
     </section>
 
