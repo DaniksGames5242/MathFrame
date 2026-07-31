@@ -351,8 +351,20 @@ h1, h2, h3, h4, h5, h6 {
 }
 #app-header nav a:hover { color: var(--text-primary); background: var(--accent-soft); }
 #app-header nav a.active { color: var(--accent); }
-/* Старое подчёркивание отключаем — вместо него общий скользящий индикатор */
-#app-header nav a::after { display: none; }
+/* Текущий раздел помечен статическим подчёркиванием: оно не зависит от JS,
+   поэтому полоска под активным пунктом есть всегда. Скользящий индикатор
+   (.mf-nav-indicator) — отдельный слой и отвечает только за наведение. */
+#app-header nav a::after {
+  content: '';
+  position: absolute;
+  left: .85rem; right: .85rem; bottom: -2px;
+  height: 2px; border-radius: 2px;
+  background: var(--accent);
+  transform: scaleX(0);
+  transform-origin: center;
+  transition: transform var(--t) var(--e-out);
+}
+#app-header nav a.active::after { transform: scaleX(1); }
 
 /* Скользящий индикатор («касательная»), позиционируется из JS */
 .mf-nav-indicator {
@@ -1027,7 +1039,7 @@ a, button, .section-card, .mf-card, .theme-option, .account-circle {
     border: none; opacity: 1;
   }
   .modal::after { display: none; }
-  .modal-header { margin-top: .6rem; } 
+  .modal-header { margin-top: .6rem; }
 }
 
 /* ============================================================================
