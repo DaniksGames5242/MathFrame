@@ -1,64 +1,139 @@
 {
   "trailingSlash": true,
   "redirects": [
-    { "source": "/index.html", "destination": "/", "permanent": true },
-    { "source": "/pages/home.html", "destination": "/", "permanent": true },
-    { "source": "/pages/spravochnik.html", "destination": "/spravochnik/", "permanent": true },
-    { "source": "/pages/forum.html", "destination": "/forum/", "permanent": true },
-    { "source": "/pages/ai-agent.html", "destination": "/ai-agent/", "permanent": true },
-    { "source": "/pages/mini-services.html", "destination": "/mini-services/", "permanent": true },
-    { "source": "/pages/playground.html", "destination": "/playground/", "permanent": true },
-    { "source": "/pages/admin.html", "destination": "/admin/", "permanent": true },
-    { "source": "/pages/gms-ide.html", "destination": "/admin/gms-ide/", "permanent": true }
+    {
+      "source": "/index.html",
+      "destination": "/",
+      "permanent": true
+    },
+    {
+      "source": "/pages/home.html",
+      "destination": "/",
+      "permanent": true
+    },
+    {
+      "source": "/pages/spravochnik.html",
+      "destination": "/spravochnik/",
+      "permanent": true
+    },
+    {
+      "source": "/pages/forum.html",
+      "destination": "/forum/",
+      "permanent": true
+    },
+    {
+      "source": "/pages/ai-agent.html",
+      "destination": "/ai-agent/",
+      "permanent": true
+    },
+    {
+      "source": "/pages/mini-services.html",
+      "destination": "/mini-services/",
+      "permanent": true
+    },
+    {
+      "source": "/pages/playground.html",
+      "destination": "/playground/",
+      "permanent": true
+    },
+    {
+      "source": "/pages/admin.html",
+      "destination": "/admin/",
+      "permanent": true
+    },
+    {
+      "source": "/pages/gms-ide.html",
+      "destination": "/admin/gms-ide/",
+      "permanent": true
+    }
   ],
   "rewrites": [
-    { "source": "/", "destination": "/pages/home.html" },
-    { "source": "/spravochnik/", "destination": "/pages/spravochnik.html" },
-    { "source": "/forum/", "destination": "/pages/forum.html" },
-    { "source": "/ai-agent/", "destination": "/pages/ai-agent.html" },
-    { "source": "/mini-services/", "destination": "/pages/mini-services.html" },
-    { "source": "/playground/", "destination": "/pages/playground.html" },
-    { "source": "/admin/", "destination": "/pages/admin.html" },
-    { "source": "/admin/gms-ide/", "destination": "/pages/gms-ide.html" }
+    {
+      "source": "/",
+      "destination": "/pages/home.html"
+    },
+    {
+      "source": "/spravochnik/",
+      "destination": "/pages/spravochnik.html"
+    },
+    {
+      "source": "/forum/",
+      "destination": "/pages/forum.html"
+    },
+    {
+      "source": "/ai-agent/",
+      "destination": "/pages/ai-agent.html"
+    },
+    {
+      "source": "/mini-services/",
+      "destination": "/pages/mini-services.html"
+    },
+    {
+      "source": "/playground/",
+      "destination": "/pages/playground.html"
+    },
+    {
+      "source": "/admin/",
+      "destination": "/pages/admin.html"
+    },
+    {
+      "source": "/admin/gms-ide/",
+      "destination": "/pages/gms-ide.html"
+    }
   ],
   "headers": [
     {
-      "//": "CSS и JS лежат под постоянными именами (common.css, mathframe-ui.js), без хеша в имени. Долгий immutable-кэш для них НЕЛЬЗЯ: браузер не перезапрашивает файл даже при обычной перезагрузке, и правки не доезжают. no-cache не значит «не кэшировать» — файл кэшируется, но каждый раз сверяется с сервером и отдаётся 304, если не менялся.",
       "source": "/assets/css/(.*)",
       "headers": [
-        { "key": "Cache-Control", "value": "public, no-cache" }
+        {
+          "key": "Cache-Control",
+          "value": "public, no-cache"
+        }
       ]
     },
     {
       "source": "/assets/js/(.*)",
       "headers": [
-        { "key": "Cache-Control", "value": "public, no-cache" }
+        {
+          "key": "Cache-Control",
+          "value": "public, no-cache"
+        }
       ]
     },
     {
-      "//": "Картинки меняются редко, но всё же меняются — неделя без immutable.",
       "source": "/assets/img/(.*)",
       "headers": [
-        { "key": "Cache-Control", "value": "public, max-age=604800" }
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=604800"
+        }
       ]
     },
     {
-      "//": "Шрифты и вендорные библиотеки не меняются никогда — им immutable уместен.",
       "source": "/assets/fonts/(.*)",
       "headers": [
-        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
       ]
     },
     {
       "source": "/assets/lib/(.*)",
       "headers": [
-        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
       ]
     },
     {
       "source": "/data/(.*)",
       "headers": [
-        { "key": "Cache-Control", "value": "public, max-age=300, must-revalidate" }
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=300, must-revalidate"
+        }
       ]
     }
   ]
