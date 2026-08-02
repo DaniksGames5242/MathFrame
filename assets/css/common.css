@@ -476,7 +476,7 @@ h1, h2, h3, h4, h5, h6 {
 /* ============================================================================
    8. КАРТОЧКИ-«ГРАФИКИ» (.section-card + новый .mf-card)
    ========================================================================== */
-.section-card, .mf-card {
+.section-card, .mf-card, .svc {
   position: relative;
   background: var(--bg-card);
   backdrop-filter: blur(18px) saturate(140%);
@@ -490,7 +490,7 @@ h1, h2, h3, h4, h5, h6 {
               box-shadow var(--t-slow), background var(--t-slow);
 }
 /* Внутренняя «сетка графика» проявляется при наведении */
-.section-card::before, .mf-card::before {
+.section-card::before, .mf-card::before, .svc::before {
   content: ''; position: absolute; inset: 0; pointer-events: none;
   background-image:
     linear-gradient(to right, var(--mf-grid-major) 1px, transparent 1px),
@@ -501,17 +501,17 @@ h1, h2, h3, h4, h5, h6 {
   -webkit-mask-image: radial-gradient(circle at var(--mx, 50%) var(--my, 50%), #000 0%, transparent 62%);
   mask-image: radial-gradient(circle at var(--mx, 50%) var(--my, 50%), #000 0%, transparent 62%);
 }
-.section-card:hover::before, .mf-card:hover::before { opacity: 1; }
+.section-card:hover::before, .mf-card:hover::before, .svc:hover::before { opacity: 1; }
 /* Светящийся ободок, следящий за курсором */
-.section-card::after, .mf-card::after {
+.section-card::after, .mf-card::after, .svc::after {
   content: ''; position: absolute; inset: -1px; border-radius: inherit;
   pointer-events: none; opacity: 0;
   background: radial-gradient(320px circle at var(--mx, 50%) var(--my, 50%), var(--accent-soft), transparent 70%);
   transition: opacity var(--t-slow) var(--e-out);
 }
-.section-card:hover::after, .mf-card:hover::after { opacity: 1; }
+.section-card:hover::after, .mf-card:hover::after, .svc:hover::after { opacity: 1; }
 
-.section-card:hover, .mf-card:hover {
+.section-card:hover, .mf-card:hover, .svc:hover {
   border-color: var(--border-strong);
   box-shadow: var(--shadow-lg), 0 0 0 1px var(--accent-soft);
 }
@@ -897,9 +897,9 @@ body { padding-top: calc(var(--header-height) + var(--safe-t)); }
 /* 17.4 Тач-устройства: :hover залипает — отключаем всё, что «остаётся».
    Обратная связь даётся через :active, который на тапе корректно снимается. */
 @media (hover: none), (pointer: coarse) {
-  .section-card:hover, .mf-card:hover { transform: none !important; }
-  .section-card::after, .mf-card::after,
-  .section-card::before, .mf-card::before { opacity: 0 !important; }
+  .section-card:hover, .mf-card:hover, .svc:hover { transform: none !important; }
+  .section-card::after, .mf-card::after, .svc::after,
+  .section-card::before, .mf-card::before, .svc::before { opacity: 0 !important; }
   .btn:hover { transform: none; box-shadow: none; }
   .btn:active { transform: scale(.97); background: var(--accent-soft); }
   .section-card:active, .mf-card:active {
