@@ -1,1072 +1,1086 @@
-// common.js – шапка, подвал, тема, аутентификация и настройки
+/* ============================================================================
+   MathFrame — единая дизайн-система «Плоскость»
+   ----------------------------------------------------------------------------
+   Идея: весь сайт — это одна большая координатная плоскость. Отсюда все
+   отличительные элементы: миллиметровая сетка-подложка, засечки (ticks) по углам
+   карточек, «оси» под заголовками, монотипные подписи-координаты, и живой
+   процедурный фон (см. mathframe-ui.js).
 
-// ===== АДМИН / FIRESTORE (пользователи, посещения, доступ к панели) =====
-const SUPER_ADMIN_EMAIL = 'mathframe.ru@gmail.com';
-let _firestoreLoadingPromise = null;
-function ensureFirestore() {
-    if (window.firebase && firebase.firestore) return Promise.resolve();
-    if (_firestoreLoadingPromise) return _firestoreLoadingPromise;
-    _firestoreLoadingPromise = new Promise((resolve, reject) => {
-        const s = document.createElement('script');
-        s.src = 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js';
-        s.onload = resolve;
-        s.onerror = reject;
-        document.head.appendChild(s);
-    });
-    return _firestoreLoadingPromise;
+   ВАЖНО: файл сохраняет ВСЕ прежние имена классов (header/nav/modal/btn/
+   auth-tab/settings-field/theme-option/account-circle/footer и т.д.), потому что
+   их генерирует common.js. Новое добавляется, старое не ломается.
+   ========================================================================== */
+
+/* ===== 0. СБРОС ===== */
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+/* ===== 1. ШРИФТЫ =====
+   Заголовки набираются гарнитурой KaTeX_Main — это производная Computer Modern,
+   т.е. буквально шрифт из LaTeX. Он уже есть на сайте (KaTeX лежит в
+   /assets/lib/katex/), поэтому новых ассетов не требуется, а «математичность»
+   считывается мгновенно. Если файлов нет — стек аккуратно деградирует до
+   локального BodyFont / системной серифы. */
+@font-face {
+  font-family: 'MFDisplay';
+  src: url('/assets/lib/katex/fonts/KaTeX_Main-Regular.woff2') format('woff2');
+  font-weight: 400; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'MFDisplay';
+  src: url('/assets/lib/katex/fonts/KaTeX_Main-Bold.woff2') format('woff2');
+  font-weight: 700; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'MFDisplay';
+  src: url('/assets/lib/katex/fonts/KaTeX_Main-Italic.woff2') format('woff2');
+  font-weight: 400; font-style: italic; font-display: swap;
+}
+@font-face {
+  font-family: 'MFMath';
+  src: url('/assets/lib/katex/fonts/KaTeX_Math-Italic.woff2') format('woff2');
+  font-weight: 400; font-style: italic; font-display: swap;
 }
 
-function trackVisit() {
-    if (sessionStorage.getItem('mf_visit_tracked')) return;
-    ensureFirestore().then(() => {
-        const db = firebase.firestore();
-        const today = new Date().toISOString().slice(0, 10);
-        return db.collection('stats').doc('visits').set({
-            total: firebase.firestore.FieldValue.increment(1),
-            days: { [today]: firebase.firestore.FieldValue.increment(1) }
-        }, { merge: true });
-    }).then(() => sessionStorage.setItem('mf_visit_tracked', '1')).catch(() => {});
+/* ===== 2. ТОКЕНЫ ===== */
+:root {
+  /* -- палитра: тёмная тема (по умолчанию) -- */
+  --mf-ink-0: #04060c;   /* самый глубокий фон */
+  --mf-ink-1: #070a14;
+  --mf-ink-2: #0c1120;
+  --mf-ink-3: #131a2d;
+
+  --accent:        #5b8cff;  /* «синий оси» — основной */
+  --accent-hover:  #7ba3ff;
+  --accent-2:      #56dcc8;  /* «бирюзовый кривой» — вторичный */
+  --accent-3:      #f2b45c;  /* «янтарный локуса» — акцент/подсветка */
+  --accent-soft:   rgba(91, 140, 255, 0.14);
+  --accent-glow:   rgba(91, 140, 255, 0.40);
+
+  --text-primary:   #e9eef9;
+  --text-secondary: #93a3c0;
+  --text-tertiary:  #66748f;
+
+  --bg-body:   var(--mf-ink-0);
+  --bg-card:   rgba(12, 17, 32, 0.66);
+  --bg-raised: rgba(19, 26, 45, 0.78);
+  --bg-sunken: rgba(4, 6, 12, 0.55);
+
+  --border:        rgba(147, 170, 220, 0.13);
+  --border-strong: rgba(147, 170, 220, 0.24);
+  --header-bg:     rgba(5, 7, 14, 0.72);
+
+  /* -- сетка-подложка -- */
+  --mf-grid-minor: rgba(120, 150, 210, 0.055);
+  --mf-grid-major: rgba(120, 150, 210, 0.10);
+  --mf-grid-step: 28px;      /* шаг мелкой клетки */
+  --mf-grid-major-every: 5;  /* каждая N-я — жирная */
+
+  /* -- тени и свечения -- */
+  --shadow-sm: 0 2px 8px rgba(0,0,0,.28);
+  --shadow:    0 12px 34px rgba(0,0,0,.42);
+  --shadow-lg: 0 30px 70px rgba(0,0,0,.55);
+  --glow:      0 0 0 1px var(--accent-soft), 0 8px 28px var(--accent-glow);
+
+  /* -- геометрия -- */
+  --r-sm: 6px;
+  --r:    10px;
+  --r-lg: 16px;
+  --r-xl: 22px;
+  --tick: 9px;               /* длина угловой засечки */
+  --header-height: 68px;
+
+  /* -- типографика -- */
+  --font-display: 'MFDisplay', 'BodyFont', 'Iowan Old Style', 'Palatino Linotype', Georgia, serif;
+  --font-sans: 'BodyFont', 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', 'JetBrains Mono', 'Cascadia Code', Menlo, Consolas, monospace;
+  --font-math: 'MFMath', 'MFDisplay', Georgia, serif;
+
+  /* -- движение -- */
+  --e-out:   cubic-bezier(0.22, 1, 0.36, 1);       /* мягкий выход */
+  --e-inout: cubic-bezier(0.65, 0, 0.35, 1);
+  --e-spring:cubic-bezier(0.34, 1.46, 0.64, 1);    /* лёгкий отскок */
+  --t-fast: 140ms;
+  --t:      240ms;
+  --t-slow: 420ms;
+  --transition-smooth: all var(--t) var(--e-out);
+  --theme-transition: background-color var(--t-slow), color var(--t-slow),
+                      border-color var(--t-slow), box-shadow var(--t-slow);
+
+  /* совместимость со старой разметкой */
+  --hero-bg-color: var(--mf-ink-0);
+  --hero-gradient-end: var(--mf-ink-0);
 }
 
-function syncUserProfile(user) {
-    if (!user) return;
-    ensureFirestore().then(() => {
-        const db = firebase.firestore();
-        const ref = db.collection('users').doc(user.uid);
-        const payload = {
-            email: user.email || null,
-            displayName: user.displayName || null,
-            photoURL: user.photoURL || null,
-            provider: (user.providerData[0] && user.providerData[0].providerId) || 'password',
-            lastLogin: firebase.firestore.FieldValue.serverTimestamp()
-        };
-        return ref.get().then(doc => {
-            if (!doc.exists) payload.createdAt = firebase.firestore.FieldValue.serverTimestamp();
-            return ref.set(payload, { merge: true });
-        });
-    }).catch(() => {});
+html.light {
+  --mf-ink-0: #fbfcfe;
+  --mf-ink-1: #f4f7fc;
+  --mf-ink-2: #ecf1f9;
+  --mf-ink-3: #e2e9f5;
+
+  --accent:       #2f5fe0;
+  --accent-hover: #244cc4;
+  --accent-2:     #0f9c8a;
+  --accent-3:     #c47f12;
+  --accent-soft:  rgba(47, 95, 224, 0.10);
+  --accent-glow:  rgba(47, 95, 224, 0.22);
+
+  --text-primary:   #101728;
+  --text-secondary: #4a5773;
+  --text-tertiary:  #7d89a3;
+
+  --bg-body:   var(--mf-ink-0);
+  --bg-card:   rgba(255, 255, 255, 0.76);
+  --bg-raised: rgba(255, 255, 255, 0.90);
+  --bg-sunken: rgba(226, 233, 245, 0.55);
+
+  --border:        rgba(20, 40, 90, 0.12);
+  --border-strong: rgba(20, 40, 90, 0.22);
+  --header-bg:     rgba(251, 252, 254, 0.76);
+
+  --mf-grid-minor: rgba(40, 70, 130, 0.055);
+  --mf-grid-major: rgba(40, 70, 130, 0.10);
+
+  --shadow-sm: 0 2px 8px rgba(20,40,90,.07);
+  --shadow:    0 12px 34px rgba(20,40,90,.10);
+  --shadow-lg: 0 30px 70px rgba(20,40,90,.14);
+
+  --hero-bg-color: var(--mf-ink-0);
+  --hero-gradient-end: var(--mf-ink-0);
 }
 
-function updateAdminNavLink(user) {
-    const link = document.getElementById('admin-nav-link');
-    if (!link) return;
-    if (!user) { link.style.display = 'none'; return; }
-    if (user.email === SUPER_ADMIN_EMAIL) { link.style.display = ''; return; }
-    ensureFirestore().then(() => {
-        return firebase.firestore().collection('admins').doc(user.uid).get();
-    }).then(doc => {
-        link.style.display = (doc.exists && doc.data().granted) ? '' : 'none';
-    }).catch(() => { link.style.display = 'none'; });
+/* ===== 3. БАЗА ===== */
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  font-family: var(--font-sans);
+  color: var(--text-primary);
+  background: var(--bg-body);
+  line-height: 1.62;
+  padding-top: var(--header-height);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: var(--theme-transition);
+  overflow-x: hidden;
+}
+body.no-scroll { overflow: hidden; }
+a { color: inherit; text-decoration: none; }
+img { max-width: 100%; display: block; }
+::selection { background: var(--accent-soft); color: var(--text-primary); }
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  line-height: 1.18;
+  letter-spacing: -0.012em;
 }
 
-// ===== КОНФИГУРАЦИЯ АНИМАЦИИ ТЕМЫ =====
-const THEME_ANIMATION_CONFIG = {
-    expandDuration: 700,
-    pauseBeforeFade: 400,
-    fadeDuration: 1000,
-};
+/* Полоса прокрутки в стиле линейки */
+* { scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 99px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover { background: var(--accent); background-clip: content-box; }
 
-// ===== ДОБАВЛЯЕМ СТИЛИ =====
-(function addGlobalStyles() {
-    const style = document.createElement('style');
-    style.textContent = `
-        #theme-selector-auth, #theme-selector-settings {
-            display: flex; 
-            justify-content: center;
-            gap: 0.5rem;
-            flex-wrap: wrap;
-        }
-        .theme-option {
-            cursor: pointer;
-            border: 2px solid transparent;
-            border-radius: 50%;
-            padding: 4px;
-            transition: border-color 0.2s;
-            background: none;
-            width: 36px;
-            height: 36px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .theme-option.active {
-            border-color: var(--accent, #007bff);
-        }
-        .theme-option img {
-            width: 24px;
-            height: 24px;
-            display: block;
-        }
+/* ============================================================================
+   4. ПОДЛОЖКА-ПЛОСКОСТЬ
+   Три слоя, все декоративные и не перехватывают события:
+     .mf-plane      — миллиметровая сетка (CSS-градиенты, дёшево)
+     #mf-canvas     — процедурный фон на WebGL (см. mathframe-ui.js)
+     .mf-vignette   — виньетка, чтобы контент читался
+   ========================================================================== */
+.mf-plane, .mf-vignette, #mf-canvas {
+  position: fixed; inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+.mf-plane {
+  background-image:
+    linear-gradient(to right, var(--mf-grid-minor) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--mf-grid-minor) 1px, transparent 1px),
+    linear-gradient(to right, var(--mf-grid-major) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--mf-grid-major) 1px, transparent 1px);
+  background-size:
+    var(--mf-grid-step) var(--mf-grid-step),
+    var(--mf-grid-step) var(--mf-grid-step),
+    calc(var(--mf-grid-step) * 5) calc(var(--mf-grid-step) * 5),
+    calc(var(--mf-grid-step) * 5) calc(var(--mf-grid-step) * 5);
+  /* Сетка «дышит»: очень медленный дрейф, почти незаметный, но живой */
+  animation: mfGridDrift 90s linear infinite;
+  transition: background-image var(--t-slow);
+}
+@keyframes mfGridDrift {
+  from { background-position: 0 0, 0 0, 0 0, 0 0; }
+  to   { background-position: var(--mf-grid-step) var(--mf-grid-step),
+                              var(--mf-grid-step) var(--mf-grid-step),
+                              calc(var(--mf-grid-step) * 5) calc(var(--mf-grid-step) * 5),
+                              calc(var(--mf-grid-step) * 5) calc(var(--mf-grid-step) * 5); }
+}
+#mf-canvas { opacity: 0; transition: opacity 1.2s var(--e-out); }
+#mf-canvas.mf-ready { opacity: 1; }
+.mf-vignette {
+  background:
+    radial-gradient(ellipse 120% 80% at 50% 0%, transparent 40%, var(--bg-body) 100%),
+    radial-gradient(ellipse 100% 60% at 50% 100%, transparent 45%, var(--bg-body) 100%);
+  opacity: .85;
+}
+/* Контент всегда над подложкой */
+#app-header, main, #app-footer, .mf-above { position: relative; z-index: 2; }
 
-        .auth-message {
-            padding: 0.8rem 1rem;
-            border-radius: 0.5rem;
-            margin-bottom: 0.8rem;
-            font-size: 0.9rem;
-            display: none;
-        }
-        .auth-message.error {
-            background: rgba(239, 68, 68, 0.15);
-            border: 1px solid rgba(239, 68, 68, 0.3);
-            color: #ef4444;
-            display: block;
-        }
-        .auth-message.success {
-            background: rgba(34, 197, 94, 0.15);
-            border: 1px solid rgba(34, 197, 94, 0.3);
-            color: #22c55e;
-            display: block;
-        }
-        .auth-message.info {
-            background: rgba(59, 130, 246, 0.15);
-            border: 1px solid rgba(59, 130, 246, 0.3);
-            color: #3b82f6;
-            display: block;
-        }
-        .auth-message .resend-link {
-            color: var(--accent);
-            cursor: pointer;
-            text-decoration: underline;
-            margin-left: 0.3rem;
-        }
-        .auth-message .resend-link:hover {
-            text-decoration: none;
-        }
-    `;
-    document.head.appendChild(style);
-})();
+/* ============================================================================
+   5. ОТЛИЧИТЕЛЬНЫЕ ЭЛЕМЕНТЫ (то, по чему сайт узнаётся)
+   ========================================================================== */
 
-document.addEventListener('DOMContentLoaded', () => {
-    if (typeof PAGE_ROOT === 'undefined') {
-        console.error('Задайте PAGE_ROOT перед common.js');
-    }
-    renderHeader();
-    renderFooter();
-    initTheme();
-    injectAuthModal();
-    injectSettingsModal();
-    trackVisit();
-
-    function initAuthWhenReady() {
-        if (window.Auth) {
-            window.Auth.onAuthChange(user => updateUIForAuth(user));
-        } else {
-            document.addEventListener('authReady', () => {
-                window.Auth.onAuthChange(user => updateUIForAuth(user));
-            });
-        }
-    }
-    initAuthWhenReady();
-});
-
-// ===== ГЛОБАЛЬНЫЕ ФЛАГИ =====
-let isThemeAnimating = false;
-
-// ===== ТЕМА =====
-function initTheme() {
-    const saved = localStorage.getItem('theme');
-    if (saved === 'light' || saved === 'dark') {
-        applyTheme(saved, false, false);
-        updateAllThemeSelections(saved);
-    } else {
-        applySystemTheme(false, false);
-        updateAllThemeSelections('system');
-        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
-            if (localStorage.getItem('theme') === 'system' || !localStorage.getItem('theme')) {
-                applySystemTheme(true, false);
-            }
-        });
-    }
+/* 5.1 Угловые засечки — «рамка графика».
+   Ставится на любой блок классом .mf-ticks. Рисуется двумя псевдоэлементами
+   через border, поэтому не требует ни SVG, ни лишних узлов DOM. */
+.mf-ticks { position: relative; }
+.mf-ticks::before, .mf-ticks::after {
+  content: '';
+  position: absolute;
+  width: var(--tick); height: var(--tick);
+  border: 1.5px solid var(--accent);
+  opacity: .5;
+  transition: opacity var(--t) var(--e-out), width var(--t) var(--e-out), height var(--t) var(--e-out);
+  pointer-events: none;
+}
+.mf-ticks::before { top: -1px; left: -1px; border-right: 0; border-bottom: 0; border-top-left-radius: 3px; }
+.mf-ticks::after { bottom: -1px; right: -1px; border-left: 0; border-top: 0; border-bottom-right-radius: 3px; }
+.mf-ticks:hover::before, .mf-ticks:hover::after {
+  opacity: 1;
+  width: calc(var(--tick) * 1.9);
+  height: calc(var(--tick) * 1.9);
 }
 
-function applyTheme(theme, save = true, animated = true) {
-    if (isThemeAnimating) return;
-    const currentActual = document.documentElement.classList.contains('light') ? 'light' : 'dark';
-
-    if (theme === currentActual) {
-        if (save) localStorage.setItem('theme', theme);
-        updateAllThemeSelections(theme);
-        return;
-    }
-
-    if (animated) {
-        isThemeAnimating = true;
-        updateAllThemeSelections(theme);
-        animateThemeChange(theme, () => {
-            applyThemeImmediate(theme, save);
-            isThemeAnimating = false;
-            updateAllThemeSelections(theme);
-        });
-    } else {
-        applyThemeImmediate(theme, save);
-        updateAllThemeSelections(theme);
-    }
+/* 5.2 «Ось» под заголовком: линия с засечкой-делением. */
+.mf-axis-title { position: relative; padding-bottom: .7rem; }
+.mf-axis-title::after {
+  content: '';
+  position: absolute; left: 0; bottom: 0;
+  width: 100%; height: 1px;
+  background: linear-gradient(to right, var(--accent) 0, var(--accent) 34px, var(--border) 34px, var(--border) 100%);
+}
+.mf-axis-title::before {
+  content: '';
+  position: absolute; left: 16px; bottom: -3px;
+  width: 1px; height: 7px;
+  background: var(--accent);
 }
 
-function applyThemeImmediate(theme, save = true) {
-    const isLight = theme === 'light';
-    const html = document.documentElement;
-    html.classList.toggle('light', isLight);
-    if (save) localStorage.setItem('theme', theme);
-    updateThemeImages(isLight ? 'light' : 'dark');
-    updateHeroBackground(theme);
+/* 5.3 Монотипная подпись-координата: «§ 02 · ПЛАНИМЕТРИЯ» */
+.mf-label {
+  font-family: var(--font-mono);
+  font-size: .70rem;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  display: inline-flex; align-items: center; gap: .55rem;
+}
+.mf-label::before {
+  content: ''; width: 18px; height: 1px; background: var(--accent); opacity: .7;
 }
 
-function applySystemTheme(save = true, animated = true) {
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    const targetTheme = prefersDark ? 'dark' : 'light';
-    const currentActual = document.documentElement.classList.contains('light') ? 'light' : 'dark';
+/* 5.4 Формула как декор — курсивная математическая антиква */
+.mf-formula { font-family: var(--font-math); font-style: italic; }
 
-    if (targetTheme === currentActual) {
-        if (save) localStorage.setItem('theme', 'system');
-        updateAllThemeSelections('system');
-        return;
-    }
-
-    if (animated) {
-        isThemeAnimating = true;
-        updateAllThemeSelections('system');
-        animateThemeChange(targetTheme, () => {
-            applyThemeImmediate(targetTheme, false);
-            if (save) localStorage.setItem('theme', 'system');
-            isThemeAnimating = false;
-            updateAllThemeSelections('system');
-        });
-    } else {
-        applyThemeImmediate(targetTheme, false);
-        if (save) localStorage.setItem('theme', 'system');
-        updateAllThemeSelections('system');
-    }
+/* 5.5 Разделитель-«интеграл»: тонкая линия с математическим глифом по центру */
+.mf-divider {
+  display: flex; align-items: center; gap: 1rem;
+  color: var(--text-tertiary);
+  font-family: var(--font-math); font-style: italic; font-size: 1.15rem;
+  margin: 2.5rem 0;
+}
+.mf-divider::before, .mf-divider::after {
+  content: ''; flex: 1; height: 1px;
+  background: linear-gradient(to right, transparent, var(--border), transparent);
 }
 
-function animateThemeChange(theme, callback) {
-    const { expandDuration, pauseBeforeFade, fadeDuration } = THEME_ANIMATION_CONFIG;
-    const isLight = theme === 'light';
-    const bgColor = isLight ? '#ffffff' : '#020408';
-
-    const mask = document.createElement('div');
-    mask.style.position = 'fixed';
-    mask.style.top = '0';
-    mask.style.width = '100%';
-    mask.style.height = '100%';
-    mask.style.zIndex = '9999';
-    mask.style.pointerEvents = 'none';
-    mask.style.backgroundColor = bgColor;
-    mask.style.opacity = '1';
-    mask.style.transition = `clip-path ${expandDuration}ms cubic-bezier(0.4, 0, 0.2, 1), opacity ${fadeDuration}ms ease`;
-    mask.style.clipPath = 'polygon(0 0, 0 0, 100% 100%, 100% 100%)';
-    document.body.appendChild(mask);
-    mask.offsetHeight;
-    mask.style.clipPath = 'polygon(0 0, 100% 0, 100% 100%, 0 100%)';
-
-    const onExpandEnd = () => {
-        mask.removeEventListener('transitionend', onExpandEnd);
-        applyThemeImmediate(theme, true);
-        setTimeout(() => {
-            mask.style.opacity = '0';
-            const onFadeOutEnd = () => {
-                mask.removeEventListener('transitionend', onFadeOutEnd);
-                if (callback) callback();
-                mask.remove();
-            };
-            mask.addEventListener('transitionend', onFadeOutEnd);
-            setTimeout(() => {
-                if (mask.parentNode) {
-                    mask.removeEventListener('transitionend', onFadeOutEnd);
-                    if (callback) callback();
-                    mask.remove();
-                }
-            }, fadeDuration + 100);
-        }, pauseBeforeFade);
-    };
-    mask.addEventListener('transitionend', onExpandEnd);
-
-    setTimeout(() => {
-        if (mask.parentNode) {
-            mask.removeEventListener('transitionend', onExpandEnd);
-            applyThemeImmediate(theme, true);
-            mask.style.opacity = '0';
-            setTimeout(() => {
-                if (mask.parentNode) {
-                    if (callback) callback();
-                    mask.remove();
-                }
-            }, fadeDuration + 100);
-        }
-    }, expandDuration + 300);
+/* ============================================================================
+   6. ШАПКА
+   ========================================================================== */
+#app-header {
+  position: fixed; top: 0; left: 0; right: 0;
+  height: var(--header-height);
+  background: var(--header-bg);
+  backdrop-filter: blur(20px) saturate(150%);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center;
+  padding: 0 1.6rem;
+  z-index: 100;
+  transition: var(--theme-transition), height var(--t) var(--e-out);
+}
+/* Тонкая «ось абсцисс» по низу шапки, светящаяся у активного раздела */
+#app-header::after {
+  content: '';
+  position: absolute; left: 0; right: 0; bottom: -1px; height: 1px;
+  background: linear-gradient(to right, transparent, var(--accent-soft) 30%, var(--accent-soft) 70%, transparent);
+  opacity: .8;
 }
 
-function updateThemeImages(mode) {
-    document.querySelectorAll('img[data-light-src][data-dark-src]').forEach(img => {
-        let src = mode === 'light' ? img.dataset.lightSrc : img.dataset.darkSrc;
-        if (src) {
-            if (!src.startsWith('http://') && !src.startsWith('https://')) {
-                // Если путь не абсолютный и не начинается с '/', то он относительный.
-                // Мы используем абсолютные пути, поэтому добавляем '/', если его нет.
-                if (!src.startsWith('/')) {
-                    src = '/' + src;
-                }
-            }
-            img.src = src;
-        }
-    });
+#app-header .logo-container {
+  display: flex; align-items: center; gap: .7rem;
+  margin-right: auto;
+  padding: .3rem .5rem .3rem .3rem;
+  border-radius: var(--r);
+  transition: transform var(--t) var(--e-spring), background var(--t);
+}
+#app-header .logo-container:hover { transform: translateY(-1px); background: var(--accent-soft); }
+#app-header .logo-icon { height: 40px; width: auto; }
+/* Текстовый логотип-подпись рядом с картинкой (если добавлен в разметку) */
+.logo-wordmark {
+  font-family: var(--font-display); font-weight: 700; font-size: 1.16rem;
+  letter-spacing: -.02em; color: var(--text-primary);
+}
+.logo-wordmark em { font-family: var(--font-math); font-style: italic; color: var(--accent); }
+
+#app-header nav { display: flex; gap: .35rem; align-items: center; position: relative; }
+
+#app-header nav a {
+  font-weight: 500; font-size: .93rem;
+  color: var(--text-secondary);
+  position: relative;
+  padding: .5rem .85rem;
+  border-radius: var(--r-sm);
+  transition: color var(--t), background var(--t);
+  white-space: nowrap;
+}
+#app-header nav a:hover { color: var(--text-primary); background: var(--accent-soft); }
+#app-header nav a.active { color: var(--accent); }
+/* Текущий раздел помечен статическим подчёркиванием: оно не зависит от JS,
+   поэтому полоска под активным пунктом есть всегда. Скользящий индикатор
+   (.mf-nav-indicator) — отдельный слой и отвечает только за наведение. */
+#app-header nav a::after {
+  content: '';
+  position: absolute;
+  left: .85rem; right: .85rem; bottom: -2px;
+  height: 2px; border-radius: 2px;
+  background: var(--accent);
+  transform: scaleX(0);
+  transform-origin: center;
+  transition: transform var(--t) var(--e-out);
+}
+#app-header nav a.active::after { transform: scaleX(1); }
+
+/* Скользящий индикатор («касательная»), позиционируется из JS */
+.mf-nav-indicator {
+  position: absolute; bottom: -2px; left: 0;
+  height: 2px; width: 0;
+  background: linear-gradient(to right, transparent, var(--accent), transparent);
+  border-radius: 2px;
+  opacity: 0;
+  transition: transform var(--t) var(--e-out), width var(--t) var(--e-out), opacity var(--t);
+  pointer-events: none;
+}
+.mf-nav-indicator.mf-on { opacity: 1; }
+
+.header-right { display: flex; align-items: center; gap: .8rem; margin-left: 1.4rem; }
+
+.account-circle {
+  width: 38px; height: 38px; border-radius: 50%;
+  background: var(--bg-raised);
+  border: 1px solid var(--border-strong);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; font-weight: 600; color: var(--text-primary);
+  transition: var(--theme-transition), transform var(--t) var(--e-spring);
+  user-select: none; overflow: hidden;
+}
+.account-circle:hover { transform: scale(1.07); border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.account-circle img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+
+.nav-toggle {
+  display: none; flex-direction: column; justify-content: space-between;
+  width: 22px; height: 15px; background: none; border: none; padding: 0; cursor: pointer;
+}
+.nav-toggle span {
+  display: block; width: 100%; height: 2px; border-radius: 2px;
+  background: var(--text-primary);
+  transition: transform var(--t) var(--e-out), opacity var(--t), background var(--t-slow);
+}
+.nav-toggle.active span:nth-child(1) { transform: translateY(6.5px) rotate(45deg); }
+.nav-toggle.active span:nth-child(2) { opacity: 0; transform: scaleX(.3); }
+.nav-toggle.active span:nth-child(3) { transform: translateY(-6.5px) rotate(-45deg); }
+
+/* ============================================================================
+   7. КНОПКИ
+   ========================================================================== */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: .5rem;
+  padding: .68rem 1.4rem;
+  border-radius: var(--r);
+  border: 1px solid var(--border-strong);
+  background: var(--bg-raised);
+  color: var(--text-primary);
+  cursor: pointer;
+  font-family: var(--font-sans);
+  font-weight: 550; font-size: .93rem;
+  letter-spacing: .01em;
+  position: relative; overflow: hidden;
+  isolation: isolate;
+  transition: transform var(--t) var(--e-out), border-color var(--t),
+              background var(--t), box-shadow var(--t), color var(--t);
+}
+/* Блик, пробегающий по кнопке при наведении */
+.btn::before {
+  content: ''; position: absolute; inset: 0; z-index: -1;
+  background: linear-gradient(105deg, transparent 30%, rgba(255,255,255,.14) 50%, transparent 70%);
+  transform: translateX(-120%);
+  transition: transform 620ms var(--e-out);
+}
+.btn:hover::before { transform: translateX(120%); }
+.btn:hover {
+  transform: translateY(-2px);
+  border-color: var(--accent);
+  box-shadow: 0 8px 22px rgba(0,0,0,.3), 0 0 0 3px var(--accent-soft);
+}
+.btn:active { transform: translateY(0) scale(.985); }
+.btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+.btn.primary, .btn-primary {
+  background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+  color: #fff; border-color: transparent;
+  box-shadow: 0 6px 20px var(--accent-glow);
+}
+.btn.primary:hover, .btn-primary:hover {
+  box-shadow: 0 12px 30px var(--accent-glow), 0 0 0 3px var(--accent-soft);
+  color: #fff;
+}
+.btn-outline {
+  background: transparent; border: 1.5px solid var(--accent); color: var(--accent);
+}
+.btn-outline:hover { background: var(--accent-soft); color: var(--accent-hover); }
+.btn.danger { color: #f87171; border-color: rgba(248,113,113,.32); background: rgba(248,113,113,.06); }
+.btn.danger:hover { background: rgba(248,113,113,.14); border-color: #f87171; }
+.btn.small { padding: .45rem 1rem; font-size: .84rem; border-radius: var(--r-sm); }
+.btn.centered { margin: 0 auto; display: flex; }
+.btn:disabled, .btn[aria-disabled="true"] { opacity: .45; pointer-events: none; }
+
+/* Ripple-«локус»: точка, расходящаяся окружностью от места клика (ставит JS) */
+.mf-ripple {
+  position: absolute; border-radius: 50%;
+  background: radial-gradient(circle, rgba(255,255,255,.5), transparent 70%);
+  transform: translate(-50%, -50%) scale(0);
+  animation: mfRipple 620ms var(--e-out) forwards;
+  pointer-events: none; z-index: -1;
+}
+@keyframes mfRipple {
+  to { transform: translate(-50%, -50%) scale(1); opacity: 0; }
 }
 
-function updateHeroBackground(theme) {
-    const root = document.documentElement;
-    const isLight = theme === 'light';
-    root.style.setProperty('--hero-bg', isLight ? 'var(--hero-bg-light)' : 'var(--hero-bg-dark)');
+.info-text { color: var(--text-secondary); font-size: .88rem; margin-top: .5rem; }
+
+/* ============================================================================
+   8. КАРТОЧКИ-«ГРАФИКИ» (.section-card + новый .mf-card)
+   ========================================================================== */
+.section-card, .mf-card {
+  position: relative;
+  background: var(--bg-card);
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: 1.6rem 1.5rem 1.4rem;
+  overflow: hidden;
+  transform-style: preserve-3d;
+  transition: transform var(--t-slow) var(--e-out), border-color var(--t),
+              box-shadow var(--t-slow), background var(--t-slow);
+}
+/* Внутренняя «сетка графика» проявляется при наведении */
+.section-card::before, .mf-card::before {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background-image:
+    linear-gradient(to right, var(--mf-grid-major) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--mf-grid-major) 1px, transparent 1px);
+  background-size: 22px 22px;
+  opacity: 0;
+  transition: opacity var(--t-slow) var(--e-out);
+  -webkit-mask-image: radial-gradient(circle at var(--mx, 50%) var(--my, 50%), #000 0%, transparent 62%);
+  mask-image: radial-gradient(circle at var(--mx, 50%) var(--my, 50%), #000 0%, transparent 62%);
+}
+.section-card:hover::before, .mf-card:hover::before { opacity: 1; }
+/* Светящийся ободок, следящий за курсором */
+.section-card::after, .mf-card::after {
+  content: ''; position: absolute; inset: -1px; border-radius: inherit;
+  pointer-events: none; opacity: 0;
+  background: radial-gradient(320px circle at var(--mx, 50%) var(--my, 50%), var(--accent-soft), transparent 70%);
+  transition: opacity var(--t-slow) var(--e-out);
+}
+.section-card:hover::after, .mf-card:hover::after { opacity: 1; }
+
+.section-card:hover, .mf-card:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-lg), 0 0 0 1px var(--accent-soft);
 }
 
-function updateAllThemeSelections(theme) {
-    document.querySelectorAll('.theme-option').forEach(btn => {
-        const isActive = btn.dataset.theme === theme;
-        btn.classList.toggle('active', isActive);
-    });
+.section-card h3, .mf-card h3 {
+  display: flex; align-items: center; gap: .65rem;
+  font-size: 1.16rem; margin-bottom: .5rem;
+  color: var(--text-primary);
+}
+.section-card h3 svg, .mf-card h3 svg {
+  width: 21px; height: 21px; flex: 0 0 auto;
+  color: var(--accent);
+  transition: transform var(--t-slow) var(--e-spring);
+}
+.section-card:hover h3 svg, .mf-card:hover h3 svg { transform: rotate(-8deg) scale(1.14); }
+.section-card p, .mf-card p { color: var(--text-secondary); font-size: .94rem; margin-bottom: 1rem; }
+.section-card a, .mf-card a {
+  display: inline-flex; align-items: center; gap: .4rem;
+  color: var(--accent); font-weight: 600; font-size: .9rem;
+}
+.section-card a::after, .mf-card a::after {
+  content: '→'; transition: transform var(--t) var(--e-out);
+}
+.section-card:hover a::after, .mf-card:hover a::after { transform: translateX(5px); }
+
+/* ============================================================================
+   9. МОДАЛЬНЫЕ ОКНА
+   ========================================================================== */
+.overlay {
+  position: fixed; inset: 0;
+  background: rgba(2,4,10,.62);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  z-index: 200;
+  opacity: 0; visibility: hidden; pointer-events: none;
+  transition: opacity var(--t) var(--e-out), visibility var(--t);
+}
+.overlay.active { opacity: 1; visibility: visible; pointer-events: auto; }
+
+.modal {
+  position: fixed; top: 50%; left: 50%;
+  transform: translate(-50%, -46%) scale(.94);
+  width: 92%; max-width: 452px; max-height: 90vh; overflow-y: auto;
+  background: var(--bg-raised);
+  backdrop-filter: blur(28px) saturate(150%);
+  -webkit-backdrop-filter: blur(28px) saturate(150%);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-xl);
+  padding: 1.9rem;
+  z-index: 201;
+  box-shadow: var(--shadow-lg);
+  color: var(--text-primary);
+  opacity: 0; visibility: hidden; pointer-events: none;
+  transition: opacity var(--t) var(--e-out),
+              transform var(--t-slow) var(--e-spring),
+              visibility var(--t);
+}
+.modal.active {
+  opacity: 1; visibility: visible; pointer-events: auto;
+  transform: translate(-50%, -50%) scale(1);
+}
+/* Засечки по углам модалки — тот же язык, что у карточек */
+.modal::before, .modal::after {
+  content: ''; position: absolute; width: 14px; height: 14px;
+  border: 1.5px solid var(--accent); opacity: .45; pointer-events: none;
+}
+.modal::before { top: 10px; left: 10px; border-right: 0; border-bottom: 0; }
+.modal::after { bottom: 10px; right: 10px; border-left: 0; border-top: 0; }
+
+.modal-header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 1.4rem;
+}
+.modal-header h2 { font-size: 1.42rem; font-weight: 700; }
+.modal-close {
+  background: none; border: none; font-size: 1.6rem; line-height: 1;
+  color: var(--text-secondary); cursor: pointer;
+  width: 34px; height: 34px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  transition: color var(--t), background var(--t), transform var(--t) var(--e-spring);
+}
+.modal-close:hover { color: var(--text-primary); background: var(--accent-soft); transform: rotate(90deg); }
+
+/* ===== 10. ФОРМЫ ===== */
+.auth-tabs { display: flex; gap: .3rem; margin-bottom: 1.4rem; border-bottom: 1px solid var(--border); position: relative; }
+.auth-tab {
+  flex: 1; background: none; border: none;
+  padding: .7rem .5rem; color: var(--text-secondary);
+  font-family: var(--font-sans); font-weight: 600; font-size: .93rem;
+  cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px;
+  transition: color var(--t), border-color var(--t);
+}
+.auth-tab:hover { color: var(--text-primary); }
+.auth-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+.login-form { display: flex; flex-direction: column; gap: .75rem; }
+.login-form input,
+#phone-verify-section input,
+.settings-field input {
+  width: 100%;
+  padding: .72rem .95rem;
+  border-radius: var(--r);
+  border: 1px solid var(--border-strong);
+  background: var(--bg-sunken);
+  color: var(--text-primary);
+  font-family: var(--font-sans); font-size: .96rem;
+  outline: none;
+  transition: border-color var(--t), box-shadow var(--t), background var(--t);
+}
+.login-form input::placeholder, .settings-field input::placeholder { color: var(--text-tertiary); }
+.login-form input:focus,
+#phone-verify-section input:focus,
+.settings-field input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+  background: var(--bg-raised);
+}
+.login-form .btn { width: 100%; margin-top: .25rem; }
+
+#phone-verify-section { display: none; flex-direction: column; gap: .8rem; }
+#phone-verify-section.active { display: flex; }
+
+.divider {
+  display: flex; align-items: center;
+  color: var(--text-tertiary); font-size: .8rem;
+  margin: 1.4rem 0 1rem;
+  font-family: var(--font-mono); letter-spacing: .1em; text-transform: uppercase;
+}
+.divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+.divider span { padding: 0 .8rem; }
+
+.social-icons { display: flex; gap: .9rem; justify-content: center; }
+.social-btn {
+  width: 46px; height: 46px; padding: 0; border-radius: 50%;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-sunken);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  transition: transform var(--t) var(--e-spring), border-color var(--t), background var(--t);
+}
+.social-btn:hover { transform: translateY(-3px) scale(1.06); border-color: var(--accent); background: var(--accent-soft); }
+.social-btn img, .social-btn svg { width: 22px; height: 22px; }
+
+#recaptcha-container { display: flex; justify-content: center; margin-top: .8rem; }
+
+/* ===== 11. АВАТАР / НАСТРОЙКИ ===== */
+.avatar-section { display: flex; flex-direction: column; align-items: center; margin-bottom: 1.4rem; }
+.avatar-wrapper {
+  position: relative; width: 82px; height: 82px; border-radius: 50%;
+  overflow: hidden; margin-bottom: .8rem;
+  box-shadow: 0 0 0 2px var(--accent-soft), 0 0 0 4px var(--bg-raised);
+}
+.avatar-wrapper img, .avatar-wrapper .avatar-placeholder {
+  width: 100%; height: 100%; object-fit: cover; border-radius: 50%;
+}
+.avatar-placeholder {
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-display); font-size: 2rem; font-weight: 700; color: #fff;
+}
+.username-display {
+  display: flex; align-items: center; gap: .5rem;
+  font-family: var(--font-display); font-size: 1.18rem; font-weight: 700; margin-bottom: .25rem;
+}
+.edit-icon { cursor: pointer; color: var(--text-tertiary); transition: color var(--t), transform var(--t) var(--e-spring); }
+.edit-icon:hover { color: var(--accent); transform: rotate(-12deg) scale(1.15); }
+.email-display { color: var(--text-secondary); font-size: .88rem; margin-bottom: 1.1rem; }
+.settings-field input { margin-bottom: .8rem; }
+
+/* ===== 12. ВЫБОР ТЕМЫ ===== */
+.theme-option {
+  border: 2px solid transparent !important;
+  border-radius: var(--r) !important;
+  background: var(--bg-sunken) !important;
+  cursor: pointer; padding: .25rem !important;
+  width: 42px; height: 42px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  transition: transform var(--t) var(--e-spring), background var(--t), border-color var(--t), box-shadow var(--t) !important;
+}
+.theme-option:hover { background: var(--accent-soft) !important; transform: translateY(-2px) scale(1.06); }
+.theme-option.active {
+  border-color: var(--accent) !important;
+  background: var(--accent-soft) !important;
+  transform: scale(1.1);
+  box-shadow: 0 0 0 3px var(--accent-soft), 0 6px 16px var(--accent-glow);
+}
+.theme-option img { width: 23px; height: 23px; display: block; }
+#theme-selector, #theme-selector-auth, #theme-selector-settings {
+  display: flex; gap: .55rem; justify-content: center; align-items: center;
 }
 
-// ===== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ =====
-let currentUser = null;
-let populateSettingsRef = null;
+/* ===== 13. ПОДВАЛ ===== */
+#app-footer {
+  text-align: center;
+  padding: 2.6rem 1rem 2.2rem;
+  margin-top: 4rem;
+  border-top: 1px solid var(--border);
+  color: var(--text-tertiary);
+  font-size: .87rem;
+  background: var(--bg-sunken);
+  backdrop-filter: blur(10px);
+  position: relative;
+}
+/* Подвал начинается «делениями линейки» */
+#app-footer::before {
+  content: ''; position: absolute; top: -1px; left: 50%; transform: translateX(-50%);
+  width: min(420px, 60%); height: 1px;
+  background: linear-gradient(to right, transparent, var(--accent), transparent);
+  opacity: .55;
+}
+#app-footer p { margin: 0; }
 
-// ===== ФУНКЦИЯ ПРЕОБРАЗОВАНИЯ ОШИБОК FIREBASE (расширенная) =====
-function getFirebaseErrorMessage(error) {
-    const code = error.code;
-    switch (code) {
-        // Email/пароль
-        case 'auth/email-already-in-use': return 'Почта уже используется в существующем аккаунте.';
-        case 'auth/invalid-email': return 'Некорректный формат email.';
-        case 'auth/weak-password': return 'Пароль слишком слабый (минимум 6 символов).';
-        case 'auth/user-not-found': return 'Пользователь с таким email не найден.';
-        case 'auth/wrong-password': return 'Неверный пароль.';
-        case 'auth/too-many-requests': return 'Слишком много попыток. Попробуйте позже.';
-        case 'auth/network-request-failed': return 'Ошибка сети. Проверьте подключение.';
-        case 'auth/internal-error': return 'Внутренняя ошибка сервера. Попробуйте позже.';
-        case 'auth/user-disabled': return 'Аккаунт отключён. Обратитесь к администратору.';
-        case 'auth/operation-not-allowed': return 'Вход через email/пароль отключён.';
-        case 'auth/requires-recent-login': return 'Требуется повторная авторизация.';
+/* ============================================================================
+   14. УТИЛИТЫ АНИМАЦИИ (для scroll-reveal из JS)
+   ========================================================================== */
+.mf-reveal {
+  opacity: 0;
+  transform: translateY(22px);
+  transition: opacity 620ms var(--e-out), transform 620ms var(--e-out);
+  transition-delay: var(--mf-delay, 0ms);
+  will-change: opacity, transform;
+}
+.mf-reveal.mf-in { opacity: 1; transform: none; }
+.mf-reveal-scale { opacity: 0; transform: scale(.94); }
+.mf-reveal-scale.mf-in { opacity: 1; transform: none; }
 
-        // Телефон
-        case 'auth/invalid-verification-code': return 'Неверный код подтверждения.';
-        case 'auth/code-expired': return 'Код подтверждения истёк. Запросите новый.';
-        case 'auth/invalid-phone-number': return 'Неверный формат номера телефона.';
-        case 'auth/missing-phone-number': return 'Введите номер телефона.';
-        case 'auth/quota-exceeded': return 'Превышен лимит отправки SMS. Попробуйте позже.';
-
-        // Общие
-        case 'auth/popup-closed-by-user': return 'Окно входа было закрыто. Попробуйте снова.';
-        case 'auth/cancelled-popup-request': return 'Запрос входа был отменён.';
-        case 'auth/account-exists-with-different-credential': return 'Аккаунт уже существует с другим способом входа.';
-
-        default: return error.message || 'Неизвестная ошибка.';
-    }
+/* Плавное появление страницы целиком (снимается из JS сразу после загрузки) */
+.mf-page-enter { animation: mfPageEnter 520ms var(--e-out) both; }
+@keyframes mfPageEnter {
+  from { opacity: 0; transform: translateY(10px) scale(.995); }
+  to   { opacity: 1; transform: none; }
 }
 
-// ===== ПРОВЕРКА БЛОКИРОВКИ =====
-async function checkUserBanned(user) {
-    if (!user) return false;
-    try {
-        await ensureFirestore();
-        const doc = await firebase.firestore().collection('bannedUsers').doc(user.uid).get();
-        return doc.exists;
-    } catch (e) {
-        return false;
-    }
+/* Загрузчик-спирограф вместо обычного спиннера */
+.mf-spinner { width: 44px; height: 44px; display: block; }
+.mf-spinner circle { fill: none; stroke-width: 1.6; }
+.mf-spinner .mf-sp-track { stroke: var(--border-strong); }
+.mf-spinner .mf-sp-arc {
+  stroke: var(--accent); stroke-linecap: round;
+  stroke-dasharray: 90 160;
+  transform-origin: center;
+  animation: mfSpin 1.15s var(--e-inout) infinite;
+}
+@keyframes mfSpin {
+  0%   { stroke-dasharray: 12 160; transform: rotate(0deg); }
+  50%  { stroke-dasharray: 110 160; }
+  100% { stroke-dasharray: 12 160; transform: rotate(360deg); }
 }
 
-// ===== ОБНОВЛЕНИЕ UI ПОЛЬЗОВАТЕЛЯ =====
-async function updateUIForAuth(user) {
-    if (user) {
-        // Проверка email только для парольных аккаунтов
-        if (user.providerData.some(p => p.providerId === 'password') && !user.emailVerified) {
-            await window.Auth.logout();
-            user = null;
-            const msgEl = document.getElementById('auth-message');
-            if (msgEl) {
-                msgEl.className = 'auth-message info';
-                msgEl.innerHTML = `Пожалуйста, подтвердите email, перейдя по ссылке в письме. 
-                    Если письмо не пришло, проверьте папку «Спам» или нажмите 
-                    <span class="resend-link" id="resend-verification-link">Отправить повторно</span>.`;
-                msgEl.style.display = 'block';
-                const resendLink = document.getElementById('resend-verification-link');
-                if (resendLink) {
-                    resendLink.onclick = async () => {
-                        try {
-                            await window.Auth.sendEmailVerification();
-                            msgEl.className = 'auth-message success';
-                            msgEl.innerHTML = 'Письмо отправлено повторно. Проверьте почту (и папку «Спам»).';
-                        } catch (e) {
-                            msgEl.className = 'auth-message error';
-                            msgEl.textContent = 'Ошибка: ' + getFirebaseErrorMessage(e);
-                        }
-                    };
-                }
-            }
-            if (!document.getElementById('auth-modal')?.classList.contains('active')) {
-                window.openAuthModal();
-            }
-            return;
-        }
+/* ============================================================================
+   15. ДОСТУПНОСТЬ / ПРОИЗВОДИТЕЛЬНОСТЬ
+   Если пользователь просил меньше движения — выключаем всё «украшательство»,
+   но интерфейс остаётся полностью рабочим.
+   ========================================================================== */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+    scroll-behavior: auto !important;
+  }
+  .mf-plane { animation: none; }
+  #mf-canvas { display: none; }
+  .mf-reveal, .mf-reveal-scale { opacity: 1; transform: none; }
+}
+/* Экономия батареи/слабое железо: класс ставит JS (см. mathframe-ui.js) */
+html.mf-lite #mf-canvas { display: none; }
+html.mf-lite .section-card, html.mf-lite .mf-card { backdrop-filter: none; -webkit-backdrop-filter: none; }
 
-        const banned = await checkUserBanned(user);
-        if (banned) {
-            const msgEl = document.getElementById('auth-message');
-            if (msgEl) {
-                msgEl.className = 'auth-message error';
-                msgEl.textContent = 'Ваш аккаунт заблокирован. Обратитесь к администратору.';
-                msgEl.style.display = 'block';
-            }
-            await window.Auth.logout();
-            user = null;
-            if (!document.getElementById('auth-modal')?.classList.contains('active')) {
-                window.openAuthModal();
-            }
-            return;
-        }
-        syncUserProfile(user);
-    }
-    currentUser = user;
-    updateAccountCircle(user);
-    updateHeroButtons(user);
-    updateAdminNavLink(user);
-    if (document.getElementById('settings-modal')?.classList.contains('active')) {
-        populateSettingsRef?.(user);
-    }
+/* ============================================================================
+   16. АДАПТИВ
+   ========================================================================== */
+@media (max-width: 900px) {
+  #app-header nav { gap: .1rem; }
+  #app-header nav a { padding: .5rem .6rem; font-size: .88rem; }
+}
+@media (max-width: 768px) {
+  :root { --header-height: 60px; --mf-grid-step: 22px; }
+  #app-header { padding: 0 1rem; }
+  .header-right { margin-left: 1rem; gap: .7rem; }
+  .nav-toggle { display: flex; }
+  .mf-nav-indicator { display: none; }
+
+  #app-header nav {
+    position: fixed; top: var(--header-height); left: 0; right: 0;
+    flex-direction: column; align-items: stretch; gap: 0;
+    max-height: 0; overflow: hidden; opacity: 0;
+    background: var(--header-bg);
+    backdrop-filter: blur(22px) saturate(150%);
+    -webkit-backdrop-filter: blur(22px) saturate(150%);
+    border-bottom: 1px solid var(--border);
+    transition: max-height var(--t-slow) var(--e-out), opacity var(--t) var(--e-out);
+  }
+  #app-header nav.nav-open { max-height: 80vh; opacity: 1; overflow-y: auto; }
+  #app-header nav a {
+    padding: .95rem 1.4rem; border-bottom: 1px solid var(--border);
+    font-size: 1rem; border-radius: 0;
+  }
+  #app-header nav a:last-child { border-bottom: none; }
+  /* Пункты меню выезжают по очереди */
+  #app-header nav.nav-open a { animation: mfNavItem 380ms var(--e-out) both; }
+  #app-header nav.nav-open a:nth-child(1) { animation-delay: 30ms; }
+  #app-header nav.nav-open a:nth-child(2) { animation-delay: 60ms; }
+  #app-header nav.nav-open a:nth-child(3) { animation-delay: 90ms; }
+  #app-header nav.nav-open a:nth-child(4) { animation-delay: 120ms; }
+  #app-header nav.nav-open a:nth-child(5) { animation-delay: 150ms; }
+  #app-header nav.nav-open a:nth-child(6) { animation-delay: 180ms; }
+  @keyframes mfNavItem {
+    from { opacity: 0; transform: translateX(-14px); }
+    to   { opacity: 1; transform: none; }
+  }
+}
+@media (max-width: 480px) {
+  .modal { padding: 1.5rem 1.2rem; width: 94%; border-radius: var(--r-lg); }
+  .social-icons { gap: .7rem; }
+  .avatar-wrapper { width: 72px; height: 72px; }
 }
 
-function updateAccountCircle(user) {
-    const circle = document.getElementById('account-circle');
-    if (!circle) return;
-    if (user) {
-        const name = user.displayName || user.email || user.phoneNumber || 'User';
-        if (user.photoURL) {
-            circle.innerHTML = `<img src="${user.photoURL}" alt="avatar" />`;
-        } else {
-            const initials = name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) || '?';
-            circle.innerHTML = '';
-            circle.textContent = initials;
-        }
-        circle.title = name;
-        circle.onclick = () => openSettings();
-    } else {
-        circle.innerHTML = `<img src="https://cdn-icons-png.flaticon.com/512/8188/8188349.png" alt="Гость" style="width:100%;height:100%;object-fit:cover;" />`;
-        circle.title = 'Войти';
-        circle.onclick = () => window.openAuthModal();
-    }
+/* ============================================================================
+   17. МОБИЛЬНЫЙ СЛОЙ
+   ----------------------------------------------------------------------------
+   Здесь чинятся конкретные болячки прежней версии:
+     • карточки выстраивались в длинный некрасивый столбец;
+     • на узких экранах вёрстка вылезала за края (min-width у карточек был
+       больше, чем доступная ширина после padding);
+     • на iPhone контент заезжал под «чёлку» и под полосу-индикатор дома
+       (нигде не использовались safe-area-inset);
+     • 100vh на iOS больше видимой области — низ страницы уезжал под адресную
+       строку;
+     • :hover «залипал» после тапа — карточки оставались наклонёнными;
+     • поля ввода мельче 16px заставляли Safari зумить страницу при фокусе.
+   ========================================================================== */
+
+/* 17.1 Никакого горизонтального скролла. clip (а не hidden) — чтобы не ломать
+   position: sticky у дочерних элементов. */
+html, body { overflow-x: clip; max-width: 100%; }
+@supports not (overflow: clip) {
+  html, body { overflow-x: hidden; }
+}
+/* Классическая причина «распирания» флекс/грид-вёрстки: элемент не может стать
+   уже своего содержимого. min-width: 0 снимает это ограничение. */
+main, main *, .grid, .grid > *, .sections, .sections > * { min-width: 0; }
+img, svg, video, canvas, iframe, table, pre { max-width: 100%; }
+pre, code { overflow-x: auto; overflow-wrap: anywhere; }
+/* Длинные формулы/ссылки/слова не должны рвать сетку */
+h1, h2, h3, h4, p, li, td, a { overflow-wrap: break-word; }
+
+/* 17.2 Безопасные зоны iPhone (чёлка, скруглённые углы, полоса дома).
+   Требует <meta name="viewport" content="... viewport-fit=cover"> — см. README. */
+:root {
+  --safe-t: env(safe-area-inset-top, 0px);
+  --safe-r: env(safe-area-inset-right, 0px);
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --safe-l: env(safe-area-inset-left, 0px);
+}
+#app-header {
+  padding-left: calc(1.6rem + var(--safe-l));
+  padding-right: calc(1.6rem + var(--safe-r));
+  height: calc(var(--header-height) + var(--safe-t));
+  padding-top: var(--safe-t);
+}
+body { padding-top: calc(var(--header-height) + var(--safe-t)); }
+#app-footer {
+  padding-bottom: calc(2.2rem + var(--safe-b));
+  padding-left: calc(1rem + var(--safe-l));
+  padding-right: calc(1rem + var(--safe-r));
+}
+#app-header nav { padding-bottom: var(--safe-b); }
+/* Плавающие элементы (тосты форума и т.п.) */
+#toasts {
+  right: calc(1.2rem + var(--safe-r)) !important;
+  bottom: calc(1.2rem + var(--safe-b)) !important;
+  left: calc(1rem + var(--safe-l));
+  align-items: flex-end;
 }
 
-function updateHeroButtons(user) {
-    const loginBtn = document.getElementById('loginBtn');
-    const registerBtn = document.getElementById('registerBtn');
-    if (!loginBtn || !registerBtn) return;
-    if (user) {
-        loginBtn.style.display = 'none';
-        registerBtn.style.display = 'none';
-    } else {
-        loginBtn.style.display = '';
-        registerBtn.style.display = '';
-        loginBtn.onclick = (e) => { e.preventDefault(); window.openAuthModal(); };
-        registerBtn.onclick = (e) => { e.preventDefault(); window.openAuthModal(); };
-    }
+/* 17.3 Высота вьюпорта на iOS: 100vh включает адресную строку и потому больше
+   видимой области. svh/dvh считают честно. */
+@supports (height: 100svh) {
+  .hero, .mf-vh { min-height: calc(100svh - var(--header-height) - var(--safe-t)); }
 }
 
-// ===== МОДАЛЬНОЕ ОКНО ВХОДА =====
-let recaptchaVerifier = null;
-let confirmationResult = null;
-
-function injectAuthModal() {
-    if (document.getElementById('auth-modal')) return;
-
-    const html = `
-    <div class="overlay" id="auth-overlay"></div>
-    <div class="modal" id="auth-modal">
-      <div class="modal-header">
-        <h2>Вход</h2>
-        <button class="modal-close" id="auth-close">✕</button>
-      </div>
-      <div class="auth-message" id="auth-message"></div>
-      <div class="auth-tabs">
-        <button class="auth-tab active" id="tab-login">Войти</button>
-        <button class="auth-tab" id="tab-register">Создать аккаунт</button>
-      </div>
-
-      <div class="login-form" id="login-section">
-        <input type="text" id="login-email-phone" placeholder="Email или телефон" />
-        <input type="password" id="login-password" placeholder="Пароль" />
-        <button class="btn primary" id="login-submit">Войти</button>
-        <button class="btn small" id="forgot-password-btn" style="background:transparent;border:none;color:var(--text-secondary);font-size:0.8rem;margin-top:-0.2rem;">Забыли пароль?</button>
-      </div>
-
-      <div class="login-form" id="register-section" style="display:none;">
-        <input type="text" id="reg-email-phone" placeholder="Email или телефон" />
-        <input type="text" id="reg-nickname" placeholder="Никнейм" />
-        <input type="password" id="reg-password" placeholder="Пароль" />
-        <button class="btn primary" id="register-submit">Зарегистрироваться</button>
-      </div>
-
-      <div id="phone-verify-section">
-        <input type="text" id="verification-code" placeholder="Код из SMS" />
-        <button class="btn primary" id="verify-code-btn">Подтвердить</button>
-        <button class="btn small" id="cancel-phone-verify" style="margin-top:0.5rem;">Назад</button>
-      </div>
-
-      <div class="divider"><span>или</span></div>
-      <div class="social-icons">
-        <button class="social-btn" id="google-login-btn">
-          <img src="https://logo-teka.com/wp-content/uploads/2025/06/google-logo.svg" alt="Google" />
-        </button>
-        <button class="social-btn" id="apple-login-btn">
-          <img src="https://abali.ru/wp-content/uploads/2012/09/logo_apple.png" alt="Apple"
-               data-light-src="https://upload.wikimedia.org/wikipedia/commons/f/fa/Apple_logo_black.svg"
-               data-dark-src="https://abali.ru/wp-content/uploads/2012/09/logo_apple.png" />
-        </button>
-      </div>
-      <div id="recaptcha-container"></div>
-
-      <div style="margin: 1.2rem 0 0; border-top:1px solid var(--border); padding-top:0.8rem;">
-        <div style="font-weight:600; font-size:0.85rem; margin-bottom:0.6rem; color:var(--text-secondary); text-align:center;">Тема</div>
-        <div id="theme-selector-auth">
-          <button class="theme-option" data-theme="light" title="Светлая">
-            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23fbbf24' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='5'/%3E%3Cline x1='12' y1='1' x2='12' y2='3'/%3E%3Cline x1='12' y1='21' x2='12' y2='23'/%3E%3Cline x1='4.22' y1='4.22' x2='5.64' y2='5.64'/%3E%3Cline x1='18.36' y1='18.36' x2='19.78' y2='19.78'/%3E%3Cline x1='1' y1='12' x2='3' y2='12'/%3E%3Cline x1='21' y1='12' x2='23' y2='12'/%3E%3Cline x1='4.22' y1='19.78' x2='5.64' y2='18.36'/%3E%3Cline x1='18.36' y1='5.64' x2='19.78' y2='4.22'/%3E%3C/svg%3E" alt="Светлая" />
-          </button>
-          <button class="theme-option" data-theme="dark" title="Тёмная">
-            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23818cf8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z'/%3E%3C/svg%3E" alt="Тёмная" />
-          </button>
-          <button class="theme-option" data-theme="system" title="Системная">
-            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='2' y='3' width='20' height='14' rx='2' ry='2'/%3E%3Cline x1='8' y1='21' x2='16' y2='21'/%3E%3Cline x1='12' y1='17' x2='12' y2='21'/%3E%3C/svg%3E" alt="Системная" />
-          </button>
-        </div>
-      </div>
-    </div>
-  `;
-    document.body.insertAdjacentHTML('beforeend', html);
-
-    const currentMode = document.documentElement.classList.contains('light') ? 'light' : 'dark';
-    updateThemeImages(currentMode);
-
-    const overlay = document.getElementById('auth-overlay');
-    const modal = document.getElementById('auth-modal');
-    const closeBtn = document.getElementById('auth-close');
-    const tabLogin = document.getElementById('tab-login');
-    const tabRegister = document.getElementById('tab-register');
-    const loginSection = document.getElementById('login-section');
-    const registerSection = document.getElementById('register-section');
-    const phoneVerifySection = document.getElementById('phone-verify-section');
-    const messageEl = document.getElementById('auth-message');
-
-    const themeOptionsAuth = modal.querySelectorAll('#theme-selector-auth .theme-option');
-    themeOptionsAuth.forEach(btn => {
-        btn.addEventListener('click', () => {
-            const theme = btn.dataset.theme;
-            if (theme === 'system') {
-                applySystemTheme(true, true);
-            } else {
-                applyTheme(theme, true, true);
-            }
-        });
-    });
-
-    function showLoginTab() {
-        tabLogin.classList.add('active');
-        tabRegister.classList.remove('active');
-        loginSection.style.display = 'flex';
-        registerSection.style.display = 'none';
-        phoneVerifySection.classList.remove('active');
-        clearMessage();
-    }
-
-    function showRegisterTab() {
-        tabRegister.classList.add('active');
-        tabLogin.classList.remove('active');
-        registerSection.style.display = 'flex';
-        loginSection.style.display = 'none';
-        phoneVerifySection.classList.remove('active');
-        clearMessage();
-    }
-
-    function clearMessage() {
-        messageEl.className = 'auth-message';
-        messageEl.style.display = 'none';
-        messageEl.innerHTML = '';
-    }
-
-    function setMessage(text, type = 'error') {
-        messageEl.className = 'auth-message ' + type;
-        messageEl.textContent = text;
-        messageEl.style.display = 'block';
-    }
-
-    function setMessageHTML(html, type = 'info') {
-        messageEl.className = 'auth-message ' + type;
-        messageEl.innerHTML = html;
-        messageEl.style.display = 'block';
-    }
-
-    function openAuth() {
-        document.body.classList.add('no-scroll');
-        overlay.style.visibility = 'visible';
-        modal.style.visibility = 'visible';
-        requestAnimationFrame(() => {
-            overlay.classList.add('active');
-            modal.classList.add('active');
-        });
-        showLoginTab();
-        document.getElementById('login-email-phone').value = '';
-        document.getElementById('login-password').value = '';
-        document.getElementById('reg-email-phone').value = '';
-        document.getElementById('reg-nickname').value = '';
-        document.getElementById('reg-password').value = '';
-        document.getElementById('verification-code').value = '';
-        confirmationResult = null;
-        clearMessage();
-
-        const currentTheme = localStorage.getItem('theme') || 'system';
-        updateAllThemeSelections(currentTheme);
-        updateThemeImages(document.documentElement.classList.contains('light') ? 'light' : 'dark');
-    }
-
-    window.openAuthModal = openAuth;
-
-    function closeAuth() {
-        overlay.classList.remove('active');
-        modal.classList.remove('active');
-        setTimeout(() => {
-            overlay.style.visibility = 'hidden';
-            modal.style.visibility = 'hidden';
-            document.body.classList.remove('no-scroll');
-        }, 300);
-    }
-
-    overlay.addEventListener('click', closeAuth);
-    closeBtn.addEventListener('click', closeAuth);
-    tabLogin.addEventListener('click', showLoginTab);
-    tabRegister.addEventListener('click', showRegisterTab);
-
-    function isEmail(str) { return str.includes('@'); }
-
-    // ===== ВХОД ПО EMAIL =====
-    async function handleLoginEmail(email, password) {
-        try {
-            const result = await window.Auth.loginWithEmail(email, password);
-            if (!result.user.emailVerified) {
-                await window.Auth.logout();
-                setMessageHTML(
-                    `Пожалуйста, подтвердите email, перейдя по ссылке в письме. 
-                    Если письмо не пришло, проверьте папку «Спам» или нажмите 
-                    <span class="resend-link" id="resend-verification-link">Отправить повторно</span>.`,
-                    'info'
-                );
-                const resendLink = document.getElementById('resend-verification-link');
-                if (resendLink) {
-                    resendLink.onclick = async () => {
-                        try {
-                            await window.Auth.sendEmailVerification();
-                            setMessage('Письмо отправлено повторно. Проверьте почту (и папку «Спам»).', 'success');
-                        } catch (e) {
-                            setMessage('Ошибка: ' + getFirebaseErrorMessage(e), 'error');
-                        }
-                    };
-                }
-                return;
-            }
-            closeAuth();
-        } catch (error) {
-            setMessage(getFirebaseErrorMessage(error), 'error');
-        }
-    }
-
-    // ===== РЕГИСТРАЦИЯ =====
-    async function handleRegister(email, password, nickname) {
-        try {
-            const result = await window.Auth.registerWithEmail(email, password);
-            if (nickname) {
-                await result.user.updateProfile({ displayName: nickname });
-            }
-            try {
-                await result.user.sendEmailVerification();
-                setMessage('Регистрация успешна! На вашу почту отправлено письмо для подтверждения. Проверьте также папку «Спам».', 'success');
-                showLoginTab();
-            } catch (verifyError) {
-                setMessage('Аккаунт создан, но не удалось отправить письмо подтверждения: ' + getFirebaseErrorMessage(verifyError), 'error');
-                showLoginTab();
-            }
-        } catch (error) {
-            setMessage(getFirebaseErrorMessage(error), 'error');
-        }
-    }
-
-    // ===== СБРОС ПАРОЛЯ =====
-    async function handleForgotPassword(email) {
-        if (!email) {
-            setMessage('Введите email для сброса пароля.', 'error');
-            return;
-        }
-        try {
-            await window.Auth.resetPassword(email);
-            setMessage('Письмо для сброса пароля отправлено. Проверьте почту (и папку «Спам»).', 'success');
-        } catch (error) {
-            setMessage(getFirebaseErrorMessage(error), 'error');
-        }
-    }
-
-    // ===== ОБРАБОТЧИКИ КНОПОК =====
-    document.getElementById('login-submit').addEventListener('click', async () => {
-        const emailPhone = document.getElementById('login-email-phone').value.trim();
-        const password = document.getElementById('login-password').value;
-        if (!emailPhone) { setMessage('Введите email или телефон', 'error'); return; }
-        if (isEmail(emailPhone)) {
-            if (!password) { setMessage('Введите пароль', 'error'); return; }
-            await handleLoginEmail(emailPhone, password);
-        } else {
-            // Телефон
-            if (!recaptchaVerifier) {
-                try { recaptchaVerifier = window.Auth.createRecaptchaVerifier('recaptcha-container'); } catch (e) { console.warn(e); }
-            }
-            try {
-                confirmationResult = await window.Auth.loginWithPhoneNumber(emailPhone, recaptchaVerifier);
-                loginSection.style.display = 'none';
-                registerSection.style.display = 'none';
-                phoneVerifySection.classList.add('active');
-                clearMessage();
-            } catch (error) {
-                setMessage('Ошибка отправки кода: ' + getFirebaseErrorMessage(error), 'error');
-                recaptchaVerifier = null;
-            }
-        }
-    });
-
-    document.getElementById('register-submit').addEventListener('click', async () => {
-        const emailPhone = document.getElementById('reg-email-phone').value.trim();
-        const password = document.getElementById('reg-password').value;
-        const nickname = document.getElementById('reg-nickname').value.trim();
-        if (!emailPhone) { setMessage('Введите email или телефон', 'error'); return; }
-        if (isEmail(emailPhone)) {
-            if (!password) { setMessage('Введите пароль', 'error'); return; }
-            await handleRegister(emailPhone, password, nickname);
-        } else {
-            setMessage('Регистрация по телефону не поддерживается. Используйте email.', 'error');
-        }
-    });
-
-    document.getElementById('verify-code-btn').addEventListener('click', async () => {
-        const code = document.getElementById('verification-code').value.trim();
-        if (!code) { setMessage('Введите код', 'error'); return; }
-        if (!confirmationResult) { setMessage('Сначала отправьте код', 'error'); return; }
-        try {
-            await confirmationResult.confirm(code);
-            closeAuth();
-        } catch (error) {
-            setMessage('Неверный код: ' + getFirebaseErrorMessage(error), 'error');
-        }
-    });
-
-    document.getElementById('cancel-phone-verify').addEventListener('click', () => {
-        phoneVerifySection.classList.remove('active');
-        loginSection.style.display = 'flex';
-        registerSection.style.display = 'none';
-        confirmationResult = null;
-        clearMessage();
-    });
-
-    document.getElementById('forgot-password-btn').addEventListener('click', () => {
-        const email = document.getElementById('login-email-phone').value.trim();
-        handleForgotPassword(email);
-    });
-
-    document.getElementById('google-login-btn').addEventListener('click', async () => {
-        if (!window.Auth) return;
-        try {
-            await window.Auth.loginWithGoogle();
-            closeAuth();
-        } catch (e) {
-            setMessage('Ошибка входа через Google: ' + getFirebaseErrorMessage(e), 'error');
-        }
-    });
-
-    document.getElementById('apple-login-btn').addEventListener('click', async () => {
-        if (!window.Auth) return;
-        try {
-            await window.Auth.loginWithApple();
-            closeAuth();
-        } catch (e) {
-            setMessage('Ошибка входа через Apple: ' + getFirebaseErrorMessage(e), 'error');
-        }
-    });
+/* 17.4 Тач-устройства: :hover залипает — отключаем всё, что «остаётся».
+   Обратная связь даётся через :active, который на тапе корректно снимается. */
+@media (hover: none), (pointer: coarse) {
+  .section-card:hover, .mf-card:hover { transform: none !important; }
+  .section-card::after, .mf-card::after,
+  .section-card::before, .mf-card::before { opacity: 0 !important; }
+  .btn:hover { transform: none; box-shadow: none; }
+  .btn:active { transform: scale(.97); background: var(--accent-soft); }
+  .section-card:active, .mf-card:active {
+    transform: scale(.985) !important;
+    border-color: var(--accent);
+  }
+  .mf-ticks:hover::before, .mf-ticks:hover::after {
+    width: var(--tick); height: var(--tick); opacity: .5;
+  }
+  .account-circle:hover, .theme-option:hover, .social-btn:hover,
+  .logo-container:hover, .modal-close:hover { transform: none; }
+  .btn::before { display: none; } /* бегущий блик не нужен без курсора */
 }
 
-// ===== МОДАЛЬНОЕ ОКНО НАСТРОЕК =====
-function injectSettingsModal() {
-    if (document.getElementById('settings-modal')) return;
-
-    const html = `
-    <div class="overlay" id="settings-overlay"></div>
-    <div class="modal" id="settings-modal">
-      <div class="modal-header">
-        <h2>Настройки</h2>
-        <button class="modal-close" id="settings-close">✕</button>
-      </div>
-
-      <div class="avatar-section">
-        <div class="avatar-wrapper" id="avatar-wrapper">
-          <img id="avatar-img" src="" alt="" style="display:none" />
-          <div class="avatar-placeholder" id="avatar-placeholder">?</div>
-        </div>
-        <div class="username-display">
-          <span id="username-text"></span>
-          <span class="edit-icon" id="edit-username-btn">✎</span>
-        </div>
-        <div class="email-display" id="email-display"></div>
-      </div>
-
-      <div class="settings-field" id="username-edit-field" style="display:none;">
-        <input type="text" id="username-input" placeholder="Новое имя" />
-        <div style="display:flex; gap:0.5rem; margin-top:0.5rem;">
-          <button class="btn primary small" id="save-username-btn">Сохранить</button>
-          <button class="btn small" id="cancel-username-btn">Отмена</button>
-        </div>
-      </div>
-
-      <div style="margin: 1.2rem 0 0.8rem; border-top:1px solid var(--border); padding-top:1rem;">
-        <div style="font-weight:600; font-size:0.85rem; margin-bottom:0.6rem; color:var(--text-secondary); text-align:center;">Тема</div>
-        <div id="theme-selector-settings">
-          <button class="theme-option" data-theme="light" title="Светлая">
-            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23fbbf24' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='5'/%3E%3Cline x1='12' y1='1' x2='12' y2='3'/%3E%3Cline x1='12' y1='21' x2='12' y2='23'/%3E%3Cline x1='4.22' y1='4.22' x2='5.64' y2='5.64'/%3E%3Cline x1='18.36' y1='18.36' x2='19.78' y2='19.78'/%3E%3Cline x1='1' y1='12' x2='3' y2='12'/%3E%3Cline x1='21' y1='12' x2='23' y2='12'/%3E%3Cline x1='4.22' y1='19.78' x2='5.64' y2='18.36'/%3E%3Cline x1='18.36' y1='5.64' x2='19.78' y2='4.22'/%3E%3C/svg%3E" alt="Светлая" />
-          </button>
-          <button class="theme-option" data-theme="dark" title="Тёмная">
-            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23818cf8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z'/%3E%3C/svg%3E" alt="Тёмная" />
-          </button>
-          <button class="theme-option" data-theme="system" title="Системная">
-            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='2' y='3' width='20' height='14' rx='2' ry='2'/%3E%3Cline x1='8' y1='21' x2='16' y2='21'/%3E%3Cline x1='12' y1='17' x2='12' y2='21'/%3E%3C/svg%3E" alt="Системная" />
-          </button>
-        </div>
-      </div>
-
-      <button class="btn small" id="change-password-btn" style="width:100%; margin:0.8rem 0;">Сменить пароль</button>
-      <button class="btn danger" id="delete-account-btn" style="width:100%; margin:0.5rem 0;">Удалить аккаунт</button>
-
-      <div style="display:flex; justify-content:center; margin-top:0.5rem;">
-        <button class="btn danger" id="logout-btn">Выйти из аккаунта</button>
-      </div>
-    </div>
-  `;
-    document.body.insertAdjacentHTML('beforeend', html);
-
-    const overlay = document.getElementById('settings-overlay');
-    const modal = document.getElementById('settings-modal');
-    const closeBtn = document.getElementById('settings-close');
-    const avatarImg = document.getElementById('avatar-img');
-    const avatarPlaceholder = document.getElementById('avatar-placeholder');
-    const usernameText = document.getElementById('username-text');
-    const emailDisplay = document.getElementById('email-display');
-    const editBtn = document.getElementById('edit-username-btn');
-    const usernameEditField = document.getElementById('username-edit-field');
-    const usernameInput = document.getElementById('username-input');
-    const saveUsernameBtn = document.getElementById('save-username-btn');
-    const cancelUsernameBtn = document.getElementById('cancel-username-btn');
-    const changePasswordBtn = document.getElementById('change-password-btn');
-    const logoutBtn = document.getElementById('logout-btn');
-    const deleteAccountBtn = document.getElementById('delete-account-btn');
-
-    deleteAccountBtn.addEventListener('click', async () => {
-        if (!currentUser) return;
-        if (!confirm('Вы уверены, что хотите удалить свой аккаунт? Это действие необратимо.')) return;
-        try {
-            await window.Auth.deleteAccount();
-            await ensureFirestore();
-            await firebase.firestore().collection('users').doc(currentUser.uid).delete();
-            await firebase.firestore().collection('bannedUsers').doc(currentUser.uid).delete();
-            alert('Аккаунт удалён.');
-            closeSettings();
-        } catch (e) {
-            alert('Ошибка при удалении аккаунта: ' + getFirebaseErrorMessage(e));
-        }
-    });
-
-    const themeOptionsSettings = modal.querySelectorAll('#theme-selector-settings .theme-option');
-    themeOptionsSettings.forEach(btn => {
-        btn.addEventListener('click', () => {
-            const theme = btn.dataset.theme;
-            if (theme === 'system') {
-                applySystemTheme(true, true);
-            } else {
-                applyTheme(theme, true, true);
-            }
-        });
-    });
-
-    function populateSettings(user) {
-        if (!user) {
-            usernameText.textContent = 'Гость';
-            avatarImg.style.display = 'none';
-            avatarPlaceholder.style.display = 'flex';
-            avatarPlaceholder.textContent = '?';
-            emailDisplay.textContent = '';
-            changePasswordBtn.style.display = 'none';
-            deleteAccountBtn.style.display = 'none';
-            return;
-        }
-        const name = user.displayName || user.email || user.phoneNumber || 'User';
-        usernameText.textContent = name;
-        emailDisplay.textContent = user.email || user.phoneNumber || '';
-
-        if (user.photoURL) {
-            avatarImg.src = user.photoURL;
-            avatarImg.style.display = 'block';
-            avatarPlaceholder.style.display = 'none';
-        } else {
-            avatarImg.style.display = 'none';
-            avatarPlaceholder.style.display = 'flex';
-            avatarPlaceholder.textContent = name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) || '?';
-        }
-
-        const isPasswordProvider = user.providerData.some(p => p.providerId === 'password');
-        changePasswordBtn.style.display = isPasswordProvider ? '' : 'none';
-        deleteAccountBtn.style.display = '';
-
-        const currentTheme = localStorage.getItem('theme') || 'system';
-        updateAllThemeSelections(currentTheme);
-    }
-    populateSettingsRef = populateSettings;
-
-    function openSettings() {
-        if (!currentUser) {
-            window.openAuthModal();
-            return;
-        }
-        populateSettings(currentUser);
-        usernameEditField.style.display = 'none';
-        document.body.classList.add('no-scroll');
-        overlay.style.visibility = 'visible';
-        modal.style.visibility = 'visible';
-        requestAnimationFrame(() => {
-            overlay.classList.add('active');
-            modal.classList.add('active');
-        });
-    }
-
-    function closeSettings() {
-        overlay.classList.remove('active');
-        modal.classList.remove('active');
-        setTimeout(() => {
-            overlay.style.visibility = 'hidden';
-            modal.style.visibility = 'hidden';
-            document.body.classList.remove('no-scroll');
-        }, 300);
-    }
-
-    overlay.addEventListener('click', closeSettings);
-    closeBtn.addEventListener('click', closeSettings);
-
-    editBtn.addEventListener('click', () => {
-        usernameInput.value = currentUser?.displayName || '';
-        usernameEditField.style.display = 'block';
-    });
-
-    cancelUsernameBtn.addEventListener('click', () => {
-        usernameEditField.style.display = 'none';
-    });
-
-    saveUsernameBtn.addEventListener('click', async () => {
-        const newName = usernameInput.value.trim();
-        if (newName && window.Auth) {
-            try {
-                await window.Auth.updateUserProfile({ displayName: newName });
-                const user = window.Auth.getCurrentUser();
-                if (user) {
-                    currentUser = user;
-                    updateAccountCircle(currentUser);
-                    populateSettings(currentUser);
-                }
-            } catch (e) { alert('Ошибка: ' + getFirebaseErrorMessage(e)); }
-        }
-        usernameEditField.style.display = 'none';
-    });
-
-    changePasswordBtn.addEventListener('click', async () => {
-        if (!currentUser || !currentUser.email) return alert('Email не найден');
-        try {
-            await window.Auth.resetPassword(currentUser.email);
-            alert('Письмо для сброса пароля отправлено. Проверьте почту (и папку «Спам»).');
-        } catch (e) { alert('Ошибка: ' + getFirebaseErrorMessage(e)); }
-    });
-
-    logoutBtn.addEventListener('click', async () => {
-        if (!window.Auth) return;
-        try { await window.Auth.logout(); closeSettings(); } catch (e) { alert('Ошибка: ' + getFirebaseErrorMessage(e)); }
-    });
-
-    window.openSettings = openSettings;
+/* 17.5 Размеры зон нажатия: минимум 44×44 (рекомендация Apple HIG). */
+@media (pointer: coarse) {
+  .btn { min-height: 44px; padding: .72rem 1.3rem; }
+  .btn.small { min-height: 38px; }
+  .nav-toggle { width: 44px; height: 44px; padding: 14px 11px; justify-content: center; gap: 5px; }
+  .nav-toggle span { height: 2px; }
+  .modal-close { width: 44px; height: 44px; font-size: 1.8rem; }
+  .account-circle { width: 42px; height: 42px; }
+  #app-header nav a { min-height: 48px; display: flex; align-items: center; }
+  .social-btn { width: 48px; height: 48px; }
+  .theme-option { width: 46px; height: 46px; }
 }
 
-// ===== ШАПКА =====
-function renderHeader() {
-    const header = document.getElementById('app-header');
-    if (!header) return;
-
-    // Массив ссылок с абсолютными путями от корня
-    const navLinks = [
-        { href: '/', text: 'Главная' },
-        { href: '/spravochnik/', text: 'Справочник' },
-        { href: '/mini-services/', text: 'Мини‑сервисы' },
-        { href: '/forum/', text: 'Форум' },
-        { href: '/ai-agent/', text: 'AI‑агент' },
-        { href: '/playground/', text: 'Песочница' },
-    ];
-
-    const currentPath = window.location.pathname;
-
-    const navHTML = navLinks
-        .map(link => {
-            // Для корня — только точное совпадение, иначе '/' считался бы
-            // префиксом любого пути и «Главная» подсвечивалась бы везде.
-            const isActive = link.href === '/'
-                ? (currentPath === '/' || currentPath === '')
-                : (currentPath === link.href || currentPath.startsWith(link.href));
-            const activeClass = isActive ? ' active' : '';
-            return `<a href="${link.href}" class="nav-link${activeClass}">${link.text}</a>`;
-        })
-        .join('');
-
-    header.innerHTML = `
-    <a href="/" class="logo-container">
-      <img src="/assets/img/logo.png" alt="MathFrame" class="logo-icon"
-           data-light-src="/assets/img/logo-light.png" data-dark-src="/assets/img/logo.png" />
-    </a>
-    <nav id="app-nav">${navHTML}<a href="/admin/" id="admin-nav-link" class="nav-link" style="display:none;">Админ панель</a></nav>
-    <div class="header-right">
-      <div class="account-circle" id="account-circle" title="Аккаунт"></div>
-      <button class="nav-toggle" id="nav-toggle" aria-label="Меню" aria-expanded="false">
-        <span></span><span></span><span></span>
-      </button>
-    </div>
-  `;
-
-    const nav = document.getElementById('app-nav');
-    const navToggle = document.getElementById('nav-toggle');
-    function closeNav() {
-        nav.classList.remove('nav-open');
-        navToggle.classList.remove('active');
-        navToggle.setAttribute('aria-expanded', 'false');
-    }
-    navToggle.addEventListener('click', () => {
-        const isOpen = nav.classList.toggle('nav-open');
-        navToggle.classList.toggle('active', isOpen);
-        navToggle.setAttribute('aria-expanded', String(isOpen));
-    });
-    nav.querySelectorAll('a').forEach(a => a.addEventListener('click', closeNav));
-    window.addEventListener('resize', () => {
-        if (window.innerWidth > 768) closeNav();
-    });
-
-    const currentTheme = document.documentElement.classList.contains('light') ? 'light' : 'dark';
-    updateThemeImages(currentTheme);
+/* 17.6 iOS зумит страницу, если поле ввода мельче 16px. Держим ровно 16px. */
+@media (max-width: 900px) {
+  .login-form input, .settings-field input, #phone-verify-section input,
+  input[type="text"], input[type="email"], input[type="password"],
+  input[type="search"], input[type="number"], textarea, select {
+    font-size: 16px;
+  }
 }
 
-function renderFooter() {
-    const footer = document.getElementById('app-footer');
-    if (!footer) return;
-    footer.innerHTML = `<p>&copy; ${new Date().getFullYear()} MathFrame. Учись математике интерактивно.</p>`;
+/* 17.7 Убираем серую вспышку при тапе в мобильных браузерах */
+a, button, .section-card, .mf-card, .theme-option, .account-circle {
+  -webkit-tap-highlight-color: transparent;
 }
 
-window.applyTheme = applyTheme;
-window.applySystemTheme = applySystemTheme;
+/* ============================================================================
+   18. СЕТКА КАРТОЧЕК И МОБИЛЬНЫЙ ВИД РАЗДЕЛОВ
+   ----------------------------------------------------------------------------
+   Идиома minmax(min(100%, Xpx), 1fr) — единственный надёжный способ получить
+   авто-колонки, которые НЕ вылезают за экран: как только 100% меньше X,
+   колонка сжимается до 100%, а не до X.
+   ========================================================================== */
+.sections, .mf-grid-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+  gap: 1.2rem;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 0 clamp(1rem, 4vw, 1.5rem);
+  padding-left: max(clamp(1rem, 4vw, 1.5rem), var(--safe-l));
+  padding-right: max(clamp(1rem, 4vw, 1.5rem), var(--safe-r));
+}
+/* Старая разметка задавала карточкам фиксированную ширину — снимаем. */
+.sections > .section-card { width: auto; min-width: 0; max-width: none; }
+
+/* 18.1 На телефоне карточки-разделы превращаются в компактные СТРОКИ
+   (иконка слева, текст справа), а не в высокие блоки друг под другом.
+   Все пять разделов помещаются на один экран и легко сканируются. */
+@media (max-width: 640px) {
+  .sections { gap: .6rem; grid-template-columns: 1fr; }
+  .sections > .section-card {
+    display: grid;
+    grid-template-columns: 44px 1fr auto;
+    grid-template-areas: 'icon title chev' 'icon desc chev';
+    align-items: center;
+    column-gap: .85rem;
+    row-gap: .1rem;
+    padding: .9rem 1rem;
+    border-radius: var(--r);
+  }
+  .sections > .section-card h3 {
+    grid-area: title;
+    font-size: 1rem;
+    margin: 0;
+    gap: 0;
+  }
+  .sections > .section-card h3 svg {
+    grid-area: icon;
+    position: absolute; left: 1rem; top: 50%;
+    transform: translateY(-50%);
+    width: 24px; height: 24px;
+  }
+  .sections > .section-card p {
+    grid-area: desc;
+    font-size: .82rem;
+    margin: 0;
+    color: var(--text-tertiary);
+    display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  /* Ссылка превращается в шеврон справа и растягивается на всю карточку,
+     чтобы нажималось куда угодно, а не только в мелкий текст. */
+  .sections > .section-card a {
+    grid-area: chev;
+    font-size: 0;
+    width: 28px; height: 28px;
+    justify-content: center;
+  }
+  .sections > .section-card a::after { font-size: 1.15rem; transform: none; }
+  .sections > .section-card a::before {
+    content: ''; position: absolute; inset: 0; border-radius: inherit;
+  }
+  .sections > .section-card .card-num { display: none; }
+}
+
+/* ============================================================================
+   19. МОДАЛКА КАК ШТОРКА НА ТЕЛЕФОНЕ
+   Полноэкранные диалоги по центру на мобильном неудобны: до крестика далеко,
+   клавиатура перекрывает поля. Снизу — привычнее и достаётся большим пальцем.
+   ========================================================================== */
+@media (max-width: 560px) {
+  .modal {
+    top: auto; bottom: 0; left: 0;
+    transform: translateY(100%);
+    width: 100%; max-width: none;
+    max-height: 88dvh;
+    border-radius: var(--r-xl) var(--r-xl) 0 0;
+    border-bottom: none;
+    padding: 1.5rem 1.25rem calc(1.5rem + var(--safe-b));
+    padding-left: max(1.25rem, var(--safe-l));
+    padding-right: max(1.25rem, var(--safe-r));
+    overscroll-behavior: contain;
+  }
+  .modal.active { transform: translateY(0); }
+  /* «Ручка» шторки */
+  .modal::before {
+    content: ''; position: absolute;
+    top: 8px; left: 50%; transform: translateX(-50%);
+    width: 38px; height: 4px; border-radius: 99px;
+    background: var(--border-strong);
+    border: none; opacity: 1;
+  }
+  .modal::after { display: none; }
+  .modal-header { margin-top: .6rem; }
+}
+
+/* ============================================================================
+   20. ТЕМАТИЧЕСКИЕ ВАРИАЦИИ РАЗДЕЛОВ
+   ----------------------------------------------------------------------------
+   Узнаваемость держится на неизменном: сетка-подложка, угловые засечки, оси под
+   заголовками, монотипные подписи, изолинии на фоне. Меняются две вещи:
+     • акцентная пара цветов;
+     • МОТИВ фона — само математическое поле (см. uMode в mathframe-ui.js):
+         главная      — линии тока потенциального течения
+         справочник   — конформная сетка w = z² + c (две системы линий)
+         форум        — интерференция волн от нескольких источников
+         мини-сервисы — динамическая решётка ячеек
+         песочница    — фигуры Хладни
+         админка      — решётка, приглушённая палитра
+   ========================================================================== */
+[data-page="reference"]  { --accent:#7a7cff; --accent-hover:#9698ff; --accent-2:#59c8ff; --accent-3:#f2b45c;
+                           --accent-soft:rgba(122,124,255,.14); --accent-glow:rgba(122,124,255,.40); }
+[data-page="forum"]      { --accent:#3fb5e8; --accent-hover:#63c7f2; --accent-2:#7ee3b0; --accent-3:#ffb066;
+                           --accent-soft:rgba(63,181,232,.14);  --accent-glow:rgba(63,181,232,.38); }
+[data-page="services"]   { --accent:#3ec2a4; --accent-hover:#5fd4b9; --accent-2:#7cd2ff; --accent-3:#f2c05c;
+                           --accent-soft:rgba(62,194,164,.14);  --accent-glow:rgba(62,194,164,.38); }
+[data-page="playground"] { --accent:#8b7bff; --accent-hover:#a495ff; --accent-2:#ff8fb8; --accent-3:#ffd166;
+                           --accent-soft:rgba(139,123,255,.15); --accent-glow:rgba(139,123,255,.40); }
+[data-page="admin"]      { --accent:#7d90b0; --accent-hover:#94a6c4; --accent-2:#7ee3b0; --accent-3:#ffb066;
+                           --accent-soft:rgba(125,144,176,.14); --accent-glow:rgba(125,144,176,.32); }
+
+/* Светлая тема: те же оттенки, но затемнённые до нужного контраста на белом */
+html.light [data-page="reference"]  { --accent:#4a48d8; --accent-hover:#3a38c0; --accent-2:#0f7fc4; --accent-soft:rgba(74,72,216,.10); --accent-glow:rgba(74,72,216,.22); }
+html.light [data-page="forum"]      { --accent:#0d7fae; --accent-hover:#0a6b93; --accent-2:#0f9c6b; --accent-soft:rgba(13,127,174,.10); --accent-glow:rgba(13,127,174,.22); }
+html.light [data-page="services"]   { --accent:#0f8a72; --accent-hover:#0b715e; --accent-2:#0f7fc4; --accent-soft:rgba(15,138,114,.10); --accent-glow:rgba(15,138,114,.22); }
+html.light [data-page="playground"] { --accent:#5b46d6; --accent-hover:#4a37b8; --accent-2:#c2437a; --accent-soft:rgba(91,70,214,.10); --accent-glow:rgba(91,70,214,.22); }
+html.light [data-page="admin"]      { --accent:#465a78; --accent-hover:#374861; --accent-2:#0f9c6b; --accent-soft:rgba(70,90,120,.10); --accent-glow:rgba(70,90,120,.20); }
+
+/* Мелкие «характерные жесты» разделов — по одному на страницу, чтобы отличие
+   читалось, но язык оставался общим. */
+[data-page="reference"] .mf-label::before { width: 18px; }                 /* строгая засечка */
+[data-page="forum"]     .mf-label::before { width: 6px; box-shadow: 9px 0 0 -1px var(--accent), 18px 0 0 -2px var(--accent); }
+[data-page="services"]  .mf-label::before { width: 14px; height: 6px; border-radius: 2px; background: none;
+                                            border: 1px solid var(--accent); }
+[data-page="playground"] .mf-label::before { width: 14px; height: 14px; background: none;
+                                             border: 1.5px solid var(--accent); border-radius: 50%; }
+[data-page="admin"]     .mf-label::before { width: 18px; height: 3px;
+                                            background: repeating-linear-gradient(90deg, var(--accent) 0 3px, transparent 3px 6px); }

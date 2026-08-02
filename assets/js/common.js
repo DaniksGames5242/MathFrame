@@ -1005,6 +1005,7 @@ function renderHeader() {
 
     // Массив ссылок с абсолютными путями от корня
     const navLinks = [
+        { href: '/', text: 'Главная' },
         { href: '/spravochnik/', text: 'Справочник' },
         { href: '/mini-services/', text: 'Мини‑сервисы' },
         { href: '/forum/', text: 'Форум' },
@@ -1016,8 +1017,11 @@ function renderHeader() {
 
     const navHTML = navLinks
         .map(link => {
-            // Простая проверка активности: если текущий путь начинается с link.href (кроме случая, когда link.href == '/')
-            const isActive = currentPath === link.href || currentPath.startsWith(link.href);
+            // Для корня — только точное совпадение, иначе '/' считался бы
+            // префиксом любого пути и «Главная» подсвечивалась бы везде.
+            const isActive = link.href === '/'
+                ? (currentPath === '/' || currentPath === '')
+                : (currentPath === link.href || currentPath.startsWith(link.href));
             const activeClass = isActive ? ' active' : '';
             return `<a href="${link.href}" class="nav-link${activeClass}">${link.text}</a>`;
         })

@@ -525,11 +525,14 @@
       // страховка: если палец всё-таки дошёл сюда — снимаем трансформацию
       card.addEventListener('pointercancel', function () { card.style.transform = ''; });
     }
-    document.querySelectorAll('.section-card, .mf-card').forEach(bind);
-    // карточки могут появиться позже (форум, справочник рендерят их из JS)
+    // .svc — плитки инструментов на странице мини-сервисов: тот же тактильный
+    // наклон-к-курсору, что и у карточек разделов, только чуть мягче (см. CSS —
+    // сама плитка компактнее, поэтому амплитуда наклона там приглушена).
+    document.querySelectorAll('.section-card, .mf-card, .svc').forEach(bind);
+    // карточки могут появиться позже (форум, справочник, мини-сервисы рендерят их из JS)
     try {
       new MutationObserver(function () {
-        document.querySelectorAll('.section-card, .mf-card').forEach(bind);
+        document.querySelectorAll('.section-card, .mf-card, .svc').forEach(bind);
       }).observe(document.body, { childList: true, subtree: true });
     } catch (e) {}
   }
@@ -537,7 +540,7 @@
   /* ----------------------------------------------------------------- 5. ripple */
   function initRipple() {
     document.addEventListener('pointerdown', function (e) {
-      var b = e.target && e.target.closest ? e.target.closest('.btn, .social-btn, .theme-option') : null;
+      var b = e.target && e.target.closest ? e.target.closest('.btn, .social-btn, .theme-option, .svc, .conv-chip, .geo-subchip, .calc-key') : null;
       if (!b || reduced) return;
       var r = b.getBoundingClientRect();
       var d = Math.max(r.width, r.height) * 2.1;

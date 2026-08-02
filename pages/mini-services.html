@@ -13,6 +13,10 @@
 </style>
 <link rel="stylesheet" href="/assets/css/common.css" />
 <link rel="stylesheet" href="/assets/css/mathfield.css" />
+<!-- KaTeX уже используется в справочнике (/assets/lib/katex/) — переиспользуем тот же
+     набор файлов для отрисовки шагов решения в алгебраическом калькуляторе. -->
+<link rel="stylesheet" href="/assets/lib/katex/katex.min.css" />
+<script defer src="/assets/lib/katex/katex.min.js"></script>
 
 <style>
 /* ===== оболочка страницы ===== */
@@ -98,13 +102,6 @@ label.f input:focus,label.f select:focus{border-color:var(--accent);box-shadow:0
   background:var(--bg-sunken);color:var(--text-secondary);cursor:pointer
 }
 .mini:hover{color:var(--accent);border-color:var(--accent)}
-.readout{
-  position:absolute;top:.5rem;left:.5rem;
-  font-family:var(--font-mono);font-size:.74rem;
-  background:var(--bg-raised);border:1px solid var(--border);
-  border-radius:var(--r-sm);padding:.3rem .5rem;color:var(--text-secondary);
-  pointer-events:none
-}
 
 @media (max-width:640px){
   .panel{padding:.9rem}
@@ -113,6 +110,354 @@ label.f input:focus,label.f select:focus{border-color:var(--accent);box-shadow:0
 @media (hover:none),(pointer:coarse){
   .svc:hover{border-color:var(--border);background:var(--bg-card)}
   .svc.on{border-color:var(--accent);background:var(--accent-soft)}
+}
+
+/* ===================================================================
+   ОБЫЧНЫЙ КАЛЬКУЛЯТОР
+   =================================================================== */
+.calc-head-btns{margin-left:auto;flex-wrap:wrap}
+.calc-expand-btn{display:inline-flex;align-items:center;justify-content:center;padding:.4rem .6rem}
+.calc-expand-btn.on{color:var(--accent);border-color:var(--accent);background:var(--accent-soft)}
+.calc-expand-btn svg{transition:transform .2s var(--e-out)}
+.calc-expand-btn.on svg{transform:rotate(180deg)}
+
+/* ---- дисплей: два текстовых слоя, чей смысл переключается по состоянию ---- */
+.calc-display{
+  background:var(--bg-sunken);border:1px solid var(--border-strong);border-radius:var(--r);
+  padding:.9rem 1rem;margin-bottom:.8rem;min-height:5.4rem;
+  display:flex;flex-direction:column;justify-content:flex-end;gap:.15rem;
+  overflow-x:auto;
+}
+.calc-trace{
+  font-family:var(--font-mono);font-size:.82rem;color:var(--text-tertiary);
+  min-height:1.1em;white-space:nowrap;transition:opacity .15s;
+}
+.calc-main{
+  font-family:var(--font-display);font-size:clamp(1.6rem,6vw,2.3rem);font-weight:700;
+  color:var(--text-primary);white-space:nowrap;line-height:1.15;
+  transition:font-size .18s var(--e-out),opacity .15s;
+}
+.calc-main.calc-dim{color:var(--text-tertiary);font-weight:500}
+/* Развёрнутый (inline) режим — одна строка "2+3=5", предпросмотра нет */
+.calc-display.calc-mode-inline{min-height:3.2rem}
+.calc-display.calc-mode-inline .calc-trace{display:none}
+.calc-display.calc-mode-inline .calc-main{font-size:clamp(1.2rem,4.6vw,1.6rem)}
+
+/* ---- сетка кнопок ---- */
+.calc-pad-wrap{display:flex;flex-direction:column;gap:.5rem}
+.calc-pad{display:flex;flex-direction:column;gap:.45rem}
+.calc-row{display:grid;grid-template-columns:repeat(4,1fr);gap:.45rem}
+.calc-key{
+  height:52px;border-radius:var(--r-sm);border:1px solid var(--border);
+  background:var(--bg-card);color:var(--text-primary);font:inherit;font-size:1.05rem;
+  cursor:pointer;transition:background .12s,border-color .12s,transform .08s;
+}
+.calc-key:hover{border-color:var(--accent);background:var(--accent-soft)}
+.calc-key:active{transform:scale(.96)}
+.calc-key.calc-op{color:var(--accent);font-weight:600}
+.calc-key.calc-eq{background:var(--accent);color:#fff;border-color:transparent;font-weight:700}
+.calc-key.calc-eq:hover{background:var(--accent-hover)}
+/* «Ещё действия» — научная панель, раскрывается без скачка макета */
+.calc-pad-adv{
+  max-height:0;opacity:0;overflow:hidden;
+  transition:max-height .28s var(--e-out),opacity .2s,margin-top .28s;
+}
+.calc-pad-adv.open{max-height:280px;opacity:1;margin-top:.05rem}
+.calc-pad-adv .calc-key{height:46px;font-size:.92rem;background:var(--bg-sunken)}
+
+@media (pointer:coarse){ .calc-key{height:56px} }
+@media (max-width:380px){ .calc-key{height:46px;font-size:.95rem} }
+
+/* ---- история ---- */
+.calc-hist{margin-top:1rem;padding-top:.8rem;border-top:1px solid var(--border)}
+.calc-hist-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem;
+  font-family:var(--font-mono);font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--text-tertiary)}
+.calc-hist-list{display:flex;flex-direction:column;gap:.3rem;max-height:220px;overflow-y:auto}
+.calc-hist-empty{color:var(--text-tertiary);font-size:.85rem;padding:.4rem 0}
+.calc-hist-item{
+  display:flex;justify-content:space-between;gap:.6rem;
+  padding:.5rem .7rem;border-radius:var(--r-sm);border:1px solid transparent;
+  background:transparent;font:inherit;text-align:left;cursor:pointer;width:100%;
+  transition:background .12s,border-color .12s;
+}
+.calc-hist-item:hover{background:var(--accent-soft);border-color:var(--border)}
+.calc-hist-expr{color:var(--text-tertiary);font-family:var(--font-mono);font-size:.82rem;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.calc-hist-res{color:var(--text-primary);font-weight:600;flex:0 0 auto}
+
+/* ===================================================================
+   АЛГЕБРАИЧЕСКИЙ КАЛЬКУЛЯТОР
+   =================================================================== */
+.alg-badge{
+  display:inline-flex;align-items:center;gap:.4rem;
+  font-family:var(--font-mono);font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--text-tertiary);background:var(--bg-sunken);border:1px solid var(--border);
+  border-radius:99px;padding:.3rem .75rem;margin:.8rem 0 .2rem
+}
+.alg-badge-calc{color:var(--accent);border-color:var(--accent)}
+.alg-badge-simplify{color:#3ec2a4;border-color:#3ec2a4}
+.alg-badge-eq{color:#f2b45c;border-color:#f2b45c}
+.alg-badge-ineq{color:#e05c8a;border-color:#e05c8a}
+
+.alg-steps{margin:.7rem 0;display:flex;flex-direction:column;gap:.4rem}
+.alg-step{display:flex;align-items:flex-start;gap:.6rem;padding:.4rem 0;border-bottom:1px dashed var(--border)}
+.alg-step:last-child{border-bottom:none}
+.alg-step-num{
+  flex:0 0 auto;width:1.35rem;height:1.35rem;border-radius:50%;
+  background:var(--accent-soft);color:var(--accent);font-size:.72rem;font-weight:700;
+  display:flex;align-items:center;justify-content:center;margin-top:.1rem
+}
+.alg-step-tex{font-size:1.02rem;overflow-x:auto;padding-top:.05rem}
+
+.alg-answer{
+  margin-top:.9rem;padding:1rem 1.1rem;border-radius:var(--r);
+  background:var(--accent-soft);border:1px solid var(--border)
+}
+.alg-answer-label{font-family:var(--font-mono);font-size:.7rem;letter-spacing:.08em;text-transform:uppercase;color:var(--text-tertiary);margin-bottom:.3rem}
+.alg-answer-big{
+  font-family:var(--font-display);font-size:1.5rem;font-weight:700;color:var(--accent);
+  overflow-x:auto;max-width:100%
+}
+.alg-answer-approx{font-family:var(--font-mono);font-size:.85rem;color:var(--text-secondary);margin-top:.2rem}
+.alg-answer-note{font-size:.78rem;color:var(--text-tertiary);margin-top:.4rem;font-style:italic}
+.alg-answer-root{margin-bottom:.5rem}
+.alg-answer-root:last-child{margin-bottom:0}
+.alg-answer-root .alg-answer-big{margin-right:.6rem}
+.alg-answer-root .alg-answer-approx{display:inline}
+
+.alg-err{
+  margin-top:.8rem;padding:.8rem 1rem;border-radius:var(--r);
+  background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.3);
+  color:#f87171;font-size:.9rem
+}
+
+.alg-about-btn{margin-top:.9rem}
+.alg-about{
+  margin-top:.6rem;padding:.9rem 1rem;border-radius:var(--r);
+  background:var(--bg-sunken);border:1px solid var(--border);
+  font-size:.87rem;color:var(--text-secondary);line-height:1.6
+}
+.alg-about p{margin-bottom:.6rem}
+.alg-about p:last-child{margin-bottom:0}
+.alg-about b{color:var(--text-primary)}
+
+/* KaTeX внутри шагов/ответа наследует текущий цвет и не переполняет карточку */
+.alg-step-tex .katex,.alg-answer-big .katex{font-size:1.05em}
+.alg-answer-big .katex{font-size:1.15em}
+
+/* ===================================================================
+   КОНВЕРТОР
+   =================================================================== */
+.conv-chips{display:flex;gap:.4rem;flex-wrap:wrap;margin:.7rem 0 1rem}
+.conv-chip{
+  font:inherit;font-size:.82rem;padding:.42rem .85rem;min-height:38px;
+  border-radius:99px;border:1px solid var(--border-strong);
+  background:var(--bg-sunken);color:var(--text-secondary);cursor:pointer;
+  transition:color var(--t),border-color var(--t),background var(--t)
+}
+.conv-chip:hover{color:var(--accent);border-color:var(--accent)}
+.conv-chip.on{color:#fff;background:var(--accent);border-color:transparent;font-weight:600}
+
+.conv-body{display:flex;flex-direction:column;gap:.9rem}
+.conv-row{display:flex;align-items:center;gap:.6rem}
+.conv-select{
+  flex:1;padding:.6rem .7rem;border-radius:var(--r-sm);
+  border:1px solid var(--border-strong);background:var(--bg-sunken);
+  color:var(--text-primary);font:inherit;font-size:16px;min-width:0
+}
+.conv-swap{
+  flex:0 0 auto;width:38px;height:38px;border-radius:50%;
+  border:1px solid var(--border-strong);background:var(--bg-card);
+  color:var(--accent);font-size:1.1rem;cursor:pointer;
+  transition:transform var(--t) var(--e-spring),border-color var(--t)
+}
+.conv-swap:hover{border-color:var(--accent);transform:rotate(180deg)}
+
+.conv-io{display:flex;align-items:center;gap:.7rem;flex-wrap:wrap}
+.conv-input{
+  flex:1;min-width:120px;padding:.65rem .8rem;border-radius:var(--r-sm);
+  border:1px solid var(--border-strong);background:var(--bg-sunken);
+  color:var(--text-primary);font:inherit;font-size:1.05rem;font-family:var(--font-display);font-size:16px
+}
+.conv-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);outline:none}
+.conv-eq{color:var(--text-tertiary);font-size:1.2rem;flex:0 0 auto}
+.conv-output{
+  flex:1;min-width:140px;padding:.65rem .8rem;border-radius:var(--r-sm);
+  background:var(--accent-soft);border:1px solid var(--border);
+  font-family:var(--font-display);font-size:1.15rem;font-weight:700;color:var(--accent);
+  overflow-x:auto;white-space:nowrap
+}
+
+.conv-block{padding-bottom:.9rem;margin-bottom:.9rem;border-bottom:1px dashed var(--border)}
+.conv-block:last-child{border-bottom:none;margin-bottom:0;padding-bottom:0}
+.conv-block-h{font-family:var(--font-mono);font-size:.72rem;letter-spacing:.07em;text-transform:uppercase;color:var(--text-tertiary);margin-bottom:.6rem}
+
+.conv-status{display:flex;align-items:center;gap:.55rem;flex-wrap:wrap;font-size:.82rem;color:var(--text-secondary);margin-bottom:.8rem}
+.conv-status-dot{width:.5rem;height:.5rem;border-radius:50%;background:var(--text-tertiary);flex:0 0 auto}
+.conv-status-dot.live{background:#22c55e}
+.conv-refresh{margin-left:auto}
+
+@media (max-width:480px){
+  .conv-io{flex-direction:column;align-items:stretch}
+  .conv-eq{text-align:center}
+  .conv-refresh{margin-left:0}
+}
+
+/* ===================================================================
+   МОБИЛЬНАЯ АДАПТИВНОСТЬ — общий проход
+   Раньше покрывался только конвертор; страница с тех пор сильно выросла
+   (алгебра, геометрия, «Ещё» с матрицами/таблицами, встроенная ODE-сцена).
+   Здесь — точечные недостающие места: тач-таргеты мельче рекомендуемых
+   ~44px у плотно упакованных чипов, длинные ответы (например, система из
+   3 уравнений) без уменьшения шрифта на узком экране, тесные 2-колоночные
+   формы вроде координатной геометрии. */
+@media (pointer:coarse){
+  /* .mini/.conv-chip/.geo-subchip были рассчитаны на курсор мыши (34–38px) —
+     на пальце это ощутимо мельче привычного и провоцирует промахи, особенно
+     у geo-subchip, где чипы стоят плотно в ряд. */
+  .mini{min-height:44px;padding:.55rem .8rem}
+  .conv-chip{min-height:44px;padding:.6rem .95rem}
+  .geo-subchip{min-height:42px;padding:.5rem .8rem}
+}
+
+@media (max-width:560px){
+  /* Длинный ответ (например, система из 3 уравнений: «x=2, y=3, z=-1») —
+     на узком экране 1.5rem легко вылезает за край; горизонтальный скролл уже
+     добавлен как страховка, но лучше сразу дать шрифту немного сжаться. */
+  .alg-answer-big{font-size:1.25rem}
+  .alg-answer-root{display:flex;flex-direction:column;gap:.1rem}
+  .alg-answer-root .alg-answer-big{margin-right:0}
+
+  /* Двухколоночные формы (координаты, векторы, парам. уравнения матрицы 2×2)
+     на узком экране лучше в один столбец — иначе подписи полей сжимаются
+     до нечитаемого. grid2 уже безопасен по ширине (minmax(min(100%,150px)),
+     но при 2 колонках по 150px это всё ещё тесно на экране ~320px). */
+  .grid2{grid-template-columns:1fr}
+
+  .ode-viz{height:min(38vh,260px)}
+  .matrix-cell{padding:.4rem}
+  .more-toolrow{gap:.3rem}
+}
+
+/* ===================================================================
+   ГЕОМЕТРИЧЕСКИЙ КАЛЬКУЛЯТОР
+   =================================================================== */
+.geo-subchips{display:flex;gap:.35rem;flex-wrap:wrap;margin-bottom:.9rem}
+.geo-subchip{
+  font:inherit;font-size:.78rem;padding:.35rem .7rem;min-height:34px;
+  border-radius:var(--r-sm);border:1px solid var(--border);
+  background:var(--bg-sunken);color:var(--text-secondary);cursor:pointer;
+  transition:color var(--t),border-color var(--t),background var(--t)
+}
+.geo-subchip:hover{color:var(--accent);border-color:var(--accent)}
+.geo-subchip.on{color:var(--accent);border-color:var(--accent);background:var(--accent-soft);font-weight:600}
+
+/* ===================================================================
+   «ЕЩЁ» — специализированные инструменты
+   =================================================================== */
+.more-toolrow{padding-bottom:.7rem;border-bottom:1px dashed var(--border);margin-bottom:.9rem}
+
+.matrix-grid{display:grid;gap:.4rem;margin:.6rem 0}
+.matrix-cell{
+  width:100%;padding:.5rem;text-align:center;border-radius:var(--r-sm);
+  border:1px solid var(--border-strong);background:var(--bg-sunken);
+  color:var(--text-primary);font:inherit;font-size:16px
+}
+.matrix-out{gap:.3rem}
+.matrix-out-cell{
+  padding:.5rem;text-align:center;border-radius:var(--r-sm);
+  background:var(--accent-soft);color:var(--accent);font-family:var(--font-display);font-weight:600;font-size:.92rem
+}
+
+.more-textarea{
+  width:100%;min-height:3.2rem;padding:.65rem .8rem;border-radius:var(--r-sm);
+  border:1px solid var(--border-strong);background:var(--bg-sunken);
+  color:var(--text-primary);font:inherit;font-size:16px;resize:vertical;margin-bottom:.7rem
+}
+
+.more-canvas{width:100%;height:320px;display:block;margin-top:.8rem;border-radius:var(--r);border:1px solid var(--border);background:var(--bg-sunken)}
+
+.pascal-wrap{display:flex;flex-direction:column;align-items:center;gap:.3rem;overflow-x:auto;padding:.5rem 0}
+.pascal-row{display:flex;gap:.35rem}
+.pascal-cell{
+  min-width:2rem;padding:.3rem .4rem;text-align:center;border-radius:var(--r-sm);
+  background:var(--accent-soft);color:var(--accent);font-family:var(--font-mono);font-size:.8rem;font-weight:600
+}
+
+.ode-viz{
+  width:100%;height:min(45vh,340px);border-radius:var(--r);overflow:hidden;
+  border:1px solid var(--border);background:var(--bg-sunken);
+  display:flex;align-items:center;justify-content:center
+}
+.ode-frame{width:100%;height:100%;border:none;display:block}
+.ode-probe{
+  margin-top:.5rem;font-family:var(--font-mono);font-size:.85rem;
+  color:var(--text-secondary);min-height:1.3em;
+  /* Зонд обновляется десятки раз в секунду при перетаскивании — здесь нужен
+     только лёгкий сглаживающий переход, а не дискретная поп-анимация
+     (которая на такой частоте выглядела бы как мигание, а не плавность). */
+  transition:opacity .12s linear
+}
+.ode-probe b{color:var(--accent);font-family:var(--font-display);transition:color .15s}
+
+/* ===================================================================
+   АНИМАЦИИ
+   Общие принципы: короткие (180–320мс), ненавязчивые, единый словарь
+   тайминга/пружин с остальным сайтом (--e-out/--e-spring/--t из
+   common.css). Триггерятся из JS точечно (см. services.js) — либо через
+   один общий MutationObserver на #work (для результатов калькуляторов),
+   либо явными классами на значимых, редких событиях (смена инструмента,
+   определение типа ввода). Полностью отключаются при
+   prefers-reduced-motion — реального движения тогда нет вообще, а не
+   просто «покороче».
+   =================================================================== */
+@keyframes mfPop{
+  0%{opacity:.4;transform:scale(.965) translateY(3px)}
+  100%{opacity:1;transform:none}
+}
+.mf-pop{animation:mfPop .22s var(--e-out)}
+
+@keyframes mfBadgePop{
+  0%{opacity:0;transform:scale(.8) translateY(-2px)}
+  55%{opacity:1;transform:scale(1.08)}
+  100%{transform:scale(1) translateY(0)}
+}
+.mf-badge-pop{animation:mfBadgePop .34s var(--e-spring)}
+
+@keyframes mfChipPop{
+  0%{transform:scale(.86)}
+  55%{transform:scale(1.08)}
+  100%{transform:scale(1)}
+}
+.mf-chip-pop{animation:mfChipPop .3s var(--e-spring)}
+
+@keyframes mfPanelEnter{
+  0%{opacity:0;transform:translateY(12px)}
+  100%{opacity:1;transform:none}
+}
+.mf-panel-enter{animation:mfPanelEnter .28s var(--e-out)}
+.mf-panel-enter .panel{animation:mfPanelEnter .32s var(--e-out) both;animation-delay:.02s}
+
+@keyframes mfHistIn{
+  0%{opacity:0;transform:translateX(-12px)}
+  100%{opacity:1;transform:none}
+}
+.mf-hist-in{
+  animation:mfHistIn .24s var(--e-out) both;
+  animation-delay:calc(var(--i,0) * 32ms)
+}
+
+/* Стрелка свопа (конвертор) — усиливаем уже имеющийся hover-поворот нажатием */
+.conv-swap:active{transform:rotate(180deg) scale(.9)}
+
+/* Плитки инструментов и чипы — небольшой мягкий подъём при наведении поверх
+   уже существующего наклона-к-курсору (initCards в mathframe-ui.js) */
+.svc{transition:transform var(--t) var(--e-out),border-color var(--t),background var(--t),box-shadow var(--t)}
+.svc:hover{box-shadow:0 6px 20px -8px rgba(91,140,255,.35)}
+
+@media (prefers-reduced-motion: reduce){
+  .mf-pop,.mf-badge-pop,.mf-chip-pop,.mf-panel-enter,.mf-panel-enter .panel,.mf-hist-in{animation:none!important}
+  .ode-probe{transition:none}
 }
 </style>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>

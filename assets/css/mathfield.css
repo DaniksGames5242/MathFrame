@@ -19,6 +19,13 @@
   overflow-y: hidden;
   white-space: nowrap;
   cursor: text;
+  /* Без этого мобильный браузер перехватывает протаскивание пальцем как
+     собственный горизонтальный скролл (поле и так overflow-x:auto) ещё ДО
+     того, как JS вообще получит pointermove — из-за этого выделение на
+     телефоне не работало вообще, вне зависимости от логики в mathfield.js.
+     Прокрутка поля при переполнении по-прежнему работает — курсор сам
+     проскроллится в видимую область при вводе. */
+  touch-action: none;
   outline: none;
   -webkit-tap-highlight-color: transparent;
   transition: border-color var(--t), box-shadow var(--t), background var(--t);
@@ -175,8 +182,12 @@
   transition: color var(--t), border-color var(--t), background var(--t), transform var(--t);
 }
 .mfkb-icon:hover { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+.mfkb-icon.on { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
 .mfkb-collapse svg { transition: transform var(--t) var(--e-out); }
 .mfkb-collapsed .mfkb-collapse svg { transform: rotate(180deg); }
+/* Свёрнуто — значит клавиатуры почти нет: вкладки прячутся вместе с клавишами,
+   остаются только «?» и стрелка разворота, иначе не было бы как её вернуть. */
+.mfkb-collapsed .mfkb-tabs { display: none; }
 
 /* Свёрнутое состояние: остаётся только полоса вкладок */
 .mfkb-pad {
@@ -219,6 +230,20 @@
 .mfkb-sys { background: var(--bg-sunken); color: var(--text-secondary); font-size: 1.1rem; }
 .mfkb-sys:hover { color: var(--text-primary); }
 
+/* Знак системы, отключённый для конкретного калькулятора (график и т.п.) */
+.mfkb-key.mfkb-disabled {
+  opacity: .32; cursor: not-allowed;
+  background: var(--bg-sunken);
+}
+.mfkb-key.mfkb-disabled:hover { border-color: var(--border); background: var(--bg-sunken); }
+
+/* 🗑 «очистить всё» — подменяет ⌫ при активном Shift; предупреждающий цвет,
+   чтобы не спутать со скромным Backspace: удаляет ВСЁ поле одним нажатием. */
+.mfkb-key.mfkb-danger {
+  color: #f87171; border-color: rgba(248,113,113,.32); background: rgba(248,113,113,.07);
+}
+.mfkb-key.mfkb-danger:hover { background: rgba(248,113,113,.16); border-color: #f87171; color: #f87171; }
+
 /* Подсказка на греческих клавишах: какая латинская буква на этом месте */
 .mfkb-hint {
   position: absolute; top: 3px; right: 5px;
@@ -239,6 +264,65 @@
   .mfkb-key { height: 46px; }     /* палец: не меньше 44px */
   .mfkb-key:hover { border-color: var(--border); background: var(--bg-card); }
 }
+
+/* ---- выделение (как в обычном текстовом поле) ---- */
+.mfld-sel {
+  background: var(--accent-soft);
+  border-radius: 3px;
+  box-shadow: 0 0 0 1px var(--accent-soft);
+}
+/* Курсор прячем, пока активно выделение — иначе мигающая черта путается
+   с подсветкой границ диапазона. */
+.mfld.mfld-has-sel .mfld-gap.mfld-cursor::after { display: none; }
+
+/* ---- система уравнений/неравенств: фигурная скобка + стопка строк ---- */
+.mfld-cases { display: inline-flex; align-items: center; vertical-align: middle; margin: 0 .15em; }
+.mfld-cases-brace {
+  font-size: 1em;
+  line-height: 1;
+  margin-right: .15em;
+  /* Раньше здесь стояли свой шрифт (serif) и приглушённый цвет — из-за этого
+     скобка системы отличалась от обычных цифр/букв толщиной и оттенком, а
+     обобщённый serif-фолбэк при сильном вертикальном растяжении визуально
+     «разваливался» на два куска. Теперь — ровно тот же шрифт и цвет, что у
+     всего остального в поле; вертикальный масштаб выставляется в JS по
+     фактическому числу строк системы (см. _renderNode в mathfield.js). */
+  font-family: inherit;
+  color: inherit;
+  transform-origin: center;
+  display: inline-block;
+}
+.mfld-cases-rows { display: inline-flex; flex-direction: column; gap: .22em; }
+.mfld-cases-row { display: flex; align-items: center; font-size: .92em; }
+.mfld-cases-row:not(:last-child) { padding-bottom: .1em; }
+
+/* ---- всплывающее меню «Копировать / Вырезать / Вставить / Выделить всё» ----
+   Появляется только по явному действию (протаскивание выделения, долгое
+   нажатие) — не мешает обычному вводу. */
+.mfld-ctx {
+  position: absolute;
+  z-index: 500;
+  display: flex;
+  background: var(--bg-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  padding: 4px;
+  gap: 2px;
+  opacity: 0;
+  transform: translateY(4px) scale(.96);
+  transition: opacity .16s var(--e-out), transform .16s var(--e-out);
+  pointer-events: none;
+}
+.mfld-ctx.mfld-ctx-in { opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; }
+.mfld-ctx-btn {
+  font: inherit; font-size: .84rem; white-space: nowrap;
+  padding: .5rem .8rem; min-height: 40px;
+  border: none; border-radius: 7px; background: transparent;
+  color: var(--text-primary); cursor: pointer;
+}
+.mfld-ctx-btn:hover, .mfld-ctx-btn:active { background: var(--accent-soft); color: var(--accent); }
+.mfld-ctx-btn + .mfld-ctx-btn { border-left: 1px solid var(--border); }
 
 /* ============================ 3. ОКНО СПРАВКИ ========================== */
 .mfkb-help-modal { max-width: 560px; }

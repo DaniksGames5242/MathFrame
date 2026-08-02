@@ -15,39 +15,96 @@
      • служебные клавиши (⌫, ‹, ›, ↵, ⇧) всегда на одних и тех же местах во
        всех вкладках — рука к ним привыкает один раз.
 
+   ⇧ влияет не только на регистр буквы, но и на ДЕЙСТВИЕ клавиши:
+     • на вкладке «∞≠∈» часть клавиш имеют альтернативную тройку (kd[4]) —
+       например sin ⇄ sin⁻¹, → ⇄ ⇒, ∈ ⇄ ∀ — это и есть переключение
+       действия, а не просто заглавная буква;
+     • на ВСЕХ вкладках ⇧ подменяет ⌫ (стереть один символ) на 🗑 (очистить
+       всё поле) — тоже смена действия, а не отображения;
+     • ⇧ теперь удерживается (не гаснет после одного символа), потому что
+       управляет сразу несколькими вещами сразу — повторное нажатие возвращает
+       обычный режим.
+
+   ÷ и черта дроби — РАЗНЫЕ клавиши с разным смыслом: ÷ вставляет обычный
+   символ-разделитель внутри строки (2÷3), а «□/□» строит настоящую дробь
+   с числителем и знаменателем в отдельных полях. Нужны оба варианта.
+
+   «{ }» — знак системы (уравнений/неравенств): создаёт фигурную скобку с
+   двумя строками, Enter внутри неё добавляет ещё одну. В калькуляторах, где
+   система не имеет смысла (график функции и т.п.), эта клавиша передаётся
+   отключённой через опцию allowSystem: false — конструктора MFKeyboard.
+
    На ПК клавиатура сворачивается стрелкой и не нужна вовсе: всё вводится
-   с физической клавиатуры (см. MFKeyboard.SHORTCUTS и окно справки).
+   с физической клавиатуры (см. MFKeyboard.SHORTCUTS и окно справки). В
+   свёрнутом виде вкладки тоже скрыты — остаются только «?» и стрелка.
    ========================================================================== */
 (function (global) {
   'use strict';
 
   /* Описание клавиши:
-       [подпись, действие, вариант?]
+       [подпись, действие, вариант?, подсказка?, alt?]
      Действие:
        'ch:x'    — вставить символ
        'cmd:frac'— команда поля (дробь, корень, степень…)
        'fn:sin'  — функция с автоскобкой
        'act:left'— служебное действие
-     Вариант оформления: 'tpl' (шаблон-конструкция), 'sys' (служебная). */
+     Вариант оформления: 'tpl' (шаблон-конструкция), 'sys' (служебная).
+     alt = [подпись, действие, вариант?] — что показывает та же клавиша при
+     включённом ⇧. Это и есть «Shift влияет на действия, а не только на
+     регистр буквы»: например sin ⇄ sin⁻¹ на той же клавише. */
 
   var NUM_TAB = {
     id: 'num', label: '123', title: 'Цифры и основные операции',
     // три зоны в строке: переменные/скобки | цифровой блок | шаблоны
     rows: [
-      [['x','ch:x'], ['n','ch:n'],  null, ['7','ch:7'],['8','ch:8'],['9','ch:9'],['÷','ch:/'],  null, ['e','ch:e'],['i','ch:i'],['π','ch:π']],
+      [['x','ch:x'], ['n','ch:n'],  null, ['7','ch:7'],['8','ch:8'],['9','ch:9'],['÷','ch:÷'],  null, ['e','ch:e'],['i','ch:i'],['π','ch:π']],
       [['<','ch:<'], ['>','ch:>'],  null, ['4','ch:4'],['5','ch:5'],['6','ch:6'],['×','ch:*'],  null, ['□²','cmd:sq','tpl'],['□^□','cmd:sup','tpl'],['√□','cmd:sqrt','tpl']],
-      [['(','cmd:paren'], [')','act:out'], null, ['1','ch:1'],['2','ch:2'],['3','ch:3'],['−','ch:-'], null, ['ⁿ√□','cmd:nroot','tpl'],['□/□','cmd:frac','tpl'],['⌫','act:back','sys']],
-      [['⇧','act:shift','sys'], null, null, ['0','ch:0'],['.','ch:.'],['=','ch:='],['+','ch:+'], null, ['‹','act:left','sys'],['›','act:right','sys'],['↵','act:enter','sys']]
+      [['(','cmd:paren'], [')','act:out'], null, ['1','ch:1'],['2','ch:2'],['3','ch:3'],['−','ch:-'], null, ['ⁿ√□','cmd:nroot','tpl'],['□/□','cmd:frac','tpl'],['{ }','cmd:cases','tpl','Система']],
+      [['⇧','act:shift','sys'], null, null, ['0','ch:0'],['.','ch:.'],['=','ch:='],['+','ch:+'], null, ['‹','act:left','sys'],['›','act:right','sys'],['⌫','act:back','sys']]
     ]
   };
 
+  // ∞≠∈: базовый слой — то, что нужно чаще всего; ⇧ переключает на «глубокий»
+  // слой той же клавиши (обратные функции, кванторы вместо принадлежности
+  // и т.д.) — вот это и есть настоящее влияние Shift на ДЕЙСТВИЕ клавиши,
+  // а не просто регистр буквы.
   var FN_TAB = {
     id: 'fn', label: '∞≠∈', title: 'Функции, знаки и конструкции',
     rows: [
-      [['sin','fn:sin'],['ln','fn:ln'],['abs','cmd:abs','tpl'],['→','ch:→'],['≠','ch:≠'],['∈','ch:∈'],['∪','ch:∪'],['∫','cmd:int','tpl'],['lim','cmd:lim','tpl'],['e','ch:e']],
-      [['cos','fn:cos'],['log','fn:log'],['|□|','cmd:abs','tpl'],['≤','ch:≤'],['∀','ch:∀'],['∋','ch:∋'],['∩','ch:∩'],['∑','cmd:sum','tpl'],['∏','cmd:prod','tpl'],['π','ch:π']],
-      [['tan','fn:tan'],['exp','fn:exp'],['‖□‖','cmd:norm','tpl'],['≥','ch:≥'],['∃','ch:∃'],['⊂','ch:⊂'],['□̄','cmd:bar','tpl'],['□⃗','cmd:vec','tpl'],['□′','ch:′'],['∞','ch:∞']],
-      [['⇧','act:shift','sys'],[',','ch:,'],[':','ch::'],['·','ch:*'],null,null,null,['‹','act:left','sys'],['›','act:right','sys'],['⌫','act:back','sys'],['↵','act:enter','sys']]
+      [['sin','fn:sin', null, null, ['sin⁻¹','fn:asin']],
+       ['ln','fn:ln'],
+       ['abs','cmd:abs','tpl'],
+       ['→','ch:→', null, null, ['⇒','ch:⇒']],
+       ['≠','ch:≠'],
+       ['∈','ch:∈', null, null, ['∀','ch:∀']],
+       ['∪','ch:∪'],
+       ['∫','cmd:int','tpl'],
+       ['lim','cmd:lim','tpl'],
+       ['e','ch:e']],
+      [['cos','fn:cos', null, null, ['cos⁻¹','fn:acos']],
+       ['log','fn:log'],
+       ['|□|','cmd:abs','tpl'],
+       ['≤','ch:≤'],
+       ['∉','ch:∉', null, null, ['∃','ch:∃']],
+       ['∋','ch:∋'],
+       ['∩','ch:∩'],
+       ['∑','cmd:sum','tpl'],
+       ['∏','cmd:prod','tpl'],
+       ['π','ch:π']],
+      [['tan','fn:tan', null, null, ['tan⁻¹','fn:atan']],
+       ['exp','fn:exp'],
+       ['‖□‖','cmd:norm','tpl'],
+       ['≥','ch:≥'],
+       ['⊂','ch:⊂', null, null, ['⊆','ch:⊆']],
+       ['≈','ch:≈'],
+       ['□̄','cmd:bar','tpl'],
+       ['□⃗','cmd:vec','tpl'],
+       ['□′','ch:′'],
+       ['∞','ch:∞']],
+      [['⇧','act:shift','sys'],[',','ch:,'],[':','ch::'],['·','ch:*'],
+       ['{ }','cmd:cases','tpl','Система'],
+       null,null,
+       ['‹','act:left','sys'],['›','act:right','sys'],['⌫','act:back','sys'],['↵','act:enter','sys']]
     ]
   };
 
@@ -89,6 +146,17 @@
 
   var TABS = [NUM_TAB, FN_TAB, ABC_TAB, GREEK_TAB];
 
+  // «Сжатый» режим: одна фиксированная сетка вместо вкладок — только то, что
+  // нужно почти всегда (цифры, четыре действия, скобки, «=», навигация).
+  // Никакого Shift здесь нет — сжимать нечего (букв не показываем вовсе).
+  var COMPACT_ROWS = [
+    [['7', 'ch:7'], ['8', 'ch:8'], ['9', 'ch:9'], ['÷', 'ch:÷']],
+    [['4', 'ch:4'], ['5', 'ch:5'], ['6', 'ch:6'], ['×', 'ch:*']],
+    [['1', 'ch:1'], ['2', 'ch:2'], ['3', 'ch:3'], ['−', 'ch:-']],
+    [['(', 'cmd:paren'], ['0', 'ch:0'], ['.', 'ch:.'], ['+', 'ch:+']],
+    [[')', 'act:out'], ['=', 'ch:='], ['⌫', 'act:back', 'sys'], ['↵', 'act:enter', 'sys']]
+  ];
+
   /* Сочетания физической клавиатуры — показываются в окне справки. */
   var SHORTCUTS = [
     ['/',            'дробь; то, что слева, уходит в числитель'],
@@ -102,11 +170,17 @@
     ['Ctrl+4',       'интеграл ∫'],
     ['Ctrl+L',       'предел lim'],
     ['Ctrl+M',       'модуль |x|'],
+    ['Ctrl+{',       'система уравнений/неравенств'],
     ['← →',          'курсор; на границе заходит внутрь дроби/корня'],
-    ['↑ ↓',          'между числителем и знаменателем, показателем и корнем'],
+    ['↑ ↓',          'между числителем и знаменателем, показателем и корнем; между строками системы'],
+    ['Shift+← →',    'выделение символов'],
+    ['Ctrl+A',       'выделить всю строку'],
+    ['Ctrl+C / X / V', 'копировать / вырезать / вставить'],
     ['Tab',          'следующее ПУСТОЕ поле — быстро заполнять шаблоны'],
     ['Shift+Tab',    'предыдущее поле'],
-    ['Backspace',    'удалить; пустую конструкцию — целиком'],
+    ['Enter (в системе)', 'добавить ещё одну строку-уравнение'],
+    ['Backspace',    'удалить символ; на дроби/корне/степени и т.п. сначала заходит внутрь — сносит структуру, только когда все её поля уже пусты'],
+    ['Delete',       'удалить символ справа от курсора'],
     ['Home / End',   'в начало / конец строки'],
     ['Enter',        'вычислить'],
     ['Esc',          'свернуть экранную клавиатуру']
@@ -120,10 +194,32 @@
     this.tab = 0;
     this.shift = false;
     this.collapsed = !!opts.collapsed;
+    // «Сжатая» клавиатура — ОТДЕЛЬНО от collapsed (то прячет клавиатуру
+    // целиком). Здесь клавиатура остаётся видимой, но показывает только
+    // горстку самых частых символов вместо всех вкладок — аналог
+    // сворачивания поля ввода в Обычном калькуляторе, только для клавиатуры.
+    this.compact = !!opts.compact;
     this.onEnter = opts.onEnter || function () {};
+    // Знак системы «{ }» нужен не везде: в построителе графиков, конверторе
+    // и т.п. он бессмыслен. По умолчанию доступен; можно отключить точечно.
+    this.allowSystem = opts.allowSystem !== false;
+    // Мнимая единица — противоположная логика по умолчанию (allowSystem
+    // включён везде, кроме явных исключений; allowComplex выключен везде,
+    // кроме явного включения) — большинство калькуляторов вообще не умеют
+    // считать с i, поэтому кнопка должна быть скрыта по умолчанию, а не
+    // просто задизейблена «на всякий случай».
+    this.allowComplex = !!opts.allowComplex;
     host.classList.add('mfkb');
     this._build();
     this._bindPhysical();
+    // Ввод может идти и с физической клавиатуры (не только с этих кнопок) —
+    // подцепляемся к onChange самого поля, чтобы кнопка системы гасла/включалась
+    // в реальном времени независимо от того, откуда пришёл символ.
+    var self = this, origOnChange = field.onChange;
+    field.onChange = function () {
+      self._refreshCasesState();
+      return origOnChange.apply(field, arguments);
+    };
   }
 
   MFKeyboard.prototype._build = function () {
@@ -136,17 +232,19 @@
 
     var tabs = document.createElement('div');
     tabs.className = 'mfkb-tabs';
-    TABS.forEach(function (t, i) {
-      var b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'mfkb-tab' + (i === self.tab ? ' on' : '');
-      b.textContent = t.label;
-      b.title = t.title;
-      b.setAttribute('aria-label', t.title);
-      b.addEventListener('pointerdown', function (e) { e.preventDefault(); });
-      b.addEventListener('click', function () { self.tab = i; self.shift = false; self._build(); });
-      tabs.appendChild(b);
-    });
+    if (!this.compact) {
+      TABS.forEach(function (t, i) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'mfkb-tab' + (i === self.tab ? ' on' : '');
+        b.textContent = t.label;
+        b.title = t.title;
+        b.setAttribute('aria-label', t.title);
+        b.addEventListener('pointerdown', function (e) { e.preventDefault(); });
+        b.addEventListener('click', function () { self.tab = i; self.shift = false; self._build(); });
+        tabs.appendChild(b);
+      });
+    }
     bar.appendChild(tabs);
 
     var side = document.createElement('div');
@@ -161,6 +259,20 @@
     help.addEventListener('pointerdown', function (e) { e.preventDefault(); });
     help.addEventListener('click', function () { MFKeyboard.openHelp(); });
     side.appendChild(help);
+
+    var compactBtn = document.createElement('button');
+    compactBtn.type = 'button';
+    compactBtn.className = 'mfkb-icon mfkb-compact' + (this.compact ? ' on' : '');
+    compactBtn.title = this.compact ? 'Показать все символы' : 'Оставить только частые символы';
+    compactBtn.setAttribute('aria-pressed', String(this.compact));
+    // Тот же язык иконки, что у сворачивания поля ввода в Обычном калькуляторе
+    // (стрелки внутрь/наружу) — визуально узнаваемая пара «сжать/развернуть».
+    compactBtn.innerHTML = this.compact
+      ? '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="14" y1="10" x2="21" y2="3"/><line x1="3" y1="21" x2="10" y2="14"/></svg>'
+      : '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>';
+    compactBtn.addEventListener('pointerdown', function (e) { e.preventDefault(); });
+    compactBtn.addEventListener('click', function () { self.compact = !self.compact; self.shift = false; self._build(); });
+    side.appendChild(compactBtn);
 
     var toggle = document.createElement('button');
     toggle.type = 'button';
@@ -180,10 +292,17 @@
     // ---- сами клавиши
     var pad = document.createElement('div');
     pad.className = 'mfkb-pad';
-    var t = TABS[this.tab];
-    pad.dataset.tab = t.id;
+    var rows;
+    if (this.compact) {
+      pad.dataset.tab = 'compact';
+      rows = COMPACT_ROWS;
+    } else {
+      var t = TABS[this.tab];
+      pad.dataset.tab = t.id;
+      rows = t.rows;
+    }
 
-    t.rows.forEach(function (rowDef) {
+    rows.forEach(function (rowDef) {
       var r = document.createElement('div');
       r.className = 'mfkb-row';
       rowDef.forEach(function (kd) {
@@ -193,27 +312,54 @@
           r.appendChild(sp);
           return;
         }
-        r.appendChild(self._key(kd));
+        var keyEl = self._key(kd);
+        if (keyEl) r.appendChild(keyEl);
       });
       pad.appendChild(r);
     });
 
     this.host.appendChild(pad);
     this.host.classList.toggle('mfkb-collapsed', this.collapsed);
+    this.host.classList.toggle('mfkb-compact', this.compact);
   };
 
   MFKeyboard.prototype._key = function (kd) {
     var self = this;
-    var label = kd[0], action = kd[1], variant = kd[2], hint = kd[3];
+    // Если Shift активен и у клавиши есть alt-тройка [label, action, variant] —
+    // используем её целиком: это и есть «Shift меняет действие», а не только
+    // регистр буквы (см. sin ⇄ sin⁻¹, → ⇄ ⇒ и т.д.).
+    var alt = kd[4];
+    var useAlt = this.shift && alt;
+    var label = useAlt ? alt[0] : kd[0];
+    var action = useAlt ? alt[1] : kd[1];
+    var variant = useAlt ? (alt[2] || kd[2]) : kd[2];
+    var hint = kd[3];
+
+    // Глобальный свап ⌫ ↔ 🗑 «очистить всё» при активном Shift — это тоже
+    // изменение ДЕЙСТВИЯ клавиши, применяется на всех вкладках одинаково.
+    if (!useAlt && action === 'act:back' && this.shift) {
+      label = '🗑'; action = 'act:clear';
+    }
+
+    var fieldNotEmpty = this.field && this.field.root && this.field.root.k.length > 0;
+    // «Просто не должны отображаться» — не приглушённая недоступная кнопка,
+    // а полное отсутствие в раскладке. Два случая: мнимая единица в
+    // калькуляторе, который её не считает (статично, на весь калькулятор),
+    // и знак системы, когда в поле уже что-то введено (динамично, меняется
+    // по ходу набора — см. _refreshDynamicKeys ниже, перестраивающую панель
+    // целиком при каждом изменении содержимого поля).
+    if (action === 'ch:i' && !this.allowComplex) return null;
+    if (action === 'cmd:cases' && (!this.allowSystem || fieldNotEmpty)) return null;
 
     var b = document.createElement('button');
     b.type = 'button';
-    b.className = 'mfkb-key' + (variant ? ' mfkb-' + variant : '');
+    b.className = 'mfkb-key' + (variant ? ' mfkb-' + variant : '') + (action === 'act:clear' ? ' mfkb-danger' : '');
     if (action === 'act:shift' && this.shift) b.classList.add('on');
+    if (action === 'cmd:cases') b.setAttribute('data-cases-key', '');
 
-    // с ⇧ показываем заглавный вариант
+    // с ⇧ показываем заглавный вариант букв (там, где alt не переопределил всё целиком)
     var shown = label;
-    if (this.shift && action.indexOf('ch:') === 0) {
+    if (this.shift && !useAlt && action.indexOf('ch:') === 0) {
       var c = action.slice(3);
       if (SHIFT_MAP[c]) shown = SHIFT_MAP[c];
     }
@@ -225,13 +371,34 @@
       b.appendChild(h);
     }
 
-    // pointerdown вместо click: поле не теряет фокус и курсор не «прыгает»
-    b.addEventListener('pointerdown', function (e) {
-      e.preventDefault();
-      b.classList.add('press');
-      self._fire(action, label);
-      setTimeout(function () { b.classList.remove('press'); }, 130);
-    });
+    {
+      // pointerdown вместо click: поле не теряет фокус и курсор не «прыгает»
+      var repeatTimer = null, repeatInterval = null;
+      var isBackspace = action === 'act:back';
+      function stopRepeat() {
+        if (repeatTimer) { clearTimeout(repeatTimer); repeatTimer = null; }
+        if (repeatInterval) { clearInterval(repeatInterval); repeatInterval = null; }
+      }
+      b.addEventListener('pointerdown', function (e) {
+        e.preventDefault();
+        b.classList.add('press');
+        self._fire(action, label);
+        setTimeout(function () { b.classList.remove('press'); }, 130);
+        // Долгое нажатие на ⌫ — быстрое многократное стирание (привычно на
+        // телефонах, где повторно тапать по кнопке неудобно). Только для
+        // самого backspace — остальные клавиши от повтора смысла не выигрывают.
+        if (isBackspace) {
+          repeatTimer = setTimeout(function () {
+            repeatInterval = setInterval(function () { self._fire(action, label); }, 55);
+          }, 420);
+        }
+      });
+      if (isBackspace) {
+        ['pointerup', 'pointercancel', 'pointerleave'].forEach(function (evt) {
+          b.addEventListener(evt, stopRepeat);
+        });
+      }
+    }
     return b;
   };
 
@@ -243,16 +410,25 @@
 
     if (kind === 'ch') {
       var c = arg;
-      if (this.shift && SHIFT_MAP[c]) { c = SHIFT_MAP[c]; this.shift = false; this._build(); }
+      // ⇧ теперь удерживается (не гаснет после одного символа): раз она ещё
+      // отвечает за альтернативные действия и за 🗑, автосброс после первой
+      // же буквы был бы неожиданным (набирая «SIN» заглавными, S дал бы
+      // заглавную, а I и N — снова строчные). Возврат к обычному регистру —
+      // повторным нажатием на ⇧.
+      if (this.shift && SHIFT_MAP[c]) { c = SHIFT_MAP[c]; }
+      if (f.sel) f._deleteSelection();
       f.insertChars(c);
     } else if (kind === 'fn') {
+      if (f.sel) f._deleteSelection();
       f.insertFunc(arg);
     } else if (kind === 'cmd') {
+      if (f.sel) f._deleteSelection();
       if (arg === 'sq') { f.cmd('sup'); f.insertChars('2'); }   // готовый квадрат
       else f.cmd(arg);
     } else if (kind === 'act') {
       switch (arg) {
         case 'back':  f.backspace(); break;
+        case 'clear': f.clear(); break;                          // 🗑 очистить всё поле
         case 'left':  f.left();  f.render(); break;
         case 'right': f.right(); f.render(); break;
         case 'out': {                       // «)» — выйти наружу из скобок
@@ -269,6 +445,20 @@
       }
     }
     try { f.host.focus({ preventScroll: true }); } catch (e) { }
+    this._refreshCasesState();
+  };
+
+  // Знак системы теперь либо есть в раскладке, либо его нет (не просто
+  // серый/активный) — проверяем, совпадает ли текущее присутствие кнопки с
+  // тем, что должно быть при нынешнем содержимом поля, и перестраиваем
+  // клавиатуру ТОЛЬКО если это реально изменилось (не на каждое нажатие —
+  // печатать второй символ в уже непустое поле не должно ничего трогать).
+  MFKeyboard.prototype._refreshCasesState = function () {
+    var f = this.field;
+    if (!f || !this.allowSystem) return;   // allowSystem-блокировка не меняется на лету — её обновлять не нужно
+    var shouldShow = !(f.root && f.root.k.length > 0);
+    var isShown = !!this.host.querySelector('[data-cases-key]');
+    if (shouldShow !== isShown) this._build();
   };
 
   MFKeyboard.prototype.setCollapsed = function (v) {
@@ -292,8 +482,10 @@
         'm': 'abs',
         'l': 'lim',
         '8': 'sum',
-        '4': 'int'
+        '4': 'int',
+        '{': 'cases'
       };
+      if (map[k] === 'cases' && !self.allowSystem) return;
       if (map[k]) { f.cmd(map[k]); e.preventDefault(); }
     });
   };
@@ -330,6 +522,17 @@
       '<li><kbd>Tab</kbd> прыгает по пустым полям: удобно заполнять большие конструкции.</li>' +
       '<li>Умножение можно не писать: <code>2x</code>, <code>xy</code>, <code>2(x+1)</code> понимаются сами.</li>' +
       '<li>Греческие буквы стоят на местах латинских: <kbd>a</kbd>→α, <kbd>b</kbd>→β, <kbd>p</kbd>→π.</li>' +
+      '<li><kbd>⇧</kbd> на экранной клавиатуре — не только заглавные буквы: на вкладке ' +
+      '«∞≠∈» она открывает второй слой той же клавиши (sin ⇄ sin⁻¹), а на любой ' +
+      'вкладке подменяет <kbd>⌫</kbd> на 🗑 — очистить всё поле одним нажатием.</li>' +
+      '<li><b>÷</b> и <b>дробь</b> — разные клавиши: ÷ вставляет знак деления в строку ' +
+      '(как в примере 2÷3), а «□/□» строит настоящую дробь с числителем и знаменателем.</li>' +
+      '<li>«{ }» строит систему уравнений/неравенств: две строки сразу, ещё одну добавляет ' +
+      '<kbd>Enter</kbd> внутри неё. В калькуляторах, где система не нужна (например, ' +
+      'построитель графиков), эта клавиша выключена.</li>' +
+      '<li>Значок со стрелками рядом со знаком вопроса сворачивает клавиатуру до самых ' +
+      'частых символов (цифры, четыре действия, скобки) — удобно, когда редкие ' +
+      'символы только мешают. Полный набор возвращается тем же значком.</li>' +
       '</ul>';
 
     document.body.appendChild(ov);

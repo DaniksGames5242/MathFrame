@@ -539,7 +539,7 @@ const OBJECT_BLOCK_HEADERS = [
     '\\bdraw\\s+Trace\\b', '\\bdraw\\s+Region\\b', '\\bdraw\\s+Chart\\b',
     '\\bdraw\\s+Tree\\b', '\\bdraw\\s+Table\\b', '\\bdraw\\s+Complex\\b',
     '\\bdraw\\s+Hyperbolic\\b', '\\bdraw\\s+Bifurcation\\b', '\\bdraw\\s+Cobweb\\b', '\\bdraw\\s+IFS\\b', '\\bdraw\\s+Automaton\\b', '\\bdraw\\s+Voronoi\\b', '\\bdraw\\s+Fourier\\b', '\\bdraw\\s+Diagram\\b', '\\bdraw\\s+TensorField\\b',
-    '\\bdraw\\s+Scatter3D\\b', '\\bdraw\\s+Histogram3D\\b'
+    '\\bdraw\\s+Scatter3D\\b', '\\bdraw\\s+Histogram3D\\b', '\\bnew\\s+Publish\\b'
 ];
 function removeObjectBlocks(code) {
     // Балансный поиск вместо нежадных regex: '};' внутри строк (например, в action кнопки)
@@ -752,6 +752,19 @@ function removeObjectBlocks(code) {
         function parseActiveExpr(block) {
             const m = block.match(/(?:^|[^A-Za-z0-9_])active\s*=\s*(true|false|[a-zA-Z_][a-zA-Z0-9_.]*)/);
             return m ? m[1] : null;
+        }
+        // new Publish { name = "..." value = <любое выражение движка> } — чистый способ
+        // сообщить наружу (родительской странице через postMessage) текущее значение
+        // чего угодно в сцене: длины отрезка, угла, площади фигуры — без парсинга
+        // description/DOM. value — «сырое» выражение до конца блока (единственное
+        // поле после name, поэтому не нужен общий сканер границ полей).
+        function parsePublishBlock(body) {
+            const nameMatch = body.match(/(?:^|[^A-Za-z0-9_])name\s*=\s*"([^"]*)"/);
+            if (!nameMatch) return null;
+            const valueMatch = body.match(/(?:^|[^A-Za-z0-9_])value\s*=\s*([\s\S]+)$/);
+            const expr = valueMatch ? valueMatch[1].trim().replace(/;\s*$/, '') : '';
+            if (!expr) return null;
+            return { name: nameMatch[1], expr: expr };
         }
         // Число: литерал, необязательное ключевое слово default (-> def), либо имя переменной-числа
         function parseNumberField(block, vars, field, def, allowDefaultKeyword) {
@@ -5234,6 +5247,9 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
         // Пошаговый режим (проф-режим): как анимируется переключение между кластерами-пунктами (see gcSetStep). Выбор автора сцены, никаких элементов управления внутри самой сцены не добавляется намеренно.
         const gcStepAnimation = ['fade', 'slide', 'scale', 'none'].includes(params['steps animation']) ? params['steps animation'] : 'fade';
         const gcStepDuration = (typeof params['steps duration'] === 'number' && params['steps duration'] >= 0) ? params['steps duration'] : 0.6;
+        // new Publish{} — чистый канал наружу: значения публикуются через postMessage,
+        // без необходимости родительской странице парсить description/DOM сцены.
+        const gcPublishListJson = jsonForScript(params.publishList || []);
 
         const fieldWidth = (typeof params['field width'] === 'number') ? params['field width'] : 50;
         const fieldHeight = (typeof params['field height'] === 'number') ? params['field height'] : 30;
@@ -5535,6 +5551,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '    const linesData = ', linesJson, ';\n',
             '    const figuresData = ', figuresJson, ';\n',
             '    const clustersData = ', clustersJson, ';\n',
+            '    const publishData = ', gcPublishListJson, ';\n',
             '    const gcStepAnimation = ', jsonForScript(gcStepAnimation), ';\n',
             '    const gcStepDuration = ', String(gcStepDuration), ';\n',
             '    const anglesData = ', anglesJson, ';\n',
@@ -6028,6 +6045,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '      updateArcs();\n',
             '      updatePointsOnLinesAndCircles();\n',
             '      for (let a of angles) { computeAngleMeasure(a); }\n',
+            '      gcPublishTick();\n',
             '    }\n',
             '\n',
             '    // ----- ИНИЦИАЛИЗАЦИЯ -----\n',
@@ -10601,6 +10619,27 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '      if (gcStepAnimation === \'none\' || !gcStepDuration || gcStepDuration <= 0) return;\n',
             '      const after = __gcCaptureCanvasSnapshot();\n',
             '      __gcRunStepTransition(before, after, gcStepAnimation, gcStepDuration);\n',
+            '    }\n',
+            '    // ===== new Publish{} — чистый канал вывода значений наружу =====\n',
+            '    // Каждый вызов updateScene() пересчитывает все опубликованные выражения через тот же\n',
+            '    // evaluate(), который используют подстановки в description — один и тот же язык\n',
+            '    // выражений всюду. postMessage шлёт только при РЕАЛЬНОй смене значения\n',
+            '    // (числовое — с малым эпсилон, любое другое — по strict-равенству), не на каждом кадре.\n',
+            '    window.__gcPublished = window.__gcPublished || {};\n',
+            '    var __gcPublishReady = false; // взводится ПОСЛЕ регистрации именованных объектов на window\n',
+            '    function gcPublishTick() {\n',
+            '      if (!__gcPublishReady || !publishData || !publishData.length) return;\n',
+            '      for (var __pi = 0; __pi < publishData.length; __pi++) {\n',
+            '        var __p = publishData[__pi];\n',
+            '        var __v;\n',
+            '        try { __v = evaluate(__p.expr); } catch (e) { continue; }\n',
+            '        var __prev = window.__gcPublished[__p.name];\n',
+            '        var __changed = (__prev === undefined) ||\n',
+            '          (typeof __v === \'number\' && typeof __prev === \'number\' ? Math.abs(__v - __prev) > 1e-9 : __v !== __prev);\n',
+            '        if (!__changed) continue;\n',
+            '        window.__gcPublished[__p.name] = __v;\n',
+            '        try { window.parent.postMessage({ type: \'gms-var\', name: __p.name, value: __v }, \'*\'); } catch (e) {}\n',
+            '      }\n',
             '    }\n',
             '    window.gcSetStep = gcSetStep;\n',
             '\n',
@@ -16498,6 +16537,16 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '    if (window.ellipses === undefined) window.ellipses = ellipses;\n',
             '    if (window.curves === undefined) window.curves = curves;\n',
             '\n',
+            '    // Первый вызов updateScene() (чуть выше по файлу) случился ДО этой\n',
+            '    // регистрации — на тот момент window.A и т.п. ещё не существовали. Для\n',
+            '    // прежних обязанностей updateScene() (пересчёт кругов/эллипсов/дуг) это было не важно —\n',
+            '    // они работают с массивами напрямую, а не по window[имя]. Но new Publish{} резолвит\n',
+            '    // ссылки на именованные объекты именно через window — без этого повторного тика\n',
+            '    // значение на статичной сцене (без Start/Update/анимаций) навсегда осталось бы\n',
+            '    // «Неизвестный идентификатор» вместо настоящего числа.\n',
+            '    __gcPublishReady = true;\n',
+            '    gcPublishTick();\n',
+            '\n',
             '    resizeCanvas(); createUI();\n',
             '    if (startCode && startCode.trim()) { (async function() { await Start(); figures.forEach(applyFigureTransform); clusters.forEach(applyClusterTransform); updateScene(); draw(); })(); }\n',
             '    // runUpdate теперь ВСЕГДА определена (а не только при непустом Update{}), потому что\n',
@@ -16566,6 +16615,9 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
         // Пошаговый режим (проф-режим): как анимируется переключение между кластерами-пунктами (see gcSetStep). Выбор автора сцены, никаких элементов управления внутри самой сцены не добавляется намеренно.
         const gcStepAnimation = ['fade', 'slide', 'scale', 'none'].includes(params['steps animation']) ? params['steps animation'] : 'fade';
         const gcStepDuration = (typeof params['steps duration'] === 'number' && params['steps duration'] >= 0) ? params['steps duration'] : 0.6;
+        // new Publish{} — чистый канал наружу: значения публикуются через postMessage,
+        // без необходимости родительской странице парсить description/DOM сцены.
+        const gcPublishListJson = jsonForScript(params.publishList || []);
 
         const fieldWidth = (typeof params['field width'] === 'number') ? params['field width'] : 50;
         const fieldHeight = (typeof params['field height'] === 'number') ? params['field height'] : 30;
@@ -16803,6 +16855,7 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '  const linesData = ', linesJson, ';\n',
             '  const figuresData = ', figuresJson, ';\n',
             '  const clustersData = ', clustersJson, ';\n',
+            '  const publishData = ', gcPublishListJson, ';\n',
             '  const gcStepAnimation = ', jsonForScript(gcStepAnimation), ';\n',
             '  const gcStepDuration = ', String(gcStepDuration), ';\n',
             '  const fillingsData = ', fillingsJson, ';\n',
@@ -18442,6 +18495,32 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '      if (!ast) { ast = g3Parse(String(exprSrc)); if (g3ExprAstCache.size > 500) g3ExprAstCache.clear(); g3ExprAstCache.set(exprSrc, ast); }\n',
             '      return g3Eval(ast, {});\n',
             '    } catch (e) { return undefined; }\n',
+            '  }\n',
+            '  // ===== new Publish{} — тот же чистый канал наружу, что и в 2D =====\n',
+            '  // В чисто 3D-сцене (без 2D-слоя) 2D-версия gcPublishTick никогда не создаётся,\n',
+            '  // поэтому здесь — самостоятельный аналог на g3Evaluate; window.__gcPublished —\n',
+            '  // ОБЩИЙ объект с 2D-версией (на случай совмещённой сцены), чтобы одно и то же\n',
+            '  // имя, опубликованное из обоих слоёв, не слало дублирующихся сообщений.\n',
+            '  window.__gcPublished = window.__gcPublished || {};\n',
+            '  var __gcPublishReady = false;\n',
+            '  // В 3D (в отличие от 2D) момент, когда все именованные объекты уже\n',
+            '  // доступны по имени, не так легко указать одной строкой — откладываем\n',
+            '  // готовность на следующий тик через setTimeout(...,0): это гарантированно\n',
+            '  // происходит ПОСЛЕ всей текущей синхронной инициализации, какой бы она ни была.\n',
+            '  setTimeout(function () { __gcPublishReady = true; gcPublishTick3D(); }, 0);\n',
+            '  function gcPublishTick3D() {\n',
+            '    if (!__gcPublishReady || !publishData || !publishData.length) return;\n',
+            '    for (var __pi = 0; __pi < publishData.length; __pi++) {\n',
+            '      var __p = publishData[__pi];\n',
+            '      var __v = g3Evaluate(__p.expr);\n',
+            '      if (__v === undefined) continue;\n',
+            '      var __prev = window.__gcPublished[__p.name];\n',
+            '      var __changed = (__prev === undefined) ||\n',
+            '        (typeof __v === \'number\' && typeof __prev === \'number\' ? Math.abs(__v - __prev) > 1e-9 : __v !== __prev);\n',
+            '      if (!__changed) continue;\n',
+            '      window.__gcPublished[__p.name] = __v;\n',
+            '      try { window.parent.postMessage({ type: \'gms-var\', name: __p.name, value: __v }, \'*\'); } catch (e) {}\n',
+            '    }\n',
             '  }\n',
             '  function gcShouldUpdate3D(obj) {\n',
             '    if (!obj.__gcUpdateInit) {\n',
@@ -22965,6 +23044,7 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '      gcTickAnimations(dt);\n',
             '    }\n',
             '    updateGridLOD();\n',
+            '    gcPublishTick3D();\n',
             '    try { updateDescription3D(); } catch (e) { console.warn(\'описание:\', e); }\n',
             '    clusters.forEach(applyClusterTransform3D);\n',
             '    for (const p of pointObjs) { p.active = g3IsObjectActive(p); p.mesh.visible = p.active; }\n',
@@ -23101,6 +23181,10 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             const codeWithoutComments = removeComments(codeBlock);
 
             const { startCodes, updateCodes } = extractMethodBlocks(codeWithoutComments);
+            const publishList = findBlocks(codeWithoutComments, 'Publish')
+                .map(b => parsePublishBlock(b.body))
+                .filter(Boolean);
+            params.publishList = publishList;
             const funcsData = findFuncDeclarations(codeWithoutComments).map(d => ({ name: d.name, params: d.params, bodyExpr: d.bodyExpr }));
             const procsData = findAllProcDeclarations(codeWithoutComments).map(d => ({ name: d.name, params: d.params, body: d.body, isVoid: d.isVoid }));
 
