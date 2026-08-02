@@ -1447,6 +1447,22 @@
     return r;
   }
   function cSqrt(a) { var r = cAbs(a), theta = cArg(a); var sr = Math.sqrt(r); return cFromPolar(sr, theta / 2); }
+  // Главная ветвь комплексного логарифма/экспоненты — нужны для ОБЩЕЙ степени
+  // z^w, где сам показатель w тоже комплексный (cPowInt считает только
+  // целый вещественный показатель). log(0) не определён.
+  function cLog(a) { var r = cAbs(a); return r === 0 ? null : { re: Math.log(r), im: cArg(a) }; }
+  function cExp(a) { var m = Math.exp(a.re); return { re: m * Math.cos(a.im), im: m * Math.sin(a.im) }; }
+  // z^w = exp(w·Log z), главное значение. 0^w — по соглашению: 0^0=1,
+  // 0^w=0 при Re(w)>0, иначе не определено (как и в вещественном случае).
+  function cPow(base, exp) {
+    if (cIsZero(base)) {
+      if (cIsZero(exp)) return { re: 1, im: 0 };
+      if (exp.re > 0) return { re: 0, im: 0 };
+      return null;
+    }
+    var lg = cLog(base);
+    return lg ? cExp(cMul(exp, lg)) : null;
+  }
   function cRoots(a, n) {
     var r = cAbs(a), theta = cArg(a), rr = Math.pow(r, 1 / n), out = [];
     for (var k = 0; k < n; k++) out.push(cFromPolar(rr, (theta + 2 * Math.PI * k) / n));
@@ -1484,11 +1500,22 @@
       case '^': {
         var base = evalComplex(node.a, vars);
         if (!base) return null;
-        var expVal;
-        try { expVal = evalAst(node.b, {}); } catch (e) { return null; }
-        if (Number.isInteger(expVal)) return cPowInt(base, expVal);
-        if (Math.abs(expVal - 0.5) < 1e-12) return cSqrt(base);
-        return null;   // общая нецелая комплексная степень (через логарифм) — вне системы
+        // Быстрые точные пути для обычного вещественного показателя (без i) —
+        // считаются отдельно от общей ветви, чтобы не терять точность через
+        // log/exp там, где это не нужно (целая степень, квадратный корень).
+        if (!hasImaginary(node.b)) {
+          var expVal;
+          try { expVal = evalAst(node.b, {}); } catch (e) { expVal = NaN; }
+          if (isFinite(expVal)) {
+            if (Number.isInteger(expVal)) return cPowInt(base, expVal);
+            if (Math.abs(expVal - 0.5) < 1e-12) return cSqrt(base);
+          }
+        }
+        // Общий комплексный показатель (в т.ч. корень n-й степени, записанный
+        // как x^(1/n), где n тоже может быть комплексным) — через главную
+        // ветвь комплексного логарифма: z^w = exp(w·Log z).
+        var expC = evalComplex(node.b, vars);
+        return expC ? cPow(base, expC) : null;
       }
       case 'fn': {
         var arg = evalComplex(node.a, vars);
@@ -1749,6 +1776,7 @@
     cAdd: cAdd, cSub: cSub, cMul: cMul, cDiv: cDiv, cNeg: cNeg,
     cAbs: cAbs, cArg: cArg, cConj: cConj, cFromPolar: cFromPolar,
     cPowInt: cPowInt, cSqrt: cSqrt, cRoots: cRoots, cIsZero: cIsZero,
+    cLog: cLog, cExp: cExp, cPow: cPow,
     complexToTex: complexToTex, evalComplex: evalComplex, hasImaginary: hasImaginary,
     complexPolyOf: complexPolyOf, complexPolyToTex: complexPolyToTex, complexAffineOf: complexAffineOf,
     solveComplexEquationPoly: solveComplexEquationPoly,

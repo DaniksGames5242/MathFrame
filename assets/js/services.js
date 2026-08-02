@@ -219,6 +219,25 @@
         var s = Number(v.toPrecision(11));
         return String(s).replace('-', '−');
       }
+      // ---- комплексный режим: если в выражении встретилась «i», результат
+      // вычисления может оказаться {re,im} вместо числа, тогда его нужно
+      // отдельно форматировать и отдельно сериализовать обратно в строку для
+      // продолжения цепочки вычислений.
+      function fmtComplex(c) {
+        return MFComplex.complexToTex(c).replace(/-/g, '−');
+      }
+      function numLiteral(n) {
+        n = Number(n.toPrecision(11));
+        return n < 0 ? '(-' + (-n) + ')' : String(n);
+      }
+      function complexRawStr(c) {
+        var re = Math.abs(c.re) < 1e-9 ? 0 : c.re, im = Math.abs(c.im) < 1e-9 ? 0 : c.im;
+        if (im === 0) return numLiteral(re);
+        if (re === 0) return (im === 1 ? 'i' : (im === -1 ? '-i' : numLiteral(im) + '*i'));
+        var absIm = Math.abs(im);
+        var imPart = (absIm === 1 ? 'i' : numLiteral(absIm) + '*i');
+        return numLiteral(re) + (im > 0 ? '+' : '-') + imPart;
+      }
       function pretty(raw) {
         // косметика ТОЛЬКО для отображения — вычисляется всегда заново,
         // никогда не сохраняется как состояние.
@@ -232,16 +251,23 @@
           .replace(/\//g, '÷')
           .replace(/-/g, '−');
       }
+      // Возвращает число ИЛИ {re,im} (комплексный результат) — только когда в
+      // выражении встретилась «i» (клавиша есть в «Ещё действия»). Степень с
+      // комплексным основанием/показателем и корень n-й степени с комплексным
+      // n (как x^(1/n)) отдельных кнопок не получают — уже выражаются через
+      // существующие xʸ/(/÷/), а z^w = exp(w·Log z) считает любой показатель.
       function safeEval(raw) {
         if (!raw || !/[0-9]/.test(raw)) return null;
         try {
           var expr = preprocessPercent(raw);
           var c = MFMath.compile(expr);
           if (!c) return null;
+          if (MFComplex.hasImaginary(c.ast)) return MFComplex.evalComplex(c.ast, {});
           var v = c.value({});
           return isFinite(v) || v === Infinity || v === -Infinity ? v : null;
         } catch (e) { return null; }
       }
+      function isComplexVal(v) { return v !== null && typeof v === 'object'; }
 
       function render() {
         disp.classList.toggle('calc-mode-inline', mode === 'inline');
@@ -264,7 +290,8 @@
         } else {
           traceEl.textContent = (function () {
             var v = safeEval(state.raw);
-            return (v === null || pretty(state.raw) === '') ? '' : '= ' + fmtNum(v);
+            if (v === null || pretty(state.raw) === '') return '';
+            return '= ' + (isComplexVal(v) ? fmtComplex(v) : fmtNum(v));
           })();
           mainEl.textContent = pretty(state.raw) || '0';
           mainEl.classList.toggle('calc-dim', !state.raw);
@@ -355,10 +382,17 @@
       // было продолжить цепочку операций от нового значения).
       function applyTransform(fn) {
         if (state.computed) {
-          var t = fn(state.resultRaw);
+          // Комплексный результат — не «голый операнд» для trailingOperand()
+          // (тот распознаёт число или сбалансированную группу в скобках), —
+          // оборачиваем в скобки сами, чтобы ±/1/x/x²/! применялись к нему
+          // как к единому целому, а не молча ничего не делали.
+          var src = /i/.test(state.resultRaw) ? '(' + state.resultRaw + ')' : state.resultRaw;
+          var t = fn(src);
           var v = safeEval(t);
           if (v === null) return;
-          state.raw = t; state.resultRaw = t; state.resultDisp = fmtNum(v);
+          state.raw = t;
+          state.resultRaw = isComplexVal(v) ? complexRawStr(v) : String(v);
+          state.resultDisp = isComplexVal(v) ? fmtComplex(v) : fmtNum(v);
           render();
           return;
         }
@@ -366,10 +400,15 @@
         render();
       }
       function equals() {
+        // Повторное «=» без единого нового символа в вводе — состояние уже
+        // computed (любой ввод его сбрасывает через startFreshIfComputed/
+        // continueFromResultIfComputed) — не должно плодить дубль в истории:
+        // результат и так уже показан, второй нажатием ничего не меняется.
+        if (state.computed) return;
         var v = safeEval(state.raw);
         if (v === null) return;
-        state.resultRaw = String(v);
-        state.resultDisp = fmtNum(v);
+        state.resultRaw = isComplexVal(v) ? complexRawStr(v) : String(v);
+        state.resultDisp = isComplexVal(v) ? fmtComplex(v) : fmtNum(v);
         state.computed = true;
         pushHistory();
         render();
@@ -393,7 +432,13 @@
         [['(', '', function () { appendParen('('); }], [')', '', function () { appendParen(')'); }], ['√', '', function () { appendFn('sqrt('); }], ['x²', '', function () { applyTransform(square); }]],
         [['xʸ', 'calc-op', function () { appendOp('^'); }], ['1/x', '', function () { applyTransform(reciprocal); }], ['n!', '', function () { applyTransform(factorial); }], ['π', '', function () { appendFn('π'); }]],
         [['sin', '', function () { appendFn('sin('); }], ['cos', '', function () { appendFn('cos('); }], ['tan', '', function () { appendFn('tan('); }], ['e', '', function () { appendFn('e'); }]],
-        [['ln', '', function () { appendFn('ln('); }], ['log', '', function () { appendFn('log('); }], ['10ˣ', '', function () { appendFn('10^('); }], ['|x|', '', function () { appendFn('abs('); }]]
+        [['ln', '', function () { appendFn('ln('); }], ['log', '', function () { appendFn('log('); }], ['10ˣ', '', function () { appendFn('10^('); }], ['|x|', '', function () { appendFn('abs('); }]],
+        // «i» — мнимая единица. Единственная НОВАЯ клавиша: без неё комплексное
+        // число вообще нечем набрать. Степень с комплексным основанием/
+        // показателем и корень n-й степени (в т.ч. с комплексным n) отдельных
+        // кнопок не получают — они и так полностью выражаются уже существующими
+        // клавишами xʸ/(/÷/) (например, «8», xʸ, «(», «1», ÷, «3», «)» → 8^(1/3)).
+        [['i', '', function () { appendFn('i'); }]]
       ];
       function buildPad(container, rows) {
         rows.forEach(function (rowDef) {
@@ -2706,24 +2751,6 @@
     }
     [iRe,iIm].forEach(function(i){i.addEventListener('input',calc);}); calc();
   }
-  function buildComplexRootsUI(c) {
-    var g = el('div', 'grid2', c);
-    var iRe = moreField(g,'Re','1'), iIm = moreField(g,'Im','0'), iN = moreField(g,'степень корня n','4');
-    var out = el('div', 'out', c);
-    function calc() {
-      out.innerHTML=''; var re=moreNum(iRe), im=moreNum(iIm), n=Math.round(moreNum(iN)); if(re===null||im===null||!n||n>12) return;
-      var r0 = Math.sqrt(re*re+im*im), theta = Math.atan2(im,re);
-      var rr = Math.pow(r0, 1/n);
-      var dl = el('dl','kv',out);
-      for (var k=0;k<n;k++) {
-        var ang = (theta+2*Math.PI*k)/n;
-        var x = rr*Math.cos(ang), y = rr*Math.sin(ang);
-        el('dt',null,dl,'корень '+(k+1));
-        el('dd',null,dl, moreFmt(x) + (y>=0?' + ':' − ') + moreFmt(Math.abs(y)) + 'i');
-      }
-    }
-    [iRe,iIm,iN].forEach(function(i){i.addEventListener('input',calc);}); calc();
-  }
 
   /* ---------------------------------------------------- 7. Последовательности */
   function buildArithSeqUI(c) {
@@ -3122,6 +3149,15 @@
       { id: 'eigen', label: 'Собственные значения (2×2)', build: buildEigenUI },
       { id: 'vec3', label: 'Векторное/скалярное произведение (3D)', build: buildVec3UI }
     ]},
+    // Корни n-й степени убраны отсюда: то же самое (и с комплексным
+    // показателем корня, x^(1/n)) теперь можно набрать на «Обычном»
+    // калькуляторе клавишами xʸ/(/÷/) и «i» — как и возведение в степень
+    // (клавиша xʸ) уже поддерживает комплексное основание/показатель.
+    { id: 'complex', label: 'Комплексные числа', tools: [
+      { id: 'calc', label: 'Калькулятор', build: buildComplexCalcUI },
+      { id: 'arith', label: 'Арифметика по полям', build: buildComplexArithUI },
+      { id: 'polar', label: 'Полярная форма, модуль и аргумент', build: buildComplexPolarUI }
+    ]},
     { id: 'numtheory', label: 'Теория чисел', tools: [
       { id: 'gcdlcm', label: 'НОД и НОК', build: buildGcdLcmUI },
       { id: 'factorize', label: 'Разложение на множители', build: buildFactorizeUI },
@@ -3224,7 +3260,6 @@
     if (mf.kb) { mf.kb.allowSystem = true; mf.kb.allowComplex = true; }
 
     var badge = el('div', 'alg-badge', container);
-    var stepsWrap = el('div', 'alg-steps', container);
     var answerWrap = el('div', 'alg-answer', container);
     var errWrap = el('div', 'alg-err', container);
 
@@ -3267,7 +3302,7 @@
 
       function recompute() {
         clearError();
-        stepsWrap.innerHTML = ''; answerWrap.innerHTML = ''; badge.textContent = '';
+        answerWrap.innerHTML = ''; badge.textContent = '';
         var sysRows = mf.field.systemRows();
         if (sysRows !== null) {
           if (sysRows.length < 2) { showError('в системе нужно хотя бы 2 уравнения'); return; }
@@ -3282,7 +3317,6 @@
           if (affRows.some(function (a) { return !a; })) { showError('система нелинейна — комплексный калькулятор решает только линейные системы'); return; }
           setBadge('system');
           var res = MFComplex.solveComplexLinearSystem(affRows, vars);
-          renderSteps(stepsWrap, res.steps);
           if (res.kind === 'none') { el('div', 'alg-answer-big', answerWrap, 'Решений нет'); return; }
           if (res.kind === 'infinite') { el('div', 'alg-answer-big', answerWrap, 'Бесконечно много решений'); return; }
           el('div', 'alg-answer-label', answerWrap, 'Ответ');
@@ -3305,7 +3339,6 @@
             var val = MFComplex.evalComplex(ast, {});
             if (!val) { showError('это выражение выходит за рамки поддерживаемых комплексных операций (см. «Что умеет»)'); return; }
             setBadge('compute');
-            renderSteps(stepsWrap, [{ tex: MFMath.tex(ast) + ' = ' + MFComplex.complexToTex(val) }]);
             complexAnswer(val);
             return;
           }
@@ -3314,7 +3347,6 @@
             if (!coeffs) { showError('это выражение выходит за рамки поддерживаемых операций для упрощения'); return; }
             setBadge('simplify');
             var simplified = MFComplex.complexPolyToTex(coeffs, vars2[0]);
-            renderSteps(stepsWrap, [{ tex: MFMath.tex(ast) }]);
             el('div', 'alg-answer-label', answerWrap, 'Упрощённый вид');
             el('div', 'alg-answer-big', answerWrap).innerHTML = texToHtml(simplified);
             return;
@@ -3334,7 +3366,6 @@
           var lv = MFComplex.evalComplex(lhsAst, {}), rv = MFComplex.evalComplex(rhsAst, {});
           if (!lv || !rv) { showError('не удалось вычислить обе стороны'); return; }
           var holds = Math.abs(lv.re - rv.re) < 1e-9 && Math.abs(lv.im - rv.im) < 1e-9;
-          renderSteps(stepsWrap, [{ tex: MFComplex.complexToTex(lv) + (holds ? ' = ' : ' \\ne ') + MFComplex.complexToTex(rv) }]);
           el('div', 'alg-answer-big', answerWrap, holds ? 'Верно' : 'Неверно');
           return;
         }
@@ -3344,9 +3375,8 @@
           var res2 = MFComplex.solveComplexEquationPoly(coeffs2, vars3[0]);
           if (!res2) { showError('уравнения степени 3 и выше комплексный калькулятор не решает'); return; }
           setBadge('equation');
-          if (res2.kind === 'identity') { renderSteps(stepsWrap, [{ tex: MFMath.tex(lhsAst) + ' = ' + MFMath.tex(rhsAst) }]); el('div', 'alg-answer-big', answerWrap, 'Верно при любом ' + vars3[0]); return; }
-          if (res2.kind === 'contradiction') { renderSteps(stepsWrap, [{ tex: MFMath.tex(lhsAst) + ' = ' + MFMath.tex(rhsAst) }]); el('div', 'alg-answer-big', answerWrap, 'Решений нет'); return; }
-          renderSteps(stepsWrap, [{ tex: MFMath.tex(lhsAst) + ' = ' + MFMath.tex(rhsAst) }].concat(res2.steps));
+          if (res2.kind === 'identity') { el('div', 'alg-answer-big', answerWrap, 'Верно при любом ' + vars3[0]); return; }
+          if (res2.kind === 'contradiction') { el('div', 'alg-answer-big', answerWrap, 'Решений нет'); return; }
           el('div', 'alg-answer-label', answerWrap, res2.roots.length > 1 ? 'Корни' : 'Ответ');
           res2.roots.forEach(function (r) {
             el('div', 'alg-answer-big', answerWrap).innerHTML = texToHtml(vars3[0] + ' = ' + MFComplex.complexToTex(r));
@@ -3358,39 +3388,7 @@
       recompute();
   }
 
-  /* ---- отдельные вкладки для точечных действий с комплексными числами
-     (переиспользуют уже готовые, проверенные инструменты из «Ещё» —
-     дублировать код незачем, здесь только собираем их под одной крышей
-     вместе с основным калькулятором). */
-  var COMPLEX_TABS = [
-    { id: 'calc', label: 'Калькулятор', build: buildComplexCalcUI },
-    { id: 'arith', label: 'Арифметика по полям', build: buildComplexArithUI },
-    { id: 'polar', label: 'Полярная форма, модуль и аргумент', build: buildComplexPolarUI },
-    { id: 'roots', label: 'Корни n-й степени', build: buildComplexRootsUI }
-  ];
-  var svcComplex = {
-    id: 'complex', glyph: 'i', title: 'Комплексные числа',
-    sub: 'Вычисление, упрощение, уравнения, системы',
-    mount: function (host) {
-      var p = panel(host, 'Комплексные числа');
-      var tabRow = el('div', 'conv-chips', p);
-      var body = el('div', null, p);
-      var activeTab = 'calc';
-      function renderTab() {
-        tabRow.querySelectorAll('.conv-chip').forEach(function (b) { b.classList.toggle('on', b.dataset.id === activeTab); });
-        body.innerHTML = '';
-        var tab = COMPLEX_TABS.filter(function (t) { return t.id === activeTab; })[0];
-        if (tab) tab.build(body);
-      }
-      COMPLEX_TABS.forEach(function (t) {
-        var b = el('button', 'conv-chip', tabRow, t.label); b.type = 'button'; b.dataset.id = t.id;
-        b.addEventListener('click', function () { activeTab = t.id; renderTab(); });
-      });
-      renderTab();
-    }
-  };
-
-  var SERVICES = [svcBasic, svcCalc, svcComplex, svcConverter, svcGeo, svcPlot, svcMore];
+  var SERVICES = [svcBasic, svcCalc, svcConverter, svcGeo, svcPlot, svcMore];
 
   /* --------------------------------------------------------- оболочка */
   function boot() {
