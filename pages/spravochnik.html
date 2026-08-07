@@ -642,14 +642,17 @@
     }
     .spr-content-inner {
       position: relative;
-      transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.4s ease;
+      /* Тот же perspective()-внутри-transform приём, что у карточек и модалок
+         по всему сайту (mathframe-ui.js/common.css) — отдельный
+         parent-perspective не нужен. */
+      transition: transform 0.4s var(--e-out, cubic-bezier(0.4, 0, 0.2, 1)), opacity 0.4s var(--e-out, ease);
     }
     .spr-content-inner.slide-left {
-      transform: translateX(-40px);
+      transform: perspective(1000px) rotateY(9deg) translateX(-40px);
       opacity: 0;
     }
     .spr-content-inner.slide-right {
-      transform: translateX(40px);
+      transform: perspective(1000px) rotateY(-9deg) translateX(40px);
       opacity: 0;
     }
     .spr-content-inner.slide-none {

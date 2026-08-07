@@ -37,12 +37,12 @@
       "permanent": true
     },
     {
-      "source": "/pages/admin.html",
+      "source": "/pages/admin/admin.html",
       "destination": "/admin/",
       "permanent": true
     },
     {
-      "source": "/pages/gms-ide.html",
+      "source": "/pages/admin/gms-ide.html",
       "destination": "/admin/gms-ide/",
       "permanent": true
     }
@@ -74,11 +74,11 @@
     },
     {
       "source": "/admin/",
-      "destination": "/pages/admin.html"
+      "destination": "/pages/admin/admin.html"
     },
     {
       "source": "/admin/gms-ide/",
-      "destination": "/pages/gms-ide.html"
+      "destination": "/pages/admin/gms-ide.html"
     }
   ],
   "headers": [

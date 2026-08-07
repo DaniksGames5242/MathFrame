@@ -100,20 +100,31 @@
     this.host.addEventListener('keydown', function (e) { self._key(e); });
 
     // Тап ставит курсор; протаскивание выделяет диапазон в пределах одной строки.
-    var dragging = false, anchor = null;
+    // На ПК (мышь) всплывающее меню «Копировать/Вырезать/…» НЕ должно вылезать
+    // само по себе после протаскивания — там для этого есть ПКМ (contextmenu,
+    // см. ниже). Показываем его автоматически только для touch/pen — там
+    // ПКМ-жеста физически нет, а «прилипающая» плашка над выделением — это
+    // и есть привычный системный способ.
+    var dragging = false, anchor = null, lastPointerType = 'mouse';
     this.host.addEventListener('pointerdown', function (e) {
       self.host.focus();
+      lastPointerType = e.pointerType || 'mouse';
+      // ПКМ (button===2) только переставляет курсор — не запускает протаскивание
+      // выделения (у него своя роль: contextmenu откроет меню на этом месте).
+      var isPrimary = e.button === 0 || e.pointerType !== 'mouse';
       var hit = self._hitTest(e.clientX, e.clientY);
       if (hit) {
         self.cur = hit;
-        anchor = hit;
-        self.sel = null;
-        dragging = true;
-        try { self.host.setPointerCapture(e.pointerId); } catch (err) {}
+        if (isPrimary) {
+          anchor = hit;
+          self.sel = null;
+          dragging = true;
+          try { self.host.setPointerCapture(e.pointerId); } catch (err) {}
+        }
         self.render();
       }
       self._hideCtxMenu();
-      e.preventDefault();
+      if (isPrimary) e.preventDefault();
     });
     this.host.addEventListener('pointermove', function (e) {
       if (!dragging || !anchor) return;
@@ -128,15 +139,21 @@
       if (!dragging) return;
       dragging = false;
       try { self.host.releasePointerCapture(e.pointerId); } catch (err) {}
-      // На тач-устройстве после выделения показываем всплывающее меню копирования.
-      if (self.sel) self._showCtxMenu();
+      // Плашка сама всплывает только на тач/пере — на мыши выделение остаётся
+      // видимым, а меню доступно через ПКМ.
+      if (self.sel && lastPointerType !== 'mouse') self._showCtxMenu();
     }
     this.host.addEventListener('pointerup', endDrag);
     this.host.addEventListener('pointercancel', endDrag);
 
-    // Долгое нажатие пальцем по выделению — тоже открыть меню (как в браузере).
+    // ПКМ на ПК (и долгое нажатие пальцем, которое браузер тоже репортит как
+    // contextmenu) — единственный способ открыть меню на мыши. Открываем
+    // ровно там, где кликнули (как обычное системное меню), а не «прилипшим»
+    // к выделению — так оно и выглядит как десктопное контекстное меню, а не
+    // как мобильная плашка.
     this.host.addEventListener('contextmenu', function (e) {
-      if (self.sel) { e.preventDefault(); self._showCtxMenu(); }
+      e.preventDefault();
+      self._showCtxMenu({ x: e.clientX, y: e.clientY });
     });
 
     this.host.addEventListener('focus', function () { self.host.classList.add('mfld-focus'); self.render(); });
@@ -354,25 +371,18 @@
       var prev = c.row.k[c.i - 1];
       var rs = childRows(prev);
       if (rs.length) {
-        // Составной узел (дробь, корень, степень, ∫, |·|, система …).
-        // Правило одинаково для ЛЮБОЙ структуры: если во всех её полях уже
-        // пусто — сносим целиком сразу; если хоть в одном поле есть
-        // содержимое — НЕ удаляем, а заходим внутрь (в последнее поле), чтобы
-        // редактировать его. Тогда уже ИЗНУТРИ повторные Backspace, опустошив
-        // все поля, снесут структуру — см. ветку ниже (c.i === 0).
-        var allEmpty = rs.every(function (r) { return r.k.length === 0; });
-        if (allEmpty) {
-          c.row.k.splice(c.i - 1, 1);
-          c.i--;
-          // Само удаление составного узла могло опустошить и ТЕКУЩУЮ строку
-          // (если это был единственный её элемент) — например, дробь целиком
-          // внутри знаменателя другой дроби. Тогда сразу пробуем прыгнуть на
-          // соседнее поле ВНЕШНЕЙ структуры, тем же нажатием.
-          this._maybeJumpToSiblingField();
-        } else {
-          var last = rs[rs.length - 1];
-          this.cur = { row: last, i: last.k.length };
-        }
+        // Составной узел (дробь, корень, степень, ∫, |·|, система …) СРАЗУ
+        // ПЕРЕД курсором — сносим его целиком одним нажатием, независимо от
+        // того, есть ли внутри содержимое. Заходить внутрь для редактирования
+        // нужно СТРЕЛКОЙ ВЛЕВО (или тапом), а не Backspace — так «стереть»
+        // однозначно значит «стереть», а не «сначала войти».
+        c.row.k.splice(c.i - 1, 1);
+        c.i--;
+        // Само удаление составного узла могло опустошить и ТЕКУЩУЮ строку
+        // (если это был единственный её элемент) — например, дробь целиком
+        // внутри знаменателя другой дроби. Тогда сразу пробуем прыгнуть на
+        // соседнее поле ВНЕШНЕЙ структуры, тем же нажатием.
+        this._maybeJumpToSiblingField();
       } else {
         c.row.k.splice(c.i - 1, 1);
         c.i--;
@@ -910,18 +920,22 @@
   };
 
   /* -------------------------------------- всплывающее меню (копировать и т.д.)
-     На телефоне нет Ctrl+C — поэтому над выделением показываем плашку с
-     кнопками, как это делает системное поле ввода. */
-  MathField.prototype._showCtxMenu = function () {
+     Два разных вида одной и той же плашки:
+       • без pos (вызывает endDrag на touch/pen) — мобильная горизонтальная
+         плашка над выделением, как в системных полях ввода на телефоне;
+       • с pos={x,y} (вызывает contextmenu, т.е. ПКМ) — вертикальный список,
+         открывается ровно там, где кликнули, как обычное десктопное
+         контекстное меню. */
+  MathField.prototype._showCtxMenu = function (pos) {
     var self = this;
     this._hideCtxMenu();
     var menu = document.createElement('div');
-    menu.className = 'mfld-ctx';
+    menu.className = pos ? 'mfld-ctx mfld-ctx-desktop' : 'mfld-ctx';
     var items = [];
     if (this.sel) { items.push(['Копировать', function () { self.copySelection(); self._clearSel(); self.render(); }]); }
     if (this.sel) { items.push(['Вырезать', function () { self.cutSelection(); }]); }
     if (MathField._clipboard) { items.push(['Вставить', function () { self.pasteClipboard(); }]); }
-    items.push(['Выделить всё', function () { self.selectAllRow(); self.render(); self._showCtxMenu(); }]);
+    items.push(['Выделить всё', function () { self.selectAllRow(); self.render(); self._showCtxMenu(pos); }]);
 
     items.forEach(function (it) {
       var b = document.createElement('button');
@@ -934,14 +948,22 @@
       menu.appendChild(b);
     });
 
-    // Позиционируем над выделением (или над курсором).
     document.body.appendChild(menu);
-    var rect = this._selectionRect() || this.host.getBoundingClientRect();
     var mw = menu.offsetWidth, mh = menu.offsetHeight;
-    var left = rect.left + rect.width / 2 - mw / 2 + window.scrollX;
-    var top = rect.top - mh - 8 + window.scrollY;
-    if (top < window.scrollY + 4) top = rect.bottom + 8 + window.scrollY; // не влезло сверху — снизу
+    var left, top;
+    if (pos) {
+      // Ровно в точке клика, как системное меню (с поправкой, чтобы не вылезти за край).
+      left = pos.x + window.scrollX;
+      top = pos.y + window.scrollY;
+    } else {
+      // Над выделением (или над курсором) — центрируем по горизонтали.
+      var rect = this._selectionRect() || this.host.getBoundingClientRect();
+      left = rect.left + rect.width / 2 - mw / 2 + window.scrollX;
+      top = rect.top - mh - 8 + window.scrollY;
+      if (top < window.scrollY + 4) top = rect.bottom + 8 + window.scrollY; // не влезло сверху — снизу
+    }
     left = Math.max(6 + window.scrollX, Math.min(left, window.scrollX + document.documentElement.clientWidth - mw - 6));
+    top = Math.max(6 + window.scrollY, Math.min(top, window.scrollY + document.documentElement.clientHeight - mh - 6));
     menu.style.left = left + 'px';
     menu.style.top = top + 'px';
     requestAnimationFrame(function () { menu.classList.add('mfld-ctx-in'); });

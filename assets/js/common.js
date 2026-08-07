@@ -841,6 +841,14 @@ function injectSettingsModal() {
         </div>
       </div>
 
+      <div style="margin: 1.2rem 0 0.8rem; border-top:1px solid var(--border); padding-top:1rem;">
+        <div style="font-weight:600; font-size:0.85rem; margin-bottom:0.6rem; color:var(--text-secondary); text-align:center;">Анимации</div>
+        <div id="anim-toggle-settings" style="display:flex; gap:.5rem; justify-content:center;">
+          <button class="btn small" type="button" data-anim="on">Включены</button>
+          <button class="btn small" type="button" data-anim="off">Выключены</button>
+        </div>
+      </div>
+
       <button class="btn small" id="change-password-btn" style="width:100%; margin:0.8rem 0;">Сменить пароль</button>
       <button class="btn danger" id="delete-account-btn" style="width:100%; margin:0.5rem 0;">Удалить аккаунт</button>
 
@@ -893,6 +901,34 @@ function injectSettingsModal() {
             }
         });
     });
+
+    // ===== Переключатель анимаций =====
+    // Независим от prefers-reduced-motion: пользователь мог явно захотеть
+    // выключить украшательство на самом сайте. mathframe-ui.js читает тот же
+    // ключ localStorage максимально рано (до DOMContentLoaded), поэтому
+    // класс на <html> уже стоит корректно при первой отрисовке — здесь
+    // только переключаем его вживую и подсвечиваем активную кнопку.
+    const animToggleSettings = document.getElementById('anim-toggle-settings');
+    function updateAnimToggle() {
+        const off = localStorage.getItem('mf-motion') === 'off';
+        animToggleSettings.querySelectorAll('button').forEach(b => {
+            b.classList.toggle('primary', (b.dataset.anim === 'off') === off);
+        });
+    }
+    animToggleSettings.querySelectorAll('button').forEach(b => {
+        b.addEventListener('click', () => {
+            const off = b.dataset.anim === 'off';
+            if (off) {
+                localStorage.setItem('mf-motion', 'off');
+                document.documentElement.classList.add('mf-no-motion');
+            } else {
+                localStorage.removeItem('mf-motion');
+                document.documentElement.classList.remove('mf-no-motion');
+            }
+            updateAnimToggle();
+        });
+    });
+    updateAnimToggle();
 
     function populateSettings(user) {
         if (!user) {

@@ -431,8 +431,11 @@ label.f input:focus,label.f select:focus{border-color:var(--accent);box-shadow:0
 }
 .mf-chip-pop{animation:mfChipPop .3s var(--e-spring)}
 
+/* Смена инструмента — лёгкий 3D-наклон «от зрителя» вместо плоского сдвига
+   (тот же язык, что у .mf-panel-3d в common.css: perspective() прямо внутри
+   transform, отдельный parent-perspective не нужен). */
 @keyframes mfPanelEnter{
-  0%{opacity:0;transform:translateY(12px)}
+  0%{opacity:0;transform:perspective(1000px) rotateX(6deg) translateY(12px)}
   100%{opacity:1;transform:none}
 }
 .mf-panel-enter{animation:mfPanelEnter .28s var(--e-out)}
@@ -447,6 +450,17 @@ label.f input:focus,label.f select:focus{border-color:var(--accent);box-shadow:0
   animation-delay:calc(var(--i,0) * 32ms)
 }
 
+/* Результат «Обычного» калькулятора по «=» — единственная кнопка со своим
+   отдельным эффектом (плюс частицы из MathFrameUI.burst, см. services.js):
+   короткий 3D-подброс числа, набор цифр им не задет — только сам факт
+   получения ответа. */
+@keyframes mfResultFlip{
+  0%{transform:perspective(500px) rotateX(-55deg) translateY(6px);opacity:.35}
+  60%{transform:perspective(500px) rotateX(8deg);opacity:1}
+  100%{transform:none;opacity:1}
+}
+.calc-result-pop{animation:mfResultFlip .38s var(--e-out) both}
+
 /* Стрелка свопа (конвертор) — усиливаем уже имеющийся hover-поворот нажатием */
 .conv-swap:active{transform:rotate(180deg) scale(.9)}
 
@@ -456,7 +470,7 @@ label.f input:focus,label.f select:focus{border-color:var(--accent);box-shadow:0
 .svc:hover{box-shadow:0 6px 20px -8px rgba(91,140,255,.35)}
 
 @media (prefers-reduced-motion: reduce){
-  .mf-pop,.mf-badge-pop,.mf-chip-pop,.mf-panel-enter,.mf-panel-enter .panel,.mf-hist-in{animation:none!important}
+  .mf-pop,.mf-badge-pop,.mf-chip-pop,.mf-panel-enter,.mf-panel-enter .panel,.mf-hist-in,.calc-result-pop{animation:none!important}
   .ode-probe{transition:none}
 }
 </style>

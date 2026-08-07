@@ -244,6 +244,45 @@
 }
 .mfkb-key.mfkb-danger:hover { background: rgba(248,113,113,.16); border-color: #f87171; color: #f87171; }
 
+/* ---- WYSIWYG-визуалы клавиш-шаблонов (степень/корень/дробь) ----
+   Показывают, КАК получится конструкция в поле, а не как она пишется для
+   движка («□^□» → квадратик над квадратиком). Строит buildKeyVisual() в
+   mf-keyboard.js; здесь только оформление. */
+.mfkb-vbox {
+  display: inline-block;
+  width: .62em; height: .62em;
+  border-radius: 2px;
+  vertical-align: middle;
+}
+.mfkb-vbox-ph {
+  border: 1.4px dashed currentColor;
+  opacity: .55;
+}
+.mfkb-vis { display: inline-flex; align-items: center; color: inherit; }
+
+/* степень / квадрат: квадратик, чуть выше и правее — маленький показатель */
+.mfkb-vis-sup { position: relative; }
+.mfkb-vis-sup .mfkb-vis-exp {
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: .62em; line-height: 1;
+  margin-left: .05em; margin-top: -.65em;
+  align-self: flex-start;
+}
+.mfkb-vis-sup .mfkb-vis-exp .mfkb-vbox { width: .68em; height: .68em; }
+
+/* корень: знак √ + подчёркнутый квадратик; у ⁿ√ сверху слева ещё индекс n */
+.mfkb-vis-sqrt { position: relative; }
+.mfkb-vis-sqrt-sign { font-size: 1.15em; line-height: 1; margin-right: -.02em; }
+.mfkb-vis-sqrt-rad { border-top: 1.4px solid currentColor; }
+.mfkb-vis-sqrt-idx {
+  position: absolute; left: -.05em; top: -.5em;
+  font-size: .56em; line-height: 1; font-style: italic;
+}
+
+/* дробь: квадратик / черта / квадратик, столбиком */
+.mfkb-vis-frac { flex-direction: column; gap: .12em; }
+.mfkb-vis-frac-bar { display: block; width: .74em; height: 1.4px; background: currentColor; border-radius: 1px; }
+
 /* Подсказка на греческих клавишах: какая латинская буква на этом месте */
 .mfkb-hint {
   position: absolute; top: 3px; right: 5px;
@@ -323,6 +362,27 @@
 }
 .mfld-ctx-btn:hover, .mfld-ctx-btn:active { background: var(--accent-soft); color: var(--accent); }
 .mfld-ctx-btn + .mfld-ctx-btn { border-left: 1px solid var(--border); }
+
+/* Десктопный вариант (ПКМ) — вертикальный список, как обычное системное
+   контекстное меню, а не горизонтальная мобильная плашка. */
+.mfld-ctx.mfld-ctx-desktop {
+  flex-direction: column;
+  gap: 0;
+  padding: 5px;
+  min-width: 168px;
+  transform: scale(.97);
+  transform-origin: top left;
+}
+.mfld-ctx-desktop .mfld-ctx-btn {
+  text-align: left;
+  min-height: 34px;
+  padding: .42rem .7rem;
+  border-radius: 6px;
+}
+.mfld-ctx-desktop .mfld-ctx-btn + .mfld-ctx-btn {
+  border-left: none;
+  margin-top: 1px;
+}
 
 /* ============================ 3. ОКНО СПРАВКИ ========================== */
 .mfkb-help-modal { max-width: 560px; }

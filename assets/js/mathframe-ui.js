@@ -28,6 +28,22 @@
     reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   } catch (e) {}
 
+  /* ------------------------------------------------------- переключатель
+     анимаций из настроек (см. common.js — «Анимации» в модалке настроек).
+     Отдельно от system prefers-reduced-motion: пользователь мог явно
+     выключить украшательство на сайте, даже если ОС ничего не просит.
+     Применяем класс максимально рано (здесь, а не в common.js), потому что
+     mathframe-ui.js — самый первый подключаемый скрипт и сам решает, крутить
+     ли WebGL-фон/трассеры/наклон карточек. */
+  try {
+    if (localStorage.getItem('mf-motion') === 'off') {
+      document.documentElement.classList.add('mf-no-motion');
+    }
+  } catch (e) {}
+  function motionOff() {
+    return reduced || document.documentElement.classList.contains('mf-no-motion');
+  }
+
   /* ---------------------------------------------------------------- helpers */
   function el(tag, cls, parent) {
     var n = document.createElement(tag);
@@ -397,6 +413,7 @@
     var out = [0, 0];
     return {
       resize: resize,
+      clear: function () { resize(); ctx.clearRect(0, 0, cv.width, cv.height); },
       draw: function (time, mx, my, dt) {
         resize();
         var w = cv.width, h = cv.height, mn = Math.min(w, h);
@@ -468,6 +485,17 @@
       // курсор догоняем с инерцией — резкие рывки мыши не дёргают картинку
       mx += (tmx - mx) * 0.06; my += (tmy - my) * 0.06;
       var time = (now - t0) / 1000;
+      // Переключатель «Анимации» может щёлкнуться в любой момент (см.
+      // common.js) — гасим/включаем фон и трассеры на лету, без пересборки
+      // WebGL-контекста. Канвас плавно растворяется через уже существующий
+      // CSS-переход у .mf-ready (opacity), трассеры просто один раз чистим.
+      var off = motionOff();
+      if (field && field.canvas) field.canvas.classList.toggle('mf-ready', !off);
+      if (off) {
+        if (tracers && !tracers.__mfCleared) { try { tracers.clear(); } catch (e) {} tracers.__mfCleared = true; }
+        return;
+      }
+      if (tracers) tracers.__mfCleared = false;
       if (field)   { try { field.draw(time, mx, my); } catch (e) {} }
       if (tracers) { try { tracers.draw(time, mx, my, dt); } catch (e) {} }
     }
@@ -511,7 +539,7 @@
         var py = (e.clientY - r.top) / r.height;
         card.style.setProperty('--mx', (px * 100).toFixed(2) + '%');
         card.style.setProperty('--my', (py * 100).toFixed(2) + '%');
-        if (reduced) return;
+        if (motionOff()) return;
         tx = (py - 0.5) * -2 * TILT;
         ty = (px - 0.5) *  2 * TILT;
         if (!raf) raf = requestAnimationFrame(function () {
@@ -541,7 +569,7 @@
   function initRipple() {
     document.addEventListener('pointerdown', function (e) {
       var b = e.target && e.target.closest ? e.target.closest('.btn, .social-btn, .theme-option, .svc, .conv-chip, .geo-subchip, .calc-key') : null;
-      if (!b || reduced) return;
+      if (!b || motionOff()) return;
       var r = b.getBoundingClientRect();
       var d = Math.max(r.width, r.height) * 2.1;
       var s = el('span', 'mf-ripple', b);
@@ -550,6 +578,51 @@
       s.style.top  = (e.clientY - r.top)  + 'px';
       setTimeout(function () { if (s.parentNode) s.parentNode.removeChild(s); }, 640);
     }, { passive: true });
+  }
+
+  /* ------------------------------------------------------------- частицы
+     Короткая вспышка искр от точки/элемента — для КОНКРЕТНЫХ подтверждающих
+     действий (страницы вызывают сами, см. services.js «=», forum.html
+     отправка поста), не генерик-эффект на все клики. */
+  function burst(target, opts) {
+    if (motionOff() || !target) return;
+    opts = opts || {};
+    var n = Math.max(1, opts.count || 10);
+    var cx, cy;
+    if (typeof opts.x === 'number' && typeof opts.y === 'number') { cx = opts.x; cy = opts.y; }
+    else {
+      var r = (target.getBoundingClientRect ? target.getBoundingClientRect() : null);
+      if (!r) return;
+      cx = r.left + r.width / 2; cy = r.top + r.height / 2;
+    }
+    var colors = opts.colors || [
+      cssVar('--accent', '#5b8cff'), cssVar('--accent-2', '#56dcc8'), cssVar('--accent-3', '#f2b45c')
+    ];
+    var spread = opts.spread || 30;
+    for (var i = 0; i < n; i++) {
+      var ang = (Math.PI * 2 * i / n) + (Math.random() - 0.5) * 0.7;
+      var dist = spread * 0.6 + Math.random() * spread;
+      var dx = Math.cos(ang) * dist, dy = Math.sin(ang) * dist;
+      var size = 3 + Math.random() * 3;
+      var s = el('span', 'mf-burst-p');
+      s.style.cssText =
+        'left:' + cx + 'px;top:' + cy + 'px;width:' + size + 'px;height:' + size + 'px;' +
+        'background:' + colors[i % colors.length] + ';color:' + colors[i % colors.length] + ';' +
+        '--mfdx:' + dx.toFixed(1) + 'px;--mfdy:' + dy.toFixed(1) + 'px;';
+      document.body.appendChild(s);
+      (function (node) { setTimeout(function () { if (node.parentNode) node.parentNode.removeChild(node); }, 700); })(s);
+    }
+  }
+
+  /* --------------------------------------------------------- смена панели
+     «Контейнер поменял содержимое» — вызывающий код сам решает, когда: уже
+     положил новую разметку в el и хочет короткий 3D+маска въезд вместо
+     резкой подмены. Ничего не трогает в el, кроме класса анимации. */
+  function panelIn(elm) {
+    if (!elm) return;
+    elm.classList.remove('mf-panel-3d');
+    void elm.offsetWidth;
+    elm.classList.add('mf-panel-3d');
   }
 
   /* -------------------------------------------------------------------- 6. nav
@@ -626,9 +699,9 @@
       n.style.setProperty('--mf-delay', Math.min(i, 8) * 55 + 'ms');
     });
 
-    var targets = document.querySelectorAll('.mf-reveal');
+    var targets = document.querySelectorAll('.mf-reveal, .mf-reveal-3d');
     if (!targets.length) return;
-    if (reduced || !('IntersectionObserver' in window)) {
+    if (motionOff() || !('IntersectionObserver' in window)) {
       targets.forEach(function (n) { n.classList.add('mf-in'); });
       return;
     }
@@ -676,6 +749,9 @@
   window.MathFrameUI = {
     reveal: initReveal,
     cards: initCards,
-    nav: initNav
+    nav: initNav,
+    burst: burst,
+    panelIn: panelIn,
+    motionOff: motionOff
   };
 })();

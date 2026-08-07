@@ -553,7 +553,10 @@ h1, h2, h3, h4, h5, h6 {
 
 .modal {
   position: fixed; top: 50%; left: 50%;
-  transform: translate(-50%, -46%) scale(.94);
+  /* Лёгкий наклон «от зрителя» на входе — perspective() внутри самого
+     transform, отдельный parent-perspective не нужен (тот же приём, что и
+     у наклона карточек в mathframe-ui.js). */
+  transform: translate(-50%, -46%) perspective(1200px) rotateX(-8deg) scale(.94);
   width: 92%; max-width: 452px; max-height: 90vh; overflow-y: auto;
   background: var(--bg-raised);
   backdrop-filter: blur(28px) saturate(150%);
@@ -571,7 +574,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 .modal.active {
   opacity: 1; visibility: visible; pointer-events: auto;
-  transform: translate(-50%, -50%) scale(1);
+  transform: translate(-50%, -50%) perspective(1200px) rotateX(0deg) scale(1);
 }
 /* Засечки по углам модалки — тот же язык, что у карточек */
 .modal::before, .modal::after {
@@ -738,11 +741,56 @@ h1, h2, h3, h4, h5, h6 {
 .mf-reveal-scale { opacity: 0; transform: scale(.94); }
 .mf-reveal-scale.mf-in { opacity: 1; transform: none; }
 
+/* 3D-вариант появления: лёгкий наклон «от зрителя» вместо плоского сдвига —
+   для списков результатов (форум, история), а не для всего подряд. Тот же
+   IntersectionObserver в mathframe-ui.js (initReveal), что и у .mf-reveal. */
+.mf-reveal-3d {
+  opacity: 0;
+  transform: perspective(900px) rotateX(-10deg) translateY(16px) scale(.97);
+  transform-origin: 50% 100%;
+  transition: opacity 520ms var(--e-out), transform 520ms var(--e-out);
+  transition-delay: var(--mf-delay, 0ms);
+  will-change: opacity, transform;
+}
+.mf-reveal-3d.mf-in { opacity: 1; transform: none; }
+
 /* Плавное появление страницы целиком (снимается из JS сразу после загрузки) */
 .mf-page-enter { animation: mfPageEnter 520ms var(--e-out) both; }
 @keyframes mfPageEnter {
   from { opacity: 0; transform: translateY(10px) scale(.995); }
   to   { opacity: 1; transform: none; }
+}
+
+/* ---- частицы (MathFrameUI.burst из mathframe-ui.js) ----
+   Короткая вспышка искр-точек в акцентных цветах от точки клика/события —
+   ставится на конкретные «подтверждающие» действия (calc «=», отправка поста
+   на форуме и т.п.), а не на каждую кнопку подряд. Сама точка ничего не
+   анимирует через transition/JS-цикл — один keyframes на разлёт+затухание,
+   поэтому одинаково дёшева, сколько бы частиц ни было. */
+.mf-burst-p {
+  position: fixed; left: 0; top: 0;
+  border-radius: 50%; pointer-events: none; z-index: 400;
+  box-shadow: 0 0 6px currentColor;
+  animation: mfBurstFly 620ms var(--e-out) both;
+}
+@keyframes mfBurstFly {
+  0%   { transform: translate(-50%, -50%) scale(.5); opacity: 1; }
+  65%  { opacity: 1; }
+  100% { transform: translate(calc(-50% + var(--mfdx, 0px)), calc(-50% + var(--mfdy, 0px))) scale(.15); opacity: 0; }
+}
+
+/* ---- 3D mask-переход панелей (MathFrameUI.panelIn) ----
+   Для смены содержимого целиком (инструмент мини-сервисов, вкладка формы) —
+   диагональная маска раскрывается поверх лёгкого 3D-наклона, вместо простого
+   fade. Используется точечно, вызывающий код сам решает, когда контейнер
+   действительно поменял содержимое. */
+.mf-panel-3d {
+  animation: mfPanel3D 460ms var(--e-out) both;
+}
+@keyframes mfPanel3D {
+  0%   { opacity: 0; clip-path: inset(0 100% 0 0); transform: perspective(1100px) rotateX(6deg) translateY(10px) scale(.98); }
+  55%  { opacity: 1; }
+  100% { opacity: 1; clip-path: inset(0 0 0 0); transform: none; }
 }
 
 /* Загрузчик-спирограф вместо обычного спиннера */
@@ -764,7 +812,14 @@ h1, h2, h3, h4, h5, h6 {
 /* ============================================================================
    15. ДОСТУПНОСТЬ / ПРОИЗВОДИТЕЛЬНОСТЬ
    Если пользователь просил меньше движения — выключаем всё «украшательство»,
-   но интерфейс остаётся полностью рабочим.
+   но интерфейс остаётся полностью рабочим. Два независимых источника этого
+   запроса: системная prefers-reduced-motion И собственный переключатель
+   «Анимации» в настройках сайта (html.mf-no-motion — ставит/снимает JS в
+   common.js, читает и применяет максимально рано mathframe-ui.js). Правило
+   через универсальный селектор * специально одно на весь сайт: оно гасит
+   ЛЮБУЮ анимацию/transition на ЛЮБОЙ странице, включая локальные keyframes
+   справочника, форума и мини-сервисов — им не нужно знать про переключатель
+   по отдельности, достаточно что common.css подключён везде.
    ========================================================================== */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
@@ -775,8 +830,18 @@ h1, h2, h3, h4, h5, h6 {
   }
   .mf-plane { animation: none; }
   #mf-canvas { display: none; }
-  .mf-reveal, .mf-reveal-scale { opacity: 1; transform: none; }
+  .mf-reveal, .mf-reveal-scale, .mf-reveal-3d { opacity: 1; transform: none; }
 }
+html.mf-no-motion *, html.mf-no-motion *::before, html.mf-no-motion *::after {
+  animation-duration: .001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: .001ms !important;
+  scroll-behavior: auto !important;
+}
+html.mf-no-motion .mf-plane { animation: none; }
+html.mf-no-motion #mf-canvas { display: none; }
+html.mf-no-motion .mf-reveal, html.mf-no-motion .mf-reveal-scale, html.mf-no-motion .mf-reveal-3d { opacity: 1; transform: none; }
+
 /* Экономия батареи/слабое железо: класс ставит JS (см. mathframe-ui.js) */
 html.mf-lite #mf-canvas { display: none; }
 html.mf-lite .section-card, html.mf-lite .mf-card { backdrop-filter: none; -webkit-backdrop-filter: none; }
@@ -820,7 +885,7 @@ html.mf-lite .section-card, html.mf-lite .mf-card { backdrop-filter: none; -webk
   #app-header nav.nav-open a:nth-child(5) { animation-delay: 150ms; }
   #app-header nav.nav-open a:nth-child(6) { animation-delay: 180ms; }
   @keyframes mfNavItem {
-    from { opacity: 0; transform: translateX(-14px); }
+    from { opacity: 0; transform: perspective(600px) rotateY(-18deg) translateX(-14px); }
     to   { opacity: 1; transform: none; }
   }
 }

@@ -399,7 +399,11 @@
         state.raw = fn(state.raw);
         render();
       }
-      function equals() {
+      // Клик мышью/тапом передаёт сюда сам MouseEvent (это стандартный
+      // addEventListener-параметр — equals подключена как обработчик клика
+      // напрямую), физическая клавиатура (Enter) вызывает equals() без
+      // аргумента — тогда частицы летят от самого дисплея.
+      function equals(srcEvt) {
         // Повторное «=» без единого нового символа в вводе — состояние уже
         // computed (любой ввод его сбрасывает через startFreshIfComputed/
         // continueFromResultIfComputed) — не должно плодить дубль в истории:
@@ -412,6 +416,16 @@
         state.computed = true;
         pushHistory();
         render();
+        // «=» — единственное подтверждающее действие калькулятора, поэтому
+        // именно оно (а не каждая нажатая цифра) получает частицы и 3D-подброс
+        // результата. Остальные клавиши обходятся уже имеющимся мягким
+        // «поп»-эффектом дисплея (общий механизм в boot(), см. POP_SELECTOR).
+        if (window.MathFrameUI) {
+          window.MathFrameUI.burst((srcEvt && srcEvt.currentTarget) || disp, { count: 12, spread: 34 });
+        }
+        mainEl.classList.remove('calc-result-pop');
+        void mainEl.offsetWidth;
+        mainEl.classList.add('calc-result-pop');
       }
 
       /* ------------------------------------------------------------ кнопки */
