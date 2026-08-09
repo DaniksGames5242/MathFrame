@@ -10,7 +10,7 @@
       "source": "/pages/home.html",
       "destination": "/",
       "permanent": true
-    },
+    }, 
     {
       "source": "/pages/spravochnik.html",
       "destination": "/spravochnik/",
