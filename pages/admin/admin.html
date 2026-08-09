@@ -81,7 +81,6 @@
     <h2>Темы справочника
       <span class="actions-row">
         <button class="btn primary small" id="goEditorBtn">Перейти в редактор тем</button>
-        <button class="btn small" id="goIdeBtn">Открыть GMS IDE</button>
       </span>
     </h2>
     <div class="toolbar">
@@ -237,7 +236,6 @@
     // vercel.json), поэтому относительная ссылка отсюда резолвилась бы
     // как /admin/hierarchy-editor.html, а не /pages/admin/hierarchy-editor.html.
     document.getElementById('goEditorBtn').onclick = () => { window.location.href = '/admin/hierarchy-editor/'; };
-    document.getElementById('goIdeBtn').onclick = () => { window.location.href = '/admin/gms-ide/'; };
 
     const [topics, visits, users] = await Promise.all([loadTopics(), loadVisits(), loadUsers(user)]);
     allTopics = topics;

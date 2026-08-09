@@ -5,32 +5,42 @@
 <title>GMS IDE</title>
 <style>
   :root{
-    --bg:#1b1b2a; --panel:#20202f; --gutter:#181824; --border:#3a3a52;
-    --text:#e8e8f0; --muted:#9494ac; --accent:#7c7cff; --err:#ff6b6b; --ok:#5ad48a;
+    --bg:#15161a; --panel:#1a1c21; --panel-2:#1f2127; --panel-3:#262931; --gutter:#101013; --border:#34373f; --border-soft:#282b32;
+    --text:#ece9e2; --muted:#9d9a92; --faint:#6c6a63; --accent:#7286cf; --accent-line:#93a3de; --accent-soft:rgba(114,134,207,.13);
+    --err:#c4553f; --ok:#8fa87a;
     --kwPrefix:#7c9cff; --kwType:#e0a84f; --kwDecl:#4fc3e0; --str:#8fd18a; --num:#d18ad1;
     --com:#6a6a86; --bool:#ff9d5c; --key:#c9c9ff;
+    --serif:"Palatino Linotype","Book Antiqua",Palatino,"Iowan Old Style","Hoefler Text",Georgia,"Times New Roman",serif;
+    --spring:cubic-bezier(.22,1.1,.3,1); --smooth:cubic-bezier(.4,0,.2,1);
     --lh:19.5px; --fs:13px;
   }
   *{box-sizing:border-box}
-  html,body{height:100%;margin:0;background:var(--bg);color:var(--text);font-family:'Segoe UI',Arial,sans-serif}
+  html,body{height:100%;margin:0;background:var(--bg);color:var(--text);font-family:var(--serif);font-variant-numeric:tabular-nums}
   @media (prefers-reduced-motion: reduce){ *{ animation-duration:.01ms !important; transition-duration:.01ms !important; } }
-  #menubar{display:flex;align-items:center;gap:2px;padding:4px 8px;background:var(--panel);border-bottom:1px solid var(--border)}
+  button{font-family:inherit}
+  :focus-visible{outline:1px solid var(--accent-line);outline-offset:2px}
+  #menubar{display:flex;align-items:center;gap:0;padding:0 14px;height:48px;flex:0 0 auto;background:var(--panel);border-bottom:1px solid var(--border);position:relative;z-index:60}
+  .brand{display:flex;align-items:baseline;gap:9px;padding-right:16px;margin-right:8px;border-right:1px solid var(--border-soft);height:22px}
+  .brand-mark{font-size:17px;line-height:1;color:var(--accent);font-family:var(--serif)}
+  .brand-name{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);white-space:nowrap}
   .menu{position:relative}
-  .menu-btn{background:transparent;border:none;color:var(--text);padding:6px 10px;cursor:pointer;font-size:13px;border-radius:4px;transition:background-color .15s ease,color .15s ease}
-  .menu-btn:hover{background:#2a2a40}
-  .menu.open .menu-btn{background:#2a2a40}
-  .menu-drop{position:absolute;top:100%;left:0;background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:4px;display:flex;flex-direction:column;min-width:220px;z-index:20;box-shadow:0 10px 26px rgba(0,0,0,.45);
-    opacity:0;transform:translateY(-6px) scale(.98);pointer-events:none;transform-origin:top left;
-    transition:opacity .14s ease,transform .18s cubic-bezier(.22,1.12,.36,1);}
+  .menu-btn{background:transparent;border:none;color:var(--muted);font-family:var(--serif);font-size:13.5px;letter-spacing:.04em;padding:7px 14px;cursor:pointer;user-select:none;transition:color .18s var(--smooth)}
+  .menu-btn:hover{color:var(--text)}
+  .menu.open .menu-btn{color:var(--accent-line)}
+  .menu-drop{position:absolute;top:calc(100% + 7px);left:0;background:var(--panel-2);border:1px solid var(--border);border-radius:3px;padding:5px;display:flex;flex-direction:column;min-width:240px;z-index:20;box-shadow:0 18px 44px rgba(0,0,0,.5);
+    opacity:0;transform:translateY(-6px) scale(.97);pointer-events:none;transform-origin:top left;
+    transition:opacity .16s var(--smooth),transform .22s var(--spring);}
   .menu.open .menu-drop{opacity:1;transform:none;pointer-events:auto}
-  .menu-drop button{background:transparent;border:none;color:var(--text);text-align:left;padding:7px 10px;border-radius:4px;cursor:pointer;font-size:13px;display:flex;justify-content:space-between;gap:14px;transition:background-color .12s ease,color .12s ease}
-  .menu-drop button:hover{background:var(--accent);color:#fff}
-  .menu-drop button.primary{color:var(--accent);font-weight:600}
-  .menu-drop button.primary:hover{color:#fff}
-  .hint{color:var(--muted);font-size:11px}
-  .menu-drop button:hover .hint{color:#e8e8ff}
-  #filename{color:var(--muted);font-size:13px;margin-left:auto;white-space:nowrap;padding:0 6px;transition:color .2s ease}
-  #main{display:flex;height:calc(100% - 38px)}
+  .menu.open .menu-drop button{animation:menuItemIn .32s var(--spring) both}
+  @keyframes menuItemIn{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:none}}
+  .menu-drop button{background:transparent;border:none;color:var(--text);text-align:left;padding:8px 10px;border-radius:2px;cursor:pointer;font-size:13.5px;display:flex;justify-content:space-between;gap:14px;transition:background-color .14s var(--smooth),color .14s var(--smooth)}
+  .menu-drop button:hover{background:var(--panel-3)}
+  .menu-drop button.primary{color:var(--accent-line);font-weight:600}
+  .menu-drop button.primary:hover{background:var(--panel-3);color:var(--accent-line)}
+  .hint{color:var(--faint);font-size:11px;letter-spacing:.05em;font-variant:small-caps}
+  #filename{color:var(--muted);font-size:13px;margin-left:auto;white-space:nowrap;padding:0 6px;transition:color .2s var(--smooth);font-family:var(--serif)}
+  #main{display:flex;height:calc(100% - 38px);animation:panelIn .38s var(--spring) both}
+  @keyframes panelIn{from{opacity:0;transform:translateY(10px) scale(.99)}to{opacity:1;transform:none}}
   #editorCol{display:flex;flex-direction:column;flex:1;min-width:0;border-right:1px solid var(--border)}
   #editorWrap{position:relative;flex:1;display:flex;overflow:hidden}
   #gutter{width:46px;flex:none;background:var(--gutter);color:var(--muted);font:var(--fs)/var(--lh) monospace;text-align:right;padding:10px 6px 10px 0;overflow:hidden;white-space:pre}
@@ -65,7 +75,7 @@
   .key{color:var(--key)}
   .com{color:var(--com);font-style:italic}
   .err-line{text-decoration:underline wavy var(--err);text-decoration-thickness:1.5px;text-underline-offset:3px}
-  #errors{height:120px;background:#160f14;border-top:1px solid var(--border);overflow:auto;font:12px/1.5 monospace;padding:6px 10px}
+  #errors{height:120px;background:var(--panel-2);border-top:1px solid var(--border);overflow:auto;font:12px/1.5 monospace;padding:6px 10px}
   #errors .ok{color:var(--ok)}
   #errors .e{color:var(--err);cursor:pointer;padding:1px 0;display:block}
   #errors .e.js-err{color:#ffa94d;cursor:default}
@@ -79,8 +89,8 @@
   #findBar.show{display:flex}
   #findBar input{background:#12121c;border:1px solid var(--border);color:var(--text);border-radius:4px;padding:4px 6px;font:12px monospace}
   #findCount{color:var(--muted);font-size:12px;min-width:50px}
-  #suggest{position:absolute;background:var(--panel);border:1px solid var(--accent);border-radius:6px;z-index:30;display:none;font:13px monospace;min-width:170px;box-shadow:0 8px 22px rgba(0,0,0,.5)}
-  #suggestHead{display:flex;align-items:center;justify-content:space-between;padding:3px 4px 3px 8px;cursor:move;user-select:none;border-bottom:1px solid var(--border);background:#26263a;border-radius:6px 6px 0 0}
+  #suggest{position:absolute;background:var(--panel-2);border:1px solid var(--accent);border-radius:4px;z-index:30;display:none;font:13px monospace;min-width:170px;box-shadow:0 8px 22px rgba(0,0,0,.5)}
+  #suggestHead{display:flex;align-items:center;justify-content:space-between;padding:3px 4px 3px 8px;cursor:move;user-select:none;border-bottom:1px solid var(--border);background:var(--panel-3);border-radius:4px 4px 0 0}
   #suggestDrag{color:var(--muted);font-size:12px;letter-spacing:1px}
   #suggestClose{background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:12px;padding:2px 6px;line-height:1;border-radius:3px}
   #suggestClose:hover{color:#fff;background:var(--err)}
@@ -89,33 +99,36 @@
   #suggestList div.sel,#suggestList div:hover{background:var(--accent);color:#fff}
   #colorPickerInput{position:fixed;left:0;top:0;width:16px;height:16px;opacity:0;pointer-events:none;border:none;padding:0}
 
-  /* ===== Панель переключения между файлами набора ===== */
-  #filesBar{display:flex;align-items:center;gap:6px;padding:5px 8px;background:#191927;border-bottom:1px solid var(--border);font-size:12px}
-  #filesBar button{background:#26263a;border:1px solid var(--border);color:var(--text);border-radius:4px;padding:4px 9px;cursor:pointer;font-size:12px;transition:background-color .15s ease,color .15s ease,transform .12s ease}
-  #filesBar button:hover{background:var(--accent);color:#fff}
-  #filesBar button:active:not(:disabled){transform:scale(.93)}
-  #filesBar button:disabled{opacity:.4;cursor:default}
-  #filesBar button:disabled:hover{background:#26263a;color:var(--text)}
-  #fileSelect{background:#12121c;border:1px solid var(--border);color:var(--text);border-radius:4px;padding:4px 6px;font-size:12px;max-width:260px;transition:border-color .15s ease}
-  #fileSelect:focus{border-color:var(--accent);outline:none}
-  #fileCount{color:var(--muted);white-space:nowrap}
-  #filesBarSpacer{flex:1}
-  #currentFileLabel{font-weight:600;font-size:13px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:320px;transition:color .18s ease}
-  #currentFileLabel.flash{color:var(--accent)}
-  #currentFileLabel .dirty-dot{color:var(--accent);margin-left:4px}
-  .file-badge{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:5px;transition:background-color .2s ease}
+  /* ===== Строка состояния: путь темы, которую сейчас редактируем =====
+     Раньше здесь была панель переключения между несколькими открытыми
+     файлами (как во «взрослой» IDE) — теперь редактор всегда открывается
+     только на ОДНОМ файле, том самом интерактивном примере темы, поэтому
+     переключатель убран, а строка лишь показывает, какой это файл. */
+  #statusBar{display:flex;align-items:center;gap:8px;padding:6px 14px;background:var(--panel);border-bottom:1px solid var(--border);font-size:12px;font-family:var(--serif)}
+  #currentFileLabel{font-weight:600;font-size:13px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:color .2s var(--smooth)}
+  #currentFileLabel.flash{color:var(--accent-line)}
+  .file-badge{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:7px;flex:0 0 auto;transition:background-color .2s var(--smooth)}
   .file-badge.ok{background:var(--ok)}
   .file-badge.err{background:var(--err)}
   .file-badge.unknown{background:var(--muted)}
+  #statusPath{color:var(--faint);font-size:11.5px;font-family:ui-monospace,monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+  /* ===== Пустое состояние: редактор открыт не по ссылке «Открыть в IDE» ===== */
+  #blockedState{display:none;flex:1;align-items:center;justify-content:center;padding:40px;text-align:center}
+  #main.blocked #blockedState{display:flex}
+  #main.blocked #editorCol,#main.blocked #preview{display:none}
+  #blockedState .card{max-width:420px;animation:panelIn .4s var(--spring) both}
+  #blockedState h2{font-size:18px;font-weight:600;color:var(--text);margin:0 0 10px}
+  #blockedState p{font-size:13.5px;color:var(--muted);line-height:1.6;margin:0}
 
   /* ===== Уведомления (тосты) — используются, например, при открытии файла по ссылке из справочника ===== */
   #toastHost{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:200;display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none}
   .toast{
-    background:var(--panel);border:1px solid var(--border);border-radius:7px;padding:9px 14px;
+    background:var(--panel-2);border:1px solid var(--border);border-radius:4px;padding:9px 14px;
     font-size:12.5px;color:var(--text);box-shadow:0 12px 30px rgba(0,0,0,.45);
     display:flex;align-items:center;gap:9px;max-width:420px;
     opacity:0;transform:translateY(8px) scale(.97);
-    transition:opacity .2s ease,transform .22s cubic-bezier(.22,1.12,.36,1);
+    transition:opacity .2s var(--smooth),transform .22s var(--spring);
   }
   .toast.show{opacity:1;transform:none}
   .toast.ok{border-color:var(--ok)}
@@ -127,30 +140,25 @@
   @keyframes toastSpin{to{transform:rotate(360deg)}}
 
   /* ===== Заметки к файлу ===== */
-  #notesPanel{display:none;flex-direction:column;height:150px;background:#141420;border-top:1px solid var(--border);animation:notesIn .18s cubic-bezier(.22,1.12,.36,1)}
+  #notesPanel{display:none;flex-direction:column;height:150px;background:var(--panel-2);border-top:1px solid var(--border);animation:notesIn .18s var(--spring)}
   @keyframes notesIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
   #notesPanel.show{display:flex}
   #notesHeader{display:flex;align-items:center;gap:8px;padding:5px 10px;font-size:12px;color:var(--muted);border-bottom:1px solid var(--border)}
   #notesHeader b{color:var(--text)}
-  #notesHeader button{margin-left:auto;background:#26263a;border:1px solid var(--border);color:var(--text);border-radius:4px;padding:3px 8px;cursor:pointer;font-size:11px;transition:background-color .15s ease,color .15s ease}
+  #notesHeader button{margin-left:auto;background:var(--panel-3);border:1px solid var(--border);color:var(--text);border-radius:3px;padding:3px 8px;cursor:pointer;font-size:11px;transition:background-color .15s var(--smooth),color .15s var(--smooth)}
   #notesHeader button:hover{background:var(--accent);color:#fff}
-  #notesArea{flex:1;resize:none;border:none;background:transparent;color:var(--text);font:13px/1.5 'Segoe UI',Arial,sans-serif;padding:8px 10px;outline:none}
+  #notesArea{flex:1;resize:none;border:none;background:transparent;color:var(--text);font:13px/1.5 var(--serif);padding:8px 10px;outline:none}
 </style>
 </head>
 <body>
 <div id="menubar">
+  <div class="brand"><span class="brand-mark">✦</span><span class="brand-name">GMS IDE</span></div>
   <div class="menu" id="menuFile">
     <button class="menu-btn">Файл</button>
     <div class="menu-drop">
-      <button id="btnNew">Новый файл <span class="hint">Ctrl+N</span></button>
-      <button id="btnOpen">Открыть файл</button>
-      <button id="btnOpenFolder">Открыть папку (много файлов)</button>
-      <button id="btnCloseFile">Закрыть текущий файл</button>
       <button id="btnSave">Сохранить</button>
       <button id="btnCompileSave">Скомпилировать и сохранить</button>
       <button id="btnCompileRun" class="primary">Скомпилировать, сохранить и запустить <span class="hint">Ctrl+S</span></button>
-      <button id="btnCompileAllFolder">Скомпилировать все файлы набора</button>
-      <button id="btnChooseOutFolder">Выбрать папку для сохранения компиляций</button>
     </div>
   </div>
   <div class="menu" id="menuEdit">
@@ -180,28 +188,32 @@
     <button class="menu-btn">Заметки</button>
     <div class="menu-drop">
       <button id="btnToggleNotes">Показать/скрыть заметки к файлу</button>
-      <button id="btnExportNotes">Экспортировать все заметки…</button>
+      <button id="btnExportNotes">Экспортировать заметки…</button>
     </div>
   </div>
   <span id="filename">файл не выбран</span>
 </div>
-<div id="filesBar">
-  <button id="btnPrevFile" title="Предыдущий файл (Alt+←)">◀</button>
-  <select id="fileSelect" title="Выбрать файл из набора"></select>
-  <button id="btnNextFile" title="Следующий файл (Alt+→)">▶</button>
-  <span id="fileCount"></span>
-  <span id="filesBarSpacer"></span>
-  <span id="currentFileLabel">файл не выбран</span>
-  <input type="file" id="folderInput" webkitdirectory multiple style="display:none">
+<div id="statusBar">
+  <span class="file-badge unknown" id="statusBadge"></span>
+  <span id="currentFileLabel">Файл не выбран</span>
+  <span id="statusPath"></span>
 </div>
 <div id="main">
+  <div id="blockedState">
+    <div class="card">
+      <h2>Этот редактор открывается только из справочника</h2>
+      <p>GMS IDE — инструмент для редактирования скрипта конкретной темы. Откройте его кнопкой «Открыть в IDE»
+        у интерактивного примера нужной темы в справочнике — редактор сразу загрузит именно этот файл.
+        Отдельного, не привязанного к теме, режима работы здесь больше нет.</p>
+    </div>
+  </div>
   <div id="editorCol">
     <div id="editorWrap">
       <div id="gutter"></div>
       <div id="codeArea">
         <div id="highlight"></div>
         <div id="colorLayer"></div>
-        <textarea id="code" spellcheck="false" wrap="off" placeholder="Создайте или откройте .gms файл..."></textarea>
+        <textarea id="code" spellcheck="false" wrap="off" placeholder="Файл примера ещё не загружен…"></textarea>
         <div id="findBar">
           <input id="findInput" placeholder="Поиск...">
           <span id="findCount"></span>
@@ -217,7 +229,7 @@
     </div>
     <div id="errors"><span class="ok">Готово. Ошибок пока не найдено.</span></div>
     <div id="notesPanel">
-      <div id="notesHeader">Заметки к файлу: <b id="notesFileName">—</b><button id="notesExportBtn">Экспорт всех заметок</button></div>
+      <div id="notesHeader">Заметки к файлу: <b id="notesFileName">—</b><button id="notesExportBtn">Экспорт заметок</button></div>
       <textarea id="notesArea" placeholder="Заметки об этом скрипте (сохраняются автоматически)…"></textarea>
     </div>
   </div>
@@ -247,13 +259,8 @@ const preview = document.getElementById('preview');
 const previewFrame = document.getElementById('previewFrame');
 const colorPickerInput = document.getElementById('colorPickerInput');
 
-// ===== Элементы набора файлов / заметок =====
-const fileSelect = document.getElementById('fileSelect');
-const fileCountEl = document.getElementById('fileCount');
+// ===== Элементы строки состояния / заметок =====
 const currentFileLabel = document.getElementById('currentFileLabel');
-const btnPrevFile = document.getElementById('btnPrevFile');
-const btnNextFile = document.getElementById('btnNextFile');
-const folderInput = document.getElementById('folderInput');
 const notesPanel = document.getElementById('notesPanel');
 const notesArea = document.getElementById('notesArea');
 const notesFileName = document.getElementById('notesFileName');
@@ -303,22 +310,6 @@ function flashCurrentFileLabel(){
   currentFileLabel.classList.add('flash');
   setTimeout(() => currentFileLabel.classList.remove('flash'), 260);
 }
-
-// ВАЖНО: compile() берёт исходник как sourceCode.match(/\[([\s\S]*)\]/) — то есть
-// АБСОЛЮТНО ВСЁ (описание сцены, Start, Update, new/draw объекты, func/Function/Void)
-// должно находиться ВНУТРИ одного верхнеуровневого блока [ ... ]. Снаружи скобок код
-// просто не попадает в компиляцию.
-const TEMPLATE =
-`[
-\tdescription = "";
-
-\tStart {
-\t}
-
-\tUpdate {
-\t}
-]
-`;
 
 // ===== Ключевые слова языка (актуальная версия компилятора) =====
 const TYPE_WORDS = ['Point2D','Point3D','Point','Line2D','Line3D','Line','Figure2D','Figure3D','Figure',
@@ -784,123 +775,78 @@ function toggleComment(){
   onEdit();
 }
 
-// ===== Набор файлов (несколько .gms одновременно, переключение стрелками) =====
-// Раньше редактор хранил только ОДИН открытый файл (currentHandle + code.value).
-// Теперь единый источник правды — массив openFiles; code.value в любой момент
-// зеркалит содержимое openFiles[activeIndex]. currentHandle/currentHtmlHandle
-// (File System Access хэндлы конкретного .gms/.html) остаются глобальными
-// переменными для совместимости с существующими writeCurrentFile/saveHtmlOutput,
-// но теперь синхронизируются с активным файлом набора при каждом переключении.
+// ===== Единственный открытый файл: скрипт конкретного интерактивного примера =====
+// Раньше редактор мог держать открытым целый набор файлов (новый/с диска/папка).
+// Теперь у GMS IDE ровно одно назначение — редактировать ОДИН файл, тот самый
+// интерактивный пример темы, из которой его открыли (см. openExampleInIde() в
+// spravochnik.html и handleOpenParam() ниже). Других способов открытия нет,
+// поэтому и внутреннее состояние — не массив с переключением, а один объект.
 const LS_KEY = 'gmsIdeState_v1';
-let openFiles = [];         // { id, name, content, notes, handle, htmlHandle, savedToDisk, compileStatus }
-let activeIndex = -1;
-let currentHandle = null;      // FileSystemFileHandle активного .gms (если открыт/сохранён через диалог)
-let currentHtmlHandle = null;  // FileSystemFileHandle .html-вывода активного файла (кэш пути, п.8)
-let outDirHandle = null;    // папка для авто-сохранения скомпилированных .html всего набора (не хранится между перезагрузками)
+let file = null;                // { path, name, content, notes, handle, htmlHandle, savedToDisk, compileStatus }
+let currentHandle = null;       // FileSystemFileHandle .gms (если уже сохраняли через диалог)
+let currentHtmlHandle = null;   // FileSystemFileHandle .html-вывода (кэш пути, чтобы не спрашивать при каждой компиляции)
 
-function uid(){ return 'f' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
-function makeFile(name, content){
-  return { id: uid(), name, content, notes: '', handle: null, htmlHandle: null, savedToDisk: false, compileStatus: 'unknown', originPath: null };
+function makeFile(path, name, content){
+  return { path, name, content, notes: '', handle: null, htmlHandle: null, savedToDisk: false, compileStatus: 'unknown' };
 }
 
-// ----- localStorage: все открытые файлы, их содержимое и заметки -----
+// ----- localStorage: несохранённые правки текущего файла (ключ — путь темы) -----
 let persistTimer = null;
 function persistStateDebounced(){ clearTimeout(persistTimer); persistTimer = setTimeout(persistState, 400); }
 function persistState(){
+  if (!file) return;
   try {
-    localStorage.setItem(LS_KEY, JSON.stringify({
-      activeIndex,
-      files: openFiles.map(f => ({ id: f.id, name: f.name, content: f.content, notes: f.notes, originPath: f.originPath || null }))
-    }));
+    localStorage.setItem(LS_KEY, JSON.stringify({ path: file.path, name: file.name, content: file.content, notes: file.notes }));
   } catch(e) { /* хранилище переполнено/недоступно — тихо игнорируем */ }
 }
-function restoreState(){
+// Отдаёт сохранённые правки только если они относятся к ТОМУ ЖЕ пути — правки
+// другой темы никогда не подставляются вместо только что запрошенной.
+function restoreStateFor(path){
   try {
     const raw = localStorage.getItem(LS_KEY);
-    if (!raw) return false;
+    if (!raw) return null;
     const data = JSON.parse(raw);
-    if (!data || !Array.isArray(data.files) || !data.files.length) return false;
-    openFiles = data.files.map(f => ({
-      id: f.id || uid(), name: f.name || 'script.gms', content: f.content || '', notes: f.notes || '',
-      handle: null, htmlHandle: null, savedToDisk: false, compileStatus: 'unknown', originPath: f.originPath || null
-    }));
-    activeIndex = Math.min(Math.max(+data.activeIndex || 0, 0), openFiles.length - 1);
-    return true;
-  } catch(e) { return false; }
+    if (!data || data.path !== path) return null;
+    return data;
+  } catch(e) { return null; }
 }
 
-// ----- переключение между файлами набора / панель сверху -----
-function rebuildFileSelect(){
-  fileSelect.innerHTML = openFiles.map((f, i) => {
-    const mark = f.compileStatus === 'ok' ? '✓ ' : f.compileStatus === 'err' ? '✕ ' : '• ';
-    return `<option value="${i}">${mark}${escapeHtml(f.name)}${f.savedToDisk ? '' : ' *'}</option>`;
-  }).join('');
-  if (activeIndex >= 0) fileSelect.value = String(activeIndex);
-  fileCountEl.textContent = openFiles.length ? `${activeIndex + 1}/${openFiles.length}` : '';
-  btnPrevFile.disabled = openFiles.length < 2;
-  btnNextFile.disabled = openFiles.length < 2;
-}
 function updateHeaderLabel(){
-  const f = openFiles[activeIndex];
-  if (!f) { filenameEl.textContent = 'файл не выбран'; currentFileLabel.textContent = 'файл не выбран'; notesFileName.textContent = '—'; return; }
-  const dot = f.savedToDisk ? '' : ' •';
-  const prefix = openFiles.length > 1 ? `[${activeIndex + 1}/${openFiles.length}] ` : '';
-  filenameEl.textContent = prefix + f.name + dot;
-  currentFileLabel.textContent = 'Текущий файл: ' + f.name + dot;
-  notesFileName.textContent = f.name;
-}
-// сохраняет то, что сейчас в textarea, обратно в объект активного файла набора
-function syncActiveFileContent(){
-  const f = openFiles[activeIndex];
-  if (!f) return;
-  if (f.content !== code.value) f.savedToDisk = false;
-  f.content = code.value;
-}
-function switchToFile(idx){
-  if (!openFiles.length) return;
-  idx = Math.max(0, Math.min(idx, openFiles.length - 1));
-  if (activeIndex >= 0 && activeIndex < openFiles.length) syncActiveFileContent();
-  activeIndex = idx;
-  const f = openFiles[activeIndex];
-  code.value = f.content;
-  notesArea.value = f.notes || '';
-  currentHandle = f.handle;
-  currentHtmlHandle = f.htmlHandle;
-  render();
-  rebuildFileSelect();
-  updateHeaderLabel();
-  flashCurrentFileLabel();
-  persistStateDebounced();
-  runCheck(); // сразу пересчитать ошибки/автокомпиляцию нового файла, не дожидаясь паузы в наборе текста
-}
-function addAndSwitch(fileObj){ openFiles.push(fileObj); switchToFile(openFiles.length - 1); }
-
-btnPrevFile.addEventListener('click', () => switchToFile(activeIndex - 1));
-btnNextFile.addEventListener('click', () => switchToFile(activeIndex + 1));
-fileSelect.addEventListener('change', () => switchToFile(+fileSelect.value));
-
-// ===== Файлы: создание / открытие одного / открытие папки / закрытие =====
-async function createNewFile(){
-  closeMenus();
-  const used = new Set(openFiles.map(f => f.name));
-  let n = 1;
-  while (used.has(`script${n}.gms`)) n++;
-  addAndSwitch(makeFile(`script${n}.gms`, TEMPLATE));
-}
-document.getElementById('btnNew').addEventListener('click', createNewFile);
-
-// ===== Открытие файла из репозитория по пути (?open=data/examples/....gms) =====
-// Используется кнопкой «Открыть в IDE» у интерактивного примера в справочнике —
-// см. openExampleInIde() в spravochnik.html. Путь читается через тот же
-// GET /api/file, которым уже пользуется предпросмотр примера в редакторе иерархии.
-async function openFileFromRepoPath(path){
-  const displayName = path.split('/').pop() || 'script.gms';
-  const existingIdx = openFiles.findIndex(f => f.originPath === path);
-  if (existingIdx !== -1){
-    switchToFile(existingIdx);
-    showToast('Файл уже был открыт: ' + displayName, { kind: 'ok' });
+  const badge = document.getElementById('statusBadge');
+  const pathEl = document.getElementById('statusPath');
+  if (!file) {
+    filenameEl.textContent = 'файл не выбран';
+    currentFileLabel.textContent = 'Файл не выбран';
+    notesFileName.textContent = '—';
+    pathEl.textContent = '';
+    badge.className = 'file-badge unknown';
     return;
   }
+  const dot = file.savedToDisk ? '' : ' •';
+  filenameEl.textContent = file.name + dot;
+  currentFileLabel.textContent = file.name + dot;
+  notesFileName.textContent = file.name;
+  pathEl.textContent = file.path;
+  badge.className = 'file-badge ' + (file.compileStatus === 'ok' ? 'ok' : file.compileStatus === 'err' ? 'err' : 'unknown');
+}
+// сохраняет то, что сейчас в textarea, обратно в объект открытого файла
+function syncActiveFileContent(){
+  if (!file) return;
+  if (file.content !== code.value) file.savedToDisk = false;
+  file.content = code.value;
+}
+function showBlocked(show){
+  document.getElementById('main').classList.toggle('blocked', show);
+}
+
+// ===== Открытие файла из репозитория по пути (?open=data/examples/....gms) =====
+// Единственный способ загрузить файл в редактор — используется кнопкой
+// «Открыть в IDE» у интерактивного примера в справочнике (см. openExampleInIde()
+// в spravochnik.html). Путь читается через тот же GET /api/file, которым уже
+// пользуется предпросмотр примера в редакторе иерархии.
+async function openFileFromRepoPath(path){
+  const displayName = path.split('/').pop() || 'script.gms';
+  const cached = restoreStateFor(path);
   const toast = showToast('Загрузка примера из справочника: ' + displayName + '…', { spin: true, sticky: true });
   try {
     const r = await fetch('/api/file?path=' + encodeURIComponent(path));
@@ -908,116 +854,31 @@ async function openFileFromRepoPath(path){
       const errBody = await r.json().catch(() => null);
       throw new Error((errBody && errBody.error) || ('HTTP ' + r.status));
     }
-    const content = await r.text();
-    const file = makeFile(displayName, content);
-    file.originPath = path; // не связано с File System Access — только для повторного открытия той же ссылки
-    addAndSwitch(file);
+    const remoteContent = await r.text();
+    file = makeFile(path, displayName, cached ? cached.content : remoteContent);
+    if (cached) file.notes = cached.notes || '';
+    showBlocked(false);
+    code.value = file.content;
+    notesArea.value = file.notes || '';
+    currentHandle = null;
+    currentHtmlHandle = null;
+    render();
+    updateHeaderLabel();
+    flashCurrentFileLabel();
+    persistState();
+    runCheck();
     updateToast(toast, 'Открыт пример: ' + displayName, { kind: 'ok' });
   } catch (e){
     updateToast(toast, 'Не удалось загрузить «' + path + '»: ' + e.message, { kind: 'err', duration: 6000 });
   }
 }
 
-document.getElementById('btnOpen').addEventListener('click', async () => {
-  closeMenus();
-  try {
-    if (window.showOpenFilePicker) {
-      const [handle] = await window.showOpenFilePicker({
-        types: [{ description: 'GMS файл', accept: {'text/plain': ['.gms']} }]
-      });
-      const file = await handle.getFile();
-      const f = makeFile(handle.name, await file.text());
-      f.handle = handle; f.savedToDisk = true;
-      addAndSwitch(f);
-    } else {
-      const input = document.createElement('input');
-      input.type = 'file'; input.accept = '.gms';
-      input.onchange = async () => {
-        const file = input.files[0];
-        if (!file) return;
-        const f = makeFile(file.name, await file.text());
-        addAndSwitch(f); // savedToDisk остаётся false — сохранение только через скачивание
-      };
-      input.click();
-    }
-  } catch(err) { if (err.name !== 'AbortError') console.error(err); }
-});
-
-document.getElementById('btnCloseFile').addEventListener('click', () => {
-  closeMenus();
-  if (openFiles.length <= 1) { alert('Это последний открытый файл — закрывать нечего.'); return; }
-  if (!confirm(`Закрыть «${openFiles[activeIndex].name}»? Файл и его заметки пропадут из набора (в отличие от localStorage, отменить закрытие будет нельзя).`)) return;
-  openFiles.splice(activeIndex, 1);
-  switchToFile(Math.min(activeIndex, openFiles.length - 1));
-});
-
-// ===== Открыть папку целиком: чтение всех .gms + автокомпиляция + выбор папки вывода =====
-document.getElementById('btnOpenFolder').addEventListener('click', () => { closeMenus(); folderInput.click(); });
-folderInput.addEventListener('change', async () => {
-  const list = [...folderInput.files].filter(f => /\.gms$/i.test(f.name));
-  folderInput.value = '';
-  if (!list.length) { alert('В выбранной папке не найдено файлов .gms'); return; }
-  const loaded = [];
-  for (const file of list) loaded.push(makeFile(file.name, await file.text()));
-  openFiles = loaded;
-  outDirHandle = null;
-  switchToFile(0);
-  await chooseOutputFolder();
-  await compileAllAndSave();
-});
-async function chooseOutputFolder(){
-  if (window.showDirectoryPicker) {
-    try { outDirHandle = await window.showDirectoryPicker(); }
-    catch(err) { outDirHandle = null; if (err.name !== 'AbortError') console.error(err); }
-  } else {
-    outDirHandle = null; // нет File System Access API — компиляции будут скачиваться по одной
-  }
-}
-document.getElementById('btnChooseOutFolder').addEventListener('click', () => { closeMenus(); chooseOutputFolder(); });
-
-async function writeCompiledToOutDir(baseName, html){
-  if (outDirHandle) {
-    try {
-      const fh = await outDirHandle.getFileHandle(baseName + '.html', { create: true });
-      const w = await fh.createWritable();
-      await w.write(html);
-      await w.close();
-      return true;
-    } catch(err) { console.error(err); outDirHandle = null; }
-  }
-  const blob = new Blob([html], {type:'text/html'});
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = baseName + '.html';
-  a.click();
-  return false;
-}
-async function compileAllAndSave(){
-  closeMenus();
-  syncActiveFileContent();
-  const failed = [];
-  for (const f of openFiles) {
-    let res;
-    try { res = compile(f.content); }
-    catch(e) { res = { success: false, errors: [e.message] }; }
-    f.compileStatus = res.success ? 'ok' : 'err';
-    if (res.success) await writeCompiledToOutDir(f.name.replace(/\.gms$/i, ''), res.html);
-    else failed.push(f.name);
-  }
-  rebuildFileSelect();
-  if (activeIndex >= 0) showCompileErrors(compile(openFiles[activeIndex].content));
-  if (failed.length) {
-    errorsEl.innerHTML += `<div><span class="e">✕ Не скомпилированы: ${escapeHtml(failed.join(', '))}</span></div>`;
-  }
-}
-document.getElementById('btnCompileAllFolder').addEventListener('click', compileAllAndSave);
-
 async function writeCurrentFile(){
   if (!currentHandle) return false;
   const w = await currentHandle.createWritable();
   await w.write(code.value);
   await w.close();
-  const f = openFiles[activeIndex];
+  const f = file;
   if (f) { f.handle = currentHandle; f.savedToDisk = true; }
   updateHeaderLabel();
   return true;
@@ -1029,31 +890,29 @@ async function saveCurrentFile(){
   } else if (window.showSaveFilePicker) {
     try {
       currentHandle = await window.showSaveFilePicker({
-        suggestedName: (openFiles[activeIndex] && openFiles[activeIndex].name) || 'script.gms',
+        suggestedName: (file && file.name) || 'script.gms',
         types: [{ description: 'GMS файл', accept: {'text/plain': ['.gms']} }]
       });
       await writeCurrentFile();
-      const f = openFiles[activeIndex];
-      if (f) f.name = currentHandle.name;
-      rebuildFileSelect(); updateHeaderLabel();
+      if (file) file.name = currentHandle.name;
+      updateHeaderLabel();
     } catch(err) { if (err.name !== 'AbortError') console.error(err); }
   } else {
     const blob = new Blob([code.value], {type:'text/plain'});
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = (openFiles[activeIndex] && openFiles[activeIndex].name) || 'script.gms';
+    a.download = (file && file.name) || 'script.gms';
     a.click();
-    const f = openFiles[activeIndex];
-    if (f) { f.savedToDisk = true; updateHeaderLabel(); }
+    if (file) { file.savedToDisk = true; updateHeaderLabel(); }
   }
 }
 document.getElementById('btnSave').addEventListener('click', () => { closeMenus(); saveCurrentFile(); });
 
 async function saveHtmlOutput(html){
   // Если файл для вывода уже выбирался раньше (в рамках этого .gms) — пишем в него же,
-  // не спрашивая путь заново при каждой компиляции (п.8). Путь запрашивается только
-  // один раз за файл: при первой компиляции после открытия/создания .gms или после
-  // недоступности File System Access API.
+  // не спрашивая путь заново при каждой компиляции. Путь запрашивается только один
+  // раз за файл: при первой компиляции после открытия .gms или после недоступности
+  // File System Access API.
   if (currentHtmlHandle) {
     try {
       const w = await currentHtmlHandle.createWritable();
@@ -1064,7 +923,7 @@ async function saveHtmlOutput(html){
       currentHtmlHandle = null; // хэндл мог протухнуть (файл удалили/переместили) — попросим путь заново
     }
   }
-  const base = (openFiles[activeIndex] ? openFiles[activeIndex].name : (currentHandle ? currentHandle.name : 'script')).replace(/\.gms$/i, '');
+  const base = (file ? file.name : (currentHandle ? currentHandle.name : 'script')).replace(/\.gms$/i, '');
   if (window.showSaveFilePicker) {
     currentHtmlHandle = await window.showSaveFilePicker({
       suggestedName: base + '.html',
@@ -1073,7 +932,7 @@ async function saveHtmlOutput(html){
     const w = await currentHtmlHandle.createWritable();
     await w.write(html);
     await w.close();
-    if (openFiles[activeIndex]) openFiles[activeIndex].htmlHandle = currentHtmlHandle;
+    if (file) file.htmlHandle = currentHtmlHandle;
   } else {
     const blob = new Blob([html], {type:'text/html'});
     const a = document.createElement('a');
@@ -1151,9 +1010,8 @@ async function doCompileAndSave(){
   syncActiveFileContent();
   const res = compile(code.value);
   showCompileErrors(res);
-  const f = openFiles[activeIndex];
-  if (f) f.compileStatus = res.success ? 'ok' : 'err';
-  rebuildFileSelect();
+  if (file) file.compileStatus = res.success ? 'ok' : 'err';
+  updateHeaderLabel();
   if (!res.success) return;
   await writeCurrentFile();
   await saveHtmlOutput(res.html);
@@ -1178,9 +1036,8 @@ async function doCompileAndRun(){
   syncActiveFileContent();
   const res = compile(code.value);
   showCompileErrors(res);
-  const f = openFiles[activeIndex];
-  if (f) f.compileStatus = res.success ? 'ok' : 'err';
-  rebuildFileSelect();
+  if (file) file.compileStatus = res.success ? 'ok' : 'err';
+  updateHeaderLabel();
   if (!res.success) return;
   await writeCurrentFile();
   await saveHtmlOutput(res.html);
@@ -1198,12 +1055,9 @@ document.getElementById('previewClose').addEventListener('click', () => {
 });
 
 // ===== Автоматическая проверка/компиляция при простое в наборе текста =====
-// По запросу: компиляция должна выполняться сама при ЛЮБОМ изменении кода, если
-// оно не вызвало ошибку — здесь это значит: как только пользователь на мгновение
-// перестал печатать, автоматически компилируем, и при успехе (а) обновляем уже
-// открытое превью без нажатия «Скомпилировать и запустить», и (б) если для
-// текущего набора файлов выбрана папка вывода — сразу перезаписываем туда
-// актуальный .html этого файла, тоже без участия пользователя.
+// Компиляция выполняется сама при ЛЮБОМ изменении кода: как только пользователь
+// на мгновение перестал печатать, автоматически компилируем и, при успехе,
+// обновляем уже открытое превью без нажатия «Скомпилировать и запустить».
 let checkTimer = null;
 function scheduleCheck(){ clearTimeout(checkTimer); checkTimer = setTimeout(runCheck, 900); }
 function runCheck(){
@@ -1211,39 +1065,32 @@ function runCheck(){
   try { res = compile(code.value); }
   catch(e) {
     errorsEl.innerHTML = `<span class="e">✕ Внутренняя ошибка компилятора: ${escapeHtml(e.message)}</span>`;
-    const f = openFiles[activeIndex];
-    if (f) f.compileStatus = 'err';
-    rebuildFileSelect();
+    if (file) file.compileStatus = 'err';
+    updateHeaderLabel();
     return;
   }
   showCompileErrors(res);
-  const f = openFiles[activeIndex];
-  if (f) f.compileStatus = res.success ? 'ok' : 'err';
-  if (res.success) {
-    if (preview.classList.contains('show')) {
-      document.getElementById('previewHost').style.background = THEME_BG[previewTheme];
-      previewFrame.srcdoc = res.html;
-    }
-    if (outDirHandle && f) writeCompiledToOutDir(f.name.replace(/\.gms$/i, ''), res.html);
+  if (file) file.compileStatus = res.success ? 'ok' : 'err';
+  if (res.success && preview.classList.contains('show')) {
+    document.getElementById('previewHost').style.background = THEME_BG[previewTheme];
+    previewFrame.srcdoc = res.html;
   }
-  rebuildFileSelect();
+  updateHeaderLabel();
 }
 
 // ===== Заметки к файлу =====
 document.getElementById('btnToggleNotes').addEventListener('click', () => { closeMenus(); notesPanel.classList.toggle('show'); });
 let notesTimer = null;
 notesArea.addEventListener('input', () => {
-  const f = openFiles[activeIndex];
-  if (!f) return;
-  f.notes = notesArea.value;
+  if (!file) return;
+  file.notes = notesArea.value;
   clearTimeout(notesTimer);
   notesTimer = setTimeout(persistState, 400);
 });
 function exportAllNotes(){
   syncActiveFileContent();
-  const parts = openFiles.filter(f => f.notes && f.notes.trim()).map(f => `# ${f.name}\n\n${f.notes.trim()}\n`);
-  if (!parts.length) { alert('Заметок пока нет ни у одного файла.'); return; }
-  const text = parts.join('\n' + '-'.repeat(48) + '\n\n');
+  if (!file || !file.notes || !file.notes.trim()) { alert('Заметок пока нет.'); return; }
+  const text = `# ${file.name}\n\n${file.notes.trim()}\n`;
   const blob = new Blob([text], {type:'text/plain'});
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
@@ -1566,38 +1413,30 @@ function updateColorSwatches(src){
   }
 }
 
-// ===== Глобальные горячие клавиши (п.6, 7, 13, 17, 19) =====
-// Раньше часть сочетаний (Ctrl+S/Ctrl+F) вешалась только на textarea — они не
-// срабатывали, если фокус был не в редакторе (например, после клика по меню).
-// Вешаем на document с capture:true, чтобы гарантированно перехватить нажатие
-// раньше действия браузера по умолчанию (сохранение страницы, поиск и т.п.) —
-// именно на это жаловался пункт 6.
+// ===== Глобальные горячие клавиши =====
+// Часть сочетаний (Ctrl+S/Ctrl+F) должна срабатывать даже если фокус не в
+// редакторе (например, после клика по меню) — вешаем на document с
+// capture:true, чтобы гарантированно перехватить нажатие раньше действия
+// браузера по умолчанию (сохранение страницы, поиск и т.п.).
 document.addEventListener('keydown', (e) => {
   const ctrl = e.ctrlKey || e.metaKey;
   if (ctrl && !e.altKey && (e.key === 's' || e.key === 'S' || e.key === 'ы' || e.key === 'Ы')) {
     e.preventDefault(); e.stopPropagation();
-    doCompileAndRun(); // Ctrl+S = скомпилировать, сохранить и запустить (п.7)
-    return;
-  }
-  if (ctrl && !e.altKey && (e.key === 'n' || e.key === 'N' || e.key === 'т' || e.key === 'Т')) {
-    e.preventDefault(); e.stopPropagation();
-    createNewFile(); // Ctrl+N = новый файл (п.13)
+    doCompileAndRun(); // Ctrl+S = скомпилировать, сохранить и запустить
     return;
   }
   if (ctrl && !e.altKey && (e.key === 'f' || e.key === 'F' || e.key === 'а' || e.key === 'А')) {
     e.preventDefault(); e.stopPropagation();
-    openFind(); // Ctrl+F (п.17)
+    openFind(); // Ctrl+F
     return;
   }
   if (ctrl && !e.altKey && (e.key === 'k' || e.key === 'K' || e.key === 'л' || e.key === 'Л')) {
     e.preventDefault(); e.stopPropagation();
     code.focus();
-    toggleComment(); // Ctrl+K = закомментировать/раскомментировать (п.19)
+    toggleComment(); // Ctrl+K = закомментировать/раскомментировать
     return;
   }
   if (e.key === 'F5') { e.preventDefault(); runCheck(); return; }
-  if (e.altKey && e.key === 'ArrowLeft') { e.preventDefault(); switchToFile(activeIndex - 1); return; }
-  if (e.altKey && e.key === 'ArrowRight') { e.preventDefault(); switchToFile(activeIndex + 1); return; }
 }, true);
 
 // ===== Ошибки самого браузера/страницы — тоже в панель ошибок, отдельным цветом (п.14) =====
@@ -1615,29 +1454,18 @@ window.addEventListener('unhandledrejection', (e) => {
   appendRuntimeError('Необработанное отклонение промиса: ' + reason);
 });
 
-// ===== Старт: восстановление набора файлов из localStorage, иначе — один новый файл =====
-if (!restoreState()) {
-  openFiles = [makeFile('script.gms', TEMPLATE)];
-  activeIndex = 0;
-}
-code.value = openFiles[activeIndex].content;
-notesArea.value = openFiles[activeIndex].notes || '';
-currentHandle = openFiles[activeIndex].handle;
-currentHtmlHandle = openFiles[activeIndex].htmlHandle;
-rebuildFileSelect();
+// ===== Старт: единственный способ загрузить файл — параметр ?open=<путь> =====
+// Приходит из кнопки «Открыть в IDE» у интерактивного примера в справочнике
+// (см. шапку файла и openFileFromRepoPath). Без него редактор ничего не
+// загружает — только показывает блокирующее состояние с объяснением.
+// Параметр убирается из адресной строки сразу после чтения, чтобы обновление
+// страницы не запускало повторную загрузку с сервера — правки к этому моменту
+// уже сохраняются в localStorage по пути файла (см. persistState/restoreStateFor).
 updateHeaderLabel();
-render();
-runCheck();
-persistState();
-
-// ===== ?open=<путь> — открыть конкретный файл репозитория (приходит из справочника) =====
-// Убираем параметр из адресной строки после обработки, чтобы обновление
-// страницы не запускало повторную загрузку — набор файлов уже сохранён в
-// localStorage к этому моменту.
-(function handleOpenParam(){
+(function boot(){
   const params = new URLSearchParams(location.search);
   const path = params.get('open');
-  if (!path) return;
+  if (!path) { showBlocked(true); return; }
   history.replaceState(null, '', location.pathname + location.hash);
   openFileFromRepoPath(path);
 })();

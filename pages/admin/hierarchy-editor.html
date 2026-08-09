@@ -1190,11 +1190,18 @@
     try { return node.animate(frames, Object.assign({ fill:'none' }, opts)); }
     catch (e) { return { finished: Promise.resolve() }; }
   }
-  function replay(node, cls){
-    if (!node) return;
-    node.classList.remove(cls);
-    void node.offsetWidth;   // force reflow so the animation restarts
-    node.classList.add(cls);
+  // Restarts a CSS animation on many nodes at once. Reading offsetWidth forces
+  // a synchronous layout of the *entire* pending DOM, so doing that once per
+  // node in a loop is O(n) forced layouts back to back — layout thrashing
+  // that freezes the tab solid once a render touches thousands of rows (e.g.
+  // the full topic tree on boot). Batching removes all classes, forces
+  // exactly one reflow, then adds them all back — O(1) forced layouts no
+  // matter how many rows are entering.
+  function batchReplay(nodes, cls){
+    if (!nodes.length) return;
+    nodes.forEach(n => n.classList.remove(cls));
+    void nodes[0].offsetWidth;
+    nodes.forEach(n => n.classList.add(cls));
   }
 
   /* ============================================================
@@ -1230,6 +1237,7 @@
   const TYPE_LABELS = { topic:'Тема', folder:'Папка', theorem:'Теорема', proof:'Доказательство', example:'Пример' };
 
   const nodeEls = new Map();      // id -> {li,row,name,twist,kids,dot,sweep,flash,childrenUl}
+  let elbowQueue = [];            // rows queued for a single batched elbow-draw reflow (see paint())
 
   const el = {
     root: document.getElementById('root'),
@@ -2021,6 +2029,7 @@
     arriving.sort((a,b) => (indexOf.get(a) ?? 0) - (indexOf.get(b) ?? 0));
     const rank = new Map(arriving.map((id,i) => [id,i]));
 
+    elbowQueue = [];
     const moved = new Set();
 
     nodeEls.forEach((rec, id) => {
@@ -2050,6 +2059,7 @@
       const fl = flashOf.get(id);
       if (fl) flashRow(rec, fl, 0);
     });
+    batchReplay(elbowQueue, 'elbow-draw');
   }
 
   function enterRow(rec, kind, delay){
@@ -2065,7 +2075,7 @@
          { duration:D(420), easing:SPRING, delay:D(delay + 60) });
     if (rec.li.parentNode && rec.li.parentNode.classList.contains('children')){
       rec.li.style.setProperty('--d', D(delay) + 'ms');
-      replay(rec.li, 'elbow-draw');
+      elbowQueue.push(rec.li);
     }
     if (kind === 'clone') flashRow(rec, 'land', delay + 120);
   }
