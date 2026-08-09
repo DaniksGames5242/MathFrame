@@ -582,11 +582,32 @@
     sub: 'Вычисление, упрощение, уравнения, системы',
     mount: function (host) {
       var p = panel(host, 'Ввод', 'Enter — решить');
-      var mf = makeField(p, { initial: 'x^2-5x+6=0', onChange: recompute });
+      // allowComplex: true — «i» доступна прямо здесь (комплексный калькулятор
+      // объединён с этим, отдельного больше нет — см. recompute()/
+      // analyzeComplex*). Вектор (□⃗) не требует опции — он на клавиатуре уже
+      // и раньше, просто раньше ничего не считал (см. analyzeVector).
+      var mf = makeField(p, { initial: 'x^2-5x+6=0', onChange: recompute, allowComplex: true });
       // В отличие от построителя графиков, здесь система ДОЛЖНА быть доступна —
       // клавиатура создаётся с allowSystem по умолчанию (true), просто убеждаемся,
       // что makeField не выключил её.
       if (mf.kb) mf.kb.allowSystem = true;
+      // Взаимоисключающие конструкции: «i» несовместима со знаками порядка
+      // (у ℂ нет «больше/меньше»), вектор — с lim (см. пример из ТЗ). Клавиши
+      // не пропадают — становятся серыми и неактивными, пока конфликтующее
+      // не убрано из поля (см. MFKeyboard._refreshConflictKeys).
+      if (mf.kb) {
+        mf.kb.conflictRules = [
+          { test: function (f) { return f.hasNode(function (n) { return n.t === 'ch' && n.v === 'i'; }); },
+            disable: ['ch:<', 'ch:>', 'ch:≤', 'ch:≥', 'ch:≠'] },
+          { test: function (f) { return f.hasNode(function (n) { return n.t === 'ch' && ['<', '>', '≤', '≥', '≠'].indexOf(n.v) >= 0; }); },
+            disable: ['ch:i'] },
+          { test: function (f) { return f.hasNode(function (n) { return n.t === 'lim'; }); },
+            disable: ['cmd:vec'] },
+          { test: function (f) { return f.hasNode(function (n) { return n.t === 'accent' && n.kind === 'vec'; }); },
+            disable: ['cmd:lim'] }
+        ];
+        mf.kb._refreshConflictKeys();
+      }
 
       var badge = el('div', 'alg-badge', p);
       var methodRow = el('div', 'geo-subchips alg-method-row', p); methodRow.hidden = true;
@@ -617,9 +638,20 @@
         '<p><b>Решает численно</b> (с пометкой об этом): уравнения и неравенства ' +
         'степени 3 и выше, а также нелинейные (например, с sin, ln) — корни ' +
         'находятся приближённо, без формулы в шагах.</p>' +
-        '<p><b>Пока не поддерживает:</b> комплексные корни (при D&lt;0 просто ' +
-        'сообщает, что действительных корней нет); нелинейные системы больше чем из ' +
-        '2 уравнений/переменных; системы неравенств с разными переменными в разных строках.</p>' +
+        '<p><b>Комплексные числа:</b> как только в поле появляется «i» (клавиша есть ' +
+        'на клавиатуре), калькулятор целиком переключается на арифметику в ℂ — ' +
+        'вычисление, упрощение, линейные и квадратные уравнения (здесь они <b>всегда</b> ' +
+        'имеют решение — ℂ алгебраически замкнуто) и линейные системы с комплексными ' +
+        'коэффициентами, а также произвольная комплексная степень/корень (в т.ч. ' +
+        'с комплексным показателем, например <code>i^i</code>). Без «i» квадратное ' +
+        'уравнение с D&lt;0, как и раньше, просто сообщает, что действительных корней нет.</p>' +
+        '<p><b>Векторы:</b> клавиша «□⃗» — сложение/вычитание, умножение на число, модуль ' +
+        '|·|, а для пары векторов — сразу и скалярное, и (для 3D) векторное произведение ' +
+        'с углом между ними.</p>' +
+        '<p><b>Пока не поддерживает:</b> нелинейные системы больше чем из ' +
+        '2 уравнений/переменных; системы неравенств с разными переменными в разных строках; ' +
+        'совместные выражения с одновременно «i» и вектором или lim — эти клавиши гасятся, ' +
+        'пока в поле есть конфликтующее.</p>' +
         '<p>Знак системы «{ }» на клавиатуре открывает сразу два поля, Enter ' +
         'внутри неё добавляет ещё одну строку.</p>';
       aboutBtn.addEventListener('click', function () {
@@ -683,11 +715,25 @@
       function recompute() {
         clearError();
         var sysRows = mf.field.systemRows();
-        if (sysRows !== null) { analyzeSystem(sysRows); return; }
+        // «i» где-либо в поле — считаем комплексным движком целиком, а не
+        // только для одного узла: раз пользователь ввёл мнимую единицу, вся
+        // строка (или вся система) читается в ℂ, иначе получилась бы мешанина
+        // из двух разных числовых систем в одном ответе.
+        var isComplex = mf.field.hasNode(function (n) { return n.t === 'ch' && n.v === 'i'; });
+
+        if (sysRows !== null) {
+          if (isComplex) { analyzeComplexSystem(sysRows); return; }
+          analyzeSystem(sysRows);
+          return;
+        }
 
         var linear = mf.field.expr();
         stepsWrap.innerHTML = ''; answerWrap.innerHTML = ''; methodRow.hidden = true;
         if (!linear || !linear.trim()) { setBadge('Введите пример или уравнение'); return; }
+
+        if (isComplex) { analyzeComplexInput(linear); return; }
+        var isVector = mf.field.hasNode(function (n) { return n.t === 'accent' && n.kind === 'vec'; });
+        if (isVector) { analyzeVector(linear); return; }
 
         var rel;
         try { rel = MFAlgebra.splitRelation(linear); } catch (e) { rel = null; }
@@ -1034,6 +1080,215 @@
           });
         });
         return out;
+      }
+
+      /* ======================================================================
+         КОМПЛЕКСНЫЕ ЧИСЛА — та же арифметика/уравнения/системы, что и выше,
+         только на движке MFComplex вместо вещественного MFAlgebra/MFMath.
+         Включается автоматически, как только в поле появляется «i» (см.
+         recompute()) — отдельного калькулятора для этого больше нет, он был
+         объединён сюда (клавиша «i» доступна прямо здесь, allowComplex).
+         В отличие от вещественной ветки, шагов решения не показывает —
+         только итог: для комплексных чисел они пока не такие показательные.
+         ====================================================================== */
+      function nonImagVars(asts) {
+        var set = {};
+        asts.forEach(function (a) { MFMath.varsIn(a).forEach(function (v) { if (v !== 'i' && MFMath.CONSTS[v] === undefined) set[v] = true; }); });
+        return Object.keys(set);
+      }
+      function complexAnswer(c) {
+        answerWrap.innerHTML = '';
+        el('div', 'alg-answer-label', answerWrap, 'Ответ');
+        el('div', 'alg-answer-big', answerWrap).innerHTML = texToHtml(MFComplex.complexToTex(c));
+      }
+      function analyzeComplexSystem(sysRows) {
+        stepsWrap.innerHTML = ''; answerWrap.innerHTML = ''; methodRow.hidden = true;
+        if (sysRows.length < 2) { showError('в системе нужно хотя бы 2 уравнения'); return; }
+        var rels = sysRows.map(function (r) { return MFAlgebra.splitRelation(r); });
+        if (rels.some(function (r) { return !r || r.op !== '='; })) { showError('каждая строка системы должна быть уравнением (со знаком =)'); return; }
+        var diffAsts;
+        try { diffAsts = rels.map(function (r) { return { t: '-', a: MFMath.parse(r.lhs), b: MFMath.parse(r.rhs) }; }); }
+        catch (e) { showError('не удалось разобрать систему'); return; }
+        var vars = nonImagVars(diffAsts);
+        if (vars.length !== sysRows.length) { showError('для однозначного решения нужно столько же переменных, сколько уравнений (сейчас: ' + sysRows.length + ' уравнени' + (sysRows.length === 1 ? 'е' : 'я') + ', ' + vars.length + ' переменн' + (vars.length === 1 ? 'ая' : 'ых') + ')'); return; }
+        var affRows = diffAsts.map(function (d) { return MFComplex.complexAffineOf(d, vars); });
+        if (affRows.some(function (a) { return !a; })) { showError('система нелинейна — с комплексными коэффициентами решаются только линейные системы'); return; }
+        setBadge('Система уравнений (ℂ)', 'eq');
+        var res = MFComplex.solveComplexLinearSystem(affRows, vars);
+        if (res.kind === 'none') { el('div', 'alg-answer-big', answerWrap, 'Решений нет'); return; }
+        if (res.kind === 'infinite') { el('div', 'alg-answer-big', answerWrap, 'Бесконечно много решений'); return; }
+        el('div', 'alg-answer-label', answerWrap, 'Ответ');
+        vars.forEach(function (v) {
+          el('div', 'alg-answer-big', answerWrap).innerHTML = texToHtml(v + ' = ' + MFComplex.complexToTex(res.values[v]));
+        });
+      }
+      function analyzeComplexInput(linear) {
+        var rel;
+        try { rel = MFAlgebra.splitRelation(linear); } catch (e) { rel = null; }
+
+        if (!rel) {
+          var ast;
+          try { ast = MFMath.parse(linear); } catch (e) { showError('не удалось разобрать выражение'); return; }
+          var vars2 = nonImagVars([ast]);
+          if (vars2.length === 0) {
+            var val = MFComplex.evalComplex(ast, {});
+            if (!val) { showError('это выражение выходит за рамки поддерживаемых комплексных операций'); return; }
+            setBadge('Вычисление (ℂ)', 'calc');
+            complexAnswer(val);
+            return;
+          }
+          if (vars2.length === 1) {
+            var coeffs = MFComplex.complexPolyOf(ast, vars2[0]);
+            if (!coeffs) { showError('это выражение выходит за рамки поддерживаемых операций для упрощения'); return; }
+            setBadge('Упрощение (ℂ)', 'simplify');
+            var simplified = MFComplex.complexPolyToTex(coeffs, vars2[0]);
+            el('div', 'alg-answer-label', answerWrap, 'Упрощённый вид');
+            el('div', 'alg-answer-big', answerWrap).innerHTML = texToHtml(simplified);
+            return;
+          }
+          showError('больше одной переменной (кроме i) — вне поддерживаемого для упрощения');
+          return;
+        }
+
+        if (rel.op !== '=') { showError('неравенства не определены для комплексных чисел — у ℂ нет отношения порядка'); return; }
+        var lhsAst, rhsAst;
+        try { lhsAst = MFMath.parse(rel.lhs); rhsAst = MFMath.parse(rel.rhs); }
+        catch (e) { showError('не удалось разобрать уравнение'); return; }
+        var vars3 = nonImagVars([lhsAst, rhsAst]);
+        var diffAst = { t: '-', a: lhsAst, b: rhsAst };
+        if (vars3.length === 0) {
+          setBadge('Проверка равенства (ℂ)', 'calc');
+          var lv = MFComplex.evalComplex(lhsAst, {}), rv = MFComplex.evalComplex(rhsAst, {});
+          if (!lv || !rv) { showError('не удалось вычислить обе стороны'); return; }
+          var holds = Math.abs(lv.re - rv.re) < 1e-9 && Math.abs(lv.im - rv.im) < 1e-9;
+          el('div', 'alg-answer-big', answerWrap, holds ? 'Верно' : 'Неверно');
+          return;
+        }
+        if (vars3.length === 1) {
+          var coeffs2 = MFComplex.complexPolyOf(diffAst, vars3[0]);
+          if (!coeffs2) { showError('это уравнение выходит за рамки поддерживаемых операций'); return; }
+          var res2 = MFComplex.solveComplexEquationPoly(coeffs2, vars3[0]);
+          if (!res2) { showError('уравнения степени 3 и выше с комплексными коэффициентами пока не решаются'); return; }
+          setBadge('Уравнение (ℂ)', 'eq');
+          if (res2.kind === 'identity') { el('div', 'alg-answer-big', answerWrap, 'Верно при любом ' + vars3[0]); return; }
+          if (res2.kind === 'contradiction') { el('div', 'alg-answer-big', answerWrap, 'Решений нет'); return; }
+          el('div', 'alg-answer-label', answerWrap, res2.roots.length > 1 ? 'Корни' : 'Ответ');
+          res2.roots.forEach(function (r) {
+            el('div', 'alg-answer-big', answerWrap).innerHTML = texToHtml(vars3[0] + ' = ' + MFComplex.complexToTex(r));
+          });
+          return;
+        }
+        showError('уравнение с несколькими неизвестными — только как часть системы (через клавишу «{ }»)');
+      }
+
+      /* ======================================================================
+         ВЕКТОРЫ — включается клавишей «□⃗» (accent vec). Сериализуется в
+         линейную запись как вызов «vec(x,y,z)» (см. rowToExpr в mathfield.js
+         и FUNCS.vec в mf-math.js — там только безопасная вещественная
+         заглушка, настоящая арифметика вся здесь, по дереву). Поддерживает:
+         сложение/вычитание векторов, умножение на число, модуль |·|/‖·‖, и —
+         для пары векторов — сразу оба произведения (скалярное и, для 3D,
+         векторное) с углом между ними, как раньше отдельный инструмент
+         «Векторное/скалярное произведение (3D)» в «Ещё» (теперь без ограничения
+         в 3 компоненты для скалярного и без отдельной формы под каждое поле).
+         ====================================================================== */
+      function vecComponents(node) {
+        if (!node || node.t !== 'fn' || node.name !== 'vec') return null;
+        var body = node.a;
+        var items = body && body.t === 'tuple' ? body.items : [body];
+        var out = [];
+        for (var i = 0; i < items.length; i++) {
+          var v;
+          try { v = MFMath.evalAst(items[i], {}); } catch (e) { return null; }
+          if (!isFinite(v)) return null;
+          out.push(v);
+        }
+        return out;
+      }
+      function vecTex(comp) {
+        return '(' + comp.map(function (x) { return MFMath.fmtNum(x); }).join(';\\ ') + ')';
+      }
+      // Возвращает {vec:[...]} (результат — вектор), {dotcross:[a,b]} (два
+      // вектора перемножены — неоднозначно скалярное/векторное, показываем
+      // оба), либо null (не векторное выражение / вне поддерживаемого).
+      function evalVecNode(node) {
+        if (!node) return null;
+        if (node.t === 'fn' && node.name === 'vec') {
+          var comp = vecComponents(node);
+          return comp ? { vec: comp } : null;
+        }
+        if (node.t === '+' || node.t === '-') {
+          var A = evalVecNode(node.a), B = evalVecNode(node.b);
+          if (!A || !B || !A.vec || !B.vec || A.vec.length !== B.vec.length) return null;
+          return { vec: A.vec.map(function (x, i) { return node.t === '+' ? x + B.vec[i] : x - B.vec[i]; }) };
+        }
+        if (node.t === '*') {
+          var A2 = evalVecNode(node.a), B2 = evalVecNode(node.b);
+          if (A2 && A2.vec && B2 && B2.vec) return { dotcross: [A2.vec, B2.vec] };
+          if (A2 && A2.vec) {
+            var s; try { s = MFMath.evalAst(node.b, {}); } catch (e) { return null; }
+            return isFinite(s) ? { vec: A2.vec.map(function (x) { return x * s; }) } : null;
+          }
+          if (B2 && B2.vec) {
+            var s2; try { s2 = MFMath.evalAst(node.a, {}); } catch (e) { return null; }
+            return isFinite(s2) ? { vec: B2.vec.map(function (x) { return x * s2; }) } : null;
+          }
+          return null;
+        }
+        if (node.t === 'neg') {
+          var A3 = evalVecNode(node.a);
+          return (A3 && A3.vec) ? { vec: A3.vec.map(function (x) { return -x; }) } : null;
+        }
+        return null;
+      }
+      function analyzeVector(linear) {
+        var ast;
+        try { ast = MFMath.parse(linear); } catch (e) { showError('не удалось разобрать выражение'); return; }
+
+        // |вектор| / ‖вектор‖ — оба сериализуются как abs(vec(...))
+        if (ast.t === 'fn' && ast.name === 'abs' && ast.a && ast.a.t === 'fn' && ast.a.name === 'vec') {
+          var comp0 = vecComponents(ast.a);
+          if (!comp0) { showError('не удалось вычислить компоненты вектора'); return; }
+          setBadge('Модуль вектора', 'calc');
+          var mag = Math.sqrt(comp0.reduce(function (s, x) { return s + x * x; }, 0));
+          answerWrap.innerHTML = '';
+          el('div', 'alg-answer-label', answerWrap, 'Ответ');
+          el('div', 'alg-answer-big', answerWrap).innerHTML = texToHtml('|\\vec v| = ' + MFMath.fmtNum(mag));
+          return;
+        }
+
+        var r = evalVecNode(ast);
+        if (!r) {
+          showError('это векторное выражение пока не поддерживается — доступны: сложение/вычитание векторов, ' +
+            'умножение на число, скалярное и (для 3D) векторное произведение двух векторов, модуль |·|');
+          return;
+        }
+
+        if (r.dotcross) {
+          var a = r.dotcross[0], b = r.dotcross[1];
+          setBadge('Скалярное и векторное произведение', 'calc');
+          answerWrap.innerHTML = '';
+          var dot = a.length === b.length ? a.reduce(function (s, x, i) { return s + x * b[i]; }, 0) : null;
+          el('div', 'alg-answer-label', answerWrap, 'Скалярное произведение u·v');
+          el('div', 'alg-answer-big', answerWrap, dot === null ? 'размерности векторов не совпадают' : MFMath.fmtNum(dot));
+          if (a.length === 3 && b.length === 3) {
+            var cross = [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+            el('div', 'alg-answer-label', answerWrap, 'Векторное произведение u×v');
+            el('div', 'alg-answer-big', answerWrap).innerHTML = texToHtml(vecTex(cross));
+            var magA = Math.sqrt(a.reduce(function (s, x) { return s + x * x; }, 0));
+            var magB = Math.sqrt(b.reduce(function (s, x) { return s + x * x; }, 0));
+            if (magA > 1e-12 && magB > 1e-12 && dot !== null) {
+              var cosA = Math.max(-1, Math.min(1, dot / (magA * magB)));
+              el('div', 'alg-answer-approx', answerWrap, 'угол между u и v: ' + MFMath.fmtNum(Math.acos(cosA) * 180 / Math.PI, 6) + '°');
+            }
+          }
+          return;
+        }
+
+        setBadge('Векторная арифметика', 'calc');
+        answerWrap.innerHTML = '';
+        el('div', 'alg-answer-label', answerWrap, 'Ответ');
+        el('div', 'alg-answer-big', answerWrap).innerHTML = texToHtml('\\vec v = ' + vecTex(r.vec));
       }
 
       recompute();
@@ -2735,37 +2990,6 @@
     [iMu,iSigma,iX].forEach(function(i){i.addEventListener('input',calc);}); calc();
   }
 
-  /* ---------------------------------------------------- 6. Комплексные числа */
-  function buildComplexArithUI(c) {
-    var g = el('div', 'grid2', c);
-    var re1=moreField(g,'a₁ (Re)','3'), im1=moreField(g,'b₁ (Im)','4');
-    var re2=moreField(g,'a₂ (Re)','1'), im2=moreField(g,'b₂ (Im)','2');
-    var opSel = document.createElement('select'); opSel.className='conv-select';
-    [['+','сложение'],['-','вычитание'],['*','умножение'],['/','деление']].forEach(function(o){ var op=document.createElement('option'); op.value=o[0]; op.textContent=o[1]; opSel.appendChild(op); });
-    g.appendChild(opSel);
-    var out = el('div', 'out', c);
-    function calc() {
-      out.innerHTML=''; var a=moreNum(re1),b=moreNum(im1),cc=moreNum(re2),d=moreNum(im2); if([a,b,cc,d].some(function(v){return v===null;})) return;
-      var r, op=opSel.value;
-      if (op==='+') r={re:a+cc,im:b+d}; else if (op==='-') r={re:a-cc,im:b-d};
-      else if (op==='*') r={re:a*cc-b*d,im:a*d+b*cc};
-      else { var den=cc*cc+d*d; if (den===0) { el('div','err',out,'деление на ноль'); return; } r={re:(a*cc+b*d)/den, im:(b*cc-a*d)/den}; }
-      el('div','big',out, moreFmt(r.re) + (r.im>=0?' + ':' − ') + moreFmt(Math.abs(r.im)) + 'i');
-    }
-    [re1,im1,re2,im2].forEach(function(i){i.addEventListener('input',calc);}); opSel.addEventListener('change',calc); calc();
-  }
-  function buildComplexPolarUI(c) {
-    var g = el('div', 'grid2', c);
-    var iRe = moreField(g,'Re','1'), iIm = moreField(g,'Im','1');
-    var out = el('div', 'out', c);
-    function calc() {
-      out.innerHTML=''; var re=moreNum(iRe), im=moreNum(iIm); if(re===null||im===null) return;
-      var r = Math.sqrt(re*re+im*im), theta = Math.atan2(im,re);
-      moreResults(out, [['модуль r', r], ['аргумент, рад', theta], ['аргумент, °', theta/D2R]]);
-    }
-    [iRe,iIm].forEach(function(i){i.addEventListener('input',calc);}); calc();
-  }
-
   /* ---------------------------------------------------- 7. Последовательности */
   function buildArithSeqUI(c) {
     var g = el('div', 'grid2', c);
@@ -2989,29 +3213,6 @@
   }
 
 
-  /* ---- доп. 3D-векторы (векторное/смешанное произведение) ---- */
-  function buildVec3UI(c) {
-    var g = el('div', null, c);
-    el('div', 'conv-block-h', g, 'u');
-    var g1 = el('div', 'grid2', g);
-    var ux=moreField(g1,'x','1'), uy=moreField(g1,'y','0'), uz=moreField(g1,'z','0');
-    el('div', 'conv-block-h', g, 'v');
-    var g2 = el('div', 'grid2', g);
-    var vx=moreField(g2,'x','0'), vy=moreField(g2,'y','1'), vz=moreField(g2,'z','0');
-    var out = el('div', 'out', c);
-    function calc() {
-      out.innerHTML=''; var a=[moreNum(ux),moreNum(uy),moreNum(uz)], b=[moreNum(vx),moreNum(vy),moreNum(vz)];
-      if (a.concat(b).some(function(v){return v===null;})) return;
-      var cross = [a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]];
-      var dot = a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
-      var magA=Math.sqrt(a[0]*a[0]+a[1]*a[1]+a[2]*a[2]), magB=Math.sqrt(b[0]*b[0]+b[1]*b[1]+b[2]*b[2]);
-      var cosA = Math.max(-1,Math.min(1, dot/(magA*magB)));
-      el('div','big',out, '[u×v] = (' + moreFmt(cross[0]) + '; ' + moreFmt(cross[1]) + '; ' + moreFmt(cross[2]) + ')');
-      moreResults(out, [['u·v (скалярное)', dot], ['|u×v| (площадь параллелограмма)', Math.sqrt(cross[0]*cross[0]+cross[1]*cross[1]+cross[2]*cross[2])], ['угол между ними, °', Math.acos(cosA)/D2R]]);
-    }
-    [ux,uy,uz,vx,vy,vz].forEach(function(i){i.addEventListener('input',calc);}); calc();
-  }
-
   /* ---- доп. треугольник Паскаля ---- */
   function buildPascalUI(c) {
     var g = el('div', 'grid2', c);
@@ -3158,20 +3359,18 @@
       { id: 'series', label: 'Сумма ряда', build: buildSeriesUI },
       { id: 'taylor', label: 'Ряд Тейлора', build: buildTaylorUI }
     ]},
+    // Векторное/скалярное произведение и вся арифметика с векторами убраны
+    // отсюда — клавиша «□⃗» теперь прямо работает в алгебраическом
+    // калькуляторе (см. analyzeVector в svcCalc), матрицы/собственные значения
+    // остаются здесь: для них на клавиатуре формулы нет отдельной клавиши.
     { id: 'linalg', label: 'Линейная алгебра', tools: [
       { id: 'matops', label: 'Операции с матрицами', build: buildMatrixOpsUI },
-      { id: 'eigen', label: 'Собственные значения (2×2)', build: buildEigenUI },
-      { id: 'vec3', label: 'Векторное/скалярное произведение (3D)', build: buildVec3UI }
+      { id: 'eigen', label: 'Собственные значения (2×2)', build: buildEigenUI }
     ]},
-    // Корни n-й степени убраны отсюда: то же самое (и с комплексным
-    // показателем корня, x^(1/n)) теперь можно набрать на «Обычном»
-    // калькуляторе клавишами xʸ/(/÷/) и «i» — как и возведение в степень
-    // (клавиша xʸ) уже поддерживает комплексное основание/показатель.
-    { id: 'complex', label: 'Комплексные числа', tools: [
-      { id: 'calc', label: 'Калькулятор', build: buildComplexCalcUI },
-      { id: 'arith', label: 'Арифметика по полям', build: buildComplexArithUI },
-      { id: 'polar', label: 'Полярная форма, модуль и аргумент', build: buildComplexPolarUI }
-    ]},
+    // Корни n-й степени и весь раздел «Комплексные числа» убраны отсюда:
+    // клавиша «i» и xʸ/(/÷/) теперь прямо работают в алгебраическом
+    // калькуляторе (см. analyzeComplex* в svcCalc) — включая произвольную
+    // комплексную степень/корень (x^(1/n) с комплексным n).
     { id: 'numtheory', label: 'Теория чисел', tools: [
       { id: 'gcdlcm', label: 'НОД и НОК', build: buildGcdLcmUI },
       { id: 'factorize', label: 'Разложение на множители', build: buildFactorizeUI },
@@ -3257,150 +3456,6 @@
       renderBody();
     }
   };
-
-  /* ======================================================================
-     КАЛЬКУЛЯТОР КОМПЛЕКСНЫХ ЧИСЕЛ
-     Тот же принцип автоопределения, что и у алгебраического калькулятора —
-     один вход, тип решается по содержимому (вычисление / упрощение /
-     уравнение / система) — только на движке MFComplex вместо вещественного.
-     «i» на клавиатуре здесь разрешена явно (allowComplex) — единственное
-     место на сайте, где эта клавиша вообще показывается.
-     ====================================================================== */
-  function complexBadgeText(kind) {
-    return { compute: 'Вычисление', simplify: 'Упрощение выражения', equation: 'Уравнение', system: 'Система уравнений', identity: 'Проверка равенства' }[kind] || '';
-  }
-  function buildComplexCalcUI(container) {
-    var mf = makeField(container, { label: 'Выражение', initial: '(3+4*i)/(1-2*i)', onChange: recompute, allowComplex: true });
-    if (mf.kb) { mf.kb.allowSystem = true; mf.kb.allowComplex = true; }
-
-    var badge = el('div', 'alg-badge', container);
-    var answerWrap = el('div', 'alg-answer', container);
-    var errWrap = el('div', 'alg-err', container);
-
-    var aboutBtn = el('button', 'mini alg-about-btn', container, 'Что умеет этот калькулятор');
-    aboutBtn.type = 'button';
-    var aboutBox = el('div', 'alg-about', container);
-    aboutBox.hidden = true;
-    aboutBox.innerHTML =
-      '<p><b>Точно решает:</b> арифметику с комплексными числами (+, −, ×, ÷, целые степени, ' +
-      '√ от отрицательных и комплексных чисел, <code>conj</code>, <code>abs</code>, <code>arg</code>, ' +
-      '<code>re</code>, <code>im</code>); линейные и квадратные уравнения с комплексными коэффициентами — ' +
-      'квадратное уравнение здесь <b>всегда</b> имеет решение (ℂ алгебраически замкнуто, «действительных ' +
-      'корней нет» в комплексных числах не бывает); линейные системы с комплексными коэффициентами; ' +
-      'упрощение линейных выражений с одной переменной.</p>' +
-      '<p><b>Вводите как обычно:</b> «i» — мнимая единица, можно писать «3+4i» или «3+4*i» — оба ' +
-      'понимаются одинаково. Если ввести просто вещественное число без i, калькулятор посчитает ' +
-      'его как обычное — это тоже комплексное число, только с нулевой мнимой частью.</p>' +
-        '<p><b>Пока не поддерживает:</b> неравенства (у ℂ нет порядка — «больше/меньше» для комплексных ' +
-        'чисел не определено); уравнения степени 3 и выше; нелинейные системы; sin/cos/ln от комплексного ' +
-        'аргумента.</p>';
-      aboutBtn.addEventListener('click', function () {
-        aboutBox.hidden = !aboutBox.hidden;
-        aboutBtn.textContent = aboutBox.hidden ? 'Что умеет этот калькулятор' : 'Скрыть';
-      });
-
-      function showError(msg) { errWrap.hidden = false; errWrap.textContent = msg; }
-      function clearError() { errWrap.hidden = true; errWrap.textContent = ''; }
-      function setBadge(kind) { badge.textContent = complexBadgeText(kind); badge.className = 'alg-badge' + (kind === 'equation' || kind === 'system' ? ' alg-badge-eq' : ''); }
-      function complexAnswer(c) {
-        answerWrap.innerHTML = '';
-        el('div', 'alg-answer-label', answerWrap, 'Ответ');
-        el('div', 'alg-answer-big', answerWrap).innerHTML = texToHtml(MFComplex.complexToTex(c));
-      }
-
-      function nonImagVars(asts) {
-        var set = {};
-        asts.forEach(function (a) { MFMath.varsIn(a).forEach(function (v) { if (v !== 'i' && MFMath.CONSTS[v] === undefined) set[v] = true; }); });
-        return Object.keys(set);
-      }
-
-      function recompute() {
-        clearError();
-        answerWrap.innerHTML = ''; badge.textContent = '';
-        var sysRows = mf.field.systemRows();
-        if (sysRows !== null) {
-          if (sysRows.length < 2) { showError('в системе нужно хотя бы 2 уравнения'); return; }
-          var rels = sysRows.map(function (r) { return MFAlgebra.splitRelation(r); });
-          if (rels.some(function (r) { return !r || r.op !== '='; })) { showError('каждая строка системы должна быть уравнением (со знаком =)'); return; }
-          var diffAsts;
-          try { diffAsts = rels.map(function (r) { return { t: '-', a: MFMath.parse(r.lhs), b: MFMath.parse(r.rhs) }; }); }
-          catch (e) { showError('не удалось разобрать систему'); return; }
-          var vars = nonImagVars(diffAsts);
-          if (vars.length !== sysRows.length) { showError('для однозначного решения нужно столько же переменных, сколько уравнений (сейчас: ' + sysRows.length + ' уравнени' + (sysRows.length === 1 ? 'е' : 'я') + ', ' + vars.length + ' переменн' + (vars.length === 1 ? 'ая' : 'ых') + ')'); return; }
-          var affRows = diffAsts.map(function (d) { return MFComplex.complexAffineOf(d, vars); });
-          if (affRows.some(function (a) { return !a; })) { showError('система нелинейна — комплексный калькулятор решает только линейные системы'); return; }
-          setBadge('system');
-          var res = MFComplex.solveComplexLinearSystem(affRows, vars);
-          if (res.kind === 'none') { el('div', 'alg-answer-big', answerWrap, 'Решений нет'); return; }
-          if (res.kind === 'infinite') { el('div', 'alg-answer-big', answerWrap, 'Бесконечно много решений'); return; }
-          el('div', 'alg-answer-label', answerWrap, 'Ответ');
-          vars.forEach(function (v) {
-            el('div', 'alg-answer-big', answerWrap).innerHTML = texToHtml(v + ' = ' + MFComplex.complexToTex(res.values[v]));
-          });
-          return;
-        }
-
-        var linear = mf.field.expr();
-        if (!linear.trim()) return;
-        var rel;
-        try { rel = MFAlgebra.splitRelation(linear); } catch (e) { rel = null; }
-
-        if (!rel) {
-          var ast;
-          try { ast = MFMath.parse(linear); } catch (e) { showError('не удалось разобрать выражение'); return; }
-          var vars2 = nonImagVars([ast]);
-          if (vars2.length === 0) {
-            var val = MFComplex.evalComplex(ast, {});
-            if (!val) { showError('это выражение выходит за рамки поддерживаемых комплексных операций (см. «Что умеет»)'); return; }
-            setBadge('compute');
-            complexAnswer(val);
-            return;
-          }
-          if (vars2.length === 1) {
-            var coeffs = MFComplex.complexPolyOf(ast, vars2[0]);
-            if (!coeffs) { showError('это выражение выходит за рамки поддерживаемых операций для упрощения'); return; }
-            setBadge('simplify');
-            var simplified = MFComplex.complexPolyToTex(coeffs, vars2[0]);
-            el('div', 'alg-answer-label', answerWrap, 'Упрощённый вид');
-            el('div', 'alg-answer-big', answerWrap).innerHTML = texToHtml(simplified);
-            return;
-          }
-          showError('больше одной переменной (кроме i) — вне поддерживаемого для упрощения');
-          return;
-        }
-
-        if (rel.op !== '=') { showError('неравенства не определены для комплексных чисел — у ℂ нет отношения порядка'); return; }
-        var lhsAst, rhsAst;
-        try { lhsAst = MFMath.parse(rel.lhs); rhsAst = MFMath.parse(rel.rhs); }
-        catch (e) { showError('не удалось разобрать уравнение'); return; }
-        var vars3 = nonImagVars([lhsAst, rhsAst]);
-        var diffAst = { t: '-', a: lhsAst, b: rhsAst };
-        if (vars3.length === 0) {
-          setBadge('identity');
-          var lv = MFComplex.evalComplex(lhsAst, {}), rv = MFComplex.evalComplex(rhsAst, {});
-          if (!lv || !rv) { showError('не удалось вычислить обе стороны'); return; }
-          var holds = Math.abs(lv.re - rv.re) < 1e-9 && Math.abs(lv.im - rv.im) < 1e-9;
-          el('div', 'alg-answer-big', answerWrap, holds ? 'Верно' : 'Неверно');
-          return;
-        }
-        if (vars3.length === 1) {
-          var coeffs2 = MFComplex.complexPolyOf(diffAst, vars3[0]);
-          if (!coeffs2) { showError('это уравнение выходит за рамки поддерживаемых операций'); return; }
-          var res2 = MFComplex.solveComplexEquationPoly(coeffs2, vars3[0]);
-          if (!res2) { showError('уравнения степени 3 и выше комплексный калькулятор не решает'); return; }
-          setBadge('equation');
-          if (res2.kind === 'identity') { el('div', 'alg-answer-big', answerWrap, 'Верно при любом ' + vars3[0]); return; }
-          if (res2.kind === 'contradiction') { el('div', 'alg-answer-big', answerWrap, 'Решений нет'); return; }
-          el('div', 'alg-answer-label', answerWrap, res2.roots.length > 1 ? 'Корни' : 'Ответ');
-          res2.roots.forEach(function (r) {
-            el('div', 'alg-answer-big', answerWrap).innerHTML = texToHtml(vars3[0] + ' = ' + MFComplex.complexToTex(r));
-          });
-          return;
-        }
-        showError('уравнение с несколькими неизвестными — только как часть системы (через клавишу «{ }»)');
-      }
-      recompute();
-  }
 
   var SERVICES = [svcBasic, svcCalc, svcConverter, svcGeo, svcPlot, svcMore];
 

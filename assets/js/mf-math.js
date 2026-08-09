@@ -80,7 +80,16 @@
     conj: function (x) { return x; },
     re: function (x) { return x; },
     im: function (x) { return 0; },
-    arg: function (x) { return x >= 0 ? 0 : Math.PI; }
+    arg: function (x) { return x >= 0 ? 0 : Math.PI; },
+    // «vec(x,y,z)» — так сериализуется акцент-стрелка над телом (см.
+    // rowToExpr в mathfield.js). Регистрируем ровно по той же причине, что
+    // conj/re/im/arg выше — иначе парсер принял бы «vec» за имя переменной,
+    // а не за вызов функции, и «(1,2,3)» просто домножилось бы рядом.
+    // Настоящая векторная арифметика — в analyzeVector (services.js), она
+    // работает по АСТ-дереву узла fn:vec напрямую, а не через evalAst;
+    // здесь — только честная заглушка для вещественного движка (вектор не
+    // вещественное число, поэтому NaN, а не подмена одной из компонент).
+    vec: function () { return NaN; }
   };
   var CONSTS = { pi: Math.PI, 'π': Math.PI, e: Math.E, tau: 2 * Math.PI, phi: (1 + Math.sqrt(5)) / 2 };
 
@@ -169,22 +178,37 @@
       while (eat('!')) a = { t: 'fact', a: a };
       return a;
     }
+    // Список через запятую ВНУТРИ уже открытой «(» (сама «(» съедена
+    // вызывающим кодом). Раньше запятая была никак не обработана в грамматике
+    // (лишь бы не падать: одиночная «,» просто молча пропускалась атомом по
+    // умолчанию), т.е. «(1,2,3)» тихо обрезалось до «1» — новое поведение
+    // строго лучше старого, ничего не ломает. Нужно для векторов:
+    // accent(vec) сериализуется в «vec(x,y,z)» — см. evalVector в services.js.
+    function parenOrTupleBody() {
+      var e = expr();
+      if (peek() && peek().t === ',') {
+        var items = [e];
+        while (eat(',')) items.push(expr());
+        eat(')');
+        return { t: 'tuple', items: items };
+      }
+      eat(')');
+      return e;
+    }
     function atom() {
       var t = peek();
       if (!t) return { t: 'num', v: 0 };
       if (t.t === 'num') { p++; return { t: 'num', v: t.v }; }
       if (t.t === '(') {
         p++;
-        var e = expr();
-        eat(')');
-        return e;
+        return parenOrTupleBody();
       }
       if (t.t === 'id') {
         p++;
         var name = t.v;
         if (FUNCS[name]) {
           var arg;
-          if (eat('(')) { arg = expr(); eat(')'); }
+          if (eat('(')) { arg = parenOrTupleBody(); }
           else arg = power();               // sin x
           return { t: 'fn', name: name, a: arg };
         }

@@ -1032,6 +1032,21 @@
 
   MathField.prototype.isEmpty = function () { return this.root.k.length === 0; };
 
+  // Обходит ВСЁ дерево поля (все узлы во всех вложенных строках) в поисках
+  // узла, для которого predicate вернёт true. Нужно клавиатуре — гасить
+  // клавиши, конфликтующие с уже введённым (см. MFKeyboard.conflictRules
+  // в mf-keyboard.js: «i» ⇄ знаки неравенства, вектор ⇄ lim и т.п.).
+  MathField.prototype.hasNode = function (predicate) {
+    function walk(node) {
+      if (!node) return false;
+      if (predicate(node)) return true;
+      if (node.t === 'row') return node.k.some(walk);
+      if (node.t === 'cases') return node.rows.some(walk);
+      return fieldsOf(node).some(function (name) { return walk(node[name]); });
+    }
+    return walk(this.root);
+  };
+
   /* Дерево -> линейная запись (для парсера выражений). Структурные узлы
      разворачиваются в явные вызовы, чтобы приоритет операций не терялся. */
   function rowToExpr(r) {
@@ -1051,7 +1066,12 @@
         case 'paren': out += '(' + rowToExpr(n.body) + ')'; break;
         case 'abs': out += 'abs(' + rowToExpr(n.body) + ')'; break;
         case 'norm': out += 'abs(' + rowToExpr(n.body) + ')'; break;
-        case 'accent': out += '(' + rowToExpr(n.body) + ')'; break;
+        // vec: сериализуется как вызов функции «vec(...)», а не просто
+        // скобки — иначе после сборки в линейную строку было бы никак не
+        // отличить вектор от обычной скобочной группы (bar/hat такой
+        // проблемы не имеют — там и не нужно ничего вычислять по-особому).
+        // См. FUNCS.vec (mf-math.js) и analyzeVector (services.js).
+        case 'accent': out += (n.kind === 'vec' ? 'vec(' : '(') + rowToExpr(n.body) + ')'; break;
         case 'bigop': {
           // integral(low, high, body, var) / sum(low, high, body, var)
           var fn = n.op === 'int' ? 'integral' : (n.op === 'sum' ? 'sum' : 'prod');

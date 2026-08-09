@@ -216,6 +216,11 @@
     // считать с i, поэтому кнопка должна быть скрыта по умолчанию, а не
     // просто задизейблена «на всякий случай».
     this.allowComplex = !!opts.allowComplex;
+    // Пары «взаимоисключающих» конструкций — см. _refreshConflictKeys.
+    // Пусто везде, кроме калькуляторов, которые явно её задали (сейчас —
+    // только алгебраический, где на одной клавиатуре соседствуют и «i», и
+    // знаки неравенства, и вектор, и lim, а вместе они не считаются).
+    this.conflictRules = opts.conflictRules || null;
     host.classList.add('mfkb');
     this._build();
     this._bindPhysical();
@@ -225,6 +230,7 @@
     var self = this, origOnChange = field.onChange;
     field.onChange = function () {
       self._refreshCasesState();
+      self._refreshConflictKeys();
       return origOnChange.apply(field, arguments);
     };
   }
@@ -334,6 +340,10 @@
     this.host.appendChild(pad);
     this.host.classList.toggle('mfkb-collapsed', this.collapsed);
     this.host.classList.toggle('mfkb-compact', this.compact);
+    // _build() пересобирает ВСЕ кнопки заново (смена вкладки, ⇧, сжатый
+    // режим, появление/исчезновение клавиши системы) — свежие кнопки не
+    // знают о текущих конфликтах, пока не спросим сразу же.
+    this._refreshConflictKeys();
   };
 
   // Эффективный Shift — «залипающий» (клик по ⇧) ИЛИ физический (реально
@@ -431,6 +441,9 @@
     b.className = 'mfkb-key' + (variant ? ' mfkb-' + variant : '') + (action === 'act:clear' ? ' mfkb-danger' : '');
     if (action === 'act:shift' && shiftOn) b.classList.add('on');
     if (action === 'cmd:cases') b.setAttribute('data-cases-key', '');
+    // Нужно _refreshConflictKeys — искать уже готовые кнопки по их действию,
+    // не перестраивая клавиатуру целиком на каждый введённый символ.
+    b.dataset.action = action;
 
     // с ⇧ показываем заглавный вариант букв (там, где alt не переопределил всё целиком)
     var shown = label;
@@ -455,6 +468,7 @@
       var isBackspace = action === 'act:back';
       b.addEventListener('pointerdown', function (e) {
         e.preventDefault();
+        if (b.classList.contains('mfkb-disabled')) return;   // конфликтует с уже введённым — см. _refreshConflictKeys
         b.classList.add('press');
         self._fire(action, label);
         setTimeout(function () { b.classList.remove('press'); }, 130);
@@ -549,6 +563,36 @@
     var shouldShow = !(f.root && f.root.k.length > 0);
     var isShown = !!this.host.querySelector('[data-cases-key]');
     if (shouldShow !== isShown) this._build();
+  };
+
+  /* ------------------------------------------------- взаимоисключающие клавиши
+     В отличие от «{ }» (та либо есть в раскладке, либо нет — см. выше), эти
+     клавиши ОСТАЮТСЯ на месте, но становятся серыми и неактивными: они не
+     «пропадают», потому что могут понадобиться, стоит стереть то, что
+     мешает. conflictRules — массив { test: fn(field)->bool, disable: [...] };
+     если test истинен, все действия из disable гасятся. Задаётся точечно
+     (сейчас — только у алгебраического калькулятора, см. services.js),
+     поэтому у всех остальных клавиатур this.conflictRules === null и метод
+     ничего не делает. НЕ вызывает _build() — просто переключает класс у уже
+     существующих кнопок, иначе на каждый введённый символ переверстывалась
+     бы вся клавиатура (и это же было бы риском повторить баг с «осиротевшим»
+     авто-повтором ⌫, см. _stopKeyRepeat). */
+  MFKeyboard.prototype._refreshConflictKeys = function () {
+    var f = this.field;
+    if (!f || !this.conflictRules || !this.conflictRules.length) return;
+    var disabled = {};
+    this.conflictRules.forEach(function (rule) {
+      if (rule.test(f)) rule.disable.forEach(function (action) { disabled[action] = true; });
+    });
+    var pad = this.host.querySelector('.mfkb-pad');
+    if (!pad) return;
+    var buttons = pad.querySelectorAll('[data-action]');
+    for (var i = 0; i < buttons.length; i++) {
+      var btn = buttons[i];
+      var off = !!disabled[btn.dataset.action];
+      btn.classList.toggle('mfkb-disabled', off);
+      btn.setAttribute('aria-disabled', String(off));
+    }
   };
 
   MFKeyboard.prototype.setCollapsed = function (v) {
