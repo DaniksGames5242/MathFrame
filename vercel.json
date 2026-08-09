@@ -45,6 +45,11 @@
       "source": "/pages/admin/gms-ide.html",
       "destination": "/admin/gms-ide/",
       "permanent": true
+    },
+    {
+      "source": "/pages/admin/hierarchy-editor.html",
+      "destination": "/admin/hierarchy-editor/",
+      "permanent": true
     }
   ],
   "rewrites": [
@@ -79,6 +84,10 @@
     {
       "source": "/admin/gms-ide/",
       "destination": "/pages/admin/gms-ide.html"
+    },
+    {
+      "source": "/admin/hierarchy-editor/",
+      "destination": "/pages/admin/hierarchy-editor.html"
     }
   ],
   "headers": [

@@ -79,7 +79,10 @@
 
   <div class="section">
     <h2>Темы справочника
-      <button class="btn primary small" id="goEditorBtn">Перейти в редактор тем</button>
+      <span class="actions-row">
+        <button class="btn primary small" id="goEditorBtn">Перейти в редактор тем</button>
+        <button class="btn small" id="goIdeBtn">Открыть GMS IDE</button>
+      </span>
     </h2>
     <div class="toolbar">
       <input type="text" id="topicSearch" placeholder="Поиск по названию…" />
@@ -229,7 +232,12 @@
 
   // ===== ИНИЦИАЛИЗАЦИЯ ПАНЕЛИ =====
   async function initPanel(user) {
-    document.getElementById('goEditorBtn').onclick = () => { window.location.href = 'config-editor.html'; };
+    // Абсолютные «чистые» пути (а не относительные): admin.html открывается
+    // по адресу /admin/ (редирект из /pages/admin/admin.html — см.
+    // vercel.json), поэтому относительная ссылка отсюда резолвилась бы
+    // как /admin/hierarchy-editor.html, а не /pages/admin/hierarchy-editor.html.
+    document.getElementById('goEditorBtn').onclick = () => { window.location.href = '/admin/hierarchy-editor/'; };
+    document.getElementById('goIdeBtn').onclick = () => { window.location.href = '/admin/gms-ide/'; };
 
     const [topics, visits, users] = await Promise.all([loadTopics(), loadVisits(), loadUsers(user)]);
     allTopics = topics;

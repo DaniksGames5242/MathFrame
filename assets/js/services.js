@@ -814,11 +814,19 @@
             var res;
             if (poly && poly.length - 1 === 2) {
               // Квадратное уравнение — тот же принцип выбора метода, что и у
-              // систем: несколько общеизвестных путей к одному ответу.
-              var eqMethods = [{ id: 'discriminant', label: 'Дискриминант', fn: MFAlgebra.solveEquationPoly }];
-              eqMethods.push({ id: 'completeSquare', label: 'Полный квадрат', fn: MFAlgebra.solveQuadraticCompleteSquare });
-              var vietaTry = MFAlgebra.solveQuadraticVieta(poly, v);
-              if (vietaTry) eqMethods.push({ id: 'vieta', label: 'Теорема Виета', fn: MFAlgebra.solveQuadraticVieta });
+              // систем (см. ниже analyzeSystem): дискриминант и полный
+              // квадрат — общие приёмы, работают для ЛЮБОГО квадратного
+              // уравнения, а вот теорема Виета — только когда для НЕЁ ЖЕ
+              // самой нашлись целые корни (проверяем реальным вызовом, а не
+              // предполагаем «раз уравнение квадратное — Виета подойдёт»).
+              var eqCandidates = [
+                { id: 'discriminant', label: 'Дискриминант', fn: MFAlgebra.solveEquationPoly },
+                { id: 'completeSquare', label: 'Полный квадрат', fn: MFAlgebra.solveQuadraticCompleteSquare },
+                { id: 'vieta', label: 'Теорема Виета', fn: MFAlgebra.solveQuadraticVieta }
+              ];
+              var eqMethods = eqCandidates.map(function (m) {
+                return { id: m.id, label: m.label, result: m.fn(poly, v) };
+              }).filter(function (m) { return m.result; });
               methodRow.hidden = false;
               methodRow.innerHTML = '';
               eqMethods.forEach(function (m) {
@@ -828,7 +836,8 @@
                 b.addEventListener('click', function () { equationMethod = m.id; recompute(); });
               });
               var chosenEq = eqMethods.filter(function (m) { return m.id === equationMethod; })[0] || eqMethods[0];
-              res = chosenEq.fn(poly, v) || MFAlgebra.solveEquationPoly(poly, v);
+              equationMethod = chosenEq.id;
+              res = chosenEq.result;
             } else {
               methodRow.hidden = true;
               if (poly) res = MFAlgebra.solveEquationPoly(poly, v);
@@ -989,15 +998,31 @@
           }
           // Выбор метода имеет смысл только для ЛИНЕЙНОЙ системы — до этой
           // строки могли отсеяться нелинейные случаи (см. return выше).
-          var methods = [{ id: 'gauss', label: 'Метод Гаусса', fn: MFAlgebra.solveLinearSystem }];
+          // ВАЖНО: метод предлагается только когда он ДЕЙСТВИТЕЛЬНО решает
+          // ИМЕННО ЭТУ систему — не по формальному признаку (квадратная /
+          // 2×2), а проверкой на самих числах. Крамер и матричный метод сами
+          // отказываются (возвращают null) при D=0 — вырожденная система не
+          // различает «нет решений» и «бесконечно много» этим способом;
+          // подстановка/сложение отказываются при вырожденном первом
+          // уравнении. Раньше кнопка такого метода всё равно показывалась и
+          // была активной, а по клику расчёт молча подменялся Гауссом —
+          // выглядело так, будто выбранный метод и дал этот ответ, хотя на
+          // самом деле для конкретно этой системы он неприменим.
+          var candidateMethods = [{ id: 'gauss', label: 'Метод Гаусса', fn: MFAlgebra.solveLinearSystem }];
           if (diffs.length === allVars.length && allVars.length > 1) {
-            methods.push({ id: 'cramer', label: 'Метод Крамера', fn: MFAlgebra.solveLinearSystemCramer });
-            methods.push({ id: 'matrix', label: 'Матричный метод', fn: MFAlgebra.solveLinearSystemMatrix });
+            candidateMethods.push({ id: 'cramer', label: 'Метод Крамера', fn: MFAlgebra.solveLinearSystemCramer });
+            candidateMethods.push({ id: 'matrix', label: 'Матричный метод', fn: MFAlgebra.solveLinearSystemMatrix });
           }
           if (diffs.length === 2 && allVars.length === 2) {
-            methods.push({ id: 'substitution', label: 'Подстановка', fn: MFAlgebra.solveLinearSystemSubstitution });
-            methods.push({ id: 'elimination', label: 'Сложение', fn: MFAlgebra.solveLinearSystemElimination });
+            candidateMethods.push({ id: 'substitution', label: 'Подстановка', fn: MFAlgebra.solveLinearSystemSubstitution });
+            candidateMethods.push({ id: 'elimination', label: 'Сложение', fn: MFAlgebra.solveLinearSystemElimination });
           }
+          var methods = candidateMethods.map(function (m) {
+            return { id: m.id, label: m.label, result: m.fn(affRows, allVars) };
+          }).filter(function (m) { return m.result; });
+          // Гаусс — универсальный метод, отказать не может; это только
+          // подстраховка на случай непредвиденного null и там.
+          if (!methods.length) methods = [{ id: 'gauss', label: 'Метод Гаусса', result: MFAlgebra.solveLinearSystem(affRows, allVars) }];
           if (methods.length > 1) {
             methodRow.hidden = false;
             methodRow.innerHTML = '';
@@ -1009,12 +1034,8 @@
             });
           }
           var chosen = methods.filter(function (m) { return m.id === systemMethod; })[0] || methods[0];
-          var res = chosen.fn(affRows, allVars);
-          // Метод Крамера сам отказывается при D=0 (не различает «нет
-          // решений» / «бесконечно много»), подстановка/сложение — если вдруг
-          // вызваны не для 2×2 (не должно происходить через UI, но на всякий
-          // случай) — тогда тихо считаем универсальным методом Гаусса.
-          if (!res) res = MFAlgebra.solveLinearSystem(affRows, allVars);
+          systemMethod = chosen.id;   // если ранее выбранный метод для этой системы недоступен — синхронизируем состояние с тем, что реально показано
+          var res = chosen.result;
           renderSteps(stepsWrap, res.steps);
           answerWrap.innerHTML = '';
           if (res.kind === 'none') { el('div', 'alg-answer-big', answerWrap, 'Решений нет'); return; }

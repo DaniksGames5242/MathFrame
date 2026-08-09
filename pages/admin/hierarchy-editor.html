@@ -777,9 +777,129 @@
       max-height:42vh; border-right:none; border-top:1px solid var(--rule);
     }
     #splitter{ display:none; }
+
+    /* AI overlay — near full-screen on phones, single-column controls */
+    #aiOverlay{ padding:0; align-items:flex-end; }
+    .ai-modal{ width:100%; max-width:none; max-height:92vh; border-radius:10px 10px 0 0; }
+    .ai-row{ flex-wrap:wrap; }
+    .ai-row .ai-select{ flex:1 1 100%; }
+    .ai-row .ai-btn{ flex:1 1 100%; }
+
+    /* Inspector fields: two-column grids get cramped under ~360px */
+    .insp-row2{ grid-template-columns:1fr; }
+  }
+  @media (max-width:380px){
+    .insp-body{ padding:12px 12px 50px; }
+    .ai-head, .ai-body, .ai-foot{ padding-left:12px; padding-right:12px; }
   }
   @media (prefers-reduced-motion: reduce){
     *{ animation-duration:.01ms !important; transition-duration:.01ms !important; }
+  }
+
+  /* ================= AI generation modal ================= */
+  #aiOverlay{
+    position:fixed; inset:0; z-index:2000; background:rgba(10,11,13,.6);
+    display:flex; align-items:center; justify-content:center; padding:24px;
+    opacity:0; transition:opacity .18s var(--smooth); backdrop-filter:blur(2px);
+  }
+  #aiOverlay.on{ opacity:1; }
+  .ai-modal{
+    width:min(560px, 100%); max-height:min(88vh, 780px); display:flex; flex-direction:column;
+    background:var(--ink-2); border:1px solid var(--rule); border-radius:5px;
+    box-shadow:0 30px 70px rgba(0,0,0,.6); transform:translateY(10px) scale(.98); opacity:0;
+    transition:transform .22s var(--spring), opacity .18s var(--smooth);
+  }
+  #aiOverlay.on .ai-modal{ transform:none; opacity:1; }
+  .ai-head{
+    display:flex; align-items:center; justify-content:space-between; padding:16px 18px;
+    border-bottom:1px solid var(--rule-soft); flex:0 0 auto;
+  }
+  .ai-head h2{ margin:0; font-size:15.5px; font-weight:600; letter-spacing:.01em; }
+  .ai-close{
+    width:26px; height:26px; border:none; background:transparent; color:var(--faint);
+    cursor:pointer; border-radius:2px; display:flex; align-items:center; justify-content:center;
+  }
+  .ai-close:hover{ color:var(--text); background:var(--ink-3); }
+  .ai-body{ overflow-y:auto; padding:16px 18px; display:flex; flex-direction:column; gap:16px; }
+  .ai-section-title{
+    font-size:11px; letter-spacing:.07em; color:var(--faint); font-variant:small-caps; margin-bottom:8px;
+  }
+  .ai-row{ display:flex; gap:8px; align-items:center; }
+  .ai-row + .ai-row{ margin-top:8px; }
+  .ai-input, .ai-select{
+    flex:1 1 auto; min-width:0; height:34px; padding:0 10px; font-family:var(--serif); font-size:13px;
+    color:var(--text); background:var(--ink-1); border:1px solid var(--rule); border-radius:3px;
+  }
+  .ai-select{ cursor:pointer; }
+  .ai-input:focus, .ai-select:focus{ outline:none; border-color:var(--accent); }
+  .ai-btn{
+    flex:0 0 auto; height:34px; padding:0 13px; font-family:var(--serif); font-size:12.5px;
+    color:var(--dim); background:var(--ink-1); border:1px solid var(--rule); border-radius:3px; cursor:pointer;
+  }
+  .ai-btn:hover:not(:disabled){ border-color:var(--accent); color:var(--text); }
+  .ai-btn:disabled{ opacity:.4; cursor:default; }
+  .ai-btn.primary{ background:var(--accent-soft); border-color:var(--accent); color:var(--accent-line); }
+  .ai-btn.primary:hover:not(:disabled){ background:var(--accent); color:var(--ink-0); }
+  .ai-btn.danger{ color:#e08872; }
+  .ai-btn.danger:hover:not(:disabled){ border-color:var(--danger); color:var(--danger); }
+  .ai-hint{ font-size:11.5px; color:var(--faint); line-height:1.5; }
+  .ai-checkrow{
+    display:flex; align-items:center; gap:8px; padding:5px 0; font-size:13px; color:var(--text); cursor:pointer;
+  }
+  .ai-checkrow input{ width:14px; height:14px; accent-color:var(--accent); flex:0 0 auto; }
+  .ai-topics-list{
+    max-height:110px; overflow-y:auto; background:var(--ink-1); border:1px solid var(--rule-soft);
+    border-radius:3px; padding:6px 10px; font-size:12.5px; color:var(--dim);
+  }
+  .ai-topics-list div{ padding:2px 0; }
+  .ai-progress-wrap{ display:flex; flex-direction:column; gap:8px; }
+  .ai-progress-bar{
+    height:5px; border-radius:3px; background:var(--ink-1); overflow:hidden; border:1px solid var(--rule-soft);
+  }
+  .ai-progress-fill{ height:100%; background:var(--accent); width:0%; transition:width .25s var(--smooth); }
+  .ai-progress-stats{ display:flex; justify-content:space-between; font-size:11.5px; color:var(--faint); }
+  .ai-log{
+    max-height:220px; overflow-y:auto; background:var(--ink-1); border:1px solid var(--rule-soft);
+    border-radius:3px; display:flex; flex-direction:column;
+  }
+  .ai-log-row{
+    display:flex; align-items:center; gap:8px; padding:6px 10px; font-size:12px; border-bottom:1px solid var(--rule-soft);
+  }
+  .ai-log-row:last-child{ border-bottom:none; }
+  .ai-log-dot{ width:7px; height:7px; border-radius:50%; flex:0 0 auto; background:var(--faint); }
+  .ai-log-row.wait .ai-log-dot{ background:var(--faint); }
+  .ai-log-row.run .ai-log-dot{ background:var(--accent-line); animation:aiPulse 1s ease-in-out infinite; }
+  .ai-log-row.ok .ai-log-dot{ background:var(--sage); }
+  .ai-log-row.skip .ai-log-dot{ background:var(--faint); opacity:.6; }
+  .ai-log-row.err .ai-log-dot{ background:var(--danger); }
+  @keyframes aiPulse{ 0%,100%{ opacity:1; } 50%{ opacity:.35; } }
+  .ai-log-title{ flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--text); }
+  .ai-log-status{ flex:0 0 auto; font-size:10.5px; color:var(--faint); }
+  .ai-log-row:hover{ background:var(--ink-3); }
+  .ai-log-detail{
+    padding:2px 10px 8px 24px; border-bottom:1px solid var(--rule-soft); background:var(--ink-2);
+    display:flex; flex-direction:column; gap:2px;
+  }
+  .ai-log-detail-line{ font-size:11px; color:var(--dim); line-height:1.5; }
+  .ai-log-detail-err{ font-size:11px; color:#e08872; line-height:1.5; }
+  .ai-foot{
+    flex:0 0 auto; display:flex; align-items:center; justify-content:space-between; gap:10px;
+    padding:14px 18px; border-top:1px solid var(--rule-soft);
+  }
+  .ai-foot-left{ display:flex; gap:8px; }
+  .ai-foot-right{ display:flex; gap:8px; }
+
+  #aiBanner{
+    position:fixed; left:50%; bottom:52px; transform:translateX(-50%) translateY(8px); z-index:1500;
+    background:var(--ink-2); border:1px solid var(--accent); border-radius:4px; padding:9px 14px;
+    display:flex; align-items:center; gap:12px; font-size:12.5px; color:var(--text);
+    box-shadow:0 14px 34px rgba(0,0,0,.5); opacity:0; pointer-events:none;
+    transition:opacity .2s var(--smooth), transform .2s var(--spring);
+  }
+  #aiBanner.on{ opacity:1; transform:translateX(-50%) translateY(0); pointer-events:auto; }
+  #aiBanner button{
+    font-family:var(--serif); font-size:12px; color:var(--accent-line); background:transparent;
+    border:1px solid var(--accent); border-radius:3px; padding:4px 10px; cursor:pointer;
   }
 </style>
 </head>
@@ -1046,7 +1166,8 @@
     fx:'<path d="M3.3 10.5l1.6-8h2M3.7 6.5h2.6M7.7 6.2l3 4M10.7 6.2l-3 4"/>',
     move:'<path d="M6.5 1.8v9.4M2.6 5.7L6.5 1.8l3.9 3.9M2.6 7.3l3.9 3.9 3.9-3.9"/>',
     row:'<rect x="1.8" y="2.2" width="9.4" height="3.4" rx=".4"/><rect x="1.8" y="7.4" width="9.4" height="3.4" rx=".4"/>',
-    col:'<rect x="1.8" y="1.8" width="3.4" height="9.4" rx=".4"/><rect x="7" y="1.8" width="3.4" height="9.4" rx=".4"/>'
+    col:'<rect x="1.8" y="1.8" width="3.4" height="9.4" rx=".4"/><rect x="7" y="1.8" width="3.4" height="9.4" rx=".4"/>',
+    ai:'<path d="M6.5 1.6l1 3 3 1-3 1-1 3-1-3-3-1 3-1z"/><path d="M10.6 8.6l.5 1.5 1.5.5-1.5.5-.5 1.5-.5-1.5-1.5-.5 1.5-.5z"/>'
   };
   function icon(name){
     const s = document.createElementNS('http://www.w3.org/2000/svg','svg');
@@ -1673,14 +1794,14 @@
   /* ============================================================
      Confirm dialog
      ============================================================ */
-  function confirmDlg(message, onYes){
+  function confirmDlg(message, onYes, yesLabel){
     const veil = document.createElement('div');
     veil.className = 'veil';
     const dlg = document.createElement('div');
     dlg.className = 'dlg';
     dlg.innerHTML = '<div class="dt">Подтверждение</div><p></p><div class="row">' +
                     '<button class="dbtn" data-no>Отмена</button>' +
-                    '<button class="dbtn warn" data-yes>Удалить</button></div>';
+                    '<button class="dbtn warn" data-yes>' + (yesLabel || 'Удалить') + '</button></div>';
     dlg.querySelector('p').textContent = message;
     veil.appendChild(dlg);
     document.body.appendChild(veil);
@@ -2397,6 +2518,8 @@
       { sep:true },
       { ic:'save', label:'Сохранить в GitHub', key:'Ctrl+S', run:saveToGitHub, id:'mGhSave' },
       { ic:'open', label:'Обновить из GitHub', run:loadFromGitHub },
+      { sep:true },
+      { ic:'ai', label:'Автогенерация описаний…', run:openAiPanel },
       { sep:true },
       { ic:'save', label:'Экспортировать локально', run:doExportLocal },
       { sep:true },
@@ -4318,11 +4441,1414 @@
   }
 
   /* ============================================================
+     AI-автогенерация описаний тем
+     ------------------------------------------------------------
+     Пайплайн на тему (типы topic/theorem): промпт 1 (генерация) →
+     промпт 2 (проверка/исправление) → промпт 3 (HTML + KaTeX) →
+     подбор кандидатов на ссылки (лемматизация в JS + доп. запрос
+     к той же нейросети по обрезанному пулу) → промпт 4 (расстановка
+     ссылок) → защитный постпроцесс (снимает ссылки на несуществующие
+     id). Для типа folder используется отдельный, более лёгкий
+     промпт вместо шага 1 и пропускается шаг 2 (проверка/исправление
+     рассчитана на структуру полноценной темы, а не на короткий
+     обзор раздела) — сразу шаг 3 и ссылки.
+
+     Для типа proof — свой пайплайн (см. AI_PROMPT_GENERATE_PROOF и
+     соседние промпты): описание доказательства хранится в дереве не
+     как единый HTML-текст, а как набор шагов — каждый шаг это
+     отдельный <div> в node.description (см. buildProofEditor /
+     parseProofDescription выше). Поэтому генерация и проверка тоже
+     работают по шагам (разделены пустой строкой), а на этапе
+     форматирования шаги склеиваются служебным маркером AI_STEP_MARKER,
+     форматируются одним запросом и снова разбираются на отдельные
+     <div>. Контекст (формулировка теоремы) берётся из родительского
+     узла в дереве — предполагается, что доказательство лежит
+     непосредственно под своей теоремой; если это не так в вашей
+     иерархии, контекст будет неполным и его стоит проверить вручную.
+
+     Состояние задания переживает перезагрузку страницы: очередь,
+     позиция, уже сгенерированные тексты и бэкап исходных описаний
+     хранятся в localStorage и не зависят от treeData, которое при
+     каждом старте перечитывается из GitHub заново.
+     ============================================================ */
+
+  const AI_SETTINGS_KEY = 'mf-ai-settings-v2';
+  const AI_JOB_KEY = 'mf-ai-job-v1';
+  const AI_TYPES_SUPPORTED = ['topic', 'folder', 'theorem', 'proof'];
+  const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta';
+
+  function loadAiSettings(){
+    try {
+      const raw = localStorage.getItem(AI_SETTINGS_KEY);
+      const p = raw ? JSON.parse(raw) : null;
+      return {
+        apiKey: (p && typeof p.apiKey === 'string') ? p.apiKey : '',
+        model: (p && typeof p.model === 'string') ? p.model : ''
+      };
+    } catch (e){ return { apiKey:'', model:'' }; }
+  }
+  function saveAiSettings(s){
+    try { localStorage.setItem(AI_SETTINGS_KEY, JSON.stringify(s)); } catch (e){ /* quota / private mode */ }
+  }
+  function loadAiJob(){
+    try {
+      const raw = localStorage.getItem(AI_JOB_KEY);
+      if (!raw) return null;
+      const p = JSON.parse(raw);
+      if (!p || !Array.isArray(p.queue) || !p.settings) return null;
+      return p;
+    } catch (e){ return null; }
+  }
+  function saveAiJob(job){
+    try { localStorage.setItem(AI_JOB_KEY, JSON.stringify(job)); } catch (e){ /* quota / private mode */ }
+  }
+  function clearAiJob(){ try { localStorage.removeItem(AI_JOB_KEY); } catch (e){} }
+
+  /* ---------------- tree helpers keyed by the stable topicId ---------------- */
+  function findNodeByTopicId(tid, nodes){
+    nodes = nodes || treeData;
+    for (const n of nodes){
+      if (n.topicId === tid) return n;
+      const f = findNodeByTopicId(tid, n.children);
+      if (f) return f;
+    }
+    return null;
+  }
+  // Used to give the proof-generation prompt the parent's title/description
+  // as context (proofs are meaningless without knowing which theorem they
+  // prove — the tree has no back-reference, so this walks down to find it).
+  function findParentOfTopicId(tid){
+    let result = null;
+    (function walk(nodes, parent){
+      for (const n of nodes){
+        if (n.topicId === tid){ result = parent; return true; }
+        if (walk(n.children, n)) return true;
+      }
+      return false;
+    })(treeData, null);
+    return result;
+  }
+  function collectSubtreeTopicIds(node, out){
+    out = out || [];
+    out.push(node.topicId);
+    node.children.forEach(c => collectSubtreeTopicIds(c, out));
+    return out;
+  }
+  function aiSelectedRootNodes(){
+    const ids = selectedIds.size ? [...selectedIds] : (currentId != null ? [currentId] : []);
+    return ids.map(id => findNodeAndParent(id, treeData)).filter(Boolean).map(f => f.node);
+  }
+  function buildAiQueue(rootNodes, typesEnabled){
+    const seen = new Set(); const out = [];
+    rootNodes.forEach(root => {
+      collectSubtreeTopicIds(root).forEach(tid => {
+        if (seen.has(tid)) return;
+        seen.add(tid);
+        const node = findNodeByTopicId(tid);
+        if (node && typesEnabled.has(node.type)) out.push(tid);
+      });
+    });
+    return out;
+  }
+
+  /* ---------------- light Russian stemmer (no libraries) ----------------
+     Recall-oriented suffix stripper for common noun/adjective inflections —
+     good enough to match "гипотенузы"/"гипотенузой" against "гипотенуза"
+     for candidate-gathering purposes. Not a linguistically exact lemmatizer;
+     part 1 of the original spec called for pymorphy2 + precomputed
+     embeddings, which need a Python backend this single-file page doesn't
+     have, so this is the practical in-browser substitute. */
+  const RU_STEM_ENDINGS = ['иями','иях','ями','ами','его','ому','ему','ыми','ими',
+    'ое','ее','ая','яя','ые','ие','ов','ев','ей','ий','ый','ой','юю','ою','ею',
+    'ии','ия','ию','ям','ам','ах','ях','ы','и','а','я','у','ю','о','е','ь','й'
+  ].sort((a, b) => b.length - a.length);
+  function ruStem(word){
+    word = String(word || '').toLowerCase().replace(/[^а-яё-]/g, '');
+    if (word.length <= 3) return word;
+    for (const end of RU_STEM_ENDINGS){
+      if (word.length - end.length >= 3 && word.slice(-end.length) === end) return word.slice(0, -end.length);
+    }
+    return word;
+  }
+  function tokenizeRu(text){
+    return (String(text || '').toLowerCase().match(/[а-яё]+(?:-[а-яё]+)*/g) || []);
+  }
+  function htmlToPlainForMatching(html){
+    const div = document.createElement('div');
+    div.innerHTML = html || '';
+    let text = div.textContent || '';
+    text = text.replace(/\$\$[\s\S]*?\$\$/g, ' ').replace(/\$[^$\n]*?\$/g, ' ');
+    return text;
+  }
+  function buildTopicIndex(){
+    return flattenTreeToTopics(treeData, null).map(t => ({ id: t.id, title: t.title, type: t.type }));
+  }
+  function buildStemIndex(topicIndex){
+    const exactMap = new Map();
+    const perTopicStems = new Map();
+    topicIndex.forEach(t => {
+      const stems = tokenizeRu(t.title).map(ruStem);
+      if (!stems.length) return;
+      const key = stems.join(' ');
+      if (!exactMap.has(key)) exactMap.set(key, []);
+      exactMap.get(key).push(t);
+      perTopicStems.set(t.id, stems);
+    });
+    return { exactMap, perTopicStems };
+  }
+  function findExactCandidates(text, exactMap, selfId){
+    const words = tokenizeRu(text).map(ruStem);
+    const found = new Map();
+    for (let n = 1; n <= 3; n++){
+      for (let i = 0; i + n <= words.length; i++){
+        const key = words.slice(i, i + n).join(' ');
+        const hits = exactMap.get(key);
+        if (hits) hits.forEach(t => { if (t.id !== selfId) found.set(t.id, t); });
+      }
+    }
+    return [...found.values()];
+  }
+  function findLoosePool(text, topicIndex, perTopicStems, excludeIds, cap){
+    const textStems = new Set(tokenizeRu(text).map(ruStem).filter(s => s.length >= 4));
+    const scored = [];
+    topicIndex.forEach(t => {
+      if (excludeIds.has(t.id)) return;
+      const stems = perTopicStems.get(t.id) || [];
+      let score = 0;
+      stems.forEach(s => { if (s.length >= 4 && textStems.has(s)) score++; });
+      if (score > 0) scored.push([score, t]);
+    });
+    scored.sort((a, b) => b[0] - a[0]);
+    return scored.slice(0, cap || 150).map(x => x[1]);
+  }
+  function candidateLines(list){
+    return list.map(t => 'id: ' + t.id + ' | title: ' + t.title + ' | type: ' + t.type).join('\n');
+  }
+
+  /* ---------------- Gemini API ---------------- */
+  async function aiListModels(apiKey){
+    const r = await fetch(GEMINI_BASE + '/models?pageSize=1000', {
+      headers: { 'x-goog-api-key': apiKey }
+    });
+    const data = await r.json().catch(() => null);
+    if (!r.ok || !data || !Array.isArray(data.models)) {
+      throw new Error((data && data.error && data.error.message) || ('HTTP ' + r.status));
+    }
+    return data.models
+      .filter(m => Array.isArray(m.supportedGenerationMethods) && m.supportedGenerationMethods.includes('generateContent'))
+      .map(m => ({
+        id: (m.name || '').replace(/^models\//, ''),
+        display_name: m.displayName || (m.name || '').replace(/^models\//, '')
+      }))
+      .filter(m => m.id);
+  }
+  function sleep(ms){ return new Promise(res => setTimeout(res, ms)); }
+
+  /* ---------------- logging + small concurrency helper ---------------- */
+  function aiLog(){
+    const args = Array.prototype.slice.call(arguments);
+    console.log.apply(console, ['%c[ИИ]', 'color:#7286cf;font-weight:bold'].concat(args));
+  }
+  // Runs fn over items with at most `limit` in flight at once — used so
+  // checking 20+ models doesn't fire 20+ simultaneous requests, but still
+  // finishes faster than doing them one by one.
+  async function aiMapLimit(items, limit, fn){
+    const results = new Array(items.length);
+    let idx = 0;
+    async function worker(){
+      while (idx < items.length){
+        const i = idx++;
+        results[i] = await fn(items[i], i);
+      }
+    }
+    await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+    return results;
+  }
+
+  /* ---------------- model self-test: robustness + search + speed ----------------
+     A single test call per model does three jobs at once: (1) proves the
+     model actually answers instead of erroring out (many free/preview
+     models do), (2) proves it genuinely invokes google_search when given
+     the tool — some models silently ignore it and answer from memory
+     instead, which the pipeline can't tell apart from a real search unless
+     checked up front, and (3) times the round trip. Models that fail (1)
+     or (2) are dropped from the picker entirely. The prompt is deliberately
+     medium-length and mixes a trivial instruction with time-sensitive facts
+     that force a real search rather than a memorized answer. */
+  const AI_TEST_PROMPT = 'Это проверка связи и возможностей модели, ответь по существу, без лишних вступлений. Сначала подтверди, что ты меня слышишь, одним словом «ОК». Затем, обязательно воспользовавшись поиском в интернете (не отвечай по памяти, так как эти данные регулярно меняются и могли устареть), кратко укажи: 1) сегодняшнюю дату; 2) номер текущей стабильной версии языка Python; 3) год основания Массачусетского технологического института. Ответ дай сжато, в 3-4 строки, без форматирования и пояснений сверх запрошенного.';
+
+  async function aiTestModel(apiKey, modelId){
+    const t0 = performance.now();
+    try {
+      const r = await fetch(GEMINI_BASE + '/models/' + encodeURIComponent(modelId) + ':generateContent', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-goog-api-key': apiKey },
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: [{ text: AI_TEST_PROMPT }] }],
+          generationConfig: { maxOutputTokens: 400 },
+          tools: [{ google_search: {} }]
+        }),
+        signal: (typeof AbortSignal !== 'undefined' && AbortSignal.timeout) ? AbortSignal.timeout(30000) : undefined
+      });
+      const latencyMs = performance.now() - t0;
+      const data = await r.json().catch(() => null);
+      if (!r.ok || !data){
+        const err = (data && data.error && data.error.message) || ('HTTP ' + r.status);
+        aiLog('Тест модели', modelId, '— HTTP-ошибка за', latencyMs.toFixed(0) + ' мс:', err);
+        return { ok: false, webSearch: false, latencyMs, error: err };
+      }
+      const cand = (data.candidates || [])[0];
+      if (!cand){
+        const reason = data.promptFeedback && data.promptFeedback.blockReason;
+        const err = reason ? ('заблокировано (' + reason + ')') : 'пустой ответ';
+        aiLog('Тест модели', modelId, '—', err, 'за', latencyMs.toFixed(0) + ' мс');
+        return { ok: false, webSearch: false, latencyMs, error: err };
+      }
+      const text = ((cand.content && cand.content.parts) || []).filter(b => typeof b.text === 'string').map(b => b.text).join('').trim();
+      const gm = cand.groundingMetadata || cand.grounding_metadata;
+      const webSearch = !!(gm && (
+        (gm.webSearchQueries && gm.webSearchQueries.length) ||
+        (gm.groundingChunks && gm.groundingChunks.length) ||
+        (gm.groundingChunks === undefined && gm.searchEntryPoint)
+      ));
+      if (!text){
+        aiLog('Тест модели', modelId, '— пустой текстовый ответ за', latencyMs.toFixed(0) + ' мс');
+        return { ok: false, webSearch: false, latencyMs, error: 'пустой текстовый ответ' };
+      }
+      aiLog('Тест модели', modelId, '—', (webSearch ? 'поиск использован' : 'поиск НЕ использован'), ',', latencyMs.toFixed(0) + ' мс', ', ответ:', text.slice(0, 120));
+      return { ok: true, webSearch, latencyMs, error: null };
+    } catch (e){
+      const latencyMs = performance.now() - t0;
+      const err = (e && e.name === 'TimeoutError') ? 'таймаут (30 с)' : ((e && e.message) || String(e));
+      aiLog('Тест модели', modelId, '— исключение за', latencyMs.toFixed(0) + ' мс:', err);
+      return { ok: false, webSearch: false, latencyMs, error: err };
+    }
+  }
+
+  async function aiComplete(apiKey, model, system, userText, opts){
+    opts = opts || {};
+    const label = opts.label || 'запрос';
+    const t0 = performance.now();
+    aiLog(label, '→ отправка (' + model + (opts.webSearch ? ', с поиском' : '') + ')');
+    const body = {
+      contents: [{ role: 'user', parts: [{ text: userText }] }],
+      systemInstruction: { parts: [{ text: system }] },
+      generationConfig: { maxOutputTokens: opts.maxTokens || 4096 }
+    };
+    if (opts.webSearch) body.tools = [{ google_search: {} }];
+    const r = await fetch(GEMINI_BASE + '/models/' + encodeURIComponent(model) + ':generateContent', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-goog-api-key': apiKey
+      },
+      body: JSON.stringify(body)
+    });
+    const dt = performance.now() - t0;
+    const data = await r.json().catch(() => null);
+    if (!r.ok || !data){
+      const err = (data && data.error && data.error.message) || ('HTTP ' + r.status);
+      aiLog(label, '✗ ошибка за', dt.toFixed(0) + ' мс:', err);
+      throw new Error(err);
+    }
+    const cand = (data.candidates || [])[0];
+    if (!cand) {
+      const reason = data.promptFeedback && data.promptFeedback.blockReason;
+      const err = reason ? ('Заблокировано (' + reason + ')') : 'Пустой ответ модели';
+      aiLog(label, '✗', err, 'за', dt.toFixed(0) + ' мс');
+      throw new Error(err);
+    }
+    const text = ((cand.content && cand.content.parts) || []).filter(b => typeof b.text === 'string').map(b => b.text).join('\n').trim();
+    aiLog(label, '✓ готово за', dt.toFixed(0) + ' мс, символов:', text.length);
+    return text;
+  }
+  async function aiCompleteRetry(apiKey, model, system, userText, opts){
+    let lastErr;
+    for (let attempt = 0; attempt < 2; attempt++){
+      try { return await aiComplete(apiKey, model, system, userText, opts); }
+      catch (e){
+        lastErr = e;
+        if (attempt === 0){
+          aiLog((opts && opts.label) || 'запрос', '⚠ повтор после ошибки:', e.message);
+          await sleep(1500);
+        }
+      }
+    }
+    throw lastErr;
+  }
+
+  /* ---------------- Prompts ---------------- */
+  const AI_PROMPT_GENERATE = `Ты — автор статей для полного математического справочника. Твоя задача — написать описание для одной темы из области геометрии — во всей её полноте, без ограничения каким-либо конкретным уровнем или разделом: тема может относиться к любой существующей, научно подтверждённой области геометрии, от простейших до самых сложных (теоремы, свойства фигур и объектов, преобразования, геометрические места точек, метрики, пространства и т.д.). Название темы будет дано в запросе, вместе с её типом, если он уже известен. У тебя есть доступ к интернету — используй его, чтобы проверить точность формулировок, не полагайся только на память.
+
+## Критически важно: не начинай с названия темы
+
+Никогда не начинай текст с названия темы (ни в исходной форме, ни в падежной, например "Квадрат — это...", "Теорема Пифагора устанавливает..."). Начни сразу с сути — с определения через более общее понятие, минуя явное имя темы в первом предложении. Название можно естественно упомянуть чуть позже, если это нужно по смыслу (например, при отсылке к формуле), но не в самом начале.
+
+Плохо: "Теорема Пифагора — это фундаментальное утверждение евклидовой геометрии, устанавливающее связь между длинами сторон в прямоугольном треугольнике."
+Хорошо: "Одно из центральных утверждений евклидовой планиметрии, устанавливающее связь между длинами сторон прямоугольного треугольника."
+
+## Общий стиль и уровень
+
+Пиши так, будто ты опытный преподаватель, объясняющий тему человеку, который уже свободно владеет всей математикой, предшествующей этой теме по естественной логике её изучения, но встречается с самой темой впервые. Это значит:
+
+- Уровень сложности объяснения должен соответствовать реальному уровню самой темы: если тема элементарна (например, «квадрат») — объясняй просто и понятно; если тема сложная — используй соответствующий строгий аппарат и терминологию, не упрощая её искусственно и не превращая объяснение в популярную статью.
+- Не разжёвывай очевидное для данного уровня и не объясняй тему так, будто читатель ничего не понимает в математике.
+- Не будь и излишне академичным или сухим — избегай канцелярита и "справочного" тона, где предложения не связаны друг с другом.
+- Используй связки между мыслями и разделами ("однако", "при этом", "отсюда следует", "стоит заметить" и т.п.), чтобы текст читался как связное объяснение, а не как список фактов.
+
+## Про уточнения в скобках (обычные, не формульные)
+
+Скобки для пояснений допустимы только для информации, которая ДЕЙСТВИТЕЛЬНО может быть неизвестна читателю данного уровня и важна в моменте. Не используй скобки для того, что уже заведомо известно человеку, дошедшему до этой темы по естественной логике изучения математики (например, для темы уровня 8 класса школы недопустимо писать "прямой угол (90°)"). Перед тем как добавить уточнение в скобках, задай себе вопрос: мог ли читатель, дошедший до ЭТОЙ темы, ещё не знать то, что я поясняю? Если ответ "нет, скорее всего знает" — не добавляй.
+
+## Про объём "полезности" и контекста
+
+Основная цель описания — объяснить, ЧТО представляет собой тема и КАК она устроена: определение, свойства, признаки, формулы с выводами. Рассказ о том, где тема применяется, насколько она важна или с чем связана — это дополнение, а не основа.
+
+Даже если у темы масса применений и связей с другими областями — упомяни это ёмко, в 1–2 предложениях, выбрав самое показательное, а не исчерпывающе. Весь материал о применении/значимости/связях/ограничениях суммарно не должен занимать более 10–15% от общего объёма текста и не должен оформляться отдельными разделами сверх тех, что перечислены ниже для соответствующего типа темы — включай его в существующий заключительный абзац, а не создавай новые заголовки вроде "Ограничения" или "Связь с другими понятиями".
+
+Не смешивай в одном разделе разные по природе вещи: математические следствия (то, что строго вытекает из темы) и контекст/значимость (то, зачем это нужно) — это разные части, и заключительный абзац не должен называться "Следствия и значение" или подобно — только "Следствия" для фактов и отдельный короткий абзац без такого же заголовка для контекста.
+
+## Не дописывай ради объёма
+
+У описания нет целевой длины. Правильный объём — тот, что нужен, чтобы по существу раскрыть именно эту тему, не больше и не меньше: для простой темы это может быть несколько предложений на весь текст, для сложной — заметно больше, и оба варианта одинаково корректны, если весь текст состоит из содержательных фактов.
+
+Каждое предложение должно нести отдельный, проверяемый факт о теме. Если тебе больше нечего сказать по существу — на этом текст заканчивается, даже если по ощущению раздел выглядит "коротковато". Не заполняй место:
+- общими фразами ни о чём ("это важное и широко применяемое понятие", "данная тема играет значительную роль"), за которыми не стоит ни одного конкретного факта;
+- повтором уже сказанной мысли другими словами;
+- надуманными или притянутыми связями с другими темами только для того, чтобы заключительный абзац не был "слишком коротким";
+- лишними промежуточными объяснениями того, что и так прямо следует из предыдущего предложения.
+
+Разделы и абзацы, помеченные ниже как необязательные ("если применимо", "если есть", "не обязателен") — это не формальность, которую стоит выполнить любой ценой: если для конкретной темы такому разделу нечего сказать сверх банальности, его нужно полностью пропустить, а не сочинять содержимое, лишь бы раздел присутствовал. Лучше короткое точное описание без слабого раздела, чем то же самое описание с одним лишним абзацем воды.
+
+## Структура описания
+
+Структура должна подстраиваться под ТИП темы, но при этом описания одного типа тем должны быть построены единообразно. Строго придерживайся списка разделов для выбранного типа — не добавляй новые разделы сверх перечисленных.
+
+**1. Геометрическая фигура / тело / объект (квадрат, трапеция, окружность, призма, шар, эллипсоид, фрактал и т.д.)**
+- Вводный абзац: определение через более общее понятие (род и видовое отличие), место объекта в иерархии смежных понятий.
+- Раздел «Свойства»: утверждения, которые верны для объекта, если известно, что это именно он. Каждое свойство — отдельным пунктом, с кратким пояснением, откуда оно берётся.
+- Раздел «Признаки» (если применимо): условия, при которых более общий объект становится частным случаем — то есть данным объектом.
+- Раздел «Формулы»: величины, которые можно вычислить для этого объекта. Каждая формула должна сопровождаться объяснением, откуда она берётся или почему устроена именно так.
+- Заключительный абзац (не обязателен, короткий): роль объекта, применение, связь с другими темами.
+
+**2. Теорема**
+- Вводный абзац: что утверждает теорема в общих чертах, в какой раздел геометрии она входит.
+- Раздел «Формулировка»: точная формулировка через словесное описание условия и заключения.
+- Раздел «Идея доказательства» или «Доказательство»: ключевая идея или основные шаги, объясняющие, почему теорема верна.
+- Раздел «Следствия» (если есть): важные утверждения, которые вытекают из теоремы напрямую — строго факты, без контекста и значимости.
+- Заключительный абзац (короткий): где теорема применяется, с чем связана, историческая справка если уместна.
+
+Если в запросе указано, что тема — теорема, используй эту структуру напрямую, не проверяя её на соответствие пункту 1 или 3.
+
+**3. Свойство / понятие / отношение**
+- Вводный абзац: определение понятия и его смысл.
+- Далее — свободная структура, но логически разбитая на разделы, реально относящиеся к теме (например, «Свойства», «Виды», «Как находится/строится»).
+- Формулы объясняются так же, как в пункте 1.
+
+**4. Тема, не подходящая под предыдущие пункты**
+Выбери структуру по логике пункта 1 или пункта 3, проверь связь с более элементарным аналогом, если он есть. Сохраняй принцип: определение → факты по разделам с пояснениями → формулы с выводами → краткий контекст.
+
+## Формулы и обозначения — строгое правило
+
+Формулы, символы и математические выражения НЕ пиши напрямую нигде в тексте — ни в основном изложении, ни в скобках, ни в промежуточных шагах доказательства или вывода. Это касается любых букв-переменных (a, b, c, x), любых знаков (=, +, −, ², √, ·) и любых буквенных выражений, даже коротких (a+b, 2ab).
+
+На месте формулы указывай словами, в квадратных скобках, ЧТО там должно находиться — не переводя её на "почти символьный" язык, а называя её или описывая её смысл. Это правило действует одинаково и для финальной формулы, и для каждого промежуточного шага вычисления или доказательства — даже если кажется, что это "просто шаг", а не "формула".
+
+Правильно: [Теорема Пифагора для катетов a и b], [Формула площади квадрата через сторону], [соотношение между квадратом суммы двух катетов и учетверённой площадью треугольника плюс квадратом гипотенузы].
+Неправильно: [a² + b² = c²], [(a+b)²], [2ab + c²], [b/c = AH/b].
+
+Если рассуждение состоит из нескольких шагов, каждый шаг всё равно описывай словами с отсылкой в скобках к тому, какое выражение там стоит, а связи между шагами ("отсюда следует", "приравняв это к...") пиши обычным текстом, без использования знака "=" напрямую.
+
+Текст вокруг формулы должен быть написан так, будто формула там есть — весь смысл и вывод должны присутствовать в тексте, а сама формула — просто ещё не расставленный элемент.
+
+## Форматирование
+
+- Не используй markdown-разметку: без **жирного текста**, без ## заголовков, без $ для формул.
+- Названия разделов пиши как обычные короткие строки текста, без символов разметки.
+- Списки можно оформлять с новой строки через тире.
+
+## Что запрещено
+
+- Не пиши ничего от своего лица: без фраз вроде "Конечно, вот описание".
+- Не оборачивай ответ в кавычки или другие обрамляющие символы.
+- Не добавляй никаких комментариев о том, что ты сделал или почему.
+- В выводе должен быть только сам текст описания — ничего больше.`;
+
+  // Folders are structural containers (chapters/sections), not math content —
+  // prompt 1 doesn't cover them at all, so this is a separate, much lighter
+  // prompt. It skips straight to formatting afterwards (no step-2 check,
+  // since that prompt's rules are tuned for the strict topic structure above
+  // and would misfire on a short overview paragraph).
+  const AI_PROMPT_GENERATE_FOLDER = `Ты — автор кратких вводных обзоров для разделов математического справочника по геометрии. Тебе дано название раздела (папки) и, если известны, названия тем, которые в него непосредственно входят. Напиши короткий связный обзор, объясняющий, что охватывает этот раздел — какая область геометрии или какой круг вопросов в нём собран.
+
+## Объём определяется содержанием, а не наоборот
+
+У обзора нет целевой длины и нет минимума в предложениях. Правильный объём — это ровно тот объём, который нужен, чтобы один раз по существу сказать, что это за раздел. Для многих разделов достаточно одного-двух предложений — это нормальный, полноценный результат, а не черновик. Как только сказанного достаточно, чтобы читатель понял охват раздела — останавливайся; не дописывай третье или четвёртое предложение только для того, чтобы текст выглядел "полнее".
+
+Пять предложений — это редкий, а не типичный случай, оправданный только тогда, когда разделу действительно есть что сказать сверх одной мысли (например, он объединяет несколько по-настоящему разных направлений, и об этом стоит сказать явно). Не растягивай текст на бо́льший объём просто потому, что "так выглядит солиднее".
+
+## Что запрещено
+
+- Не добавляй общих фраз ни о чём: "это важный раздел математики", "здесь рассматриваются интересные вопросы", "данная тема находит широкое применение" и подобное — если за такой фразой не стоит ни одного конкретного факта об этом разделе, её не должно быть вовсе.
+- Не повторяй по сути одну и ту же мысль другими словами ради объёма — каждое предложение должно добавлять новую информацию, а не парафразировать предыдущее.
+- Не выдумывай подробности о разделе, которых не следует напрямую из его названия и списка входящих тем — лучше короче и точнее, чем длиннее и расплывчато.
+- Не пиши вступительных фраз от своего лица, не оценивай важность раздела превосходными степенями.
+
+## Остальные правила
+
+- Не начинай текст с названия раздела — начни сразу с сути, как в остальных статьях справочника.
+- Не пересказывай список входящих тем построчно и не превращай текст в перечисление — упомяни направление и логику раздела в целом, своими словами, только если это добавляет что-то к одной уже сказанной мысли.
+- Не используй markdown-разметку и формулы — только обычный связный текст, без скобочных плейсхолдеров для формул (в обзоре раздела формулы не нужны).
+- Никаких заголовков и списков — только сплошной текст.
+- Не оборачивай ответ в кавычки. В выводе — только сам текст обзора, ничего больше.`;
+
+  // Proofs are stored differently from every other type — not as one HTML
+  // blob, but as a sequence of discrete steps (see buildProofEditor /
+  // parseProofDescription above: each step becomes its own <div>). So the
+  // whole pipeline for this type works step-by-step: the model outputs one
+  // step per paragraph (blank line separated, no "Шаг N:" labels — the
+  // editor numbers them itself), and that same paragraph boundary is
+  // threaded through the check and formatting stages via AI_STEP_MARKER.
+  const AI_STEP_MARKER = '@@STEP@@';
+
+  const AI_PROMPT_GENERATE_PROOF = `Ты — автор доказательств для полного математического справочника по геометрии. Тебе дан контекст: название узла-доказательства в справочнике и, как правило, название и описание родительской темы — обычно это и есть теорема (или свойство, факт), которую нужно доказать. Твоя задача — написать полное, строгое и корректное доказательство именно этого утверждения. У тебя есть доступ к интернету — используй его, чтобы проверить формулировку утверждения и корректность хода доказательства, не полагайся только на память.
+
+## Если формулировка не до конца ясна из контекста
+
+Если в переданном контексте формулировка утверждения дана не полностью или неоднозначно — сначала восстанови её по названию узла и общей математической логике (в том числе проверив в интернете, как эта теорема формулируется в источниках), и доказывай именно восстановленную, стандартную формулировку. Не проси уточнений и не пиши об этом — просто действуй по наиболее вероятной, общепринятой версии утверждения.
+
+## Формат вывода — строго соблюдай
+
+Доказательство — это последовательность шагов. Каждый шаг — один абзац связного текста (может состоять из нескольких предложений, если это одна логическая единица рассуждения). Отдельные шаги разделяются между собой ровно одной пустой строкой и ничем больше.
+
+Не нумеруй шаги сам и не пиши "Шаг 1", "Шаг 2", "Пункт 1" и подобное в начале абзаца — нумерацию добавляет само приложение. Не добавляй общий заголовок или вводную строку перед первым шагом (без "Доказательство:", "Дано:" и т.п. отдельной строкой) — если нужно указать исходные данные или построение, сделай это содержанием самого первого шага, а не отдельным заголовком над всеми шагами.
+
+## Что должно быть в шагах
+
+- Каждый шаг должен быть логически необходим и явно продвигать доказательство вперёд — не должно быть шагов, которые ничего не доказывают и не готовят следующий шаг.
+- Каждый нетривиальный переход должен быть обоснован: на какое уже известное утверждение, определение, ранее доказанный факт или построение ты опираешься. Не пропускай шаги, которые неочевидны для человека, только выучившего материал, предшествующий этой теме — но и не разжёвывай то, что уже является элементарной алгеброй или общеизвестным на этом уровне фактом.
+- Если доказательство по стандартной логике требует вспомогательного построения (провести отрезок, опустить перпендикуляр и т.п.) — начни с этого явно, объяснив, что строится и зачем это нужно для дальнейшего рассуждения.
+- Последний шаг должен явно завершать доказательство — фиксировать, что искомое утверждение установлено (например, явно указать, что из полученного равенства следует доказываемое утверждение). Отдельного "что и требовалось доказать" в виде обозначения (∎, ч.т.д.) добавлять не нужно — это оформляется приложением автоматически.
+
+## Формулы и обозначения — строгое правило
+
+Так же, как и в остальных статьях справочника: формулы, символы и математические выражения нигде не пиши напрямую — ни переменные (a, b, c, x), ни знаки (=, +, −, ², √, ·), ни буквенные выражения (a+b, 2ab). На месте формулы или выражения указывай словами, в квадратных скобках, что там должно быть — называя или описывая её суть, а не давая "почти символьный" перевод.
+
+Правильно: [Теорема Пифагора для катетов a и b], [сумма углов треугольника равна развёрнутому углу], [подобие треугольников по двум углам].
+Неправильно: [a² + b² = c²], [∠A + ∠B + ∠C = 180°].
+
+Если в тексте уже введена буква для конкретного отрезка, точки или угла (например, "проведём высоту CH") — используй эти обозначения и дальше по тексту как обычные слова (например, "высота CH"), это не считается формулой и в скобки не заключается; в квадратные скобки заключаются именно формульные соотношения между величинами, а не отдельные названия точек, отрезков или углов.
+
+## Не дописывай ради объёма
+
+Как и везде в справочнике, объём определяется только необходимостью: ровно столько шагов, сколько нужно для строгого и полного доказательства, ни одним больше. Не добавляй фразы о значимости теоремы, её применении или общем контексте — это не относится к доказательству и здесь неуместно вообще, в любом объёме. Не повторяй мысли предыдущих шагов другими словами. Не добавляй вводных фраз от своего лица ("Приступим к доказательству", "Докажем следующим образом").
+
+## Формат
+
+Не используй markdown-разметку: без **жирного текста**, без ## заголовков, без $ для формул. Не оборачивай ответ в кавычки или другие обрамляющие символы. В выводе — только сами шаги доказательства в описанном формате, ничего больше.`;
+
+  const AI_PROMPT_CHECK_PROOF = `Ты — редактор-контролёр качества для полного математического справочника. Тебе на вход подаётся контекст (какая теорема доказывается) и черновик доказательства, уже разбитый на шаги, где каждый шаг отделён от соседних служебной строкой-меткой ${AI_STEP_MARKER} на отдельной строке. Твоя задача — молча проверить и, если нужно, исправить содержимое шагов, сохранив структуру разбиения, и вывести результат в том же формате.
+
+## Список правил, по которым нужно проверять
+
+1. Корректность: каждый шаг должен быть математически верным и действительно следовать из предыдущих шагов, определений или ранее известных фактов. Если в каком-то шаге есть логическая ошибка, нарушение или недоказанный скачок — исправь рассуждение на верное, не меняя общий план доказательства без необходимости (меняй план только если он в принципе не может привести к верному результату).
+
+2. Полнота: не должно быть пропущенных, неочевидных для уровня темы логических переходов между шагами. Если такой пропуск найден — добавь недостающий шаг (как отдельный элемент в последовательности, соблюдая формат разделения меткой) или расширь существующий шаг обоснованием.
+
+3. Нигде не должно быть голых математических символов, знаков или буквенных выражений (a, b, c, x, =, +, −, ², √, · и подобных) — на их месте должно быть словесное описание в квадратных скобках, называющее суть формулы, а не её "почти символьный" перевод. Названия уже введённых по тексту точек/отрезков/углов (например, "высота CH") формулами не считаются и в скобки не заключаются.
+
+4. Отсутствие лишнего: в шагах не должно быть фраз о значимости, применении или общем контексте теоремы — только строгая логика доказательства. Такие фразы, если есть, удаляй целиком. Не должно быть повторов одной мысли другими словами и шагов, не несущих логической нагрузки — удаляй их целиком (при этом общее число оставшихся шагов может уменьшиться, это нормально).
+
+5. Не должно быть markdown-разметки и явной нумерации шагов внутри текста ("Шаг 1", "1)" и т.п. в начале абзаца) — нумерация не часть содержимого шага.
+
+## Формат вывода — строго соблюдай
+
+Выведи шаги в том же формате, в каком они были даны: каждый шаг — абзац текста, шаги разделены строкой ${AI_STEP_MARKER} на отдельной строке. Не убирай и не добавляй разделители мимо границ шагов, не объединяй два шага в один текст без разделителя между ними, если по правилу 4 шаг нужно удалить целиком — убери его текст вместе с одним из окружающих разделителей, чтобы разделителей осталось на один меньше, чем оставшихся шагов. Не добавляй пояснений, вступительных фраз или комментариев о найденных ошибках — в выводе только исправленные шаги с разделителями между ними, ничего больше.`;
+
+  const AI_PROMPT_CHECK = `Ты — редактор-контролёр качества для полного математического справочника. Тебе на вход подаётся название темы и уже готовое описание этой темы по геометрии, сгенерированное другой нейросетью. Твоя задача — молча проверить это описание на соответствие строгому списку правил, исправить все найденные нарушения и вывести только исправленный текст.
+
+## Список правил, по которым нужно проверять
+
+1. Первое предложение описания не должно содержать название темы (ни в исходной форме, ни в падежной, ни как отдельное словосочетание в начале). Описание должно начинаться сразу с определения или сути через более общее понятие.
+
+2. Нигде в тексте не должно быть голых математических символов, знаков или буквенных выражений — ни в основном изложении, ни в промежуточных шагах доказательства или вывода. Это касается любых переменных (a, b, c, x), любых знаков (=, +, −, ², √, ·) и любых буквенных выражений (a+b, 2ab). Вместо этого на месте формулы или математического выражения должно быть словесное описание в квадратных скобках — не "почти символьный" перевод (вроде [a² + b²]), а именно название или словесное описание сути формулы (например: [Теорема Пифагора для катетов и гипотенузы]).
+
+3. Структура текста должна строго соответствовать одному из типов:
+   - Фигура/тело/объект: вводный абзац → Свойства → Признаки (если применимо) → Формулы → короткий заключительный абзац.
+   - Теорема: вводный абзац → Формулировка → Идея доказательства/Доказательство → Следствия (если есть) → короткий заключительный абзац.
+   - Свойство/понятие/отношение: вводный абзац → свободная, но логичная структура разделов → (формулы по тем же правилам).
+   - Тема без явного типа: структура по аналогии с одним из вышеперечисленных.
+   Не должно быть разделов сверх этого списка (например, отдельных заголовков «Применение», «Значение», «Ограничения», «Связь с другими понятиями» — такого быть не должно, это не самостоятельные разделы). Если такой раздел найден — убери заголовок, а материал, если он важен, сократи до 2-3 предложений и перенеси в заключительный абзац.
+
+4. Материал о значимости, применении, связях с другими темами или общем контексте должен находиться ТОЛЬКО в заключительном абзаце и занимать не более 10-15% от общего объёма всего текста. Такой материал не должен встречаться во вводном абзаце, в разделе «Свойства», в разделе «Формулировка» или в разделе «Следствия» — эти разделы должны содержать только строгие факты по теме, без оценочных слов о важности, фундаментальности, широте применения и т.п. Если такие фразы найдены вне заключения — убери их оттуда (при необходимости кратко перенеси суть в заключительный абзац, если она нигде больше не отражена, и если это не превысит лимит объёма).
+
+5. Раздел «Следствия» (если есть) не должен содержать фразы о значимости или контексте — только математические факты, которые прямо вытекают из темы.
+
+6. В пояснениях в круглых скобках не должно быть очевидной для данного уровня темы информации (например, для темы школьного уровня — пояснение вроде "прямой угол (90°)" или "гипотенуза (длинная сторона)" недопустимо, так как читатель этого уровня уже знает эти понятия). Такие пояснения нужно убрать целиком.
+
+7. Не должно быть markdown-разметки: **жирного текста**, ## заголовков, $ для формул. Названия разделов — обычным текстом. Списки — через тире с новой строки.
+
+8. Каждая формула должна сопровождаться в тексте объяснением, откуда она берётся или почему устроена именно так, а не просто дана как факт. Если формула присутствует без объяснения — добавь краткое пояснение, логично вытекающее из остального текста, не придумывая новых фактов сверх того, что уже сказано в описании.
+
+9. В тексте не должно быть предложений-заполнителей — таких, которые не несут отдельного проверяемого факта о теме, а только повторяют уже сказанное другими словами, констатируют общую важность или применимость темы без конкретики ("это важное понятие", "находит широкое применение", "играет значительную роль"), или притягивают связь с другой темой без реального содержания. Если такое предложение найдено — удали его целиком, а не сократи. Раздел, помеченный как необязательный (например, «Признаки», «Следствия», заключительный абзац), после удаления заполнителей может оказаться пустым — в этом случае убери и сам раздел вместе с его заголовком, не оставляя пустых или формальных фрагментов. Не удаляй при этом предложения, которые несут реальный факт, даже если они короткие.
+
+## Как это делать
+
+Внимательно прочитай текст целиком, определи тип темы (фигура, теорема, понятие и т.д.) и найди все нарушения по каждому правилу. Исправь только то, что нарушает правила — не переписывай текст ради стиля, не добавляй новых фактов, не меняй авторский тон и объём там, где нарушений нет (сокращение по правилу 9 — не стилистическая правка, а устранение нарушения, поэтому оно применяется наравне с остальными). Цель — сохранить содержание и стиль исходного текста, устранив только конкретные несоответствия правилам.
+
+## Формат вывода
+
+Выведи только полный исправленный текст описания — без каких-либо пояснений, без списка найденных ошибок, без вступительных фраз вроде "Вот исправленная версия", без кавычек или других обрамляющих символов. Если нарушений не найдено — выведи исходный текст без изменений. В ответе не должно быть ничего, кроме самого текста описания.`;
+
+  const AI_PROMPT_FORMAT = `Ты — технический редактор для полного математического справочника. Тебе на вход подаётся готовое, уже проверенное текстовое описание темы по геометрии: обычный текст без markdown-разметки, где названия разделов записаны отдельными строками простым текстом, списки оформлены через тире с новой строки, а формулы обозначены словесным описанием в квадратных скобках вместо самих формул. (Для короткого обзора раздела формул и разделов может не быть вовсе — в этом случае просто оберни текст в абзацы.)
+
+Твоя задача — преобразовать этот текст в HTML-фрагмент с формулами в формате KaTeX, ничего не меняя в содержании, порядке и формулировках исходного текста. Ты только добавляешь разметку и заменяешь плейсхолдеры в квадратных скобках на настоящие формулы.
+
+## Общие правила
+
+- Не меняй ни одного слова исходного текста — ни порядок, ни формулировки, ни пунктуацию (кроме случая, когда квадратная скобка заменяется на формулу).
+- Не добавляй никакого форматирования, кроме описанного ниже. Не выдумывай собственные декоративные элементы, курсив, дополнительные обёртки, классы или атрибуты.
+- Выводи только HTML-фрагмент содержимого — без тегов <html>, <head>, <body>, без обёртывающего контейнера верхнего уровня.
+- Не оборачивай ответ в кавычки, тройные обратные кавычки или другие символы. В выводе — только сам HTML-фрагмент, ничего больше.
+
+## Разметка структуры
+
+Заголовки разделов. Если строка исходного текста состоит только из короткого названия раздела (обычно 1-3 слова), стоит отдельно от остального текста, не является частью предложения и предшествует абзацу или списку — оберни её в <h2>...</h2>. Так размечаются, например, «Свойства», «Признаки», «Формулы», «Формулировка», «Идея доказательства», «Следствия» и любые другие подобные заголовки, если структура темы отличается от стандартной.
+
+Абзацы. Каждый связный блок обычного текста (вводная часть, пояснения между формулами, заключительная часть) оборачивай в <p>...</p>. Разрывы между абзацами исходного текста сохраняй как границы отдельных тегов <p>.
+
+Списки. Группа идущих подряд строк, начинающихся с тире, становится одним списком <ul>...</ul>, где каждая строка — отдельный <li>...</li> (без тире внутри тега — сам символ тире убирается, так как маркер уже даёт <li>).
+
+Жирное выделение. Если пункт списка или начало абзаца содержит короткую "метку" — название конкретного факта или величины (обычно 1-5 слов), после которой стоит точка или двоеточие, а дальше идёт отдельное объяснение — оберни только эту метку в <strong>...</strong>, не трогая остальной текст.
+Пример: "Все стороны равны. Это свойство квадрат наследует от ромба." → "<strong>Все стороны равны.</strong> Это свойство квадрат наследует от ромба."
+Пример: "Периметр. Поскольку все четыре стороны равны..." → "<strong>Периметр.</strong> Поскольку все четыре стороны равны..."
+Если в пункте списка или абзаце нет такой явно отделимой метки (текст представляет собой одно цельное предложение без пары "название + отдельное объяснение") — не добавляй жирный текст искусственно, оставь как обычный текст.
+
+## Пустые строки между блоками
+
+Между КАЖДЫМ блочным элементом верхнего уровня (заголовок <h2>, абзац <p>, список <ul>) должна стоять ровно одна пустая строка — то есть после закрывающего тега одного блока и перед открывающим тегом следующего нужен один перенос строки, создающий видимый отступ. Это касается любого перехода между блоками: заголовок → абзац, абзац → список, список → следующий заголовок, абзац → абзац и так далее — правило действует одинаково для всех переходов, без исключений.
+
+Пример нужного результата:
+<p>Текст первого абзаца...</p>
+
+<h2>Свойства</h2>
+
+<ul>
+<li>Первый пункт</li>
+<li>Второй пункт</li>
+</ul>
+
+<p>Текст следующего абзаца...</p>
+
+Внутри списка отдельные <li> идут подряд без пустых строк между ними — пустая строка нужна только между блоками верхнего уровня, а не внутри одного списка.
+
+## Формулы: общие принципы
+
+Каждый плейсхолдер в квадратных скобках нужно заменить на настоящую формулу, записанную в синтаксисе KaTeX (диалект LaTeX для математики).
+
+Выбор букв-переменных:
+- Если в окружающем тексте уже названа конкретная буква для величины (например: "пусть сторона квадрата равна a", "если катеты a и b, а гипотенуза c") — используй именно эти буквы во всех формулах, где фигурирует эта величина.
+- Если буква нигде явно не названа — выбери стандартное, общепринятое в математической литературе обозначение для этой величины (например, r для радиуса, S для площади, V для объёма, P для периметра) и используй его последовательно во всех формулах текста, не меняя один раз выбранную букву на другую.
+
+Блочные и строчные формулы — как определить, что нужно:
+- Если формула — это самостоятельный, ключевой результат: стоит после двоеточия в конце вводящей фразы ("тогда:", "получаем:", "выполняется соотношение:", "равна:") и не продолжается остальным текстом того же предложения — оформи как блочную формулу на отдельной строке: <p>$$формула$$</p>.
+- Если формула упомянута внутри предложения, грамматически встроена в него ("если сторона равна a, тогда периметр равен произведению четырёх на a") — оформи как строчную формулу прямо внутри текста, без вынесения на отдельную строку: используй $формула$.
+- Если в разделе «Формулы» идёт несколько формул подряд с пояснениями между ними — каждая из них оформляется по этому же принципу отдельно, независимо от соседних.
+
+## Синтаксис KaTeX — как записывать основные конструкции
+
+- Степень: a^{2} (для степени больше одной цифры/буквы обязательны фигурные скобки)
+- Индекс: a_{1}
+- Дробь: \\frac{a}{b}
+- Квадратный корень: \\sqrt{a}, корень n-й степени: \\sqrt[n]{a}
+- Умножение: \\cdot (для явного знака умножения), если по смыслу умножение подразумевается без знака (например, 4a) — знак можно опустить, записав переменные подряд
+- Деление в строку (не дробью): a : b или \\frac{a}{b}, если это именно математическая дробь
+- Греческие буквы: \\pi, \\alpha, \\beta, \\gamma, \\theta, \\varphi и т.д.
+- Градусы: 90^\\circ (не используй символ ° напрямую)
+- Тригонометрические функции: \\sin, \\cos, \\tan (пишутся с обратной чертой, без курсива)
+- Сумма: \\sum_{i=1}^{n}, произведение: \\prod_{i=1}^{n}
+- Предел: \\lim_{x \\to a}
+- Интеграл: \\int_{a}^{b}
+- Знаки сравнения: \\leq, \\geq, \\neq, \\approx
+- Вектор: \\vec{a}, модуль вектора: |\\vec{a}| или \\left| \\vec{a} \\right|
+- Бесконечность: \\infty
+- Многострочные системы или matrix-конструкции используй только если это объективно требуется темой (например, матрицы, системы уравнений); в остальных случаях не усложняй формулу без необходимости.
+
+Формулу оформляй в KaTeX так просто, как позволяет её математическая суть — не добавляй лишних \\left \\right, \\displaystyle и других модификаторов, если формула и без них корректно читается.
+
+Числа и математические обозначения, которые уже присутствуют в исходном тексте в обычном виде (не в квадратных скобках) — например, простое упоминание величины или количества — трогать не нужно, преобразованию в KaTeX подлежат только те места, что были отмечены квадратными скобками.
+
+## Что запрещено
+
+- Не меняй формулировки исходного текста, кроме удаления квадратных скобок при вставке формулы.
+- Не добавляй новые предложения, пояснения или факты от себя.
+- Не используй markdown-синтаксис (**, ##, обратные кавычки) — только HTML-теги.
+- Не добавляй никаких заголовков, подписей, атрибутов class/id/style.
+- Не выводи ничего, кроме готового HTML-фрагмента — без пояснений, без вступительных фраз, без обрамляющих символов.`;
+
+  // Reuses the whole AI_PROMPT_FORMAT verbatim (same HTML/KaTeX rules) plus
+  // one addendum: proof text is joined with AI_STEP_MARKER between steps
+  // before this call, and the marker line must survive formatting so the
+  // result can be split back into per-step HTML fragments afterwards.
+  const AI_PROMPT_FORMAT_PROOF = AI_PROMPT_FORMAT + `
+
+## Дополнительное правило для этого запроса
+
+В тексте между шагами встречаются служебные строки-метки ${AI_STEP_MARKER} на отдельной строке. Каждую такую строку нужно перенести в вывод ровно на том же месте, отдельной строкой, без каких-либо изменений и без оборачивания в HTML-тег (не <p>${AI_STEP_MARKER}</p>, а именно голая строка ${AI_STEP_MARKER} между HTML-блоками соседних шагов). Само содержимое шагов вокруг меток форматируй по всем остальным правилам этого промпта как обычно.`;
+
+  // New (part 1 of the original spec called for pymorphy2 lemmatization +
+  // precomputed embeddings over the full 5000+ topic base — not runnable in
+  // an offline single-file page). This is the practical replacement for the
+  // embedding "safety net": an exact-match pass runs first in plain JS
+  // (see findExactCandidates), and this prompt covers the harder case where
+  // a topic is meant but named differently — it works over a JS-prefiltered
+  // pool (loose stem overlap), not the whole base, to keep the call cheap.
+  const AI_PROMPT_FIND_CANDIDATES = `Ты — ассистент, отбирающий кандидатов для внутренних гиперссылок в математическом справочнике. Тебе дан текст описания одной темы и список тем-кандидатов (id, title, type) из общей базы. Твоя задача — среди этого списка отобрать те темы, которые по смыслу могут быть упомянуты или подразумеваться в тексте, даже если названы другими словами, синонимами, или через более общее/частное понятие, и вернуть только их id.
+
+Не старайся сама расставлять ссылки и не оценивай точное место в тексте — это сделает следующий, отдельный этап. Твоя задача шире: не пропустить ни одного потенциально уместного кандидата, даже если не уверена, будет ли он в итоге использован. При этом не включай темы, которые никак не связаны по смыслу с текстом — список кандидатов и так уже отфильтрован грубо, отсеивать лишнее по смыслу и есть твоя задача.
+
+## Формат вывода
+
+Верни ТОЛЬКО JSON-массив строк с id подходящих тем, без пояснений, без markdown, без обрамляющих символов. Пример: ["kvadrat","ploshhad-kvadrata"]. Если подходящих тем нет — верни пустой массив: []`;
+
+  const AI_PROMPT_LINKS = `Ты — редактор гиперссылок для полного математического справочника. Тебе на вход подаётся HTML-фрагмент описания одной темы (уже отформатированный, с формулами в синтаксисе KaTeX) и список тем-кандидатов, на которые можно проставить ссылки. Твоя задача — найти в тексте слова и словосочетания, которые по смыслу соответствуют темам из списка, и превратить ПОДХОДЯЩИЕ из них в гиперссылки, а результат вывести целиком.
+
+## Формат ссылки
+
+Гиперссылка оформляется так: <a href="topic:ID">слово_или_словосочетание</a>, где ID — это ровно тот id, что указан у соответствующей темы в списке кандидатов. Ссылкой становится само слово или словосочетание из текста — оно остаётся видимым и читаемым, просто оборачивается в тег. Текст самого слова при этом не меняется ни на букву.
+
+## Список тем-кандидатов
+
+В промпт будет подставлен список в формате:
+id: <идентификатор> | title: <название темы> | type: <тип>
+
+Ссылку можно ставить ТОЛЬКО на тему из этого списка, используя её id. Если в тексте есть слово, которое кажется похожим на какую-то математическую тему, но её нет в списке кандидатов — не выдумывай для неё id и не ссылайся на неё никак.
+
+## Главный принцип: лучше не поставить ссылку, чем поставить неверную
+
+Список кандидатов может содержать лишние темы, добавленные "на всякий случай" — это нормально, отсеивать их и есть твоя основная задача. Прежде чем превратить слово в ссылку, оцени: действительно ли в этом месте текста слово используется именно в том смысле, в котором это отдельная тема справочника (а не просто как обычное слово русского или математического языка в общем контексте). Если есть сомнение — не добавляй ссылку. Ошибка пропуска (не добавил ссылку там, где могла бы быть) гораздо предпочтительнее ошибки добавления (поставил ссылку туда, где контекст не подходит).
+
+## Правило одной ссылки на тему
+
+Каждая тема из списка кандидатов может получить ссылку максимум один раз за весь текст, даже если слово, которое ей соответствует, упоминается в тексте несколько раз. Как только слово один раз стало ссылкой на конкретный id, все дальнейшие упоминания того же слова (или его форм) в этом же тексте остаются обычным текстом, без ссылки, даже если по отдельности их контекст тоже подходил бы.
+
+## Правило выбора лучшего вхождения
+
+Не обязательно превращать в ссылку самое первое по тексту подходящее слово. Если слово упоминается несколько раз, сначала мысленно оцени контекст каждого вхождения и выбери то, где связь с темой выражена наиболее прямо и однозначно (например, вхождение в разделе «Формулы» или «Свойства», где о теме говорится по существу, обычно лучше подходит, чем случайное упоминание во вводном абзаце как часть более общего рассуждения). Ссылкой становится именно это, лучшее по контексту вхождение — остальные, менее подходящие, остаются обычным текстом.
+
+## Умеренность
+
+Не нужно стремиться проставить ссылку на каждую тему из списка кандидатов — если у большинства кандидатов в тексте нет по-настоящему подходящего по смыслу вхождения, значит, ссылок в итоге будет мало, и это нормальный, ожидаемый результат. Плотный текст, утыканный ссылками почти на каждое слово, не является целью и мешает чтению.
+
+## Что нельзя делать
+
+- Не меняй ни слова, ни знака препинания, ни порядка в исходном тексте — единственное разрешённое изменение — обёртывание отдельных слов/словосочетаний в тег <a href="topic:ID">...</a>.
+- Не трогай существующую HTML-разметку (<h2>, <p>, <ul>, <li>, <strong>) — она должна остаться ровно такой же, как во входном тексте, ссылки вставляются внутрь неё, не разрушая её.
+- Не ставь ссылку на текст внутри формул KaTeX (между $ и $, или между $$ и $$) — формулы гиперссылками никогда не размечаются.
+- Не ставь ссылку на тему саму на себя (если в тексте встречается слово, совпадающее с названием темы, для которой пишется само это описание — это не ссылка, а сама тема, ссылку на неё не делают).
+- Не создавай новых абзацев, разделов или любого другого содержания — только добавляй теги <a> вокруг уже существующих слов.
+- Не оборачивай в один тег <a> сразу несколько разных упоминаний — каждая ссылка оборачивает только одно конкретное слово/словосочетание в одном месте текста.
+
+## Формат вывода
+
+Выведи только итоговый HTML-фрагмент целиком, с добавленными ссылками — без пояснений, без списка того, что было выбрано и почему, без вступительных фраз, без кавычек или других обрамляющих символов. Если для конкретного текста не нашлось ни одного подходящего по контексту слова ни для одной темы из списка — выведи исходный текст полностью без изменений.`;
+
+  /* ---------------- link postprocess safety net ----------------
+     Strips any <a href="topic:ID"> whose ID isn't a real topic, or isn't
+     one of the ids actually offered as a candidate, or points at the topic
+     itself — keeping the visible text. Pure DOM manipulation, no LLM. */
+  function sanitizeLinks(html, validIds, selfId){
+    const div = document.createElement('div');
+    div.innerHTML = html || '';
+    div.querySelectorAll('a[href^="topic:"]').forEach(a => {
+      const id = a.getAttribute('href').slice(6);
+      if (!validIds.has(id) || id === selfId){
+        while (a.firstChild) a.parentNode.insertBefore(a.firstChild, a);
+        a.remove();
+      }
+    });
+    return div.innerHTML;
+  }
+
+  /* ---------------- per-topic pipeline ---------------- */
+  // Splits text on AI_STEP_MARKER, tolerating the model wrapping the marker
+  // in a stray tag despite instructions (e.g. <p>@@STEP@@</p>) by stripping
+  // any tag pair immediately around a lone marker line first.
+  function aiSplitByMarker(text){
+    const cleaned = String(text || '').replace(/<([a-zA-Z0-9]+)[^>]*>\s*@@STEP@@\s*<\/\1>/g, AI_STEP_MARKER);
+    return cleaned.split(AI_STEP_MARKER).map(s => s.trim()).filter(Boolean);
+  }
+  // Fallback used only if the marker-based joint formatting call comes back
+  // with a different number of pieces than steps went in (rare, but a
+  // proof's steps must line up 1:1 with the stored <div>s) — formats each
+  // step with its own call instead, which is slower but always correct.
+  async function aiFormatStepsIndividually(apiKey, model, steps, label){
+    const out = [];
+    for (const s of steps){
+      out.push(await aiCompleteRetry(apiKey, model, AI_PROMPT_FORMAT, s, { maxTokens: 1200, label: (label || 'форматирование шага') }));
+    }
+    return out;
+  }
+
+  async function aiGenerateOne(apiKey, model, node, topicIndex, stemIdx, doLinks, onStep){
+    onStep = onStep || function(){};
+    const isFolder = node.type === 'folder';
+    const isTheorem = node.type === 'theorem';
+    const isProof = node.type === 'proof';
+    let formatted;
+
+    if (isFolder){
+      const children = node.children.map(c => c.name).filter(Boolean);
+      const userMsg = 'Раздел: ' + node.name +
+        (children.length ? ('\nНепосредственно входящие темы: ' + children.join(', ')) : '');
+      onStep('обзор раздела…');
+      const raw = await aiCompleteRetry(apiKey, model, AI_PROMPT_GENERATE_FOLDER, userMsg, { maxTokens: 800, label: 'обзор раздела' });
+      onStep('форматирование (HTML)…');
+      formatted = await aiCompleteRetry(apiKey, model, AI_PROMPT_FORMAT, raw, { maxTokens: 1500, label: 'форматирование' });
+    } else if (isProof){
+      // Context comes from the parent tree node — proofs are assumed to sit
+      // directly under the theorem/fact they prove. If your hierarchy nests
+      // them differently, this context will be thin/wrong for that node;
+      // check the result before trusting it in that case.
+      const parent = findParentOfTopicId(node.topicId);
+      let context = 'Название узла-доказательства: ' + node.name;
+      if (parent){
+        context += '\nРодительский узел в дереве справочника: ' + parent.name + ' (тип: ' + aiTypeLabel(parent.type) + ')';
+        const parentPlain = htmlToPlainForMatching(parent.description || '').trim();
+        if (parentPlain) context += '\nОписание родительского узла (вероятно, содержит формулировку доказываемого утверждения):\n' + parentPlain;
+      } else {
+        context += '\n(Родительский узел не найден — определи формулировку доказываемого утверждения по названию.)';
+      }
+
+      onStep('генерация шагов доказательства (с поиском в интернете)…');
+      const raw = await aiCompleteRetry(apiKey, model, AI_PROMPT_GENERATE_PROOF, context, { maxTokens: 3000, webSearch: true, label: 'генерация (доказательство)' });
+      let rawSteps = raw.split(/\n\s*\n+/).map(s => s.trim()).filter(Boolean);
+      if (!rawSteps.length) rawSteps = [raw.trim()];
+      onStep('шагов в черновике: ' + rawSteps.length);
+
+      onStep('проверка шагов доказательства…');
+      let checkedSteps = rawSteps;
+      try {
+        const joinedForCheck = rawSteps.join('\n\n' + AI_STEP_MARKER + '\n\n');
+        const checkedRaw = await aiCompleteRetry(apiKey, model, AI_PROMPT_CHECK_PROOF,
+          'Контекст:\n' + context + '\n\nШаги доказательства:\n' + joinedForCheck,
+          { maxTokens: 3500, label: 'проверка (доказательство)' });
+        const parts = aiSplitByMarker(checkedRaw);
+        if (parts.length){ checkedSteps = parts; onStep('после проверки шагов: ' + parts.length); }
+        else { aiLog('  ⚠ проверка доказательства вернула пустой результат, используем черновик без правки'); }
+      } catch (e){
+        aiLog('  ⚠ проверка шагов доказательства не удалась, используем черновик без правки:', e.message);
+      }
+
+      onStep('форматирование шагов (HTML + KaTeX)…');
+      const joinedForFormat = checkedSteps.join('\n\n' + AI_STEP_MARKER + '\n\n');
+      const formattedRaw = await aiCompleteRetry(apiKey, model, AI_PROMPT_FORMAT_PROOF, joinedForFormat, { maxTokens: 4096, label: 'форматирование (доказательство)' });
+      let stepHtmls = aiSplitByMarker(formattedRaw);
+      if (stepHtmls.length !== checkedSteps.length){
+        aiLog('  ⚠ разметка форматирования доказательства разъехалась (' + stepHtmls.length + ' вместо ' + checkedSteps.length + '), форматируем шаги по отдельности');
+        onStep('форматирование шагов по отдельности (из-за расхождения разметки)…');
+        stepHtmls = await aiFormatStepsIndividually(apiKey, model, checkedSteps, 'форматирование шага (доказательство)');
+      }
+      formatted = stepHtmls.map(h => '<div>' + h.trim() + '</div>').join('');
+    } else {
+      const userMsg = 'Тема: ' + node.name + (isTheorem ? '\nИзвестно, что это теорема — используй структуру пункта 2 напрямую.' : '');
+      onStep('генерация текста (с поиском в интернете)…');
+      const raw = await aiCompleteRetry(apiKey, model, AI_PROMPT_GENERATE, userMsg, { maxTokens: 3000, webSearch: true, label: 'генерация' });
+      onStep('проверка и исправление…');
+      const checked = await aiCompleteRetry(apiKey, model, AI_PROMPT_CHECK, 'Название темы: ' + node.name + '\n\nОписание:\n' + raw, { maxTokens: 3000, label: 'проверка' });
+      onStep('форматирование (HTML + KaTeX)…');
+      formatted = await aiCompleteRetry(apiKey, model, AI_PROMPT_FORMAT, checked, { maxTokens: 4096, label: 'форматирование' });
+    }
+
+    if (!doLinks){ onStep('готово (без ссылок)'); return formatted; }
+
+    onStep('подбор кандидатов на ссылки (локально)…');
+    const plain = htmlToPlainForMatching(formatted);
+    const exact = findExactCandidates(plain, stemIdx.exactMap, node.topicId);
+    const excludeIds = new Set(exact.map(t => t.id)); excludeIds.add(node.topicId);
+    const pool = findLoosePool(plain, topicIndex, stemIdx.perTopicStems, excludeIds, 150);
+    onStep('кандидатов: точных ' + exact.length + ', в пуле для ИИ ' + pool.length);
+
+    let loose = [];
+    if (pool.length){
+      try {
+        onStep('поиск кандидатов через ИИ (' + pool.length + ' в пуле)…');
+        const resp = await aiCompleteRetry(apiKey, model, AI_PROMPT_FIND_CANDIDATES,
+          'Текст описания:\n' + plain + '\n\nСписок тем-кандидатов:\n' + candidateLines(pool),
+          { maxTokens: 800, label: 'кандидаты (ИИ)' });
+        const ids = new Set(JSON.parse(resp.replace(/^```(json)?/i, '').replace(/```$/, '').trim()));
+        loose = pool.filter(t => ids.has(t.id));
+        onStep('ИИ отобрал ещё кандидатов: ' + loose.length);
+      } catch (e){
+        aiLog('  ⚠ поиск кандидатов через ИИ не удался, продолжаем только с точными совпадениями:', e.message);
+        onStep('поиск кандидатов через ИИ не удался — используем только точные совпадения');
+      }
+    }
+
+    const candidates = [...exact, ...loose].filter(t => t.id !== node.topicId);
+    if (!candidates.length){ onStep('готово (подходящих кандидатов на ссылки не найдено)'); return formatted; }
+
+    onStep('расстановка ссылок (кандидатов: ' + candidates.length + ')…');
+    const linked = await aiCompleteRetry(apiKey, model, AI_PROMPT_LINKS,
+      'Список тем-кандидатов:\n' + candidateLines(candidates) + '\n\nHTML-фрагмент описания:\n' + formatted,
+      { maxTokens: 4096, label: 'ссылки' });
+
+    const validIds = new Set(topicIndex.map(t => t.id));
+    const sanitized = sanitizeLinks(linked, validIds, node.topicId);
+    const linkCount = (sanitized.match(/<a href="topic:/g) || []).length;
+    onStep('готово — ссылок расставлено: ' + linkCount);
+    return sanitized;
+  }
+
+  /* ---------------- job engine ----------------
+     A single in-memory `job` object is threaded through the whole loop and
+     is the only thing that ever calls saveAiJob — pause/cancel only flip
+     module-level flags that the loop itself checks between (and right
+     after) awaits, so a pause/cancel can never race with the loop and
+     resurrect a job the user just discarded from storage. */
+  let aiRunning = false;    // true while the async loop below is actively mid-flight
+  let aiAbort = false;      // set by pause/cancel to stop the loop at the next safe point
+  let aiWantCancel = false; // distinguishes "cancel" from a plain "pause" once the loop stops
+
+  // Per-topic step-by-step timeline for the expandable detail view in the
+  // log panel — kept in memory only (not persisted: it's diagnostic detail
+  // for the current session, not something a reload needs to restore).
+  const aiDetailLogs = new Map();
+  const aiExpandedRows = new Set();
+
+  function aiJobProgress(job){
+    const total = job.queue.length;
+    const done = job.queue.filter(tid => job.results[tid] && job.results[tid].status !== undefined).length;
+    return { done, total };
+  }
+
+  async function aiRunJob(){
+    if (aiRunning) return;
+    const job = loadAiJob();
+    if (!job || job.status === 'done' || job.status === 'cancelled') return;
+    const settings = loadAiSettings();
+    if (!settings.apiKey || !job.settings.model){
+      job.status = 'paused';
+      saveAiJob(job);
+      renderAiPanel();
+      return;
+    }
+    aiRunning = true; aiAbort = false; aiWantCancel = false;
+    job.status = 'running';
+    saveAiJob(job);
+    renderAiPanel();
+    aiLog('=== Задание запущено: тем в очереди —', job.queue.length, ', модель —', job.settings.model, '===');
+
+    const topicIndex = buildTopicIndex();
+    const stemIdx = buildStemIndex(topicIndex);
+
+    while (job.cursor < job.queue.length){
+      if (aiAbort) break;
+      const tid = job.queue[job.cursor];
+      const node = findNodeByTopicId(tid);
+      if (!node){
+        job.results[tid] = { status: 'skipped', error: 'тема удалена из дерева' };
+        job.cursor++; saveAiJob(job); renderAiPanel();
+        continue;
+      }
+      const already = (node.description || '').trim().length >= 20;
+      if (already && !job.settings.replace){
+        job.results[tid] = { status: 'skipped' };
+        job.cursor++; saveAiJob(job); renderAiPanel();
+        continue;
+      }
+      if (!job.backup.hasOwnProperty(tid)) job.backup[tid] = node.description || '';
+      job.results[tid] = { status: 'running', step: 'подготовка…' };
+      saveAiJob(job);
+      renderAiPanel();
+
+      const topicT0 = performance.now();
+      aiDetailLogs.set(tid, []);
+      aiLog('--- «' + node.name + '» (' + tid + ', тип: ' + node.type + ') — старт ---');
+      const onStep = (msg) => {
+        const list = aiDetailLogs.get(tid) || [];
+        list.push({ t: new Date().toLocaleTimeString('ru-RU', { hour12: false }), msg });
+        aiDetailLogs.set(tid, list);
+        const cur = job.results[tid];
+        if (cur) cur.step = msg;
+        aiLog('  «' + node.name + '»:', msg);
+        renderAiPanel();
+      };
+
+      let html = null, errMsg = null;
+      try {
+        html = await aiGenerateOne(settings.apiKey, job.settings.model, node, topicIndex, stemIdx, job.settings.links, onStep);
+      } catch (err){
+        errMsg = err.message || String(err);
+      }
+      // A pause/cancel that landed while the request above was in flight must
+      // not be overwritten — drop this result and let it re-run on resume.
+      if (aiAbort) break;
+      const durationMs = performance.now() - topicT0;
+      if (html !== null){
+        node.description = html;
+        render();
+        job.results[tid] = { status: 'done', description: html, durationMs };
+        aiLog('--- «' + node.name + '» готово за ' + (durationMs / 1000).toFixed(1) + ' с ---');
+      } else {
+        job.results[tid] = { status: 'error', error: errMsg, durationMs };
+        aiLog('--- «' + node.name + '» ОШИБКА за ' + (durationMs / 1000).toFixed(1) + ' с:', errMsg, '---');
+      }
+      job.cursor++;
+      saveAiJob(job);
+      renderAiPanel();
+    }
+
+    aiRunning = false;
+    if (aiWantCancel){
+      // storage was already cleared by aiDiscardJob(); nothing left to persist
+      aiWantCancel = false;
+    } else if (!aiAbort && job.cursor >= job.queue.length){
+      job.status = 'done';
+      saveAiJob(job);
+      setStatus('Автогенерация описаний завершена.');
+      aiLog('=== Задание завершено ===');
+    } else if (aiAbort){
+      job.status = 'paused';
+      saveAiJob(job);
+      aiLog('=== Задание приостановлено ===');
+    }
+    renderAiPanel();
+  }
+  function aiPauseJob(){
+    aiAbort = true;
+  }
+  function aiCancelJob(){
+    aiAbort = true;
+    aiWantCancel = true;
+  }
+  function aiRollbackJob(){
+    const job = loadAiJob();
+    if (!job) return;
+    let n = 0;
+    Object.keys(job.backup).forEach(tid => {
+      const node = findNodeByTopicId(tid);
+      if (node){ node.description = job.backup[tid]; n++; }
+    });
+    render();
+    setStatus('Откат выполнен — восстановлено описаний: ' + n + '. Не забудьте сохранить в GitHub, если нужно закрепить откат.');
+    renderAiPanel();
+  }
+  function aiDiscardJob(){
+    clearAiJob();
+    aiRemoveBanner();
+    renderAiPanel();
+  }
+
+  /* ---------------- UI ---------------- */
+  let aiOverlayEl = null;
+  let aiModelsCache = [];
+  let aiLastCheckSummary = null; // { total, usable, noSearch, broken, checkedAt } — shown until the next check
+
+  function aiTypeLabel(t){ return typeLabel(t); }
+
+  function openAiPanel(){
+    if (aiOverlayEl) return;
+    const overlay = document.createElement('div');
+    overlay.id = 'aiOverlay';
+    overlay.innerHTML =
+      '<div class="ai-modal">' +
+        '<div class="ai-head"><h2>Автогенерация описаний</h2><button class="ai-close" type="button"></button></div>' +
+        '<div class="ai-body" id="aiBody"></div>' +
+        '<div class="ai-foot" id="aiFoot"></div>' +
+      '</div>';
+    document.body.appendChild(overlay);
+    overlay.querySelector('.ai-close').appendChild(icon('close'));
+    overlay.querySelector('.ai-close').addEventListener('click', closeAiPanel);
+    overlay.addEventListener('pointerdown', e => { if (e.target === overlay) closeAiPanel(); });
+    document.addEventListener('keydown', aiEscHandler);
+    aiOverlayEl = overlay;
+    requestAnimationFrame(() => overlay.classList.add('on'));
+    renderAiPanel();
+  }
+  function aiEscHandler(e){ if (e.key === 'Escape') closeAiPanel(); }
+  function closeAiPanel(){
+    if (!aiOverlayEl) return;
+    const o = aiOverlayEl; aiOverlayEl = null;
+    o.classList.remove('on');
+    document.removeEventListener('keydown', aiEscHandler);
+    setTimeout(() => o.remove(), 180);
+  }
+
+  function renderAiPanel(){
+    aiUpdateBanner();
+    if (!aiOverlayEl) return;
+    const job = loadAiJob();
+    if (job && (job.status === 'running' || job.status === 'paused' || job.status === 'done')){
+      renderAiJobView(job);
+    } else {
+      renderAiSetupView();
+    }
+  }
+
+  function renderAiSetupView(){
+    const body = document.getElementById('aiBody');
+    const foot = document.getElementById('aiFoot');
+    const settings = loadAiSettings();
+    const roots = aiSelectedRootNodes();
+
+    body.innerHTML = '';
+    foot.innerHTML = '';
+
+    // --- API key + model ---
+    const secTitle = document.createElement('div');
+    secTitle.className = 'ai-section-title'; secTitle.textContent = 'Ключ и модель';
+    body.appendChild(secTitle);
+
+    const keyRow = document.createElement('div'); keyRow.className = 'ai-row';
+    const keyInput = document.createElement('input');
+    keyInput.className = 'ai-input'; keyInput.type = 'password'; keyInput.placeholder = 'AIzaSy…';
+    keyInput.value = settings.apiKey;
+    keyInput.addEventListener('input', () => { saveAiSettings({ apiKey: keyInput.value, model: modelSelect.value }); });
+    keyRow.appendChild(keyInput);
+    body.appendChild(keyRow);
+
+    const hint = document.createElement('div'); hint.className = 'ai-hint';
+    hint.textContent = 'Ключ хранится только в этом браузере (localStorage) и отправляется напрямую в generativelanguage.googleapis.com (Gemini API) — на ваш сервер он не попадает. Получить бесплатный ключ можно в Google AI Studio.';
+    body.appendChild(hint);
+
+    const modelRow = document.createElement('div'); modelRow.className = 'ai-row';
+    const modelSelect = document.createElement('select'); modelSelect.className = 'ai-select';
+    modelSelect.innerHTML = '<option value="">— сначала проверьте ключ —</option>';
+    const checkBtn = document.createElement('button');
+    checkBtn.type = 'button'; checkBtn.className = 'ai-btn'; checkBtn.textContent = 'Проверить / обновить список';
+    modelRow.append(modelSelect, checkBtn);
+    body.appendChild(modelRow);
+
+    const modelHint = document.createElement('div'); modelHint.className = 'ai-hint';
+    modelHint.textContent = 'Проверка отправляет каждой модели тестовый запрос: так отсеиваются модели, которые отвечают ошибкой вместо текста, и те, что не пользуются поиском в интернете (это нужно для первого шага генерации). Рядом с названием показана скорость ответа — список отсортирован от самых быстрых.';
+    body.appendChild(modelHint);
+
+    function fillModels(models, selected){
+      modelSelect.innerHTML = '';
+      if (!models.length){
+        modelSelect.innerHTML = '<option value="">— нет подходящих моделей —</option>';
+        return;
+      }
+      models.forEach(m => {
+        const opt = document.createElement('option');
+        opt.value = m.id;
+        opt.textContent = (m.display_name || m.id) + (typeof m.latencyMs === 'number' ? ' — ' + (m.latencyMs / 1000).toFixed(1) + ' с' : '');
+        modelSelect.appendChild(opt);
+      });
+      if (selected && models.some(m => m.id === selected)) modelSelect.value = selected;
+    }
+    if (settings.model){ fillModels([{ id: settings.model, display_name: settings.model }], settings.model); }
+    if (aiModelsCache.length) fillModels(aiModelsCache, settings.model);
+
+    const checkSummary = document.createElement('div'); checkSummary.className = 'ai-hint';
+    function paintCheckSummary(){
+      if (!aiLastCheckSummary){ checkSummary.textContent = ''; checkSummary.style.display = 'none'; return; }
+      const s = aiLastCheckSummary;
+      checkSummary.style.display = '';
+      checkSummary.textContent = 'Проверено моделей: ' + s.total + ' · подходят (отвечают и умеют искать в интернете): ' + s.usable +
+        ' · без поиска в интернете: ' + s.noSearch + ' · с ошибками: ' + s.broken + '.';
+    }
+    paintCheckSummary();
+    body.appendChild(checkSummary);
+
+    modelSelect.addEventListener('change', () => saveAiSettings({ apiKey: keyInput.value, model: modelSelect.value }));
+    checkBtn.addEventListener('click', async () => {
+      const key = keyInput.value.trim();
+      if (!key){ setStatus('Сначала введите API-ключ.'); return; }
+      checkBtn.disabled = true; checkBtn.textContent = 'Получение списка моделей…';
+      aiLog('=== Проверка моделей: запрос списка ===');
+      let models;
+      try {
+        models = await aiListModels(key);
+      } catch (e){
+        setStatus('Не удалось получить список моделей (' + e.message + ').');
+        checkBtn.disabled = false; checkBtn.textContent = 'Проверить / обновить список';
+        return;
+      }
+      aiLog('Список получен, моделей:', models.length, '— тестируем каждую (ответ + поиск в интернете + скорость)…');
+      let completed = 0;
+      const tested = await aiMapLimit(models, 4, async (m) => {
+        const res = await aiTestModel(key, m.id);
+        completed++;
+        checkBtn.textContent = 'Проверка моделей… ' + completed + ' / ' + models.length;
+        return Object.assign({}, m, { ok: res.ok, webSearch: res.webSearch, latencyMs: res.latencyMs, testError: res.error });
+      });
+      const usable = tested.filter(m => m.ok && m.webSearch).sort((a, b) => a.latencyMs - b.latencyMs);
+      const noSearch = tested.filter(m => m.ok && !m.webSearch);
+      const broken = tested.filter(m => !m.ok);
+      aiLog('=== Проверка моделей завершена: подходят', usable.length, ', без поиска', noSearch.length, ', с ошибками', broken.length, '===');
+
+      aiModelsCache = usable;
+      aiLastCheckSummary = { total: tested.length, usable: usable.length, noSearch: noSearch.length, broken: broken.length };
+      fillModels(usable, modelSelect.value || settings.model);
+      paintCheckSummary();
+      saveAiSettings({ apiKey: key, model: modelSelect.value });
+      setStatus('Проверено моделей: ' + tested.length + ', подходят: ' + usable.length + ' (без поиска в интернете: ' + noSearch.length + ', с ошибками: ' + broken.length + ').');
+      checkBtn.disabled = false; checkBtn.textContent = 'Проверить / обновить список';
+    });
+
+    // --- topics ---
+    const secTitle2 = document.createElement('div');
+    secTitle2.className = 'ai-section-title'; secTitle2.style.marginTop = '2px';
+    secTitle2.textContent = 'Темы (выбранные в дереве + все дочерние)';
+    body.appendChild(secTitle2);
+
+    const list = document.createElement('div'); list.className = 'ai-topics-list';
+    if (roots.length){
+      roots.forEach(n => { const d = document.createElement('div'); d.textContent = n.name; list.appendChild(d); });
+    } else {
+      const d = document.createElement('div'); d.textContent = 'Ничего не выбрано — закройте панель, выделите тему(ы) в дереве и откройте снова.';
+      list.appendChild(d);
+    }
+    body.appendChild(list);
+
+    // --- types ---
+    const secTitle3 = document.createElement('div');
+    secTitle3.className = 'ai-section-title'; secTitle3.style.marginTop = '2px';
+    secTitle3.textContent = 'Типы тем для генерации';
+    body.appendChild(secTitle3);
+
+    const typeChecks = {};
+    AI_TYPES_SUPPORTED.forEach(t => {
+      const row = document.createElement('label'); row.className = 'ai-checkrow';
+      const chk = document.createElement('input'); chk.type = 'checkbox'; chk.checked = true;
+      typeChecks[t] = chk;
+      const span = document.createElement('span'); span.textContent = aiTypeLabel(t);
+      row.append(chk, span);
+      body.appendChild(row);
+    });
+    const typeNote = document.createElement('div'); typeNote.className = 'ai-hint';
+    typeNote.textContent = 'Примеры пока не поддерживаются.';
+    body.appendChild(typeNote);
+
+    // --- options ---
+    const secTitle4 = document.createElement('div');
+    secTitle4.className = 'ai-section-title'; secTitle4.style.marginTop = '2px';
+    secTitle4.textContent = 'Параметры';
+    body.appendChild(secTitle4);
+
+    const replaceRow = document.createElement('label'); replaceRow.className = 'ai-checkrow';
+    const replaceChk = document.createElement('input'); replaceChk.type = 'checkbox';
+    replaceRow.append(replaceChk, Object.assign(document.createElement('span'), { textContent: 'Заменять уже заполненные описания' }));
+    body.appendChild(replaceRow);
+    const replaceNote = document.createElement('div'); replaceNote.className = 'ai-hint';
+    replaceNote.textContent = 'Если выключено, генерируются только описания короче 20 символов.';
+    body.appendChild(replaceNote);
+
+    const linksRow = document.createElement('label'); linksRow.className = 'ai-checkrow';
+    const linksChk = document.createElement('input'); linksChk.type = 'checkbox'; linksChk.checked = true;
+    linksRow.append(linksChk, Object.assign(document.createElement('span'), { textContent: 'Расставлять гиперссылки на другие темы' }));
+    body.appendChild(linksRow);
+    const linksNote = document.createElement('div'); linksNote.className = 'ai-hint';
+    linksNote.textContent = 'Дороже по числу запросов к нейросети (ещё 1–2 вызова на тему).';
+    body.appendChild(linksNote);
+
+    // --- footer ---
+    const startBtn = document.createElement('button');
+    startBtn.type = 'button'; startBtn.className = 'ai-btn primary'; startBtn.textContent = 'Создать бэкап и начать';
+    startBtn.disabled = !roots.length;
+    startBtn.addEventListener('click', () => {
+      const types = new Set(AI_TYPES_SUPPORTED.filter(t => typeChecks[t].checked));
+      if (!types.size){ setStatus('Выберите хотя бы один тип темы.'); return; }
+      if (!keyInput.value.trim() || !modelSelect.value){ setStatus('Укажите API-ключ и выберите модель.'); return; }
+      const queue = buildAiQueue(roots, types);
+      if (!queue.length){ setStatus('Среди выбранного нет тем подходящего типа.'); return; }
+      saveAiSettings({ apiKey: keyInput.value, model: modelSelect.value });
+      const job = {
+        status: 'running',
+        createdAt: new Date().toISOString(),
+        settings: { types: [...types], replace: replaceChk.checked, links: linksChk.checked, model: modelSelect.value },
+        queue, cursor: 0, backup: {}, results: {}
+      };
+      saveAiJob(job);
+      renderAiPanel();
+      aiRunJob();
+    });
+    foot.innerHTML = '<div class="ai-foot-left"></div>';
+    const right = document.createElement('div'); right.className = 'ai-foot-right'; right.appendChild(startBtn);
+    foot.appendChild(right);
+  }
+
+  function aiStatusLabel(s){
+    return { running:'выполняется…', paused:'на паузе', done:'готово', error:'ошибка', skipped:'пропущена', queued:'в очереди' }[s] || s;
+  }
+  function aiFmtDuration(ms){
+    return typeof ms === 'number' ? (ms / 1000).toFixed(1) + ' с' : '';
+  }
+
+  function renderAiJobView(job){
+    const body = document.getElementById('aiBody');
+    const foot = document.getElementById('aiFoot');
+    body.innerHTML = ''; foot.innerHTML = '';
+
+    const prog = aiJobProgress(job);
+    const wrap = document.createElement('div'); wrap.className = 'ai-progress-wrap';
+    const bar = document.createElement('div'); bar.className = 'ai-progress-bar';
+    const fill = document.createElement('div'); fill.className = 'ai-progress-fill';
+    fill.style.width = (prog.total ? Math.round(prog.done / prog.total * 100) : 0) + '%';
+    bar.appendChild(fill); wrap.appendChild(bar);
+    const stats = document.createElement('div'); stats.className = 'ai-progress-stats';
+    const okCount = job.queue.filter(t => job.results[t] && job.results[t].status === 'done').length;
+    const errCount = job.queue.filter(t => job.results[t] && job.results[t].status === 'error').length;
+    const skipCount = job.queue.filter(t => job.results[t] && job.results[t].status === 'skipped').length;
+    stats.innerHTML = '<span>' + prog.done + ' / ' + prog.total + '</span><span>готово: ' + okCount + ' · пропущено: ' + skipCount + ' · ошибок: ' + errCount + ' · ' + aiStatusLabel(job.status) + '</span>';
+    wrap.appendChild(stats);
+    body.appendChild(wrap);
+
+    const logHint = document.createElement('div'); logHint.className = 'ai-hint';
+    logHint.textContent = 'Подробный ход генерации по каждому шагу дублируется в консоль браузера (F12). Нажмите на тему в списке ниже, чтобы развернуть её журнал за текущий сеанс.';
+    body.appendChild(logHint);
+
+    const log = document.createElement('div'); log.className = 'ai-log';
+    job.queue.forEach(tid => {
+      const node = findNodeByTopicId(tid);
+      const r = job.results[tid];
+      const status = r ? r.status : 'queued';
+      const expanded = aiExpandedRows.has(tid);
+      const row = document.createElement('div');
+      row.className = 'ai-log-row ' + { running:'run', done:'ok', error:'err', skipped:'skip', queued:'wait' }[status];
+      row.style.cursor = 'pointer';
+      const dot = document.createElement('span'); dot.className = 'ai-log-dot';
+      const title = document.createElement('span'); title.className = 'ai-log-title';
+      title.textContent = node ? node.name : tid;
+      const st = document.createElement('span'); st.className = 'ai-log-status';
+      if (status === 'running' && r && r.step) st.textContent = r.step;
+      else if (status === 'done') st.textContent = 'готово · ' + aiFmtDuration(r.durationMs);
+      else if (status === 'error') st.textContent = 'ошибка · ' + aiFmtDuration(r.durationMs);
+      else st.textContent = aiStatusLabel(status);
+      row.append(dot, title, st);
+      row.addEventListener('click', () => {
+        if (aiExpandedRows.has(tid)) aiExpandedRows.delete(tid); else aiExpandedRows.add(tid);
+        renderAiPanel();
+      });
+      log.appendChild(row);
+
+      if (expanded){
+        const detail = document.createElement('div'); detail.className = 'ai-log-detail';
+        if (r && r.status === 'error' && r.error) {
+          const eLine = document.createElement('div'); eLine.className = 'ai-log-detail-err';
+          eLine.textContent = 'Ошибка: ' + r.error;
+          detail.appendChild(eLine);
+        }
+        const steps = aiDetailLogs.get(tid) || [];
+        if (steps.length){
+          steps.forEach(s => {
+            const line = document.createElement('div'); line.className = 'ai-log-detail-line';
+            line.textContent = s.t + ' — ' + s.msg;
+            detail.appendChild(line);
+          });
+        } else if (!(r && r.status === 'error')) {
+          const line = document.createElement('div'); line.className = 'ai-log-detail-line';
+          line.textContent = status === 'queued' ? 'Ещё не запускалась.' : 'Подробный журнал этого шага не сохранился (например, после перезагрузки страницы) — полный ход этого прогона был только в консоли браузера.';
+          detail.appendChild(line);
+        }
+        log.appendChild(detail);
+      }
+    });
+    body.appendChild(log);
+
+    const left = document.createElement('div'); left.className = 'ai-foot-left';
+    const right = document.createElement('div'); right.className = 'ai-foot-right';
+
+    const rollbackBtn = document.createElement('button');
+    rollbackBtn.type = 'button'; rollbackBtn.className = 'ai-btn danger'; rollbackBtn.textContent = 'Откатить к исходным описаниям';
+    rollbackBtn.addEventListener('click', () => {
+      confirmDlg('Восстановить описания, какими они были до этой генерации?', aiRollbackJob, 'Откатить');
+    });
+    left.appendChild(rollbackBtn);
+
+    if (job.status === 'running'){
+      const pauseBtn = document.createElement('button');
+      pauseBtn.type = 'button'; pauseBtn.className = 'ai-btn'; pauseBtn.textContent = 'Пауза';
+      pauseBtn.addEventListener('click', aiPauseJob);
+      right.appendChild(pauseBtn);
+    } else if (job.status === 'paused'){
+      const resumeBtn = document.createElement('button');
+      resumeBtn.type = 'button'; resumeBtn.className = 'ai-btn primary'; resumeBtn.textContent = 'Продолжить';
+      resumeBtn.addEventListener('click', aiRunJob);
+      right.appendChild(resumeBtn);
+    }
+    if (job.status !== 'running'){
+      const doneBtn = document.createElement('button');
+      doneBtn.type = 'button'; doneBtn.className = 'ai-btn'; doneBtn.textContent = job.status === 'done' ? 'Закрыть задание' : 'Отменить и очистить';
+      doneBtn.addEventListener('click', () => {
+        if (job.status !== 'done'){
+          confirmDlg('Прервать генерацию? Уже сгенерированные описания останутся в темах, а бэкап и очередь задания будут очищены.',
+            () => { aiCancelJob(); aiDiscardJob(); }, 'Прервать');
+        } else {
+          aiCancelJob(); aiDiscardJob();
+        }
+      });
+      right.appendChild(doneBtn);
+    }
+    foot.append(left, right);
+  }
+
+  /* ---------------- resume banner on boot ----------------
+     Lives independently of the modal: shows while a job auto-resumes in
+     the background, updates its own progress text as topics complete,
+     and removes itself once the job is done, discarded, or dismissed. */
+  let aiBannerEl = null;
+  function aiRemoveBanner(){
+    if (!aiBannerEl) return;
+    const b = aiBannerEl; aiBannerEl = null;
+    b.classList.remove('on');
+    setTimeout(() => b.remove(), 200);
+  }
+  function aiUpdateBanner(){
+    if (!aiBannerEl) return;
+    const job = loadAiJob();
+    if (!job || job.status === 'done' || job.status === 'cancelled'){ aiRemoveBanner(); return; }
+    const prog = aiJobProgress(job);
+    aiBannerEl.querySelector('span').textContent = (job.status === 'running' ? 'Автогенерация описаний продолжается: ' : 'Автогенерация описаний на паузе: ') + prog.done + ' / ' + prog.total + '…';
+  }
+  function aiShowResumeBanner(job){
+    if (aiBannerEl) { aiUpdateBanner(); return aiBannerEl; }
+    const el2 = document.createElement('div'); el2.id = 'aiBanner';
+    const prog = aiJobProgress(job);
+    const span = document.createElement('span');
+    span.textContent = (job.status === 'running' ? 'Автогенерация описаний продолжается: ' : 'Автогенерация описаний на паузе: ') + prog.done + ' / ' + prog.total + '…';
+    el2.appendChild(span);
+    const btn = document.createElement('button'); btn.type = 'button'; btn.textContent = 'Открыть';
+    btn.addEventListener('click', () => { openAiPanel(); });
+    el2.appendChild(btn);
+    const close = document.createElement('button'); close.type = 'button'; close.textContent = '✕';
+    close.title = 'Скрыть (задание продолжится в фоне)';
+    close.style.borderColor = 'transparent'; close.style.color = 'var(--faint)';
+    close.addEventListener('click', aiRemoveBanner);
+    el2.appendChild(close);
+    document.body.appendChild(el2);
+    aiBannerEl = el2;
+    requestAnimationFrame(() => el2.classList.add('on'));
+    return el2;
+  }
+  function aiCheckResumeOnBoot(){
+    const job = loadAiJob();
+    if (!job) return;
+    if (job.status === 'running' || job.status === 'paused'){
+      // Reapply any descriptions already produced in this job — the tree was
+      // just reloaded fresh from GitHub and doesn't have them yet.
+      let applied = 0;
+      Object.keys(job.results).forEach(tid => {
+        const r = job.results[tid];
+        if (r && r.status === 'done' && typeof r.description === 'string'){
+          const node = findNodeByTopicId(tid);
+          if (node){ node.description = r.description; applied++; }
+        }
+      });
+      if (applied) render();
+      aiShowResumeBanner(job);
+      if (job.status === 'running') aiRunJob();
+    }
+  }
+
+  /* ============================================================
      Seed (used only when local storage has nothing saved yet)
      ============================================================ */
   function seedDemo(){
-    const algebra = makeNode('Алгебра');
-    algebra.type = 'folder';
+    // ---- Алгебра (уже с одной заполненной темой — для сравнения с пустыми) ----
+    const algebra = makeNode('Алгебра'); algebra.type = 'folder';
 
     const quad = makeNode('Квадратные уравнения');
     quad.class = '8'; quad.difficulty = 3;
@@ -4337,27 +5863,63 @@
 
     const ex = makeNode('Пример: найти корни');
     ex.type = 'example'; ex.class = '8'; ex.difficulty = 2;
-    ex.example = 'data/examples/quad-roots.gms';
+    ex.example = 'data/examples/quadratic-function.gms';
     ex.task = {
       type: 'input',
       question: '<p>Решите: x² − 5x + 6 = 0. В ответе укажите больший корень.</p>',
       answer: '3', tolerance: 0,
       explanation: '<p>По теореме Виета: x₁ + x₂ = 5, x₁·x₂ = 6 → корни 2 и 3.</p>'
     };
-
     quad.children.push(theo, proof, ex);
-    algebra.children.push(quad);
-    treeData.push(algebra, makeNode('Геометрия'));
+
+    const linEq = makeNode('Линейные уравнения'); linEq.class = '7'; linEq.difficulty = 1;
+    const sysEq = makeNode('Системы линейных уравнений'); sysEq.class = '9'; sysEq.difficulty = 3;
+    const arProg = makeNode('Арифметическая прогрессия'); arProg.class = '9'; arProg.difficulty = 2;
+    const geoProg = makeNode('Геометрическая прогрессия'); geoProg.class = '9'; geoProg.difficulty = 2;
+    algebra.children.push(quad, linEq, sysEq, arProg, geoProg);
+
+    // ---- Геометрия — пустой folder + пустые темы/теоремы ----
+    const geometry = makeNode('Геометрия'); geometry.type = 'folder';
+    const pyth = makeNode('Теорема Пифагора'); pyth.type = 'theorem'; pyth.class = '8'; pyth.difficulty = 2;
+    const triArea = makeNode('Площадь треугольника'); triArea.class = '8'; triArea.difficulty = 2;
+    const circle = makeNode('Окружность и её элементы'); circle.class = '7'; circle.difficulty = 1;
+    const similarity = makeNode('Подобие треугольников'); similarity.type = 'theorem'; similarity.class = '8'; similarity.difficulty = 3;
+    geometry.children.push(pyth, triArea, circle, similarity);
+
+    // ---- Тригонометрия ----
+    const trig = makeNode('Тригонометрия'); trig.type = 'folder';
+    const trigIdentity = makeNode('Основное тригонометрическое тождество');
+    trigIdentity.type = 'theorem'; trigIdentity.class = '9'; trigIdentity.difficulty = 2;
+    const reduction = makeNode('Формулы приведения'); reduction.class = '9'; reduction.difficulty = 3;
+    const doubleAngle = makeNode('Синус и косинус двойного угла'); doubleAngle.class = '10'; doubleAngle.difficulty = 3;
+    trig.children.push(trigIdentity, reduction, doubleAngle);
+
+    // ---- Теория вероятностей ----
+    const prob = makeNode('Теория вероятностей'); prob.type = 'folder';
+    const classicProb = makeNode('Классическое определение вероятности'); classicProb.class = '9'; classicProb.difficulty = 2;
+    const independence = makeNode('Независимые события'); independence.class = '10'; independence.difficulty = 3;
+    prob.children.push(classicProb, independence);
+
+    treeData.push(algebra, geometry, trig, prob);
   }
 
   (async function boot(){
-    const ok = await loadFromGitHub();
+    // На file:// запрос к /api/config всегда упадёт — не тратим время на попытку
+    // и сразу показываем локальный демонстрационный набор (или то, что уже
+    // сохранено в localStorage с прошлого запуска в этом браузере).
+    const isLocal = location.protocol === 'file:';
+    const ok = isLocal ? restoreFallback() : await loadFromGitHub();
     if (!ok && treeData.length === 0){
       seedDemo();
       flatOrder(treeData).forEach(id => enterOf.set(id, 'cascade'));
       render();
-      setStatus('GitHub недоступен, локальных данных тоже нет — показан демонстрационный набор.');
+      setStatus(isLocal
+        ? 'Локальный режим — показан демонстрационный набор тем. Ключ Gemini вводится в меню «⋯» → «Автогенерация описаний…».'
+        : 'GitHub недоступен, локальных данных тоже нет — показан демонстрационный набор.');
+    } else if (isLocal && ok){
+      setStatus('Локальный режим — восстановлена локальная копия из этого браузера.');
     }
+    aiCheckResumeOnBoot();
   })();
 })();
 </script>

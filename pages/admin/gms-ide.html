@@ -13,20 +13,23 @@
   }
   *{box-sizing:border-box}
   html,body{height:100%;margin:0;background:var(--bg);color:var(--text);font-family:'Segoe UI',Arial,sans-serif}
+  @media (prefers-reduced-motion: reduce){ *{ animation-duration:.01ms !important; transition-duration:.01ms !important; } }
   #menubar{display:flex;align-items:center;gap:2px;padding:4px 8px;background:var(--panel);border-bottom:1px solid var(--border)}
   .menu{position:relative}
-  .menu-btn{background:transparent;border:none;color:var(--text);padding:6px 10px;cursor:pointer;font-size:13px;border-radius:4px}
+  .menu-btn{background:transparent;border:none;color:var(--text);padding:6px 10px;cursor:pointer;font-size:13px;border-radius:4px;transition:background-color .15s ease,color .15s ease}
   .menu-btn:hover{background:#2a2a40}
   .menu.open .menu-btn{background:#2a2a40}
-  .menu-drop{position:absolute;top:100%;left:0;background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:4px;display:none;flex-direction:column;min-width:220px;z-index:20;box-shadow:0 6px 18px rgba(0,0,0,.4)}
-  .menu.open .menu-drop{display:flex}
-  .menu-drop button{background:transparent;border:none;color:var(--text);text-align:left;padding:7px 10px;border-radius:4px;cursor:pointer;font-size:13px;display:flex;justify-content:space-between;gap:14px}
+  .menu-drop{position:absolute;top:100%;left:0;background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:4px;display:flex;flex-direction:column;min-width:220px;z-index:20;box-shadow:0 10px 26px rgba(0,0,0,.45);
+    opacity:0;transform:translateY(-6px) scale(.98);pointer-events:none;transform-origin:top left;
+    transition:opacity .14s ease,transform .18s cubic-bezier(.22,1.12,.36,1);}
+  .menu.open .menu-drop{opacity:1;transform:none;pointer-events:auto}
+  .menu-drop button{background:transparent;border:none;color:var(--text);text-align:left;padding:7px 10px;border-radius:4px;cursor:pointer;font-size:13px;display:flex;justify-content:space-between;gap:14px;transition:background-color .12s ease,color .12s ease}
   .menu-drop button:hover{background:var(--accent);color:#fff}
   .menu-drop button.primary{color:var(--accent);font-weight:600}
   .menu-drop button.primary:hover{color:#fff}
   .hint{color:var(--muted);font-size:11px}
   .menu-drop button:hover .hint{color:#e8e8ff}
-  #filename{color:var(--muted);font-size:13px;margin-left:auto;white-space:nowrap;padding:0 6px}
+  #filename{color:var(--muted);font-size:13px;margin-left:auto;white-space:nowrap;padding:0 6px;transition:color .2s ease}
   #main{display:flex;height:calc(100% - 38px)}
   #editorCol{display:flex;flex-direction:column;flex:1;min-width:0;border-right:1px solid var(--border)}
   #editorWrap{position:relative;flex:1;display:flex;overflow:hidden}
@@ -88,26 +91,48 @@
 
   /* ===== Панель переключения между файлами набора ===== */
   #filesBar{display:flex;align-items:center;gap:6px;padding:5px 8px;background:#191927;border-bottom:1px solid var(--border);font-size:12px}
-  #filesBar button{background:#26263a;border:1px solid var(--border);color:var(--text);border-radius:4px;padding:4px 9px;cursor:pointer;font-size:12px}
+  #filesBar button{background:#26263a;border:1px solid var(--border);color:var(--text);border-radius:4px;padding:4px 9px;cursor:pointer;font-size:12px;transition:background-color .15s ease,color .15s ease,transform .12s ease}
   #filesBar button:hover{background:var(--accent);color:#fff}
+  #filesBar button:active:not(:disabled){transform:scale(.93)}
   #filesBar button:disabled{opacity:.4;cursor:default}
   #filesBar button:disabled:hover{background:#26263a;color:var(--text)}
-  #fileSelect{background:#12121c;border:1px solid var(--border);color:var(--text);border-radius:4px;padding:4px 6px;font-size:12px;max-width:260px}
+  #fileSelect{background:#12121c;border:1px solid var(--border);color:var(--text);border-radius:4px;padding:4px 6px;font-size:12px;max-width:260px;transition:border-color .15s ease}
+  #fileSelect:focus{border-color:var(--accent);outline:none}
   #fileCount{color:var(--muted);white-space:nowrap}
   #filesBarSpacer{flex:1}
-  #currentFileLabel{font-weight:600;font-size:13px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:320px}
+  #currentFileLabel{font-weight:600;font-size:13px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:320px;transition:color .18s ease}
+  #currentFileLabel.flash{color:var(--accent)}
   #currentFileLabel .dirty-dot{color:var(--accent);margin-left:4px}
-  .file-badge{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:5px}
+  .file-badge{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:5px;transition:background-color .2s ease}
   .file-badge.ok{background:var(--ok)}
   .file-badge.err{background:var(--err)}
   .file-badge.unknown{background:var(--muted)}
 
+  /* ===== Уведомления (тосты) — используются, например, при открытии файла по ссылке из справочника ===== */
+  #toastHost{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:200;display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none}
+  .toast{
+    background:var(--panel);border:1px solid var(--border);border-radius:7px;padding:9px 14px;
+    font-size:12.5px;color:var(--text);box-shadow:0 12px 30px rgba(0,0,0,.45);
+    display:flex;align-items:center;gap:9px;max-width:420px;
+    opacity:0;transform:translateY(8px) scale(.97);
+    transition:opacity .2s ease,transform .22s cubic-bezier(.22,1.12,.36,1);
+  }
+  .toast.show{opacity:1;transform:none}
+  .toast.ok{border-color:var(--ok)}
+  .toast.err{border-color:var(--err)}
+  .toast-dot{width:7px;height:7px;border-radius:50%;flex:0 0 auto;background:var(--muted)}
+  .toast.ok .toast-dot{background:var(--ok)}
+  .toast.err .toast-dot{background:var(--err)}
+  .toast-spin{width:12px;height:12px;border-radius:50%;border:2px solid var(--border);border-top-color:var(--accent);flex:0 0 auto;animation:toastSpin .7s linear infinite}
+  @keyframes toastSpin{to{transform:rotate(360deg)}}
+
   /* ===== Заметки к файлу ===== */
-  #notesPanel{display:none;flex-direction:column;height:150px;background:#141420;border-top:1px solid var(--border)}
+  #notesPanel{display:none;flex-direction:column;height:150px;background:#141420;border-top:1px solid var(--border);animation:notesIn .18s cubic-bezier(.22,1.12,.36,1)}
+  @keyframes notesIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
   #notesPanel.show{display:flex}
   #notesHeader{display:flex;align-items:center;gap:8px;padding:5px 10px;font-size:12px;color:var(--muted);border-bottom:1px solid var(--border)}
   #notesHeader b{color:var(--text)}
-  #notesHeader button{margin-left:auto;background:#26263a;border:1px solid var(--border);color:var(--text);border-radius:4px;padding:3px 8px;cursor:pointer;font-size:11px}
+  #notesHeader button{margin-left:auto;background:#26263a;border:1px solid var(--border);color:var(--text);border-radius:4px;padding:3px 8px;cursor:pointer;font-size:11px;transition:background-color .15s ease,color .15s ease}
   #notesHeader button:hover{background:var(--accent);color:#fff}
   #notesArea{flex:1;resize:none;border:none;background:transparent;color:var(--text);font:13px/1.5 'Segoe UI',Arial,sans-serif;padding:8px 10px;outline:none}
 </style>
@@ -207,9 +232,10 @@
   </div>
 </div>
 <input type="color" id="colorPickerInput">
+<div id="toastHost"></div>
 
 <script type="module">
-import { compile } from '../../assets/js/GMS-script-compiler.js';
+import { compile } from '../../assets/js/gms-compiler.js';
 
 const code = document.getElementById('code');
 const highlightEl = document.getElementById('highlight');
@@ -231,6 +257,52 @@ const folderInput = document.getElementById('folderInput');
 const notesPanel = document.getElementById('notesPanel');
 const notesArea = document.getElementById('notesArea');
 const notesFileName = document.getElementById('notesFileName');
+const toastHost = document.getElementById('toastHost');
+
+// ===== Тосты (ненавязчивые уведомления, например при открытии файла по ссылке) =====
+function showToast(text, opts){
+  opts = opts || {};
+  const el = document.createElement('div');
+  el.className = 'toast' + (opts.kind ? ' ' + opts.kind : '');
+  const marker = document.createElement('span');
+  marker.className = opts.spin ? 'toast-spin' : 'toast-dot';
+  const label = document.createElement('span');
+  label.textContent = text;
+  el.append(marker, label);
+  toastHost.appendChild(el);
+  requestAnimationFrame(() => el.classList.add('show'));
+  if (!opts.sticky){
+    setTimeout(() => {
+      el.classList.remove('show');
+      setTimeout(() => el.remove(), 220);
+    }, opts.duration || 3200);
+  }
+  return el;
+}
+function updateToast(el, text, opts){
+  opts = opts || {};
+  if (!el || !el.isConnected) return showToast(text, opts);
+  el.className = 'toast show' + (opts.kind ? ' ' + opts.kind : '');
+  const marker = el.querySelector('.toast-spin, .toast-dot');
+  if (marker) marker.className = opts.spin ? 'toast-spin' : 'toast-dot';
+  const label = el.querySelector('span:last-child');
+  if (label) label.textContent = text;
+  if (!opts.sticky){
+    setTimeout(() => {
+      el.classList.remove('show');
+      setTimeout(() => el.remove(), 220);
+    }, opts.duration || 3200);
+  }
+  return el;
+}
+// Короткая вспышка подсветки текущего файла — визуальный отклик на переключение
+// (в том числе автоматическое, когда файл открывается по ссылке из справочника).
+function flashCurrentFileLabel(){
+  currentFileLabel.classList.remove('flash');
+  void currentFileLabel.offsetWidth; // рестарт transition
+  currentFileLabel.classList.add('flash');
+  setTimeout(() => currentFileLabel.classList.remove('flash'), 260);
+}
 
 // ВАЖНО: compile() берёт исходник как sourceCode.match(/\[([\s\S]*)\]/) — то есть
 // АБСОЛЮТНО ВСЁ (описание сцены, Start, Update, new/draw объекты, func/Function/Void)
@@ -728,7 +800,7 @@ let outDirHandle = null;    // папка для авто-сохранения �
 
 function uid(){ return 'f' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
 function makeFile(name, content){
-  return { id: uid(), name, content, notes: '', handle: null, htmlHandle: null, savedToDisk: false, compileStatus: 'unknown' };
+  return { id: uid(), name, content, notes: '', handle: null, htmlHandle: null, savedToDisk: false, compileStatus: 'unknown', originPath: null };
 }
 
 // ----- localStorage: все открытые файлы, их содержимое и заметки -----
@@ -738,7 +810,7 @@ function persistState(){
   try {
     localStorage.setItem(LS_KEY, JSON.stringify({
       activeIndex,
-      files: openFiles.map(f => ({ id: f.id, name: f.name, content: f.content, notes: f.notes }))
+      files: openFiles.map(f => ({ id: f.id, name: f.name, content: f.content, notes: f.notes, originPath: f.originPath || null }))
     }));
   } catch(e) { /* хранилище переполнено/недоступно — тихо игнорируем */ }
 }
@@ -750,7 +822,7 @@ function restoreState(){
     if (!data || !Array.isArray(data.files) || !data.files.length) return false;
     openFiles = data.files.map(f => ({
       id: f.id || uid(), name: f.name || 'script.gms', content: f.content || '', notes: f.notes || '',
-      handle: null, htmlHandle: null, savedToDisk: false, compileStatus: 'unknown'
+      handle: null, htmlHandle: null, savedToDisk: false, compileStatus: 'unknown', originPath: f.originPath || null
     }));
     activeIndex = Math.min(Math.max(+data.activeIndex || 0, 0), openFiles.length - 1);
     return true;
@@ -797,6 +869,7 @@ function switchToFile(idx){
   render();
   rebuildFileSelect();
   updateHeaderLabel();
+  flashCurrentFileLabel();
   persistStateDebounced();
   runCheck(); // сразу пересчитать ошибки/автокомпиляцию нового файла, не дожидаясь паузы в наборе текста
 }
@@ -815,6 +888,35 @@ async function createNewFile(){
   addAndSwitch(makeFile(`script${n}.gms`, TEMPLATE));
 }
 document.getElementById('btnNew').addEventListener('click', createNewFile);
+
+// ===== Открытие файла из репозитория по пути (?open=data/examples/....gms) =====
+// Используется кнопкой «Открыть в IDE» у интерактивного примера в справочнике —
+// см. openExampleInIde() в spravochnik.html. Путь читается через тот же
+// GET /api/file, которым уже пользуется предпросмотр примера в редакторе иерархии.
+async function openFileFromRepoPath(path){
+  const displayName = path.split('/').pop() || 'script.gms';
+  const existingIdx = openFiles.findIndex(f => f.originPath === path);
+  if (existingIdx !== -1){
+    switchToFile(existingIdx);
+    showToast('Файл уже был открыт: ' + displayName, { kind: 'ok' });
+    return;
+  }
+  const toast = showToast('Загрузка примера из справочника: ' + displayName + '…', { spin: true, sticky: true });
+  try {
+    const r = await fetch('/api/file?path=' + encodeURIComponent(path));
+    if (!r.ok){
+      const errBody = await r.json().catch(() => null);
+      throw new Error((errBody && errBody.error) || ('HTTP ' + r.status));
+    }
+    const content = await r.text();
+    const file = makeFile(displayName, content);
+    file.originPath = path; // не связано с File System Access — только для повторного открытия той же ссылки
+    addAndSwitch(file);
+    updateToast(toast, 'Открыт пример: ' + displayName, { kind: 'ok' });
+  } catch (e){
+    updateToast(toast, 'Не удалось загрузить «' + path + '»: ' + e.message, { kind: 'err', duration: 6000 });
+  }
+}
 
 document.getElementById('btnOpen').addEventListener('click', async () => {
   closeMenus();
@@ -1527,6 +1629,18 @@ updateHeaderLabel();
 render();
 runCheck();
 persistState();
+
+// ===== ?open=<путь> — открыть конкретный файл репозитория (приходит из справочника) =====
+// Убираем параметр из адресной строки после обработки, чтобы обновление
+// страницы не запускало повторную загрузку — набор файлов уже сохранён в
+// localStorage к этому моменту.
+(function handleOpenParam(){
+  const params = new URLSearchParams(location.search);
+  const path = params.get('open');
+  if (!path) return;
+  history.replaceState(null, '', location.pathname + location.hash);
+  openFileFromRepoPath(path);
+})();
 </script>
 </body>
 </html>

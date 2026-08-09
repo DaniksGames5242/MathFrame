@@ -66,6 +66,21 @@ const THEME_ANIMATION_CONFIG = {
     fadeDuration: 1000,
 };
 
+/* ===== ИКОНКИ ВХОДА (встроенные, без внешних запросов) =====
+   Раньше логотипы Google/Apple и аватар гостя грузились по прямым ссылкам с
+   чужих сайтов (logo-teka.com, abali.ru, flaticon). Два из них уже перестали
+   отвечать — и, поскольку это окно входа вставляется на КАЖДОЙ странице,
+   пользователи видели «битые» картинки на кнопках входа везде. Теперь иконки
+   инлайновые (тем же приёмом data:image/svg+xml, что и переключатель темы
+   ниже): не зависят от чужих доменов, не создают лишних запросов и не могут
+   отвалиться. Apple-логотип — две версии под тему (на светлой чёрный, на
+   тёмной белый), их подменяет updateThemeImages(). */
+const ICON_GOOGLE = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Cpath fill='%23FFC107' d='M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z'/%3E%3Cpath fill='%23FF3D00' d='M6.306 14.691l6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 16.318 4 9.656 8.337 6.306 14.691z'/%3E%3Cpath fill='%234CAF50' d='M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238A11.91 11.91 0 0 1 24 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z'/%3E%3Cpath fill='%231976D2' d='M43.611 20.083H42V20H24v8h11.303a12.04 12.04 0 0 1-4.087 5.571l.003-.002 6.19 5.238C36.971 39.205 44 34 44 24c0-1.341-.138-2.65-.389-3.917z'/%3E%3C/svg%3E";
+const APPLE_PATH = "M16.365 1.43c0 1.14-.42 2.2-1.12 3.01-.85.98-2.24 1.74-3.38 1.65-.14-1.1.42-2.27 1.09-3.01.77-.87 2.15-1.55 3.41-1.65zM20.5 17.1c-.6 1.36-.89 1.97-1.66 3.17-1.07 1.68-2.58 3.77-4.45 3.79-1.66.02-2.09-1.08-4.34-1.07-2.25.01-2.72 1.09-4.38 1.07-1.87-.02-3.3-1.91-4.37-3.58-2.99-4.66-3.3-10.13-1.46-13.04 1.31-2.07 3.38-3.28 5.32-3.28 1.98 0 3.22 1.09 4.86 1.09 1.59 0 2.56-1.09 4.85-1.09 1.73 0 3.56.94 4.87 2.57-4.28 2.34-3.59 8.45.76 10.37z";
+const ICON_APPLE_LIGHT = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%23111111' d='" + APPLE_PATH + "'/%3E%3C/svg%3E";
+const ICON_APPLE_DARK = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%23ffffff' d='" + APPLE_PATH + "'/%3E%3C/svg%3E";
+const ICON_GUEST = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2393a3c0' stroke-width='1.7' stroke-linecap='round'%3E%3Ccircle cx='12' cy='8.5' r='3.75'/%3E%3Cpath d='M4.5 20.5c0-4.15 3.36-7 7.5-7s7.5 2.85 7.5 7'/%3E%3C/svg%3E";
+
 // ===== ДОБАВЛЯЕМ СТИЛИ =====
 (function addGlobalStyles() {
     const style = document.createElement('style');
@@ -300,12 +315,16 @@ function updateThemeImages(mode) {
     document.querySelectorAll('img[data-light-src][data-dark-src]').forEach(img => {
         let src = mode === 'light' ? img.dataset.lightSrc : img.dataset.darkSrc;
         if (src) {
-            if (!src.startsWith('http://') && !src.startsWith('https://')) {
-                // Если путь не абсолютный и не начинается с '/', то он относительный.
-                // Мы используем абсолютные пути, поэтому добавляем '/', если его нет.
-                if (!src.startsWith('/')) {
-                    src = '/' + src;
-                }
+            // Дописывать ведущий «/» можно ТОЛЬКО настоящему пути к файлу.
+            // Раньше условие проверяло лишь http:// и https://, поэтому
+            // встроенная картинка «data:image/svg+xml,…» превращалась в
+            // «/data:image/svg+xml,…» — браузер шёл за ней на сервер и,
+            // естественно, получал 404 (иконка входа Apple пропадала при
+            // первой же смене темы). Проверяем наличие любой схемы «xxx:»
+            // и протокол-относительный «//…», а не два конкретных префикса.
+            const hasScheme = /^[a-z][a-z0-9+.-]*:/i.test(src) || src.startsWith('//');
+            if (!hasScheme && !src.startsWith('/')) {
+                src = '/' + src;
             }
             img.src = src;
         }
@@ -449,7 +468,7 @@ function updateAccountCircle(user) {
         circle.title = name;
         circle.onclick = () => openSettings();
     } else {
-        circle.innerHTML = `<img src="https://cdn-icons-png.flaticon.com/512/8188/8188349.png" alt="Гость" style="width:100%;height:100%;object-fit:cover;" />`;
+        circle.innerHTML = `<img src="${ICON_GUEST}" alt="Гость" style="width:100%;height:100%;object-fit:cover;" />`;
         circle.title = 'Войти';
         circle.onclick = () => window.openAuthModal();
     }
@@ -513,12 +532,12 @@ function injectAuthModal() {
       <div class="divider"><span>или</span></div>
       <div class="social-icons">
         <button class="social-btn" id="google-login-btn">
-          <img src="https://logo-teka.com/wp-content/uploads/2025/06/google-logo.svg" alt="Google" />
+          <img src="${ICON_GOOGLE}" alt="Google" />
         </button>
         <button class="social-btn" id="apple-login-btn">
-          <img src="https://abali.ru/wp-content/uploads/2012/09/logo_apple.png" alt="Apple"
-               data-light-src="https://upload.wikimedia.org/wikipedia/commons/f/fa/Apple_logo_black.svg"
-               data-dark-src="https://abali.ru/wp-content/uploads/2012/09/logo_apple.png" />
+          <img src="${ICON_APPLE_DARK}" alt="Apple"
+               data-light-src="${ICON_APPLE_LIGHT}"
+               data-dark-src="${ICON_APPLE_DARK}" />
         </button>
       </div>
       <div id="recaptcha-container"></div>
@@ -808,7 +827,11 @@ function injectSettingsModal() {
 
       <div class="avatar-section">
         <div class="avatar-wrapper" id="avatar-wrapper">
-          <img id="avatar-img" src="" alt="" style="display:none" />
+          <!-- без пустого src="": браузер трактует его как ссылку на саму
+               страницу и повторно скачивает весь HTML-документ (лишний запрос
+               + ошибка загрузки в консоли). Настоящий src проставляет
+               populateSettings(), когда у пользователя есть аватар. -->
+          <img id="avatar-img" alt="" style="display:none" />
           <div class="avatar-placeholder" id="avatar-placeholder">?</div>
         </div>
         <div class="username-display">
