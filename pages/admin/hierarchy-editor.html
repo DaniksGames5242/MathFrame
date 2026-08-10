@@ -1722,7 +1722,10 @@
      Undo / redo
      ============================================================ */
   function selectionSnapshot(){
-    return { selectedIds: new Set(selectedIds), currentId, anchorId };
+    return { selectedIds: new Set(selectedIds), currentId, anchorId, selectionMode };
+  }
+  function selectionKey(){
+    return [...selectedIds].sort((a,b) => a-b).join(',') + '|' + currentId + '|' + anchorId + '|' + selectionMode;
   }
   function pushUndo(){
     undoStack.push(Object.assign({ treeData: cloneDeep(treeData), idCounter }, selectionSnapshot()));
@@ -1730,13 +1733,28 @@
     redoStack = [];
     syncEnabled();
   }
+  // For actions that only change which topics are selected (click, shift/ctrl
+  // click, select-all, checkbox toggles…) — no tree mutation, so no full
+  // pushUndo() semantics needed, but the user still expects Ctrl+Z to step
+  // back through selection changes the same way it does edits. Reuses the
+  // same undo stack/snapshot shape so applySnapshot() needs no special case;
+  // pops the entry back off if `mutateFn` turned out not to change anything
+  // (e.g. clicking the already-sole-selected row), so no-op clicks don't
+  // spam the undo stack or clobber the redo stack.
+  function pushSelectionUndo(mutateFn){
+    const beforeKey = selectionKey();
+    const savedRedo = redoStack;
+    pushUndo();
+    mutateFn();
+    if (selectionKey() === beforeKey){ undoStack.pop(); redoStack = savedRedo; }
+  }
   function applySnapshot(snap, dir){
     treeData = snap.treeData; idCounter = snap.idCounter;
     const validIds = new Set(flatOrder(treeData));
     selectedIds = new Set([...snap.selectedIds].filter(id => validIds.has(id)));
     currentId = (snap.currentId != null && validIds.has(snap.currentId)) ? snap.currentId : null;
     anchorId = (snap.anchorId != null && validIds.has(snap.anchorId)) ? snap.anchorId : null;
-    editingId = null; selectionMode = false;
+    editingId = null; selectionMode = !!snap.selectionMode;
     const known = new Set(nodeEls.keys());
     flatOrder(treeData).forEach(id => { if (!known.has(id)) enterOf.set(id, 'restore'); });
     render();
@@ -1761,13 +1779,21 @@
   /* ============================================================
      Selection
      ============================================================ */
-  function exitSelectionMode(){ selectionMode = false; selectedIds.clear(); anchorId = null; render(); }
-  function clearSelection(){ selectedIds.clear(); currentId = null; anchorId = null; render(); }
+  function exitSelectionMode(){
+    pushSelectionUndo(() => { selectionMode = false; selectedIds.clear(); anchorId = null; });
+    render();
+  }
+  function clearSelection(){
+    pushSelectionUndo(() => { selectedIds.clear(); currentId = null; anchorId = null; });
+    render();
+  }
   function selectAllNodes(){
     const all = flatVisibleOrder(treeData);
     if (!all.length) return;
-    selectedIds = new Set(flatOrder(treeData));
-    currentId = all[all.length-1]; anchorId = currentId;
+    pushSelectionUndo(() => {
+      selectedIds = new Set(flatOrder(treeData));
+      currentId = all[all.length-1]; anchorId = currentId;
+    });
     staggerBase = 16;
     render();
     setStatus('Выделено всё: ' + selectedIds.size);
@@ -2420,8 +2446,10 @@
         rec.pick.className = 'pick';
         rec.pick.addEventListener('click', e => e.stopPropagation());
         rec.pick.addEventListener('change', () => {
-          if (rec.pick.checked) selectedIds.add(rec.node.id); else selectedIds.delete(rec.node.id);
-          if (selectedIds.size === 0) selectionMode = false;
+          pushSelectionUndo(() => {
+            if (rec.pick.checked) selectedIds.add(rec.node.id); else selectedIds.delete(rec.node.id);
+            if (selectedIds.size === 0) selectionMode = false;
+          });
           render();
         });
         rec.pickWrap.appendChild(rec.pick);
@@ -2449,9 +2477,11 @@
       cancelLP();
       lpTimer = setTimeout(() => {
         lpFired = true;
-        selectionMode = true;
-        selectedIds.add(rec.node.id);
-        currentId = null; anchorId = null;
+        pushSelectionUndo(() => {
+          selectionMode = true;
+          selectedIds.add(rec.node.id);
+          currentId = null; anchorId = null;
+        });
         if (navigator.vibrate){ try { navigator.vibrate(22); } catch(err){} }
         render();
       }, 520);
@@ -2472,15 +2502,19 @@
 
       // touch checkbox mode — unchanged
       if (selectionMode){
-        if (selectedIds.has(id)) selectedIds.delete(id); else selectedIds.add(id);
-        if (selectedIds.size === 0) selectionMode = false;
+        pushSelectionUndo(() => {
+          if (selectedIds.has(id)) selectedIds.delete(id); else selectedIds.add(id);
+          if (selectedIds.size === 0) selectionMode = false;
+        });
         render();
         return;
       }
       // desktop Ctrl/Cmd — toggle just this one
       if (isMouse && (e.ctrlKey || e.metaKey)){
-        if (selectedIds.has(id)) selectedIds.delete(id); else selectedIds.add(id);
-        currentId = id; anchorId = id;
+        pushSelectionUndo(() => {
+          if (selectedIds.has(id)) selectedIds.delete(id); else selectedIds.add(id);
+          currentId = id; anchorId = id;
+        });
         render();
         return;
       }
@@ -2489,15 +2523,16 @@
         const order = flatVisibleOrder(treeData);
         const a = order.indexOf(anchorId), t = order.indexOf(id);
         if (a !== -1 && t !== -1){
-          selectedIds = new Set(order.slice(Math.min(a,t), Math.max(a,t) + 1));
-          currentId = id;
+          pushSelectionUndo(() => {
+            selectedIds = new Set(order.slice(Math.min(a,t), Math.max(a,t) + 1));
+            currentId = id;
+          });
           staggerBase = 24;
           render();
           return;
         }
       }
-      selectedIds = new Set([id]);
-      currentId = id; anchorId = id;
+      pushSelectionUndo(() => { selectedIds = new Set([id]); currentId = id; anchorId = id; });
       render();
     });
 
@@ -2506,7 +2541,7 @@
       if (editingId) return;
       const id = rec.node.id;
       if (!(selectedIds.has(id) && selectedIds.size > 1)){
-        selectedIds = new Set([id]); currentId = id; anchorId = id;
+        pushSelectionUndo(() => { selectedIds = new Set([id]); currentId = id; anchorId = id; });
         render();
       }
       showCtx(e.clientX, e.clientY);
@@ -4578,7 +4613,13 @@
     lis.forEach((li,i) => {
       li.classList.add('lifting');
       const rec = nodeEls.get(Number(li.dataset.id));
-      if (rec) anim(rec.row, [{transform:'none'},{transform:'scale(.985)'}], {duration:D(200), easing:SMOOTH, delay:D(i*30), fill:'forwards'});
+      // fill:'forwards' holds the compressed frame for as long as the drag
+      // lasts (which can far outrun this animation's own 200ms) — endDrag()
+      // must .cancel() this specific Animation, not just play a reverse one
+      // over it, or once the reverse animation's own (unfilled) effect ends
+      // this one — still "finished" and still filling forwards — silently
+      // takes over again and snaps the row back to scale(.985) forever.
+      if (rec) rec._liftAnim = anim(rec.row, [{transform:'none'},{transform:'scale(.985)'}], {duration:D(200), easing:SMOOTH, delay:D(i*30), fill:'forwards'});
     });
 
     drag = { ids, ghost, target:null, pos:null, rootHover:false, lis, x:e.clientX, y:e.clientY, gx:e.clientX, gy:e.clientY, vx:0, raf:0, startX:e.clientX, startY:e.clientY, moved:false };
@@ -4680,7 +4721,12 @@
     clearMarks();
     el.canvas.classList.remove('drop-root-hint');
     lis.forEach(li => li.classList.remove('lifting'));
-    ids.forEach(id => { const rec = nodeEls.get(id); if (rec) anim(rec.row, [{transform:'scale(.985)'},{transform:'none'}], {duration:D(220), easing:SPRING}); });
+    ids.forEach(id => {
+      const rec = nodeEls.get(id);
+      if (!rec) return;
+      if (rec._liftAnim){ try { rec._liftAnim.cancel(); } catch(e){} rec._liftAnim = null; }
+      anim(rec.row, [{transform:'scale(.985)'},{transform:'none'}], {duration:D(220), easing:SPRING});
+    });
 
     const land = () => ghost.remove();
     if (target != null){
@@ -4719,6 +4765,7 @@
       });
       if (alreadyRootOnly){
         drag = null;
+        render();
         setStatus('Уже в корне.');
       } else {
         pushUndo();
@@ -4730,7 +4777,13 @@
         setStatus(moved.length > 1 ? ('Перемещено в корень: ' + moved.length) : ('«' + moved[0].name + '» перемещён в корень'));
       }
     } else {
+      // Nothing moved in treeData, but the pointer may still have dragged
+      // across other rows mid-gesture (hover highlights, scroll) before
+      // landing back on empty ground — force the same reconcile pass a real
+      // move gets, so no stray class/position ever survives a drag that
+      // technically changed nothing.
       drag = null;
+      render();
     }
   }
 
@@ -4770,6 +4823,17 @@
   const AI_JOB_KEY = 'mf-ai-job-v1';
   const AI_TYPES_SUPPORTED = ['topic', 'folder', 'theorem', 'proof'];
   const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta';
+  // The key MUST go as a `?key=` query param, not the `x-goog-api-key`
+  // header: a custom header turns every request (even a plain GET) into a
+  // CORS-preflighted one, and generativelanguage.googleapis.com doesn't
+  // answer that preflight with Access-Control-Allow-Origin — the browser
+  // blocks the whole call before it ever reaches Google. The query-param
+  // form is the one Google's own browser/client-side docs use, and it
+  // avoids the preflight for GETs entirely (POSTs still preflight on
+  // Content-Type, which Google does answer correctly).
+  function geminiUrl(path, apiKey){
+    return GEMINI_BASE + path + (path.includes('?') ? '&' : '?') + 'key=' + encodeURIComponent(apiKey);
+  }
 
   function loadAiSettings(){
     try {
@@ -4921,9 +4985,7 @@
 
   /* ---------------- Gemini API ---------------- */
   async function aiListModels(apiKey){
-    const r = await fetch(GEMINI_BASE + '/models?pageSize=1000', {
-      headers: { 'x-goog-api-key': apiKey }
-    });
+    const r = await fetch(geminiUrl('/models?pageSize=1000', apiKey));
     const data = await r.json().catch(() => null);
     if (!r.ok || !data || !Array.isArray(data.models)) {
       throw new Error((data && data.error && data.error.message) || ('HTTP ' + r.status));
@@ -4974,9 +5036,9 @@
   async function aiTestModel(apiKey, modelId){
     const t0 = performance.now();
     try {
-      const r = await fetch(GEMINI_BASE + '/models/' + encodeURIComponent(modelId) + ':generateContent', {
+      const r = await fetch(geminiUrl('/models/' + encodeURIComponent(modelId) + ':generateContent', apiKey), {
         method: 'POST',
-        headers: { 'content-type': 'application/json', 'x-goog-api-key': apiKey },
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           contents: [{ role: 'user', parts: [{ text: AI_TEST_PROMPT }] }],
           generationConfig: { maxOutputTokens: 400 },
@@ -5030,12 +5092,9 @@
       generationConfig: { maxOutputTokens: opts.maxTokens || 4096 }
     };
     if (opts.webSearch) body.tools = [{ google_search: {} }];
-    const r = await fetch(GEMINI_BASE + '/models/' + encodeURIComponent(model) + ':generateContent', {
+    const r = await fetch(geminiUrl('/models/' + encodeURIComponent(model) + ':generateContent', apiKey), {
       method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-goog-api-key': apiKey
-      },
+      headers: { 'content-type': 'application/json' },
       body: JSON.stringify(body)
     });
     const dt = performance.now() - t0;
@@ -5818,6 +5877,21 @@ id: <идентификатор> | title: <название темы> | type: <�
     modelHint.textContent = 'Проверка отправляет каждой модели тестовый запрос: так отсеиваются модели, которые отвечают ошибкой вместо текста, и те, что не пользуются поиском в интернете (это нужно для первого шага генерации). Рядом с названием показана скорость ответа — список отсортирован от самых быстрых.';
     body.appendChild(modelHint);
 
+    // Check progress — hidden until checkBtn starts a run. Testing happens
+    // with 4 models in flight at once (see aiMapLimit below), so the
+    // "currently testing" line lists every in-flight model, not just one.
+    const checkProgWrap = document.createElement('div'); checkProgWrap.className = 'ai-progress-wrap';
+    checkProgWrap.style.display = 'none';
+    const checkProgBar = document.createElement('div'); checkProgBar.className = 'ai-progress-bar';
+    const checkProgFill = document.createElement('div'); checkProgFill.className = 'ai-progress-fill';
+    checkProgBar.appendChild(checkProgFill);
+    const checkProgStats = document.createElement('div'); checkProgStats.className = 'ai-progress-stats';
+    const checkProgCount = document.createElement('span');
+    const checkProgTesting = document.createElement('span');
+    checkProgStats.append(checkProgCount, checkProgTesting);
+    checkProgWrap.append(checkProgBar, checkProgStats);
+    body.appendChild(checkProgWrap);
+
     function fillModels(models, selected){
       modelSelect.innerHTML = '';
       if (!models.length){
@@ -5851,6 +5925,10 @@ id: <идентификатор> | title: <название темы> | type: <�
       const key = keyInput.value.trim();
       if (!key){ setStatus('Сначала введите API-ключ.'); return; }
       checkBtn.disabled = true; checkBtn.textContent = 'Получение списка моделей…';
+      checkProgWrap.style.display = '';
+      checkProgFill.style.width = '0%';
+      checkProgCount.textContent = 'Получение списка моделей…';
+      checkProgTesting.textContent = '';
       aiLog('=== Проверка моделей: запрос списка ===');
       let models;
       try {
@@ -5858,14 +5936,27 @@ id: <идентификатор> | title: <название темы> | type: <�
       } catch (e){
         setStatus('Не удалось получить список моделей (' + e.message + ').');
         checkBtn.disabled = false; checkBtn.textContent = 'Проверить / обновить список';
+        checkProgWrap.style.display = 'none';
         return;
       }
       aiLog('Список получен, моделей:', models.length, '— тестируем каждую (ответ + поиск в интернете + скорость)…');
       let completed = 0;
+      const inFlight = new Set();
+      function paintCheckProgress(){
+        checkProgFill.style.width = Math.round(completed / models.length * 100) + '%';
+        checkProgCount.textContent = completed + ' / ' + models.length;
+        checkProgTesting.textContent = inFlight.size ? 'Сейчас проверяются: ' + [...inFlight].join(', ') : '';
+      }
+      paintCheckProgress();
       const tested = await aiMapLimit(models, 4, async (m) => {
+        const name = m.display_name || m.id;
+        inFlight.add(name);
+        paintCheckProgress();
         const res = await aiTestModel(key, m.id);
+        inFlight.delete(name);
         completed++;
         checkBtn.textContent = 'Проверка моделей… ' + completed + ' / ' + models.length;
+        paintCheckProgress();
         return Object.assign({}, m, { ok: res.ok, webSearch: res.webSearch, latencyMs: res.latencyMs, testError: res.error });
       });
       const usable = tested.filter(m => m.ok && m.webSearch).sort((a, b) => a.latencyMs - b.latencyMs);
@@ -5880,6 +5971,7 @@ id: <идентификатор> | title: <название темы> | type: <�
       saveAiSettings({ apiKey: key, model: modelSelect.value });
       setStatus('Проверено моделей: ' + tested.length + ', подходят: ' + usable.length + ' (без поиска в интернете: ' + noSearch.length + ', с ошибками: ' + broken.length + ').');
       checkBtn.disabled = false; checkBtn.textContent = 'Проверить / обновить список';
+      checkProgWrap.style.display = 'none';
     });
 
     // --- topics ---
