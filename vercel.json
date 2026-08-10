@@ -15,7 +15,7 @@
       "source": "/pages/spravochnik.html",
       "destination": "/spravochnik/",
       "permanent": true
-    },
+    },  
     {
       "source": "/pages/forum.html",
       "destination": "/forum/",
