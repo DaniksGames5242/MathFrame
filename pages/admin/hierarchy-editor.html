@@ -8,6 +8,7 @@
       onerror="this.href='https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css'">
 <script defer src="/assets/lib/katex/katex.min.js" id="katexJs"
         onerror="var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js';document.head.appendChild(s);"></script>
+<link rel="stylesheet" href="/assets/css/mathfield.css">
 <style>
   :root{
     --ink-0:#15161a;
@@ -292,6 +293,12 @@
   .rte-formula-row{ display:flex; align-items:center; gap:8px; margin-top:8px; }
   .rte-formula-row label{ display:flex; align-items:center; gap:6px; font-size:12px; color:var(--dim); cursor:pointer; }
   .rte-formula-row input[type=checkbox]{ accent-color:var(--accent); }
+  .rte-formula-kb-toggle{
+    margin-top:8px; width:100%; font-family:var(--serif); font-size:12px; color:var(--accent-line);
+    background:transparent; border:1px dashed var(--rule); border-radius:2px; padding:6px 8px; cursor:pointer;
+  }
+  .rte-formula-kb-toggle:hover{ border-color:var(--accent); background:var(--accent-soft); }
+  .rte-formula-kb-wrap{ margin-top:8px; border:1px solid var(--rule-soft); border-radius:3px; padding:8px; background:var(--ink-1); }
   .rte-formula-chars{ display:flex; flex-wrap:wrap; gap:3px; margin-top:8px; }
   .rte-formula-chars button{
     border:1px solid var(--rule-soft); background:var(--ink-1); color:var(--text); border-radius:2px;
@@ -389,6 +396,17 @@
   .example-path-btn .ic{ color:var(--faint); flex:0 0 auto; }
   .example-path-text{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .example-path-text.empty{ color:var(--faint); font-style:italic; font-family:var(--serif); }
+  .example-empty-hint{
+    display:flex; align-items:center; justify-content:space-between; gap:8px;
+    font-family:var(--serif); font-size:12.5px; font-style:italic; color:var(--faint);
+    padding:7px 9px; border:1px dashed var(--rule); border-radius:2px;
+  }
+  .example-empty-add{
+    flex:0 0 auto; font-family:var(--sans, inherit); font-style:normal; font-size:11.5px;
+    color:var(--accent-line); background:transparent; border:0; cursor:pointer; padding:0;
+    text-decoration:underline; text-underline-offset:2px;
+  }
+  .example-empty-add:hover{ color:var(--accent); }
   .example-icon-btn{
     flex:0 0 auto; width:32px; border:1px solid var(--rule); background:var(--ink-0); color:var(--faint);
     border-radius:2px; cursor:pointer; display:flex; align-items:center; justify-content:center;
@@ -855,7 +873,7 @@
   }
   .ai-checkrow input{ width:14px; height:14px; accent-color:var(--accent); flex:0 0 auto; }
   .ai-topics-list{
-    max-height:110px; overflow-y:auto; background:var(--ink-1); border:1px solid var(--rule-soft);
+    max-height:110px; min-height:60px; flex:0 0 auto; overflow-y:auto; background:var(--ink-1); border:1px solid var(--rule-soft);
     border-radius:3px; padding:6px 10px; font-size:12.5px; color:var(--dim);
   }
   .ai-topics-list div{ padding:2px 0; }
@@ -1010,7 +1028,11 @@
 
         <div class="insp-field" id="fExampleWrap">
           <span class="insp-label">Файл примера</span>
-          <div class="example-row">
+          <div class="example-empty-hint" id="fExampleEmptyHint" style="display:none">
+            <span>нет интерактивного примера</span>
+            <button type="button" class="example-empty-add" id="fExampleEmptyAdd">+ добавить</button>
+          </div>
+          <div class="example-row" id="fExampleRow">
             <button type="button" class="example-path-btn" id="fExamplePick">
               <span class="ic" id="fExamplePickIcon"></span>
               <span class="example-path-text" id="fExamplePath">— не выбран —</span>
@@ -1138,6 +1160,8 @@
      to reach the site root from here. -->
 <script>var PAGE_ROOT = '../../';</script>
 <script src="../../assets/js/auth.js"></script>
+<script src="/assets/js/mathfield.js"></script>
+<script src="/assets/js/mf-keyboard.js"></script>
 
 <script>
 (function(){
@@ -1164,7 +1188,6 @@
     expandAll:'<path d="M3.4 3.9l3.1 3 3.1-3M3.4 7.6l3.1 3 3.1-3"/>',
     collapseAll:'<path d="M3.4 6.1l3.1-3 3.1 3M3.4 9.8l3.1-3 3.1 3"/>',
     close:'<path d="M3.5 3.5l6 6M9.5 3.5l-6 6"/>',
-    broom:'<path d="M6.5 1.9v4.6M3.4 6.5h6.2l-.7 4.6H4.1z"/>',
     panel:'<path d="M2 2.7h9v7.6H2zM5.3 2.7v7.6"/>',
     file:'<path d="M3.1 1.8h4.3l2.5 2.5v6.9H3.1z"/><path d="M7.4 1.8v2.5h2.5"/>',
     play:'<path d="M4 2.6l6 3.9-6 3.9z"/>',
@@ -1698,15 +1721,22 @@
   /* ============================================================
      Undo / redo
      ============================================================ */
+  function selectionSnapshot(){
+    return { selectedIds: new Set(selectedIds), currentId, anchorId };
+  }
   function pushUndo(){
-    undoStack.push({ treeData: cloneDeep(treeData), idCounter });
+    undoStack.push(Object.assign({ treeData: cloneDeep(treeData), idCounter }, selectionSnapshot()));
     if (undoStack.length > MAX_UNDO) undoStack.shift();
     redoStack = [];
     syncEnabled();
   }
   function applySnapshot(snap, dir){
     treeData = snap.treeData; idCounter = snap.idCounter;
-    selectedIds.clear(); currentId = null; anchorId = null; editingId = null; selectionMode = false;
+    const validIds = new Set(flatOrder(treeData));
+    selectedIds = new Set([...snap.selectedIds].filter(id => validIds.has(id)));
+    currentId = (snap.currentId != null && validIds.has(snap.currentId)) ? snap.currentId : null;
+    anchorId = (snap.anchorId != null && validIds.has(snap.anchorId)) ? snap.anchorId : null;
+    editingId = null; selectionMode = false;
     const known = new Set(nodeEls.keys());
     flatOrder(treeData).forEach(id => { if (!known.has(id)) enterOf.set(id, 'restore'); });
     render();
@@ -1717,13 +1747,13 @@
   }
   function performUndo(){
     if (!undoStack.length){ setStatus('Отменять нечего.'); return; }
-    redoStack.push({ treeData: cloneDeep(treeData), idCounter });
+    redoStack.push(Object.assign({ treeData: cloneDeep(treeData), idCounter }, selectionSnapshot()));
     applySnapshot(undoStack.pop(), -1);
     setStatus('Действие отменено.');
   }
   function performRedo(){
     if (!redoStack.length){ setStatus('Возвращать нечего.'); return; }
-    undoStack.push({ treeData: cloneDeep(treeData), idCounter });
+    undoStack.push(Object.assign({ treeData: cloneDeep(treeData), idCounter }, selectionSnapshot()));
     applySnapshot(redoStack.pop(), 1);
     setStatus('Действие возвращено.');
   }
@@ -2250,6 +2280,12 @@
   function spawnExit(rec, style, i, r){
     const clone = rec.row.cloneNode(true);
     clone.classList.add('exit-clone');
+    // rec.row carries an inline margin-left for its tree indent (see
+    // positionRow); r.left already accounts for that in-flow offset, but
+    // once the clone is switched to position:fixed the leftover inline
+    // margin would additionally push it further right than r.left. Clear it
+    // so the clone lands exactly where the real row was.
+    clone.style.marginLeft = '0';
     clone.style.left = r.left + 'px';
     clone.style.top = r.top + 'px';
     clone.style.width = r.width + 'px';
@@ -2269,7 +2305,11 @@
     }[style];
 
     const dur = style === 'collapse' ? 320 : style === 'delete' ? 460 : 340;
-    const delay = style === 'collapse' ? Math.min(i * 22, 260) : Math.min(i * 45, 320);
+    // Collapse must start in the same frame the siblings below begin sliding
+    // up to close the gap (paint()'s FLIP move, no delay) — any per-row
+    // stagger here makes the still-fading children overlap those moving
+    // rows instead of vanishing together with them.
+    const delay = style === 'collapse' ? 0 : Math.min(i * 45, 320);
     anim(clone, frames, { duration:D(dur), easing:style === 'delete' ? SPRING : OUT, delay:D(delay) })
       .finished.then(() => clone.remove(), () => clone.remove());
   }
@@ -2683,9 +2723,7 @@
       { sep:true },
       { ic:'ai', label:'Автогенерация описаний…', run:openAiPanel },
       { sep:true },
-      { ic:'save', label:'Экспортировать локально', run:doExportLocal },
-      { sep:true },
-      { ic:'broom', label:'Очистить всё', run:doClear, danger:true }
+      { ic:'save', label:'Экспортировать локально', run:doExportLocal }
     ],
     edit: [
       { ic:'undo', label:'Отменить', key:'Ctrl+Z', run:performUndo, id:'mUndo' },
@@ -2958,6 +2996,25 @@
     sel.addRange(r2);
   }
 
+  // Wraps the *actual* previously-selected content (moving the real nodes,
+  // not a reconstructed text string) inside `wrapper` — used so "insert a
+  // link" turns exactly the text the user had selected into the link, with
+  // no characters added or lost, instead of deleting the selection and
+  // typing a fresh copy of it back in.
+  function wrapRangeIn(surface, range, wrapper){
+    surface.focus();
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+    const r2 = sel.getRangeAt(0);
+    wrapper.appendChild(r2.extractContents());
+    r2.insertNode(wrapper);
+    r2.setStartAfter(wrapper);
+    r2.setEndAfter(wrapper);
+    sel.removeAllRanges();
+    sel.addRange(r2);
+  }
+
   let activeRTE = null;
   const RTE_BLOCKS = [['p','Текст'],['h2','Заголовок 2'],['h3','Заголовок 3'],['h4','Заголовок 4'],['blockquote','Цитата']];
 
@@ -3085,6 +3142,7 @@
       isEmpty(){ return !surface.textContent.trim() && !surface.querySelector('.rte-formula, table'); },
       focus(){ surface.focus(); },
       insertNode(node, range){ insertAtRange(surface, range, node); fireDiscreteChange(); },
+      wrapRange(range, wrapper){ wrapRangeIn(surface, range, wrapper); fireDiscreteChange(); },
       commit(){ fireDiscreteChange(); },
     };
     return api;
@@ -3243,11 +3301,16 @@
           if (existingAnchor){
             existingAnchor.setAttribute('href', 'topic:' + n.topicId);
             rte.commit();
+          } else if (savedRange && !savedRange.collapsed){
+            const a = document.createElement('a');
+            a.setAttribute('href', 'topic:' + n.topicId);
+            a.className = 'rte-link-internal';
+            rte.wrapRange(savedRange, a);
           } else {
             const a = document.createElement('a');
             a.setAttribute('href', 'topic:' + n.topicId);
             a.className = 'rte-link-internal';
-            a.textContent = (savedRange && !savedRange.collapsed) ? savedRange.toString() : n.name;
+            a.textContent = n.name;
             rte.insertNode(a, savedRange);
           }
           closeRtePop(pop);
@@ -3376,6 +3439,45 @@
     ta.addEventListener('input', updatePreview);
     chk.addEventListener('change', updatePreview);
     ta.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Escape') closeRtePop(pop); });
+
+    // Visual on-screen math keyboard, alongside (not replacing) the raw-LaTeX
+    // textarea: MathField.setExpr() only understands a small ascii-ish
+    // syntax, not arbitrary LaTeX, so it can't be the sole/authoritative
+    // input for editing existing formulas — it's an input aid that writes
+    // its .latex() output into the textarea on every change.
+    const kbToggle = document.createElement('button');
+    kbToggle.type = 'button'; kbToggle.className = 'rte-formula-kb-toggle';
+    kbToggle.textContent = 'Показать визуальную клавиатуру';
+    pop.appendChild(kbToggle);
+
+    const kbWrap = document.createElement('div');
+    kbWrap.className = 'rte-formula-kb-wrap';
+    kbWrap.style.display = 'none';
+    const kbFieldEl = document.createElement('div');
+    const kbKeyboardEl = document.createElement('div');
+    kbWrap.appendChild(kbFieldEl);
+    kbWrap.appendChild(kbKeyboardEl);
+    pop.appendChild(kbWrap);
+
+    let mf = null, kbOpen = false;
+    function ensureMathKeyboard(){
+      if (mf || typeof MathField === 'undefined' || typeof MFKeyboard === 'undefined') return;
+      mf = new MathField(kbFieldEl, {
+        label: '',
+        onChange(){
+          try { ta.value = mf.latex(); updatePreview(); } catch (e) {}
+        }
+      });
+      new MFKeyboard(kbKeyboardEl, mf, { collapsed:false });
+      try { if (ta.value.trim()) mf.setExpr(ta.value.trim()); } catch (e) { /* not every LaTeX round-trips into the simple keyboard syntax */ }
+    }
+    kbToggle.addEventListener('click', () => {
+      kbOpen = !kbOpen;
+      kbToggle.textContent = kbOpen ? 'Скрыть визуальную клавиатуру' : 'Показать визуальную клавиатуру';
+      kbWrap.style.display = kbOpen ? '' : 'none';
+      pop.style.width = kbOpen ? 'min(480px, 92vw)' : '340px';
+      if (kbOpen) ensureMathKeyboard();
+    });
 
     const chars = document.createElement('div'); chars.className = 'rte-formula-chars';
     FORMULA_QUICK.forEach(snippet => {
@@ -3591,13 +3693,35 @@
     const pathText = document.getElementById('fExamplePath');
     const manualToggle = document.getElementById('fExampleManualToggle');
     const manualInput = document.getElementById('fExampleManual');
+    const exampleRow = document.getElementById('fExampleRow');
+    const demoBtn = document.getElementById('fExampleDemo');
+    const emptyHint = document.getElementById('fExampleEmptyHint');
+    const emptyAdd = document.getElementById('fExampleEmptyAdd');
     let manualOpen = false;
+    let forcedOpen = false;   // "+ добавить" was clicked — show the picker even though value is still empty
+    let lastKey = null;
 
     function paintPathText(nodes){
       const cv = commonValue(nodes, n => n.example);
       if (cv.mixed){ pathText.textContent = '— разные —'; pathText.classList.add('empty'); }
       else if (!cv.value){ pathText.textContent = '— не выбран —'; pathText.classList.add('empty'); }
       else { pathText.textContent = cv.value; pathText.classList.remove('empty'); }
+    }
+
+    // No example set on the current topic: the picker/manual/demo buttons
+    // are dead clutter in that state, so show plain informational text
+    // instead — with a small affordance to reveal the real controls when the
+    // user actually wants to add one.
+    function paintEmptyState(nodes){
+      const key = nodes.map(n => n.id).join(',');
+      if (key !== lastKey){ lastKey = key; forcedOpen = false; }
+      const cv = commonValue(nodes, n => n.example);
+      const isEmpty = !cv.mixed && !cv.value;
+      if (!isEmpty) forcedOpen = false;
+      const showHint = isEmpty && !forcedOpen;
+      emptyHint.style.display = showHint ? '' : 'none';
+      exampleRow.style.display = showHint ? 'none' : '';
+      demoBtn.style.display = showHint ? 'none' : '';
     }
 
     const manualRefresh = bindText(manualInput, n => n.example, (n, v) => { n.example = v; }, { onLive: paintPathText });
@@ -3609,10 +3733,16 @@
       manualInput.style.display = manualOpen ? '' : 'none';
       if (manualOpen) manualInput.focus();
     });
+    emptyAdd.addEventListener('click', () => {
+      forcedOpen = true;
+      paintEmptyState(selectionNodes());
+      openExamplePicker();
+    });
 
     return function refresh(nodes){
       manualRefresh(nodes);
       paintPathText(nodes);
+      paintEmptyState(nodes);
     };
   }
 
@@ -3886,17 +4016,6 @@
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 2000);
     setStatus('Локальная копия сохранена в config.json.');
-  }
-  function doClear(){
-    if (!treeData.length) return;
-    confirmDlg('Очистить всю иерархию? Действие можно отменить через Ctrl+Z.', () => {
-      pushUndo();
-      flatOrder(treeData).forEach(id => exitOf.set(id, 'delete'));
-      treeData = [];
-      selectedIds.clear(); currentId = null; anchorId = null; selectionMode = false;
-      render();
-      setStatus('Иерархия очищена.');
-    });
   }
 
   /* ============================================================
@@ -4462,7 +4581,7 @@
       if (rec) anim(rec.row, [{transform:'none'},{transform:'scale(.985)'}], {duration:D(200), easing:SMOOTH, delay:D(i*30), fill:'forwards'});
     });
 
-    drag = { ids, ghost, target:null, pos:null, rootHover:false, lis, x:e.clientX, y:e.clientY, gx:e.clientX, gy:e.clientY, vx:0, raf:0 };
+    drag = { ids, ghost, target:null, pos:null, rootHover:false, lis, x:e.clientX, y:e.clientY, gx:e.clientX, gy:e.clientY, vx:0, raf:0, startX:e.clientX, startY:e.clientY, moved:false };
     loopGhost();
 
     const move = ev => onDragMove(ev);
@@ -4498,6 +4617,17 @@
     if (!drag) return;
     drag.x = e.clientX; drag.y = e.clientY;
 
+    // A drop must be a deliberate gesture: until the pointer has actually
+    // travelled a few pixels from where the drag began, don't compute any
+    // drop target at all — otherwise a near-instant mousedown+mouseup (or a
+    // sub-pixel jitter) on the row's own middle 'in' band reads as "nest
+    // this under itself/its neighbor" and the row visibly indents on drop.
+    if (!drag.moved){
+      const dx = e.clientX - drag.startX, dy = e.clientY - drag.startY;
+      if (Math.hypot(dx, dy) < 6) return;
+      drag.moved = true;
+    }
+
     const r = el.canvas.getBoundingClientRect();
     const edge = 44;
     if (e.clientY < r.top + edge) el.canvas.scrollTop -= 15;
@@ -4521,7 +4651,7 @@
         const row = li.querySelector(':scope > .node-row');
         const rr = row.getBoundingClientRect();
         const frac = (e.clientY - rr.top) / rr.height;
-        drag.pos = frac < .3 ? 'before' : frac > .7 ? 'after' : 'in';
+        drag.pos = frac < .35 ? 'before' : frac > .65 ? 'after' : 'in';
         drag.target = id;
       }
       // li matched but is an invalid target (self/descendant) — this is NOT empty
