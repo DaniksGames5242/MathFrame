@@ -5130,18 +5130,37 @@
       throw new Error(err);
     }
     const text = ((cand.content && cand.content.parts) || []).filter(b => typeof b.text === 'string').map(b => b.text).join('\n').trim();
+    // A truncated response is worse than a failed one — it looks fine at a
+    // glance and gets saved as-is (see the "Пространственная фигура" cut-off
+    // description). finishReason 'MAX_TOKENS' means the model hit the
+    // maxOutputTokens ceiling mid-thought; throw a distinguishable error so
+    // aiCompleteRetry can retry with a bigger budget instead of silently
+    // accepting the partial text.
+    if (cand.finishReason === 'MAX_TOKENS'){
+      aiLog(label, '⚠ ответ обрезан по лимиту токенов (maxOutputTokens=' + (opts.maxTokens || 4096) + '), получено символов:', text.length);
+      const err = new Error('Ответ обрезан по лимиту токенов (' + (opts.maxTokens || 4096) + ')');
+      err.truncated = true;
+      throw err;
+    }
     aiLog(label, '✓ готово за', dt.toFixed(0) + ' мс, символов:', text.length);
     return text;
   }
   async function aiCompleteRetry(apiKey, model, system, userText, opts){
     let lastErr;
+    let effectiveOpts = opts;
     for (let attempt = 0; attempt < 2; attempt++){
-      try { return await aiComplete(apiKey, model, system, userText, opts); }
+      try { return await aiComplete(apiKey, model, system, userText, effectiveOpts); }
       catch (e){
         lastErr = e;
         if (attempt === 0){
-          aiLog((opts && opts.label) || 'запрос', '⚠ повтор после ошибки:', e.message);
-          await sleep(1500);
+          if (e.truncated){
+            const bumped = Math.min((effectiveOpts.maxTokens || 4096) * 2, 8192);
+            aiLog((opts && opts.label) || 'запрос', '⚠ повтор с увеличенным лимитом токенов:', bumped);
+            effectiveOpts = Object.assign({}, effectiveOpts, { maxTokens: bumped });
+          } else {
+            aiLog((opts && opts.label) || 'запрос', '⚠ повтор после ошибки:', e.message);
+            await sleep(1500);
+          }
         }
       }
     }
@@ -5992,15 +6011,33 @@ id: <идентификатор> | title: <название темы> | type: <�
     if (aiModelsCache.length) fillModels(aiModelsCache, settings.model);
 
     const checkSummary = document.createElement('div'); checkSummary.className = 'ai-hint';
+    const checkBrokenList = document.createElement('div'); checkBrokenList.className = 'ai-hint';
+    checkBrokenList.style.color = 'var(--dim)';
     function paintCheckSummary(){
-      if (!aiLastCheckSummary){ checkSummary.textContent = ''; checkSummary.style.display = 'none'; return; }
+      if (!aiLastCheckSummary){
+        checkSummary.textContent = ''; checkSummary.style.display = 'none';
+        checkBrokenList.textContent = ''; checkBrokenList.style.display = 'none';
+        return;
+      }
       const s = aiLastCheckSummary;
       checkSummary.style.display = '';
       checkSummary.textContent = 'Проверено моделей: ' + s.total + ' · подходят (отвечают и умеют искать в интернете): ' + s.usable +
         ' · без поиска в интернете: ' + s.noSearch + ' · с ошибками: ' + s.broken + '.';
+      // Per-model reason for each failure — without this, "с ошибками: N"
+      // used to be a dead end unless you dug through the console (F12).
+      // Frequent culprit for a free-tier key testing many models at once:
+      // rate limiting (429), which looks identical to "model doesn't work"
+      // unless you can actually read the message.
+      if (s.brokenDetails && s.brokenDetails.length){
+        checkBrokenList.style.display = '';
+        checkBrokenList.textContent = 'Ошибки по моделям: ' + s.brokenDetails.map(d => d.name + ' — ' + d.error).join('; ');
+      } else {
+        checkBrokenList.textContent = ''; checkBrokenList.style.display = 'none';
+      }
     }
     paintCheckSummary();
     body.appendChild(checkSummary);
+    body.appendChild(checkBrokenList);
 
     modelSelect.addEventListener('change', () => saveAiSettings({ apiKey: keyInput.value, model: modelSelect.value }));
     checkBtn.addEventListener('click', async () => {
@@ -6030,7 +6067,15 @@ id: <идентификатор> | title: <название темы> | type: <�
         checkProgTesting.textContent = inFlight.size ? 'Сейчас проверяются: ' + [...inFlight].join(', ') : '';
       }
       paintCheckProgress();
-      const tested = await aiMapLimit(models, 4, async (m) => {
+      // Concurrency 4 used to be riskier here than in the AI-generation job
+      // loop: this fires a real generateContent(+google_search) call per
+      // model, all at once, against a free-tier key's per-minute quota —
+      // most models can 429 ("rate limit") in a burst like that even though
+      // they're perfectly fine one at a time, which used to look like "only
+      // one model works" with no visible reason. Lower concurrency plus the
+      // per-model error list below (paintCheckSummary) makes the real cause
+      // visible instead of just an aggregate "с ошибками: N".
+      const tested = await aiMapLimit(models, 2, async (m) => {
         const name = m.display_name || m.id;
         inFlight.add(name);
         paintCheckProgress();
@@ -6047,7 +6092,10 @@ id: <идентификатор> | title: <название темы> | type: <�
       aiLog('=== Проверка моделей завершена: подходят', usable.length, ', без поиска', noSearch.length, ', с ошибками', broken.length, '===');
 
       aiModelsCache = usable;
-      aiLastCheckSummary = { total: tested.length, usable: usable.length, noSearch: noSearch.length, broken: broken.length };
+      aiLastCheckSummary = {
+        total: tested.length, usable: usable.length, noSearch: noSearch.length, broken: broken.length,
+        brokenDetails: broken.map(m => ({ name: m.display_name || m.id, error: m.testError || 'неизвестная ошибка' }))
+      };
       fillModels(usable, modelSelect.value || settings.model);
       paintCheckSummary();
       saveAiSettings({ apiKey: key, model: modelSelect.value });
