@@ -23,7 +23,7 @@
     },
     {
       "source": "/pages/ai-agent.html",
-      "destination": "/ai-agent/",
+      "destination": "/ai-agent/", 
       "permanent": true
     },
     {
