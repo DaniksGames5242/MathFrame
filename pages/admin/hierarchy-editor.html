@@ -41,6 +41,20 @@
   button{ font-family:inherit; }
   :focus-visible{ outline:1px solid var(--accent-line); outline-offset:2px; }
 
+  /* ================= Admin gate =================
+     This is an admin-only tool — nothing underneath renders until Firebase
+     confirms the signed-in user is an admin (see the auth check at the
+     bottom of the main script). Non-admins never see the app shell, only
+     this overlay, briefly, before being redirected away. */
+  #admin-gate{
+    position:fixed; inset:0; z-index:2000; display:flex; align-items:center; justify-content:center;
+    background:var(--ink-0); color:var(--dim); font-family:var(--serif); font-size:14.5px; letter-spacing:.02em;
+  }
+  body:not(.admin-granted) #menubar,
+  body:not(.admin-granted) #workspace,
+  body:not(.admin-granted) #dock,
+  body:not(.admin-granted) #status{ display:none !important; }
+
   svg.ic{
     width:13px; height:13px; flex:0 0 auto; stroke:currentColor; fill:none;
     stroke-width:1.15; stroke-linecap:round; stroke-linejoin:round; display:block;
@@ -898,6 +912,8 @@
 </head>
 <body>
 
+<div id="admin-gate">Проверка доступа…</div>
+
 <div id="menubar">
   <div class="brand">
     <div class="brand-mark">§</div>
@@ -1113,6 +1129,15 @@
   <span class="stat sel" id="statSel">ВЫБРАНО <b>0</b></span>
 </div>
 
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+<!-- Served at the clean URL /admin/hierarchy-editor/ (see vercel.json) — two
+     path segments deep, unlike /admin/ itself, so it takes ../../ (not ../)
+     to reach the site root from here. -->
+<script>var PAGE_ROOT = '../../';</script>
+<script src="../../assets/js/auth.js"></script>
 
 <script>
 (function(){
@@ -6043,7 +6068,7 @@ id: <идентификатор> | title: <название темы> | type: <�
     applyExpandState(treeData);
   }
 
-  (async function boot(){
+  async function boot(){
     loadExpandState();
     // На file:// запрос к /api/config всегда упадёт — не тратим время на попытку
     // и сразу показываем локальный демонстрационный набор (или то, что уже
@@ -6061,7 +6086,35 @@ id: <идентификатор> | title: <название темы> | type: <�
       setStatus('Локальный режим — восстановлена локальная копия из этого браузера.');
     }
     aiCheckResumeOnBoot();
-  })();
+  }
+
+  /* ============================================================
+     Admin gate — this editor writes directly to data/topics/config.json
+     in the repo, so it must never run for anyone but an admin. Mirrors the
+     exact check used by pages/admin/admin.html (super-admin email, or an
+     admins/{uid} Firestore doc with granted:true); boot() — the thing that
+     actually fetches/renders the topic tree — only runs once access is
+     confirmed, so a non-admin never triggers the GitHub read either.
+     ============================================================ */
+  const SUPER_ADMIN_EMAIL = 'mathframe.ru@gmail.com';
+  function initAuthCheck(){
+    if (window.Auth) window.Auth.onAuthChange(checkAccess);
+    else document.addEventListener('authReady', () => window.Auth.onAuthChange(checkAccess));
+  }
+  function checkAccess(user){
+    if (!user) return denyAccess();
+    if (user.email === SUPER_ADMIN_EMAIL) return grantAccess();
+    firebase.firestore().collection('admins').doc(user.uid).get().then(doc => {
+      if (doc.exists && doc.data().granted) grantAccess(); else denyAccess();
+    }).catch(() => denyAccess());
+  }
+  function denyAccess(){ window.location.replace(PAGE_ROOT); }
+  function grantAccess(){
+    document.getElementById('admin-gate').style.display = 'none';
+    document.body.classList.add('admin-granted');
+    boot();
+  }
+  initAuthCheck();
 })();
 </script>
 </body>
