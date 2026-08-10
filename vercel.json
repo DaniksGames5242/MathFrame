@@ -28,7 +28,7 @@
     },
     {
       "source": "/pages/mini-services.html",
-      "destination": "/mini-services/",
+      "destination": "/mini-services/", 
       "permanent": true
     },
     {
