@@ -6,7 +6,7 @@
       "destination": "/",
       "permanent": true
     },
-    { 
+    {  
       "source": "/pages/home.html",
       "destination": "/", 
       "permanent": true
