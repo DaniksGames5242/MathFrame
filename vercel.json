@@ -19,7 +19,7 @@
     {
       "source": "/pages/forum.html",
       "destination": "/forum/",
-      "permanent": true
+      "permanent": true 
     },
     {
       "source": "/pages/ai-agent.html",
