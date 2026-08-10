@@ -4822,17 +4822,21 @@
   const AI_SETTINGS_KEY = 'mf-ai-settings-v2';
   const AI_JOB_KEY = 'mf-ai-job-v1';
   const AI_TYPES_SUPPORTED = ['topic', 'folder', 'theorem', 'proof'];
-  const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta';
-  // The key MUST go as a `?key=` query param, not the `x-goog-api-key`
-  // header: a custom header turns every request (even a plain GET) into a
-  // CORS-preflighted one, and generativelanguage.googleapis.com doesn't
-  // answer that preflight with Access-Control-Allow-Origin — the browser
-  // blocks the whole call before it ever reaches Google. The query-param
-  // form is the one Google's own browser/client-side docs use, and it
-  // avoids the preflight for GETs entirely (POSTs still preflight on
-  // Content-Type, which Google does answer correctly).
-  function geminiUrl(path, apiKey){
-    return GEMINI_BASE + path + (path.includes('?') ? '&' : '?') + 'key=' + encodeURIComponent(apiKey);
+  // generativelanguage.googleapis.com never sends Access-Control-Allow-Origin
+  // on its responses — no browser-side trick (header vs ?key= query param)
+  // gets past that, the request is blocked before it reaches Google either
+  // way. So this goes through our own same-origin relay at /api/gemini
+  // (api/gemini.js) instead of hitting Google directly; the key is still
+  // only ever typed into this browser, just forwarded by our server rather
+  // than sent straight from the browser.
+  function geminiFetch(path, apiKey, opts){
+    opts = opts || {};
+    const headers = Object.assign(
+      { 'x-gemini-key': apiKey },
+      opts.method === 'POST' ? { 'content-type': 'application/json' } : {},
+      opts.headers || {}
+    );
+    return fetch('/api/gemini?path=' + encodeURIComponent(path), Object.assign({}, opts, { headers }));
   }
 
   function loadAiSettings(){
@@ -4985,7 +4989,7 @@
 
   /* ---------------- Gemini API ---------------- */
   async function aiListModels(apiKey){
-    const r = await fetch(geminiUrl('/models?pageSize=1000', apiKey));
+    const r = await geminiFetch('models?pageSize=1000', apiKey);
     const data = await r.json().catch(() => null);
     if (!r.ok || !data || !Array.isArray(data.models)) {
       throw new Error((data && data.error && data.error.message) || ('HTTP ' + r.status));
@@ -5036,9 +5040,8 @@
   async function aiTestModel(apiKey, modelId){
     const t0 = performance.now();
     try {
-      const r = await fetch(geminiUrl('/models/' + encodeURIComponent(modelId) + ':generateContent', apiKey), {
+      const r = await geminiFetch('models/' + encodeURIComponent(modelId) + ':generateContent', apiKey, {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           contents: [{ role: 'user', parts: [{ text: AI_TEST_PROMPT }] }],
           generationConfig: { maxOutputTokens: 400 },
@@ -5092,9 +5095,8 @@
       generationConfig: { maxOutputTokens: opts.maxTokens || 4096 }
     };
     if (opts.webSearch) body.tools = [{ google_search: {} }];
-    const r = await fetch(geminiUrl('/models/' + encodeURIComponent(model) + ':generateContent', apiKey), {
+    const r = await geminiFetch('models/' + encodeURIComponent(model) + ':generateContent', apiKey, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
       body: JSON.stringify(body)
     });
     const dt = performance.now() - t0;
@@ -5862,7 +5864,7 @@ id: <идентификатор> | title: <название темы> | type: <�
     body.appendChild(keyRow);
 
     const hint = document.createElement('div'); hint.className = 'ai-hint';
-    hint.textContent = 'Ключ хранится только в этом браузере (localStorage) и отправляется напрямую в generativelanguage.googleapis.com (Gemini API) — на ваш сервер он не попадает. Получить бесплатный ключ можно в Google AI Studio.';
+    hint.textContent = 'Ключ хранится только в этом браузере (localStorage). Google не разрешает браузерам обращаться к Gemini API напрямую, поэтому запросы идут через сервер MathFrame — он передаёт ключ дальше в Gemini API, не сохраняя и не логируя его. Получить бесплатный ключ можно в Google AI Studio.';
     body.appendChild(hint);
 
     const modelRow = document.createElement('div'); modelRow.className = 'ai-row';
