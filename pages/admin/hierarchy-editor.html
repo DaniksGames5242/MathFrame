@@ -529,25 +529,21 @@
   }
   .flat-empty{ text-align:center; padding:40px 20px; color:var(--faint); font-style:italic; font-size:13px; list-style:none; }
 
-  ul.tree{ list-style:none; margin:0; padding:0; }
-  ul.children{ list-style:none; margin:0; padding-left:30px; position:relative; }
+  /* ul.tree (#root) is now a VIRTUALIZED list: with thousands of topics,
+     keeping every visible row (even off-screen ones) as a real DOM node —
+     and, worse, really nesting them in <ul class="children"> per level —
+     was the actual cost driving the tree unusable. Only the rows currently
+     scrolled into view (plus a small buffer) get mounted, as DIRECT flat
+     children of #root; the rest of the scroll height is faked with
+     paddingTop/paddingBottom (see computeWindow()/applyTreeWindow()).
+     Indentation and the parent/child guide lines that used to come for
+     free from real nesting are now computed per row instead (depth →
+     margin-left on .node-row; guideBits → .tree-guide bars) — see
+     computeVisibleRows()/positionRow(). */
+  ul.tree{ list-style:none; margin:0; padding:0; position:relative; }
   li.tree-node{ position:relative; margin:2px 0; }
-
-  /* Each child draws its own piece of the rule, so the line always stops
-     exactly at the last sibling — never trailing past a tall subtree. */
-  ul.children > li.tree-node::after{
-    content:''; position:absolute; left:-18px; top:-3px; bottom:-3px; width:1px;
-    background:var(--rule); transform-origin:top center;
-  }
-  ul.children > li.tree-node:last-child::after{ bottom:auto; height:calc(var(--row-h)/2 + 3px); }
-  ul.children > li.tree-node::before{
-    content:''; position:absolute; left:-18px; top:calc(var(--row-h)/2); width:15px; height:1px;
-    background:var(--rule); transform-origin:left center; z-index:1;
-  }
-  ul.children > li.tree-node.elbow-draw::before{ animation:elbowDraw .34s var(--spring) var(--d,0ms) both; }
-  ul.children > li.tree-node.elbow-draw::after{ animation:trunkDraw .42s var(--spring) var(--d,0ms) both; }
-  @keyframes elbowDraw{ from{ transform:scaleX(0); opacity:0 } to{ transform:scaleX(1); opacity:1 } }
-  @keyframes trunkDraw{ from{ transform:scaleY(0); opacity:0 } to{ transform:scaleY(1); opacity:1 } }
+  .tree-guides{ position:absolute; inset:0; pointer-events:none; z-index:0; }
+  .tree-guide{ position:absolute; top:-2px; bottom:-2px; width:1px; background:var(--rule-soft); }
 
   /* ---- Row ---- */
   .node-row{
@@ -763,9 +759,6 @@
     .canvas-body{ padding:16px 12px 120px; }
     #searchbar{ padding:8px 12px; flex-wrap:wrap; }
     #sortSelect{ order:3; flex:1 1 100%; }
-    ul.children{ padding-left:21px; }
-    ul.children > li.tree-node::before{ left:-13px; width:10px; }
-    ul.children > li.tree-node::after{ left:-13px; }
     .menu-dropdown{ min-width:min(256px,86vw); }
     .act, .grip{ opacity:1; transform:none; }
     .dot{ min-width:26px; padding-right:6px; font-size:11px; }
@@ -1190,20 +1183,6 @@
     try { return node.animate(frames, Object.assign({ fill:'none' }, opts)); }
     catch (e) { return { finished: Promise.resolve() }; }
   }
-  // Restarts a CSS animation on many nodes at once. Reading offsetWidth forces
-  // a synchronous layout of the *entire* pending DOM, so doing that once per
-  // node in a loop is O(n) forced layouts back to back — layout thrashing
-  // that freezes the tab solid once a render touches thousands of rows (e.g.
-  // the full topic tree on boot). Batching removes all classes, forces
-  // exactly one reflow, then adds them all back — O(1) forced layouts no
-  // matter how many rows are entering.
-  function batchReplay(nodes, cls){
-    if (!nodes.length) return;
-    nodes.forEach(n => n.classList.remove(cls));
-    void nodes[0].offsetWidth;
-    nodes.forEach(n => n.classList.add(cls));
-  }
-
   /* ============================================================
      State
      ============================================================ */
@@ -1236,8 +1215,11 @@
   let lastFilteredOrder = [];   // ids in the order they're currently shown, for Shift-range selection
   const TYPE_LABELS = { topic:'Тема', folder:'Папка', theorem:'Теорема', proof:'Доказательство', example:'Пример' };
 
-  const nodeEls = new Map();      // id -> {li,row,name,twist,kids,dot,sweep,flash,childrenUl}
-  let elbowQueue = [];            // rows queued for a single batched elbow-draw reflow (see paint())
+  const nodeEls = new Map();      // id -> {li,row,name,twist,kids,dot,sweep,flash,guides} — ONLY the currently mounted (windowed) rows, see applyTreeWindow()
+  const ROW_PITCH = 46;           // --row-h (42) + li.tree-node's own margin (2px top + 2px bottom)
+  const TREE_INDENT = 26;         // px of indent per depth level (replaces the old nested ul.children padding-left)
+  const WINDOW_BUFFER = 10;       // extra rows mounted above/below the viewport so fast scrolling doesn't show gaps
+  let virtualRows = [];           // flat, depth-annotated view of the currently visible (non-collapsed) tree — see computeVisibleRows()
 
   const el = {
     root: document.getElementById('root'),
@@ -1384,12 +1366,15 @@
     };
   }
   // Node built from already-normalized data (file load / clone) — trusts the fields as given.
+  // Starts collapsed: applyExpandState() (called right after a bulk load) is
+  // what actually decides expanded/collapsed, from the user's own persisted
+  // choices — this default only matters for topicId's the user never touched.
   function rawNode(f){
     return {
       id: idCounter++,
       topicId: f.topicId, name: f.name, type: f.type, class: f.class, difficulty: f.difficulty,
       description: f.description, keywords: f.keywords, example: f.example, task: f.task,
-      children: [], expanded: true
+      children: [], expanded: false
     };
   }
   function cloneDeep(x){ try { return structuredClone(x); } catch(e){ return JSON.parse(JSON.stringify(x)); } }
@@ -1417,7 +1402,51 @@
     f.arr.splice(f.index, 1);
     return f.node;
   }
-  function setExpandedAll(nodes, val){ nodes.forEach(n => { n.expanded = val; setExpandedAll(n.children, val); }); }
+  function setExpandedAll(nodes, val){ nodes.forEach(n => { setNodeExpanded(n, val); setExpandedAll(n.children, val); }); }
+
+  /* ============================================================
+     Expand/collapse state — persisted SEPARATELY from the topic content
+     itself (topics-editor-v1 / GitHub config.json), keyed by the topic's
+     stable topicId (not the numeric id, which gets reassigned by
+     buildTreeFromFlatTopics() on every load). Every topic starts collapsed;
+     only ones the user has personally opened before come back open —
+     this is what keeps opening the editor cheap even with 2000+ topics.
+     ============================================================ */
+  const EXPAND_KEY = 'topics-editor-expand-v1';
+  let expandedTopicIds = new Set();
+  function loadExpandState(){
+    try {
+      const raw = localStorage.getItem(EXPAND_KEY);
+      if (!raw) return;
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr)) expandedTopicIds = new Set(arr);
+    } catch (err) { /* private mode / corrupted — start with nothing expanded */ }
+  }
+  let expandSaveTimer = null;
+  function saveExpandStateDebounced(){
+    clearTimeout(expandSaveTimer);
+    expandSaveTimer = setTimeout(() => {
+      try { localStorage.setItem(EXPAND_KEY, JSON.stringify([...expandedTopicIds])); }
+      catch (err) { /* quota exceeded — silently skip, nothing else to do */ }
+    }, 300);
+  }
+  // The ONLY place that should ever assign node.expanded — keeps the
+  // persisted set and the live tree from drifting apart.
+  function setNodeExpanded(node, val){
+    node.expanded = val;
+    if (!node.topicId) return;
+    if (val) expandedTopicIds.add(node.topicId); else expandedTopicIds.delete(node.topicId);
+    saveExpandStateDebounced();
+  }
+  // Applied right after any bulk (re)build of treeData — from GitHub, from
+  // the local fallback, or from the demo seed — so freshly loaded topics
+  // start collapsed except the ones the user chose to keep open.
+  function applyExpandState(nodes){
+    nodes.forEach(n => {
+      n.expanded = !!(n.topicId && expandedTopicIds.has(n.topicId));
+      applyExpandState(n.children);
+    });
+  }
 
   // treeData -> flat topics array, matching config.json's shape exactly.
   function flattenTreeToTopics(nodes, parentId, out){
@@ -1730,7 +1759,7 @@
     const fresh = clipboard.nodes.map(n => cloneForPaste(n, keepIds, reserved));
     let parent = null;
     if (currentId != null){ const f = findNodeAndParent(currentId, treeData); if (f) parent = f.node; }
-    if (parent){ parent.children.push(...fresh); parent.expanded = true; }
+    if (parent){ parent.children.push(...fresh); setNodeExpanded(parent, true); }
     else treeData.push(...fresh);
     fresh.forEach(n => enterOf.set(n.id, 'clone'));
     selectedIds = new Set(fresh.map(n => n.id));
@@ -1909,56 +1938,116 @@
      Nothing is thrown away, so every state change can be a transition.
      ============================================================ */
   let lastRenderWasFlat = false;
+  let filteredRows = [];   // full sorted/filtered node list currently shown (flat, no virtualization skipped)
   function render(){
     if (isFilterActive()){
-      renderFilteredList();
+      if (!lastRenderWasFlat){ nodeEls.forEach(rec => rec.li.remove()); nodeEls.clear(); }
       lastRenderWasFlat = true;
+      renderFilteredList();
     } else {
-      if (lastRenderWasFlat){ el.root.innerHTML = ''; nodeEls.clear(); lastRenderWasFlat = false; }
+      if (lastRenderWasFlat){ nodeEls.forEach(rec => rec.li.remove()); nodeEls.clear(); el.root.style.paddingTop = ''; el.root.style.paddingBottom = ''; lastRenderWasFlat = false; }
       renderTree();
     }
   }
 
+  // Flattens the tree into visual row order, respecting node.expanded —
+  // exactly the rows a fully-rendered (non-virtualized) tree would show.
+  // depth/guideBits/isLast replace what used to come for free from real
+  // DOM nesting (indentation, parent/child guide lines) — see positionRow().
+  function computeVisibleRows(){
+    const rows = [];
+    (function walk(nodes, depth, guideBits, prefix){
+      nodes.forEach((node, i) => {
+        const isLast = i === nodes.length - 1;
+        const label = prefix ? prefix + '.' + (i + 1) : String(i + 1);
+        rows.push({ id: node.id, node, depth, isLast, guideBits, label });
+        if (node.children.length && node.expanded){
+          walk(node.children, depth + 1, guideBits.concat(!isLast), label);
+        }
+      });
+    })(treeData, 0, [], '');
+    return rows;
+  }
+
+  // Which slice of `rows` (by index) is currently scrolled into view in
+  // #canvas, plus a small buffer so fast scrolling doesn't flash gaps.
+  function computeWindow(total){
+    if (!total) return { start: 0, end: 0 };
+    const rootTop = el.root.offsetTop; // fixed offset of #root within #canvas's own box — unaffected by scrolling
+    const relScroll = Math.max(0, el.canvas.scrollTop - rootTop);
+    const viewH = el.canvas.clientHeight || 600;
+    let start = Math.floor(relScroll / ROW_PITCH) - WINDOW_BUFFER;
+    let end = Math.ceil((relScroll + viewH) / ROW_PITCH) + WINDOW_BUFFER;
+    start = Math.max(0, Math.min(start, total));
+    end = Math.max(start, Math.min(end, total));
+    return { start, end };
+  }
+
+  // Indentation + guide lines for one mounted row — computed instead of
+  // coming from real DOM nesting (see the #root / .tree-guides CSS comment).
+  function positionRow(rec, spec){
+    const sig = spec.depth + ':' + spec.guideBits.join('');
+    if (rec._posSig === sig) return;
+    rec._posSig = sig;
+    rec.row.style.marginLeft = (spec.depth * TREE_INDENT) + 'px';
+    rec.guides.innerHTML = '';
+    for (let k = 0; k < spec.depth; k++){
+      if (!spec.guideBits[k]) continue;
+      const g = document.createElement('i');
+      g.className = 'tree-guide';
+      g.style.left = (k * TREE_INDENT + TREE_INDENT / 2) + 'px';
+      rec.guides.appendChild(g);
+    }
+  }
+
+  // Pure DOM step: mounts/updates rows inside the current scroll window,
+  // unmounts (silently, no exit animation — they're still logically
+  // visible, just scrolled away) rows outside it. Used both by renderTree()
+  // itself and, without any animation around it, directly by the #canvas
+  // scroll handler.
+  function applyTreeWindow(){
+    const total = virtualRows.length;
+    const { start, end } = computeWindow(total);
+    const wanted = new Set();
+    for (let i = start; i < end; i++) wanted.add(virtualRows[i].id);
+    nodeEls.forEach((rec, id) => {
+      if (wanted.has(id)) return;
+      rec.li.remove();
+      nodeEls.delete(id);
+    });
+    const frag = document.createDocumentFragment();
+    for (let i = start; i < end; i++){
+      const spec = virtualRows[i];
+      let rec = nodeEls.get(spec.id);
+      if (!rec){ rec = createRow(spec.node); nodeEls.set(spec.id, rec); }
+      rec.node = spec.node;
+      updateRow(rec, spec.node, spec.label);
+      positionRow(rec, spec);
+      frag.appendChild(rec.li);
+    }
+    el.root.appendChild(frag);
+    el.root.style.paddingTop = (start * ROW_PITCH) + 'px';
+    el.root.style.paddingBottom = ((total - end) * ROW_PITCH) + 'px';
+  }
+
   function renderTree(){
-    // 1. FIRST: where every visible row sits right now
+    virtualRows = computeVisibleRows();
+    const idsInRows = new Set(virtualRows.map(r => r.id));
+
+    // 1. FIRST: where every currently mounted row sits right now
     const first = new Map();
     nodeEls.forEach((rec, id) => {
       if (rec.row.isConnected) first.set(id, rec.row.getBoundingClientRect());
     });
 
-    // 2. Reconcile the DOM against the data
-    const visited = new Set();
-    const detach = [];
-    (function walk(nodes, ul, prefix){
-      nodes.forEach((node, i) => {
-        const label = prefix ? prefix + '.' + (i + 1) : String(i + 1);
-        visited.add(node.id);
-        let rec = nodeEls.get(node.id);
-        if (!rec){ rec = createRow(node); nodeEls.set(node.id, rec); }
-        rec.node = node;
-        updateRow(rec, node, label);
-        ul.appendChild(rec.li);   // re-appending an existing node just re-orders it
-        if (node.children.length && node.expanded){
-          if (!rec.kidsUl){
-            rec.kidsUl = document.createElement('ul');
-            rec.kidsUl.className = 'children';
-          }
-          const fresh = rec.kidsUl.parentNode !== rec.li;
-          if (fresh){ rec.li.appendChild(rec.kidsUl); rec.justOpened = true; }
-          walk(node.children, rec.kidsUl, label);
-        } else if (rec.kidsUl && rec.kidsUl.parentNode){
-          detach.push(rec.kidsUl);
-          // children of a collapsed node leave the DOM — mark them so they retract
-          node.children.forEach(function mark(c){ if (!exitOf.has(c.id)) exitOf.set(c.id, 'collapse'); c.children.forEach(mark); });
-        }
-      });
-    })(treeData, el.root, '');
-
-    // 3. Anything left over is leaving — clone it in place so it can dissolve
-    //    while the tree closes the gap behind it.
+    // 2. Anything mounted that's no longer in the visible set at all (as
+    //    opposed to merely scrolled outside the current window — that's
+    //    handled silently by applyTreeWindow() below) has truly left:
+    //    deleted, cut, or its parent just collapsed. Clone it in place so
+    //    it can dissolve while the list closes the gap behind it.
     const leaving = [];
     nodeEls.forEach((rec, id) => {
-      if (visited.has(id)) return;
+      if (idsInRows.has(id)) return;
       const r = first.get(id) || (rec.row.isConnected ? rec.row.getBoundingClientRect() : null);
       if (r) leaving.push([id, rec, r]);
       else { rec.li.remove(); nodeEls.delete(id); }
@@ -1969,28 +2058,32 @@
       rec.li.remove();
       nodeEls.delete(id);
     });
-    detach.forEach(ul => ul.remove());
 
     el.blank.style.display = treeData.length ? 'none' : 'block';
 
+    // 3. Mount whatever's now in the scroll window
+    applyTreeWindow();
+
     // 4. LAST + INVERT + PLAY
-    paint(first);
+    paint(first, virtualRows.map(r => r.id));
 
     renderTail();
   }
 
   // Search / filter / sort active: flat, non-hierarchical list of matches.
-  // Rebuilt from scratch each time (no FLIP) — simpler, and fine for a list
-  // that's already just been reshuffled by the user's own filter/sort choice.
+  // Re-sorted from scratch each time (no FLIP) — simpler, and fine for a
+  // list that's already just been reshuffled by the user's own filter/sort
+  // choice. Virtualized the same way as the tree (see applyFilteredWindow).
   function renderFilteredList(){
-    nodeEls.clear();
-    el.root.innerHTML = '';
-
     const all = flatOrder(treeData).map(id => findNodeAndParent(id, treeData)).filter(Boolean).map(f => f.node);
-    const list = sortNodes(all.filter(matchesFilters), sortMode);
-    lastFilteredOrder = list.map(n => n.id);
+    filteredRows = sortNodes(all.filter(matchesFilters), sortMode);
+    lastFilteredOrder = filteredRows.map(n => n.id);
 
-    if (!list.length){
+    nodeEls.forEach(rec => rec.li.remove());
+    nodeEls.clear();
+
+    if (!filteredRows.length){
+      el.root.style.paddingTop = ''; el.root.style.paddingBottom = '';
       el.blank.style.display = 'none';
       const empty = document.createElement('li');
       empty.className = 'flat-empty';
@@ -1998,11 +2091,41 @@
       el.root.appendChild(empty);
     } else {
       el.blank.style.display = 'none';
-      list.forEach(node => el.root.appendChild(buildFlatRow(node)));
+      applyFilteredWindow();
     }
 
     renderTail();
   }
+
+  // Pure DOM step for the filtered list — rebuilds the mounted window from
+  // filteredRows. Used by renderFilteredList() and, on its own, by the
+  // #canvas scroll handler (filteredRows itself doesn't change on scroll).
+  function applyFilteredWindow(){
+    const total = filteredRows.length;
+    const { start, end } = computeWindow(total);
+    nodeEls.forEach(rec => rec.li.remove());
+    nodeEls.clear();
+    const frag = document.createDocumentFragment();
+    for (let i = start; i < end; i++) frag.appendChild(buildFlatRow(filteredRows[i]));
+    el.root.appendChild(frag);
+    el.root.style.paddingTop = (start * ROW_PITCH) + 'px';
+    el.root.style.paddingBottom = ((total - end) * ROW_PITCH) + 'px';
+  }
+
+  // #canvas scroll → just re-mount whichever window is now visible; no data
+  // recompute, no FLIP animation — rows appearing from virtualization pop in
+  // instantly, which is the expected feel for a virtualized list.
+  let scrollWindowRaf = null;
+  function onCanvasScroll(){
+    if (scrollWindowRaf) return;
+    scrollWindowRaf = requestAnimationFrame(() => {
+      scrollWindowRaf = null;
+      if (lastRenderWasFlat) applyFilteredWindow();
+      else if (virtualRows.length) applyTreeWindow();
+    });
+  }
+  el.canvas.addEventListener('scroll', onCanvasScroll, { passive: true });
+  window.addEventListener('resize', onCanvasScroll);
 
   function renderTail(){
     el.statNodes.textContent = flatOrder(treeData).length;
@@ -2017,8 +2140,7 @@
     scheduleAutosave();
   }
 
-  function paint(first){
-    const order = flatVisibleOrder(treeData);
+  function paint(first, order){
     const indexOf = new Map(order.map((id,i) => [id,i]));
     const anchorIdx = anchorId != null && indexOf.has(anchorId) ? indexOf.get(anchorId) : 0;
 
@@ -2029,7 +2151,6 @@
     arriving.sort((a,b) => (indexOf.get(a) ?? 0) - (indexOf.get(b) ?? 0));
     const rank = new Map(arriving.map((id,i) => [id,i]));
 
-    elbowQueue = [];
     const moved = new Set();
 
     nodeEls.forEach((rec, id) => {
@@ -2059,7 +2180,6 @@
       const fl = flashOf.get(id);
       if (fl) flashRow(rec, fl, 0);
     });
-    batchReplay(elbowQueue, 'elbow-draw');
   }
 
   function enterRow(rec, kind, delay){
@@ -2073,10 +2193,6 @@
     anim(rec.row, frames, { duration:D(kind==='restore'?300:460), easing:SPRING, delay:D(delay) });
     anim(rec.dot, [{ opacity:0, transform:'translateX(-6px)' }, { opacity:1, transform:'none' }],
          { duration:D(420), easing:SPRING, delay:D(delay + 60) });
-    if (rec.li.parentNode && rec.li.parentNode.classList.contains('children')){
-      rec.li.style.setProperty('--d', D(delay) + 'ms');
-      elbowQueue.push(rec.li);
-    }
     if (kind === 'clone') flashRow(rec, 'land', delay + 120);
   }
 
@@ -2141,6 +2257,13 @@
     li.className = 'tree-node';
     li.dataset.id = node.id;
 
+    // Depth/parent-guide-line container — positioned by positionRow(), see
+    // its comment and the #root CSS comment for why this replaced real
+    // <ul class="children"> nesting.
+    const guides = document.createElement('div');
+    guides.className = 'tree-guides';
+    li.appendChild(guides);
+
     const row = document.createElement('div');
     row.className = 'node-row';
 
@@ -2182,7 +2305,7 @@
 
     li.appendChild(row);
 
-    const rec = { li, row, dot, twist, name, kids, sweep, flash, pickWrap, node, kidsUl:null };
+    const rec = { li, row, dot, twist, name, kids, sweep, flash, pickWrap, guides, node, _posSig:null };
 
     twist.addEventListener('click', e => { e.stopPropagation(); toggleNode(rec.node); });
     grip.addEventListener('pointerdown', e => startDrag(e, rec.node));
@@ -2330,9 +2453,13 @@
      ============================================================ */
   function toggleNode(node){
     if (!node.children.length) return;
-    node.expanded = !node.expanded;
-    if (node.expanded) (function mark(n){
+    const willExpand = !node.expanded;
+    setNodeExpanded(node, willExpand);
+    if (willExpand) (function mark(n){
       n.children.forEach(c => { enterOf.set(c.id, 'cascade'); if (c.expanded) mark(c); });
+    })(node);
+    else (function mark(n){
+      n.children.forEach(c => { exitOf.set(c.id, 'collapse'); mark(c); });
     })(node);
     const rec = nodeEls.get(node.id);
     render();
@@ -2346,7 +2473,7 @@
     pushUndo();
     const child = makeNode('Новая тема');
     node.children.push(child);
-    node.expanded = true;
+    setNodeExpanded(node, true);
     enterOf.set(child.id, 'insert');
     render();
     beginRename(child.id);
@@ -2633,6 +2760,7 @@
       nodeEls.forEach(rec => rec.li.remove());
       nodeEls.clear();
       treeData = buildTreeFromFlatTopics(data.content);
+      applyExpandState(treeData);
       selectedIds.clear(); selectionMode = false; currentId = null; anchorId = null;
       flatOrder(treeData).forEach(id => enterOf.set(id, 'cascade'));
       render();
@@ -2650,6 +2778,7 @@
     const restored = loadFromStorage();
     if (!restored) return false;
     treeData = restored;
+    applyExpandState(treeData);
     flatOrder(treeData).forEach(id => enterOf.set(id, 'cascade'));
     render();
     return true;
@@ -4417,7 +4546,7 @@
       const moved = ids.map(id => removeNodeById(id)).filter(Boolean);
       const t = findNodeAndParent(target, treeData);
       if (pos === 'in'){
-        if (t){ t.node.children.push(...moved); t.node.expanded = true; }
+        if (t){ t.node.children.push(...moved); setNodeExpanded(t.node, true); }
         else treeData.push(...moved);
       } else {
         if (t) t.arr.splice(pos === 'before' ? t.index : t.index + 1, 0, ...moved);
@@ -5911,9 +6040,11 @@ id: <идентификатор> | title: <название темы> | type: <�
     prob.children.push(classicProb, independence);
 
     treeData.push(algebra, geometry, trig, prob);
+    applyExpandState(treeData);
   }
 
   (async function boot(){
+    loadExpandState();
     // На file:// запрос к /api/config всегда упадёт — не тратим время на попытку
     // и сразу показываем локальный демонстрационный набор (или то, что уже
     // сохранено в localStorage с прошлого запуска в этом браузере).
