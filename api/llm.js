@@ -60,6 +60,11 @@ module.exports = async (req, res) => {
     const text = await upstream.text();
     res.status(upstream.status);
     res.setHeader('content-type', upstream.headers.get('content-type') || 'application/json');
+    // On a 429 the client needs to know how long to actually wait — an
+    // exponential guess can badly undershoot a provider whose limit is
+    // "N requests per minute" rather than "per second".
+    const retryAfter = upstream.headers.get('retry-after');
+    if (retryAfter) res.setHeader('retry-after', retryAfter);
     res.send(text);
   } catch (e) {
     res.status(502).json({ error: 'Не удалось связаться с ' + provider + ': ' + e.message });

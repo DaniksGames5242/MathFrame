@@ -5213,6 +5213,34 @@
     }
   }
 
+  // Retry-After can be either delta-seconds ("30") or an HTTP-date; either
+  // way this is the provider itself telling us how long to actually wait
+  // on a 429, which beats guessing — some free tiers cap per-minute or even
+  // per-day, where a few seconds of exponential backoff would never catch up.
+  function parseRetryAfterMs(r){
+    const v = r.headers.get('retry-after');
+    if (!v) return null;
+    if (/^\d+$/.test(v.trim())) return Number(v.trim()) * 1000;
+    const t = Date.parse(v);
+    return isNaN(t) ? null : Math.max(0, t - Date.now());
+  }
+  // A few providers/gateways don't use OpenAI's {error:{message}} shape for
+  // rate-limit responses (plain {message}/{detail}, or no JSON body at all
+  // from a fronting proxy) — try the common alternatives before falling
+  // back to a bare status code, so the log/UI shows the real reason instead
+  // of just "HTTP 429" whenever possible.
+  function extractApiErrorMessage(data, status){
+    if (data){
+      if (data.error){
+        if (typeof data.error === 'string') return data.error;
+        if (data.error.message) return data.error.message;
+      }
+      if (typeof data.message === 'string') return data.message;
+      if (typeof data.detail === 'string') return data.detail;
+    }
+    return 'HTTP ' + status;
+  }
+
   // ctx = { provider, apiKey, model } — bundled instead of separate
   // positional args because this (and aiCompleteRetry below) is called from
   // a dozen places across aiGenerateOne's pipeline; threading three
@@ -5238,9 +5266,12 @@
       const dt = performance.now() - t0;
       const data = await r.json().catch(() => null);
       if (!r.ok || !data){
-        const err = (data && data.error && data.error.message) || ('HTTP ' + r.status);
-        aiLog(label, '✗ ошибка за', dt.toFixed(0) + ' мс:', err);
-        throw new Error(err);
+        const msg = extractApiErrorMessage(data, r.status);
+        aiLog(label, '✗ ошибка за', dt.toFixed(0) + ' мс:', msg);
+        const err = new Error(msg);
+        err.status = r.status;
+        err.retryAfterMs = parseRetryAfterMs(r);
+        throw err;
       }
       const cand = (data.candidates || [])[0];
       if (!cand) {
@@ -5283,9 +5314,12 @@
     const dt = performance.now() - t0;
     const data = await r.json().catch(() => null);
     if (!r.ok || !data){
-      const err = (data && data.error && (data.error.message || data.error)) || ('HTTP ' + r.status);
-      aiLog(label, '✗ ошибка за', dt.toFixed(0) + ' мс:', err);
-      throw new Error(err);
+      const msg = extractApiErrorMessage(data, r.status);
+      aiLog(label, '✗ ошибка за', dt.toFixed(0) + ' мс:', msg);
+      const err = new Error(msg);
+      err.status = r.status;
+      err.retryAfterMs = parseRetryAfterMs(r);
+      throw err;
     }
     const choice = (data.choices || [])[0];
     if (!choice){
@@ -5311,23 +5345,49 @@
   async function aiCompleteRetry(ctx, system, userText, opts){
     let lastErr;
     let effectiveOpts = opts;
-    for (let attempt = 0; attempt < 2; attempt++){
+    const label = (opts && opts.label) || 'запрос';
+    // Free-tier providers (Mistral especially — its "Experiment" tier caps
+    // requests per second, not just per day) throw 429 far more readily
+    // than Gemini ever did, and a single 1.5s retry isn't nearly enough
+    // margin for that kind of limit. 429s get their own longer budget with
+    // growing backoff; everything else keeps the original quick single retry.
+    const MAX_RATE_LIMIT_ATTEMPTS = 5;
+    const MAX_INLINE_WAIT_MS = 45000; // beyond this, waiting inline just to fail the whole job anyway isn't worth it
+    let attempt = 0;
+    let rateLimitAttempt = 0;
+    while (true){
       try { return await aiComplete(ctx, system, userText, effectiveOpts); }
       catch (e){
         lastErr = e;
-        if (attempt === 0){
-          if (e.truncated){
-            const bumped = Math.min((effectiveOpts.maxTokens || 4096) * 2, 8192);
-            aiLog((opts && opts.label) || 'запрос', '⚠ повтор с увеличенным лимитом токенов:', bumped);
-            effectiveOpts = Object.assign({}, effectiveOpts, { maxTokens: bumped });
-          } else {
-            aiLog((opts && opts.label) || 'запрос', '⚠ повтор после ошибки:', e.message);
-            await sleep(1500);
+        if (e.status === 429){
+          rateLimitAttempt++;
+          // Prefer the provider's own Retry-After over a guess — a limit
+          // that resets per minute (or per day) needs a very different wait
+          // than a per-second one, and exponential backoff alone can't tell
+          // the difference.
+          const guessed = Math.min(3000 * Math.pow(2, rateLimitAttempt - 1), 30000);
+          const delay = (typeof e.retryAfterMs === 'number') ? e.retryAfterMs : guessed;
+          if (delay > MAX_INLINE_WAIT_MS){
+            e.message = 'Лимит запросов исчерпан, сервер просит подождать ' + Math.ceil(delay / 1000) + ' с — это слишком долго для одного запроса, попробуйте позже (' + e.message + ')';
+            throw e;
           }
+          if (rateLimitAttempt > MAX_RATE_LIMIT_ATTEMPTS) throw e;
+          aiLog(label, '⚠ лимит запросов (429), повтор через ' + (delay / 1000).toFixed(0) + ' с (попытка ' + rateLimitAttempt + '/' + MAX_RATE_LIMIT_ATTEMPTS + ')…');
+          await sleep(delay);
+          continue;
+        }
+        if (attempt >= 1) throw e;
+        attempt++;
+        if (e.truncated){
+          const bumped = Math.min((effectiveOpts.maxTokens || 4096) * 2, 8192);
+          aiLog(label, '⚠ повтор с увеличенным лимитом токенов:', bumped);
+          effectiveOpts = Object.assign({}, effectiveOpts, { maxTokens: bumped });
+        } else {
+          aiLog(label, '⚠ повтор после ошибки:', e.message);
+          await sleep(1500);
         }
       }
     }
-    throw lastErr;
   }
 
   /* ---------------- Prompts ---------------- */
@@ -6274,15 +6334,16 @@ id: <идентификатор> | title: <название темы> | type: <�
         checkProgTesting.textContent = inFlight.size ? 'Сейчас проверяются: ' + [...inFlight].join(', ') : '';
       }
       paintCheckProgress();
-      // Concurrency 4 used to be riskier here than in the AI-generation job
-      // loop: this fires a real completion call per model, all at once,
-      // against a free-tier key's per-minute quota — most models can 429
-      // ("rate limit") in a burst like that even though they're perfectly
+      // This fires a real completion call per model, all at once up to the
+      // concurrency limit, against a free-tier key's rate limit — most
+      // models can 429 in a burst like that even though they're perfectly
       // fine one at a time, which used to look like "only one model works"
-      // with no visible reason. Lower concurrency plus the per-model error
-      // list below (paintCheckSummary) makes the real cause visible instead
-      // of just an aggregate "с ошибками: N".
-      const tested = await aiMapLimit(models, 2, async (m) => {
+      // with no visible reason. Free providers other than Gemini tend to
+      // have much tighter per-second limits (Mistral's free "Experiment"
+      // tier especially), so those get run one at a time; the per-model
+      // error list below (paintCheckSummary) still makes any real cause
+      // visible instead of just an aggregate "с ошибками: N".
+      const tested = await aiMapLimit(models, provider === 'gemini' ? 2 : 1, async (m) => {
         const name = m.display_name || m.id;
         inFlight.add(name);
         paintCheckProgress();

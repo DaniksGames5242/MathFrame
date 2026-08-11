@@ -48,6 +48,8 @@ module.exports = async (req, res) => {
     const text = await upstream.text();
     res.status(upstream.status);
     res.setHeader('content-type', upstream.headers.get('content-type') || 'application/json');
+    const retryAfter = upstream.headers.get('retry-after');
+    if (retryAfter) res.setHeader('retry-after', retryAfter);
     res.send(text);
   } catch (e) {
     res.status(502).json({ error: 'Не удалось связаться с Gemini API: ' + e.message });
