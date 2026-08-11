@@ -4841,9 +4841,9 @@
 
   // Alternative providers for accounts whose Gemini free tier is region/
   // account-restricted (limit:0 on generativelanguage.googleapis.com quotas
-  // — nothing this app can fix, see api/gemini.js). Both are OpenAI-
+  // — nothing this app can fix, see api/gemini.js). All three are OpenAI-
   // compatible chat APIs relayed through /api/llm (see api/llm.js — same
-  // no-CORS-from-the-browser reasoning as Gemini). Neither supports a real
+  // no-CORS-from-the-browser reasoning as Gemini). None supports a real
   // web-search tool the way Gemini's google_search does, so generation on
   // these providers leans entirely on the model's own trained knowledge —
   // fine for stable reference facts (theorems don't change), weaker for
@@ -4865,6 +4865,12 @@
       label: 'OpenRouter',
       keyPlaceholder: 'sk-or-…',
       keyHint: 'Ключ хранится только в этом браузере (localStorage), запросы идут через сервер MathFrame. Бесплатный ключ: openrouter.ai/keys — в списке моделей показаны только модели с бесплатным тарифом (id оканчивается на ":free"), но их дневной лимит обычно небольшой и завязан на IP/аккаунт, без доступа к поиску в интернете.',
+      supportsSearch: false,
+    },
+    mistral: {
+      label: 'Mistral',
+      keyPlaceholder: '…',
+      keyHint: 'Ключ хранится только в этом браузере (localStorage), запросы идут через сервер MathFrame. Бесплатный ключ: console.mistral.ai/api-keys (тариф "Experiment" — бесплатный, без привязки карты, но с ограничением запросов в секунду и в месяц). В списке моделей может оказаться и то, к чему у бесплатного тарифа нет доступа — такие модели просто не пройдут проверку ключа/модели ниже.',
       supportsSearch: false,
     },
   };
