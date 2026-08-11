@@ -749,7 +749,7 @@
   /* ================= Modal ================= */
   .veil{
     position:fixed; inset:0; background:rgba(10,11,14,.7);
-    display:flex; align-items:center; justify-content:center; z-index:1000; padding:20px;
+    display:flex; align-items:center; justify-content:center; z-index:2100; padding:20px;
     animation:veilIn .18s var(--smooth) both;
   }
   @keyframes veilIn{ from{ opacity:0 } to{ opacity:1 } }
@@ -907,6 +907,28 @@
   }
   .ai-log-detail-line{ font-size:11px; color:var(--dim); line-height:1.5; }
   .ai-log-detail-err{ font-size:11px; color:#e08872; line-height:1.5; }
+  .ai-log-snap-toggle{
+    font-size:10.5px; color:var(--accent-line); background:transparent; border:0; padding:0; cursor:pointer;
+    text-decoration:underline; text-underline-offset:2px;
+  }
+  .ai-log-snap-toggle:hover{ color:var(--accent); }
+  .ai-log-snap{
+    margin:4px 0 6px; padding:8px 10px; max-height:220px; overflow:auto;
+    background:var(--ink-1); border:1px solid var(--rule-soft); border-radius:3px;
+    font-family:var(--mono, monospace); font-size:11px; line-height:1.5; color:var(--text);
+    white-space:pre-wrap; word-break:break-word;
+  }
+  .ai-log-live{
+    margin:0 10px 8px 24px; padding:8px 10px; max-height:180px; overflow:auto;
+    background:var(--ink-1); border:1px solid var(--accent); border-radius:3px;
+    font-family:var(--serif); font-size:12px; line-height:1.55; color:var(--text);
+    white-space:pre-wrap; word-break:break-word;
+  }
+  .ai-log-live::after{
+    content:''; display:inline-block; width:2px; height:12px; margin-left:1px;
+    background:var(--accent-line); vertical-align:-1px; animation:aiCaret .8s step-end infinite;
+  }
+  @keyframes aiCaret{ 0%,100%{ opacity:1 } 50%{ opacity:0 } }
   .ai-foot{
     flex:0 0 auto; display:flex; align-items:center; justify-content:space-between; gap:10px;
     padding:14px 18px; border-top:1px solid var(--rule-soft);
@@ -1797,6 +1819,26 @@
     staggerBase = 16;
     render();
     setStatus('Выделено всё: ' + selectedIds.size);
+  }
+  // Arrow-key navigation — steps `currentId` to the previous/next visibly
+  // shown row (same order Shift-click range selection uses, so it already
+  // respects collapsed subtrees and the active search/filter/sort).
+  function scrollRowIntoView(index){
+    const top = el.root.offsetTop + index * ROW_PITCH;
+    const bottom = top + ROW_PITCH;
+    if (top < el.canvas.scrollTop) el.canvas.scrollTop = top;
+    else if (bottom > el.canvas.scrollTop + el.canvas.clientHeight) el.canvas.scrollTop = bottom - el.canvas.clientHeight;
+  }
+  function navigateCurrent(delta){
+    const order = flatVisibleOrder(treeData);
+    if (!order.length) return;
+    let idx = currentId != null ? order.indexOf(currentId) : -1;
+    if (idx === -1) idx = delta > 0 ? -1 : order.length;
+    const next = Math.max(0, Math.min(order.length - 1, idx + delta));
+    const id = order[next];
+    pushSelectionUndo(() => { selectedIds = new Set([id]); currentId = id; anchorId = id; });
+    render();
+    scrollRowIntoView(next);
   }
   function currentSelectionIds(){
     if (selectedIds.size) return [...selectedIds];
@@ -4575,6 +4617,11 @@
     if (e.code === 'Insert'){ e.preventDefault(); addSmart(); return; }
     if (e.code === 'Delete' || e.code === 'Backspace'){ e.preventDefault(); deleteSelectionOrCurrent(); return; }
     if (e.code === 'F2' && (currentId != null)){ e.preventDefault(); beginRename(currentId); return; }
+    if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && !ctrl && !e.altKey && !e.shiftKey){
+      e.preventDefault();
+      navigateCurrent(e.key === 'ArrowDown' ? 1 : -1);
+      return;
+    }
     if (e.key === 'Escape'){
       if (selectionMode) exitSelectionMode();
       else if (selectedIds.size || currentId !== null) clearSelection();
@@ -4822,6 +4869,11 @@
   const AI_SETTINGS_KEY = 'mf-ai-settings-v2';
   const AI_JOB_KEY = 'mf-ai-job-v1';
   const AI_TYPES_SUPPORTED = ['topic', 'folder', 'theorem', 'proof'];
+  // Set once by grantAccess() after the Firebase admin-gate check — the uid
+  // this browser is signed in as, used to key the cross-device sync document
+  // (see "Cross-device sync" below). Null until then, so sync is a no-op
+  // during the brief window before access is confirmed.
+  let currentUid = null;
   // generativelanguage.googleapis.com never sends Access-Control-Allow-Origin
   // on its responses — no browser-side trick (header vs ?key= query param)
   // gets past that, the request is blocked before it reaches Google either
@@ -4836,7 +4888,13 @@
       opts.method === 'POST' ? { 'content-type': 'application/json' } : {},
       opts.headers || {}
     );
-    return fetch('/api/gemini?path=' + encodeURIComponent(path), Object.assign({}, opts, { headers }));
+    const url = '/api/gemini?path=' + encodeURIComponent(path) + (opts.stream ? '&stream=1' : '');
+    // `stream` isn't a fetch() init option — it only exists to build the
+    // relay URL above, so it must not be spread into what's actually passed
+    // to fetch() (harmless if it were, but keeps the init object honest).
+    const fetchOpts = Object.assign({}, opts, { headers });
+    delete fetchOpts.stream;
+    return fetch(url, fetchOpts);
   }
 
   // Alternative providers for accounts whose Gemini free tier is region/
@@ -4882,7 +4940,10 @@
       opts.method === 'POST' ? { 'content-type': 'application/json' } : {},
       opts.headers || {}
     );
-    return fetch('/api/llm?provider=' + encodeURIComponent(provider) + '&path=' + encodeURIComponent(path), Object.assign({}, opts, { headers }));
+    const url = '/api/llm?provider=' + encodeURIComponent(provider) + '&path=' + encodeURIComponent(path) + (opts.stream ? '&stream=1' : '');
+    const fetchOpts = Object.assign({}, opts, { headers });
+    delete fetchOpts.stream;
+    return fetch(url, fetchOpts);
   }
 
   function loadAiSettings(){
@@ -4916,6 +4977,7 @@
     if (typeof patch.apiKey === 'string') s.byProvider[pid].apiKey = patch.apiKey;
     if (typeof patch.model === 'string') s.byProvider[pid].model = patch.model;
     try { localStorage.setItem(AI_SETTINGS_KEY, JSON.stringify(s)); } catch (e){ /* quota / private mode */ }
+    aiSyncPush({ settings: s });
   }
   // {provider, apiKey, model} for whichever provider is currently selected —
   // the shape most call sites actually want instead of the full byProvider map.
@@ -4934,8 +4996,12 @@
   }
   function saveAiJob(job){
     try { localStorage.setItem(AI_JOB_KEY, JSON.stringify(job)); } catch (e){ /* quota / private mode */ }
+    aiSyncPush({ job });
   }
-  function clearAiJob(){ try { localStorage.removeItem(AI_JOB_KEY); } catch (e){} }
+  function clearAiJob(){
+    try { localStorage.removeItem(AI_JOB_KEY); } catch (e){}
+    aiSyncPush({ job: null });
+  }
 
   /* ---------------- tree helpers keyed by the stable topicId ---------------- */
   function findNodeByTopicId(tid, nodes){
@@ -5104,6 +5170,19 @@
     return list;
   }
   function sleep(ms){ return new Promise(res => setTimeout(res, ms)); }
+  // Like sleep(), but wakes up early (well under a second) if `aiAbort` gets
+  // set mid-wait — used for retry backoff, which can otherwise sit in a
+  // single uninterruptible setTimeout for up to 45s. Without this, clicking
+  // "Пауза"/"Отменить" while a retry is waiting out a rate limit does
+  // nothing visible until that whole wait elapses, which reads as a hang.
+  function sleepAbortable(ms){
+    return new Promise(res => {
+      const start = performance.now();
+      const iv = setInterval(() => {
+        if (aiAbort || performance.now() - start >= ms){ clearInterval(iv); res(); }
+      }, 150);
+    });
+  }
 
   /* ---------------- logging + small concurrency helper ---------------- */
   function aiLog(){
@@ -5241,6 +5320,32 @@
     return 'HTTP ' + status;
   }
 
+  // Reads a fetch Response body as an SSE stream ("data: <payload>\n\n"
+  // frames — what both Gemini's ?alt=sse and every OpenAI-compatible
+  // provider's stream:true use), calling onData(payload) for each frame.
+  // The literal "[DONE]" sentinel some providers send is passed through
+  // as-is; callers that care check for it themselves.
+  async function readSSE(response, onData){
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
+    while (true){
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      let idx;
+      while ((idx = buf.indexOf('\n\n')) !== -1){
+        const frame = buf.slice(0, idx);
+        buf = buf.slice(idx + 2);
+        frame.split('\n').forEach(line => {
+          if (!line.startsWith('data:')) return;
+          const payload = line.slice(5).trim();
+          if (payload) onData(payload);
+        });
+      }
+    }
+  }
+
   // ctx = { provider, apiKey, model } — bundled instead of separate
   // positional args because this (and aiCompleteRetry below) is called from
   // a dozen places across aiGenerateOne's pipeline; threading three
@@ -5250,7 +5355,12 @@
     opts = opts || {};
     const label = opts.label || 'запрос';
     const t0 = performance.now();
-    aiLog(label, '→ отправка (' + ctx.model + (opts.webSearch ? ', с поиском' : '') + ')');
+    // Streaming only kicks in when the caller actually wants to watch it
+    // type (passed onDelta) — otherwise this is the exact same buffered
+    // request as before. aiTestModel and the JSON-only calls (candidate
+    // search) never pass onDelta, so they're unaffected.
+    const streamed = typeof opts.onDelta === 'function';
+    aiLog(label, '→ отправка (' + ctx.model + (opts.webSearch ? ', с поиском' : '') + (streamed ? ', потоково' : '') + ')');
 
     if (ctx.provider === 'gemini'){
       const body = {
@@ -5259,77 +5369,133 @@
         generationConfig: { maxOutputTokens: opts.maxTokens || 4096 }
       };
       if (opts.webSearch) body.tools = [{ google_search: {} }];
-      const r = await geminiFetch('models/' + encodeURIComponent(ctx.model) + ':generateContent', ctx.apiKey, {
-        method: 'POST',
-        body: JSON.stringify(body)
+      const path = 'models/' + encodeURIComponent(ctx.model) + (streamed ? ':streamGenerateContent?alt=sse' : ':generateContent');
+      const r = await geminiFetch(path, ctx.apiKey, { method: 'POST', body: JSON.stringify(body), stream: streamed });
+
+      if (!streamed){
+        const dt = performance.now() - t0;
+        const data = await r.json().catch(() => null);
+        if (!r.ok || !data){
+          const msg = extractApiErrorMessage(data, r.status);
+          aiLog(label, '✗ ошибка за', dt.toFixed(0) + ' мс:', msg);
+          const err = new Error(msg);
+          err.status = r.status; err.retryAfterMs = parseRetryAfterMs(r);
+          throw err;
+        }
+        const cand = (data.candidates || [])[0];
+        if (!cand) {
+          const reason = data.promptFeedback && data.promptFeedback.blockReason;
+          const err = reason ? ('Заблокировано (' + reason + ')') : 'Пустой ответ модели';
+          aiLog(label, '✗', err, 'за', dt.toFixed(0) + ' мс');
+          throw new Error(err);
+        }
+        const text = ((cand.content && cand.content.parts) || []).filter(b => typeof b.text === 'string').map(b => b.text).join('\n').trim();
+        return aiFinalizeText(label, t0, text, cand.finishReason === 'MAX_TOKENS', opts);
+      }
+
+      // Streaming: the relay pipes raw bytes through without buffering, so
+      // an error response (still small, still JSON) has to be read and
+      // parsed the normal way here instead — the retry/rate-limit handling
+      // downstream doesn't care whether the failure came from a buffered or
+      // a streamed attempt, only that .status/.retryAfterMs got set.
+      if (!r.ok){
+        const dt = performance.now() - t0;
+        const raw = await r.text();
+        let data = null; try { data = JSON.parse(raw); } catch (e){}
+        const msg = extractApiErrorMessage(data, r.status);
+        aiLog(label, '✗ ошибка за', dt.toFixed(0) + ' мс:', msg);
+        const err = new Error(msg);
+        err.status = r.status; err.retryAfterMs = parseRetryAfterMs(r);
+        throw err;
+      }
+      let text = '', finishReason = null, blockReason = null;
+      await readSSE(r, raw => {
+        let obj; try { obj = JSON.parse(raw); } catch (e){ return; }
+        const cand = (obj.candidates || [])[0];
+        if (!cand){
+          if (obj.promptFeedback && obj.promptFeedback.blockReason) blockReason = obj.promptFeedback.blockReason;
+          return;
+        }
+        const delta = ((cand.content && cand.content.parts) || []).filter(b => typeof b.text === 'string').map(b => b.text).join('');
+        if (delta){ text += delta; opts.onDelta(text); }
+        if (cand.finishReason) finishReason = cand.finishReason;
       });
+      if (!text && blockReason){
+        const dt = performance.now() - t0;
+        const err = 'Заблокировано (' + blockReason + ')';
+        aiLog(label, '✗', err, 'за', dt.toFixed(0) + ' мс');
+        throw new Error(err);
+      }
+      return aiFinalizeText(label, t0, text.trim(), finishReason === 'MAX_TOKENS', opts);
+    }
+
+    // Groq / OpenRouter / Mistral — OpenAI-compatible chat/completions. No
+    // search tool exists to request here (opts.webSearch is simply
+    // ignored), system prompts still tell the model "у тебя есть доступ к
+    // интернету" (unchanged, shared prompt text) — on these providers
+    // that's not literally true, so treat their output as resting on the
+    // model's own trained knowledge, not a live check.
+    const r = await llmFetch(ctx.provider, 'chat/completions', ctx.apiKey, {
+      method: 'POST',
+      body: JSON.stringify({
+        model: ctx.model,
+        messages: [{ role: 'system', content: system }, { role: 'user', content: userText }],
+        max_tokens: opts.maxTokens || 4096,
+        stream: streamed
+      }),
+      stream: streamed
+    });
+
+    if (!streamed){
       const dt = performance.now() - t0;
       const data = await r.json().catch(() => null);
       if (!r.ok || !data){
         const msg = extractApiErrorMessage(data, r.status);
         aiLog(label, '✗ ошибка за', dt.toFixed(0) + ' мс:', msg);
         const err = new Error(msg);
-        err.status = r.status;
-        err.retryAfterMs = parseRetryAfterMs(r);
+        err.status = r.status; err.retryAfterMs = parseRetryAfterMs(r);
         throw err;
       }
-      const cand = (data.candidates || [])[0];
-      if (!cand) {
-        const reason = data.promptFeedback && data.promptFeedback.blockReason;
-        const err = reason ? ('Заблокировано (' + reason + ')') : 'Пустой ответ модели';
+      const choice = (data.choices || [])[0];
+      if (!choice){
+        const err = 'Пустой ответ модели';
         aiLog(label, '✗', err, 'за', dt.toFixed(0) + ' мс');
         throw new Error(err);
       }
-      const text = ((cand.content && cand.content.parts) || []).filter(b => typeof b.text === 'string').map(b => b.text).join('\n').trim();
-      // A truncated response is worse than a failed one — it looks fine at a
-      // glance and gets saved as-is (see the "Пространственная фигура"
-      // cut-off description). finishReason 'MAX_TOKENS' means the model hit
-      // the maxOutputTokens ceiling mid-thought; throw a distinguishable
-      // error so aiCompleteRetry can retry with a bigger budget instead of
-      // silently accepting the partial text.
-      if (cand.finishReason === 'MAX_TOKENS'){
-        aiLog(label, '⚠ ответ обрезан по лимиту токенов (maxOutputTokens=' + (opts.maxTokens || 4096) + '), получено символов:', text.length);
-        const err = new Error('Ответ обрезан по лимиту токенов (' + (opts.maxTokens || 4096) + ')');
-        err.truncated = true;
-        throw err;
-      }
-      aiLog(label, '✓ готово за', dt.toFixed(0) + ' мс, символов:', text.length);
-      return text;
+      const text = ((choice.message && choice.message.content) || '').trim();
+      return aiFinalizeText(label, t0, text, choice.finish_reason === 'length', opts);
     }
 
-    // Groq / OpenRouter — OpenAI-compatible chat/completions. No search
-    // tool exists to request here (opts.webSearch is simply ignored),
-    // system prompts still tell the model "у тебя есть доступ к интернету"
-    // (unchanged, shared prompt text) — on these providers that's not
-    // literally true, so treat their output as resting on the model's own
-    // trained knowledge, not a live check.
-    const r = await llmFetch(ctx.provider, 'chat/completions', ctx.apiKey, {
-      method: 'POST',
-      body: JSON.stringify({
-        model: ctx.model,
-        messages: [{ role: 'system', content: system }, { role: 'user', content: userText }],
-        max_tokens: opts.maxTokens || 4096
-      })
-    });
-    const dt = performance.now() - t0;
-    const data = await r.json().catch(() => null);
-    if (!r.ok || !data){
+    if (!r.ok){
+      const dt = performance.now() - t0;
+      const raw = await r.text();
+      let data = null; try { data = JSON.parse(raw); } catch (e){}
       const msg = extractApiErrorMessage(data, r.status);
       aiLog(label, '✗ ошибка за', dt.toFixed(0) + ' мс:', msg);
       const err = new Error(msg);
-      err.status = r.status;
-      err.retryAfterMs = parseRetryAfterMs(r);
+      err.status = r.status; err.retryAfterMs = parseRetryAfterMs(r);
       throw err;
     }
-    const choice = (data.choices || [])[0];
-    if (!choice){
-      const err = 'Пустой ответ модели';
-      aiLog(label, '✗', err, 'за', dt.toFixed(0) + ' мс');
-      throw new Error(err);
-    }
-    const text = ((choice.message && choice.message.content) || '').trim();
-    if (choice.finish_reason === 'length'){
-      aiLog(label, '⚠ ответ обрезан по лимиту токенов (max_tokens=' + (opts.maxTokens || 4096) + '), получено символов:', text.length);
+    let text = '', finishReason = null;
+    await readSSE(r, raw => {
+      if (raw === '[DONE]') return;
+      let obj; try { obj = JSON.parse(raw); } catch (e){ return; }
+      const choice = (obj.choices || [])[0];
+      if (!choice) return;
+      const delta = (choice.delta && choice.delta.content) || '';
+      if (delta){ text += delta; opts.onDelta(text); }
+      if (choice.finish_reason) finishReason = choice.finish_reason;
+    });
+    return aiFinalizeText(label, t0, text.trim(), finishReason === 'length', opts);
+  }
+  // Shared tail for both providers and both streamed/buffered paths: same
+  // truncation check, same empty-response check, same success log line —
+  // written once so the four call sites above can't drift out of sync with
+  // each other on what counts as "truncated" or "empty".
+  function aiFinalizeText(label, t0, text, wasTruncated, opts){
+    const dt = performance.now() - t0;
+    if (wasTruncated){
+      aiLog(label, '⚠ ответ обрезан по лимиту токенов (' + (opts.maxTokens || 4096) + '), получено символов:', text.length);
       const err = new Error('Ответ обрезан по лимиту токенов (' + (opts.maxTokens || 4096) + ')');
       err.truncated = true;
       throw err;
@@ -5373,7 +5539,8 @@
           }
           if (rateLimitAttempt > MAX_RATE_LIMIT_ATTEMPTS) throw e;
           aiLog(label, '⚠ лимит запросов (429), повтор через ' + (delay / 1000).toFixed(0) + ' с (попытка ' + rateLimitAttempt + '/' + MAX_RATE_LIMIT_ATTEMPTS + ')…');
-          await sleep(delay);
+          await sleepAbortable(delay);
+          if (aiAbort) throw e;
           continue;
         }
         if (attempt >= 1) throw e;
@@ -5384,7 +5551,8 @@
           effectiveOpts = Object.assign({}, effectiveOpts, { maxTokens: bumped });
         } else {
           aiLog(label, '⚠ повтор после ошибки:', e.message);
-          await sleep(1500);
+          await sleepAbortable(1500);
+          if (aiAbort) throw e;
         }
       }
     }
@@ -5843,8 +6011,13 @@ id: <идентификатор> | title: <название темы> | type: <�
     return out;
   }
 
-  async function aiGenerateOne(ctx, node, topicIndex, stemIdx, doLinks, onStep){
+  async function aiGenerateOne(ctx, node, topicIndex, stemIdx, doLinks, onStep, onLive){
     onStep = onStep || function(){};
+    // Only wired into the main creative-writing calls (the ones long/
+    // interesting enough to watch), not the shorter mechanical steps
+    // (check/format/candidates/links) — keeps the added complexity to
+    // where it actually earns its keep instead of every single request.
+    onLive = onLive || function(){};
     const isFolder = node.type === 'folder';
     const isTheorem = node.type === 'theorem';
     const isProof = node.type === 'proof';
@@ -5855,9 +6028,12 @@ id: <идентификатор> | title: <название темы> | type: <�
       const userMsg = 'Раздел: ' + node.name +
         (children.length ? ('\nНепосредственно входящие темы: ' + children.join(', ')) : '');
       onStep('обзор раздела…');
-      const raw = await aiCompleteRetry(ctx, AI_PROMPT_GENERATE_FOLDER, userMsg, { maxTokens: 800, label: 'обзор раздела' });
+      const raw = await aiCompleteRetry(ctx, AI_PROMPT_GENERATE_FOLDER, userMsg, { maxTokens: 800, label: 'обзор раздела', onDelta: onLive });
+      onLive('');
+      onStep('обзор раздела — готово', { label: 'Черновик обзора', text: raw });
       onStep('форматирование (HTML)…');
       formatted = await aiCompleteRetry(ctx, AI_PROMPT_FORMAT, raw, { maxTokens: 1500, label: 'форматирование' });
+      onStep('форматирование — готово', { label: 'После форматирования (HTML)', text: formatted });
     } else if (isProof){
       // Context comes from the parent tree node — proofs are assumed to sit
       // directly under the theorem/fact they prove. If your hierarchy nests
@@ -5874,10 +6050,11 @@ id: <идентификатор> | title: <название темы> | type: <�
       }
 
       onStep('генерация шагов доказательства (с поиском в интернете)…');
-      const raw = await aiCompleteRetry(ctx, AI_PROMPT_GENERATE_PROOF, context, { maxTokens: 3000, webSearch: true, label: 'генерация (доказательство)' });
+      const raw = await aiCompleteRetry(ctx, AI_PROMPT_GENERATE_PROOF, context, { maxTokens: 3000, webSearch: true, label: 'генерация (доказательство)', onDelta: onLive });
+      onLive('');
       let rawSteps = raw.split(/\n\s*\n+/).map(s => s.trim()).filter(Boolean);
       if (!rawSteps.length) rawSteps = [raw.trim()];
-      onStep('шагов в черновике: ' + rawSteps.length);
+      onStep('шагов в черновике: ' + rawSteps.length, { label: 'Черновик шагов', text: rawSteps.join('\n\n---\n\n') });
 
       onStep('проверка шагов доказательства…');
       let checkedSteps = rawSteps;
@@ -5892,6 +6069,7 @@ id: <идентификатор> | title: <название темы> | type: <�
       } catch (e){
         aiLog('  ⚠ проверка шагов доказательства не удалась, используем черновик без правки:', e.message);
       }
+      onStep('шаги после проверки', { label: 'Шаги после проверки', text: checkedSteps.join('\n\n---\n\n') });
 
       onStep('форматирование шагов (HTML + KaTeX)…');
       const joinedForFormat = checkedSteps.join('\n\n' + AI_STEP_MARKER + '\n\n');
@@ -5903,6 +6081,7 @@ id: <идентификатор> | title: <название темы> | type: <�
         stepHtmls = await aiFormatStepsIndividually(ctx, checkedSteps, 'форматирование шага (доказательство)');
       }
       formatted = stepHtmls.map(h => '<div>' + h.trim() + '</div>').join('');
+      onStep('форматирование — готово', { label: 'После форматирования (HTML)', text: formatted });
     } else {
       // Bare "Тема: <имя>" used to be the whole prompt — with web search on,
       // an ambiguous/generic name (e.g. "Пространственная фигура") gave the
@@ -5929,11 +6108,15 @@ id: <идентификатор> | title: <название темы> | type: <�
       if (childNames.length) userMsg += '\nДочерние темы, раскрываемые отдельными статьями (не дублируй их содержание здесь, упоминай не более чем обзорно, если вообще нужно): ' + childNames.join(', ');
 
       onStep('генерация текста (с поиском в интернете)…');
-      const raw = await aiCompleteRetry(ctx, AI_PROMPT_GENERATE, userMsg, { maxTokens: 3000, webSearch: true, label: 'генерация' });
+      const raw = await aiCompleteRetry(ctx, AI_PROMPT_GENERATE, userMsg, { maxTokens: 3000, webSearch: true, label: 'генерация', onDelta: onLive });
+      onLive('');
+      onStep('генерация — готово', { label: 'Черновик текста', text: raw });
       onStep('проверка и исправление…');
       const checked = await aiCompleteRetry(ctx, AI_PROMPT_CHECK, 'Название темы: ' + node.name + '\n\nОписание:\n' + raw, { maxTokens: 3000, label: 'проверка' });
+      onStep('проверка — готово', { label: 'После проверки', text: checked });
       onStep('форматирование (HTML + KaTeX)…');
       formatted = await aiCompleteRetry(ctx, AI_PROMPT_FORMAT, checked, { maxTokens: 4096, label: 'форматирование' });
+      onStep('форматирование — готово', { label: 'После форматирования (HTML)', text: formatted });
     }
 
     if (!doLinks){ onStep('готово (без ссылок)'); return formatted; }
@@ -5973,7 +6156,7 @@ id: <идентификатор> | title: <название темы> | type: <�
     const sanitized = sanitizeLinks(linked, validIds, node.topicId);
     const linkCount = (sanitized.match(/<a href="topic:/g) || []).length;
     const extCount = (sanitized.match(/<a href="https:\/\//g) || []).length;
-    onStep('готово — ссылок на темы: ' + linkCount + (extCount ? ', внешних: ' + extCount : ''));
+    onStep('готово — ссылок на темы: ' + linkCount + (extCount ? ', внешних: ' + extCount : ''), { label: 'Итог, со ссылками', text: sanitized });
     return sanitized;
   }
 
@@ -5986,12 +6169,22 @@ id: <идентификатор> | title: <название темы> | type: <�
   let aiRunning = false;    // true while the async loop below is actively mid-flight
   let aiAbort = false;      // set by pause/cancel to stop the loop at the next safe point
   let aiWantCancel = false; // distinguishes "cancel" from a plain "pause" once the loop stops
+  // Purely cosmetic, separate from aiAbort: lets the UI show "Останавливается…"
+  // and disable the buttons the instant you click Пауза/Отменить, instead of
+  // sitting on the old "Пауза" button with no feedback until the in-flight
+  // request actually unwinds (which — for a request mid rate-limit backoff —
+  // used to look exactly like the button doing nothing).
+  let aiStopping = false;
 
   // Per-topic step-by-step timeline for the expandable detail view in the
   // log panel — kept in memory only (not persisted: it's diagnostic detail
   // for the current session, not something a reload needs to restore).
   const aiDetailLogs = new Map();
   const aiExpandedRows = new Set();
+  // Which individual step lines (keyed 'tid:index') have their snapshot
+  // (the actual text/HTML the pipeline produced at that point) expanded —
+  // separate from aiExpandedRows, which only expands the per-topic log.
+  const aiExpandedSnapshots = new Set();
 
   function aiJobProgress(job){
     const total = job.queue.length;
@@ -6015,8 +6208,21 @@ id: <идентификатор> | title: <название темы> | type: <�
       renderAiPanel();
       return;
     }
+    // Cross-device: refuse to start a second, independent run of the same
+    // job while another device already holds a fresh lease on it — this is
+    // the only thing standing between two open tabs/devices double-
+    // generating (and double-burning API quota for) the same topics.
+    const gotLease = await aiClaimLease();
+    if (!gotLease){
+      aiLog('=== Задание уже выполняется на другом устройстве — ждём ===');
+      setStatus('Это задание уже выполняется на другом устройстве — прогресс появится здесь автоматически.');
+      renderAiPanel();
+      return;
+    }
+    aiStartHeartbeat();
+
     const ctx = { provider, apiKey: providerSettings.apiKey, model: job.settings.model };
-    aiRunning = true; aiAbort = false; aiWantCancel = false;
+    aiRunning = true; aiAbort = false; aiWantCancel = false; aiStopping = false;
     job.status = 'running';
     saveAiJob(job);
     renderAiPanel();
@@ -6048,19 +6254,30 @@ id: <идентификатор> | title: <название темы> | type: <�
       const topicT0 = performance.now();
       aiDetailLogs.set(tid, []);
       aiLog('--- «' + node.name + '» (' + tid + ', тип: ' + node.type + ') — старт ---');
-      const onStep = (msg) => {
+      const onStep = (msg, snapshot) => {
         const list = aiDetailLogs.get(tid) || [];
-        list.push({ t: new Date().toLocaleTimeString('ru-RU', { hour12: false }), msg });
+        list.push({ t: new Date().toLocaleTimeString('ru-RU', { hour12: false }), msg, snapshot });
         aiDetailLogs.set(tid, list);
         const cur = job.results[tid];
-        if (cur) cur.step = msg;
+        if (cur){ cur.step = msg; cur.liveText = ''; }
         aiLog('  «' + node.name + '»:', msg);
         renderAiPanel();
+      };
+      // Full re-renders on every streamed chunk (several per second) would
+      // be wasteful — this keeps job.results[tid].liveText always current
+      // (so it's correct the moment anything else triggers a render anyway)
+      // but only forces its own render on a ~120ms cadence.
+      let liveRenderAt = 0;
+      const onLive = (text) => {
+        const cur = job.results[tid];
+        if (cur) cur.liveText = text;
+        const now = performance.now();
+        if (now - liveRenderAt > 120){ liveRenderAt = now; renderAiPanel(); }
       };
 
       let html = null, errMsg = null;
       try {
-        html = await aiGenerateOne(ctx, node, topicIndex, stemIdx, job.settings.links, onStep);
+        html = await aiGenerateOne(ctx, node, topicIndex, stemIdx, job.settings.links, onStep, onLive);
       } catch (err){
         errMsg = err.message || String(err);
       }
@@ -6083,6 +6300,8 @@ id: <идентификатор> | title: <название темы> | type: <�
     }
 
     aiRunning = false;
+    aiStopping = false;
+    aiReleaseLease();
     if (aiWantCancel){
       // storage was already cleared by aiDiscardJob(); nothing left to persist
       aiWantCancel = false;
@@ -6100,10 +6319,20 @@ id: <идентификатор> | title: <название темы> | type: <�
   }
   function aiPauseJob(){
     aiAbort = true;
+    aiStopping = true;
+    // Written unconditionally, not just when this device holds the lease —
+    // if the job is actually running on another device, this is the only
+    // way to reach it; the active device's onSnapshot listener turns it
+    // back into a local aiAbort the same way a click there would.
+    aiSyncPushNow({ control: { abortRequested: true, cancelRequested: false, requestedBy: DEVICE_ID } });
+    renderAiPanel();
   }
   function aiCancelJob(){
     aiAbort = true;
     aiWantCancel = true;
+    aiStopping = true;
+    aiSyncPushNow({ control: { abortRequested: true, cancelRequested: true, requestedBy: DEVICE_ID } });
+    renderAiPanel();
   }
   function aiRollbackJob(){
     const job = loadAiJob();
@@ -6121,6 +6350,167 @@ id: <идентификатор> | title: <название темы> | type: <�
     clearAiJob();
     aiRemoveBanner();
     renderAiPanel();
+  }
+
+  /* ============================================================
+     Cross-device sync (Firestore)
+     ------------------------------------------------------------
+     Mirrors AI settings (including API keys) and the current
+     autogeneration job across every device signed into the same account,
+     via a single doc at aiSync/{uid}. Requires a Firestore security rule
+     restricting that doc to its own owner:
+
+       match /aiSync/{uid} {
+         allow read, write: if request.auth != null && request.auth.uid == uid;
+       }
+
+     Only one device actually executes the generation loop at a time — a
+     short-lived "lease" on the doc, renewed by a heartbeat while a job is
+     running. Without this, opening the panel on a second device while a
+     job is running would start an independent second copy of the same
+     job: double the API calls, and two devices racing to write results
+     for the same topics. Other devices just mirror the active one's
+     progress and can request pause/cancel via a `control` flag, which the
+     active device's own aiAbort/aiStopping machinery already knows how to
+     honor the same way a local click does (see aiRunJob below).
+     ============================================================ */
+  const AI_SYNC_LEASE_STALE_MS = 45000; // no heartbeat this long → treat the lease as abandoned, allow takeover
+  const AI_SYNC_HEARTBEAT_MS = 8000;
+  function getDeviceId(){
+    let id;
+    try { id = localStorage.getItem('mf-device-id'); } catch (e){}
+    if (!id){
+      id = 'dev-' + Math.random().toString(36).slice(2) + '-' + Date.now().toString(36);
+      try { localStorage.setItem('mf-device-id', id); } catch (e){}
+    }
+    return id;
+  }
+  const DEVICE_ID = getDeviceId();
+
+  function aiSyncDocRef(){
+    return currentUid ? firebase.firestore().collection('aiSync').doc(currentUid) : null;
+  }
+
+  let aiSyncUnsub = null;
+  let aiSyncPushTimer = null;
+  let aiHeartbeatTimer = null;
+  let aiRemoteLease = null; // last known { deviceId, heartbeatAt(ms) } mirrored from Firestore, or null
+
+  function aiLeaseIsFresh(lease){
+    return !!(lease && lease.heartbeatAt && (Date.now() - lease.heartbeatAt) < AI_SYNC_LEASE_STALE_MS);
+  }
+  function aiLeaseHeldByMe(){
+    return !!(aiRemoteLease && aiRemoteLease.deviceId === DEVICE_ID && aiLeaseIsFresh(aiRemoteLease));
+  }
+
+  // Debounced — local settings edits and per-step job progress push here
+  // instead of hitting Firestore on every keystroke/step.
+  function aiSyncPush(patch){
+    const ref = aiSyncDocRef();
+    if (!ref) return;
+    clearTimeout(aiSyncPushTimer);
+    aiSyncPushTimer = setTimeout(() => {
+      ref.set(Object.assign({}, patch, {
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        updatedBy: DEVICE_ID
+      }), { merge: true }).catch(e => aiLog('⚠ синхронизация не удалась:', e.message));
+    }, 400);
+  }
+  // Same, but immediate — for the lease claim/release and control flags,
+  // where a 400ms debounce would just be a race window for another device.
+  function aiSyncPushNow(patch){
+    const ref = aiSyncDocRef();
+    if (!ref) return Promise.resolve();
+    return ref.set(Object.assign({}, patch, {
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      updatedBy: DEVICE_ID
+    }), { merge: true }).catch(e => aiLog('⚠ синхронизация не удалась:', e.message));
+  }
+
+  function startAiSync(){
+    const ref = aiSyncDocRef();
+    if (!ref || aiSyncUnsub) return;
+    aiSyncUnsub = ref.onSnapshot(snap => {
+      if (!snap.exists) return;
+      const data = snap.data();
+      aiRemoteLease = data.lease
+        ? { deviceId: data.lease.deviceId, heartbeatAt: data.lease.heartbeatAt ? data.lease.heartbeatAt.toMillis() : 0 }
+        : null;
+      // Our own writes echo back through this same listener — applying them
+      // again is harmless but pointless (and for `job`, would fight the
+      // locally-running loop's own in-memory copy), so skip anything we
+      // just wrote ourselves; still repaint in case a button's disabled
+      // state depends on aiRemoteLease.
+      if (data.updatedBy === DEVICE_ID){
+        if (aiOverlayEl) renderAiPanel();
+        return;
+      }
+      if (data.settings){
+        try { localStorage.setItem(AI_SETTINGS_KEY, JSON.stringify(data.settings)); } catch (e){}
+      }
+      if ('job' in data && !aiLeaseHeldByMe()){
+        // Never let a remote snapshot overwrite storage while THIS device
+        // is the one actively running the loop — it owns `job` until it
+        // releases the lease at the end of aiRunJob.
+        if (data.job){ try { localStorage.setItem(AI_JOB_KEY, JSON.stringify(data.job)); } catch (e){} }
+        else clearAiJob();
+        // This device is, by definition, not the one running the loop here
+        // (aiLeaseHeldByMe() is false) — so if a Пауза/Отменить click on
+        // *this* device set aiStopping optimistically, and the job now
+        // shows anything other than still-running, clear it back. Nothing
+        // else on this device will ever do it, since that normally only
+        // happens inside aiRunJob's own tail.
+        if (!data.job || data.job.status !== 'running') aiStopping = false;
+      }
+      if (data.control && data.control.requestedBy && data.control.requestedBy !== DEVICE_ID && aiRunning){
+        if (data.control.cancelRequested){ aiAbort = true; aiWantCancel = true; aiStopping = true; }
+        else if (data.control.abortRequested){ aiAbort = true; aiStopping = true; }
+      }
+      if (aiOverlayEl) renderAiPanel();
+      aiUpdateBanner();
+    }, e => aiLog('⚠ подписка на синхронизацию прервалась:', e.message));
+  }
+
+  // Claims the run lease via a transaction, so two devices starting/resuming
+  // within the same instant can't both believe they won. Resolves true if
+  // this device now holds it (including when sync isn't available at all —
+  // not signed in yet, offline, Firestore error — falling back to the old
+  // local-only, single-device behavior rather than blocking generation).
+  async function aiClaimLease(){
+    const ref = aiSyncDocRef();
+    if (!ref) return true;
+    try {
+      return await firebase.firestore().runTransaction(async tx => {
+        const snap = await tx.get(ref);
+        const data = snap.exists ? snap.data() : null;
+        const lease = data && data.lease;
+        const fresh = lease && lease.heartbeatAt && (Date.now() - lease.heartbeatAt.toMillis()) < AI_SYNC_LEASE_STALE_MS;
+        if (fresh && lease.deviceId !== DEVICE_ID) return false;
+        tx.set(ref, {
+          lease: { deviceId: DEVICE_ID, heartbeatAt: firebase.firestore.FieldValue.serverTimestamp() },
+          control: { abortRequested: false, cancelRequested: false },
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+          updatedBy: DEVICE_ID
+        }, { merge: true });
+        return true;
+      });
+    } catch (e){
+      aiLog('⚠ не удалось согласовать очередь между устройствами, продолжаем локально:', e.message);
+      return true;
+    }
+  }
+  function aiStartHeartbeat(){
+    aiStopHeartbeat();
+    aiHeartbeatTimer = setInterval(() => {
+      aiSyncPushNow({ lease: { deviceId: DEVICE_ID, heartbeatAt: firebase.firestore.FieldValue.serverTimestamp() } });
+    }, AI_SYNC_HEARTBEAT_MS);
+  }
+  function aiStopHeartbeat(){
+    if (aiHeartbeatTimer){ clearInterval(aiHeartbeatTimer); aiHeartbeatTimer = null; }
+  }
+  function aiReleaseLease(){
+    aiStopHeartbeat();
+    aiSyncPushNow({ lease: null, control: { abortRequested: false, cancelRequested: false } });
   }
 
   /* ---------------- UI ---------------- */
@@ -6485,6 +6875,12 @@ id: <идентификатор> | title: <название темы> | type: <�
     wrap.appendChild(stats);
     body.appendChild(wrap);
 
+    if (job.status === 'running' && aiRemoteLease && aiRemoteLease.deviceId !== DEVICE_ID && aiLeaseIsFresh(aiRemoteLease)){
+      const remoteHint = document.createElement('div'); remoteHint.className = 'ai-hint';
+      remoteHint.textContent = 'Выполняется на другом устройстве этого же аккаунта — прогресс здесь обновляется автоматически. Пауза/Остановить сработают и отсюда.';
+      body.appendChild(remoteHint);
+    }
+
     const logHint = document.createElement('div'); logHint.className = 'ai-hint';
     logHint.textContent = 'Подробный ход генерации по каждому шагу дублируется в консоль браузера (F12). Нажмите на тему в списке ниже, чтобы развернуть её журнал за текущий сеанс.';
     body.appendChild(logHint);
@@ -6513,6 +6909,15 @@ id: <идентификатор> | title: <название темы> | type: <�
       });
       log.appendChild(row);
 
+      // Shown unconditionally (not gated behind expanding the row) while
+      // text is actively streaming in — the whole point is to see it as it
+      // happens without an extra click, same as watching a chat reply type.
+      if (status === 'running' && r && r.liveText){
+        const live = document.createElement('div'); live.className = 'ai-log-live';
+        live.textContent = r.liveText;
+        log.appendChild(live);
+      }
+
       if (expanded){
         const detail = document.createElement('div'); detail.className = 'ai-log-detail';
         if (r && r.status === 'error' && r.error) {
@@ -6522,10 +6927,36 @@ id: <идентификатор> | title: <название темы> | type: <�
         }
         const steps = aiDetailLogs.get(tid) || [];
         if (steps.length){
-          steps.forEach(s => {
+          steps.forEach((s, i) => {
+            const snapKey = tid + ':' + i;
             const line = document.createElement('div'); line.className = 'ai-log-detail-line';
             line.textContent = s.t + ' — ' + s.msg;
+            if (s.snapshot){
+              const toggle = document.createElement('button');
+              toggle.type = 'button'; toggle.className = 'ai-log-snap-toggle';
+              toggle.textContent = aiExpandedSnapshots.has(snapKey) ? 'скрыть текст' : 'показать текст';
+              toggle.addEventListener('click', e => {
+                e.stopPropagation();
+                if (aiExpandedSnapshots.has(snapKey)) aiExpandedSnapshots.delete(snapKey); else aiExpandedSnapshots.add(snapKey);
+                renderAiPanel();
+              });
+              line.appendChild(document.createTextNode(' — ' + s.snapshot.label + ' '));
+              line.appendChild(toggle);
+            }
             detail.appendChild(line);
+            if (s.snapshot && aiExpandedSnapshots.has(snapKey)){
+              const snapBox = document.createElement('div');
+              snapBox.className = 'ai-log-snap';
+              // Rendered as plain, escaped text even for the HTML stages —
+              // this is for inspecting what the pipeline produced at that
+              // point, not a live preview, so showing the literal markup
+              // (rather than rendering it, which would also need KaTeX and
+              // introduce untrusted-HTML risk here) is the safer, more
+              // useful default: you can see exactly what changed between
+              // "форматирование" and "ссылки", tags included.
+              snapBox.textContent = s.snapshot.text;
+              detail.appendChild(snapBox);
+            }
           });
         } else if (!(r && r.status === 'error')) {
           const line = document.createElement('div'); line.className = 'ai-log-detail-line';
@@ -6548,27 +6979,45 @@ id: <идентификатор> | title: <название темы> | type: <�
     left.appendChild(rollbackBtn);
 
     if (job.status === 'running'){
+      // Cancel/stop used to only appear once the job was already paused —
+      // there was no way to stop a running job directly, only wait for
+      // Пауза to (eventually) take effect and a second button to show up.
+      // Both buttons now sit here together and both reflect aiStopping
+      // immediately, instead of the UI looking unresponsive until the
+      // in-flight request actually unwinds.
       const pauseBtn = document.createElement('button');
-      pauseBtn.type = 'button'; pauseBtn.className = 'ai-btn'; pauseBtn.textContent = 'Пауза';
+      pauseBtn.type = 'button'; pauseBtn.className = 'ai-btn';
+      pauseBtn.textContent = aiStopping ? 'Останавливается…' : 'Пауза';
+      pauseBtn.disabled = aiStopping;
       pauseBtn.addEventListener('click', aiPauseJob);
       right.appendChild(pauseBtn);
+
+      const stopBtn = document.createElement('button');
+      stopBtn.type = 'button'; stopBtn.className = 'ai-btn danger';
+      stopBtn.textContent = aiStopping ? 'Останавливается…' : 'Остановить';
+      stopBtn.disabled = aiStopping;
+      stopBtn.addEventListener('click', () => {
+        confirmDlg('Прервать генерацию? Уже сгенерированные описания останутся в темах, а бэкап и очередь задания будут очищены.',
+          () => { aiCancelJob(); aiDiscardJob(); }, 'Прервать');
+      });
+      right.appendChild(stopBtn);
     } else if (job.status === 'paused'){
       const resumeBtn = document.createElement('button');
       resumeBtn.type = 'button'; resumeBtn.className = 'ai-btn primary'; resumeBtn.textContent = 'Продолжить';
       resumeBtn.addEventListener('click', aiRunJob);
       right.appendChild(resumeBtn);
-    }
-    if (job.status !== 'running'){
+
       const doneBtn = document.createElement('button');
-      doneBtn.type = 'button'; doneBtn.className = 'ai-btn'; doneBtn.textContent = job.status === 'done' ? 'Закрыть задание' : 'Отменить и очистить';
+      doneBtn.type = 'button'; doneBtn.className = 'ai-btn'; doneBtn.textContent = 'Отменить и очистить';
       doneBtn.addEventListener('click', () => {
-        if (job.status !== 'done'){
-          confirmDlg('Прервать генерацию? Уже сгенерированные описания останутся в темах, а бэкап и очередь задания будут очищены.',
-            () => { aiCancelJob(); aiDiscardJob(); }, 'Прервать');
-        } else {
-          aiCancelJob(); aiDiscardJob();
-        }
+        confirmDlg('Прервать генерацию? Уже сгенерированные описания останутся в темах, а бэкап и очередь задания будут очищены.',
+          () => { aiCancelJob(); aiDiscardJob(); }, 'Прервать');
       });
+      right.appendChild(doneBtn);
+    } else {
+      const doneBtn = document.createElement('button');
+      doneBtn.type = 'button'; doneBtn.className = 'ai-btn'; doneBtn.textContent = 'Закрыть задание';
+      doneBtn.addEventListener('click', aiDiscardJob);
       right.appendChild(doneBtn);
     }
     foot.append(left, right);
@@ -6728,15 +7177,17 @@ id: <идентификатор> | title: <название темы> | type: <�
   }
   function checkAccess(user){
     if (!user) return denyAccess();
-    if (user.email === SUPER_ADMIN_EMAIL) return grantAccess();
+    if (user.email === SUPER_ADMIN_EMAIL) return grantAccess(user);
     firebase.firestore().collection('admins').doc(user.uid).get().then(doc => {
-      if (doc.exists && doc.data().granted) grantAccess(); else denyAccess();
+      if (doc.exists && doc.data().granted) grantAccess(user); else denyAccess();
     }).catch(() => denyAccess());
   }
   function denyAccess(){ window.location.replace(PAGE_ROOT); }
-  function grantAccess(){
+  function grantAccess(user){
     document.getElementById('admin-gate').style.display = 'none';
     document.body.classList.add('admin-granted');
+    currentUid = user.uid;
+    startAiSync();
     boot();
   }
   initAuthCheck();

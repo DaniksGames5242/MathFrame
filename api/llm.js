@@ -49,6 +49,13 @@ module.exports = async (req, res) => {
     headers['X-Title'] = 'MathFrame';
   }
 
+  // ?stream=1, set by the client only for the actual generation call (the
+  // request body also carries "stream": true) — pipes bytes through as
+  // they arrive instead of buffering the whole reply, for live "the AI is
+  // typing" progress. Every other call (model list, model self-test) keeps
+  // the buffered path, where the JSON body/Retry-After need inspecting.
+  const streaming = req.query && req.query.stream === '1';
+
   try {
     const upstream = await fetch(base + path, {
       method: req.method,
@@ -57,7 +64,6 @@ module.exports = async (req, res) => {
         ? (typeof req.body === 'string' ? req.body : JSON.stringify(req.body || {}))
         : undefined,
     });
-    const text = await upstream.text();
     res.status(upstream.status);
     res.setHeader('content-type', upstream.headers.get('content-type') || 'application/json');
     // On a 429 the client needs to know how long to actually wait — an
@@ -65,8 +71,15 @@ module.exports = async (req, res) => {
     // "N requests per minute" rather than "per second".
     const retryAfter = upstream.headers.get('retry-after');
     if (retryAfter) res.setHeader('retry-after', retryAfter);
-    res.send(text);
+
+    if (streaming && upstream.body) {
+      for await (const chunk of upstream.body) res.write(chunk);
+      res.end();
+    } else {
+      res.send(await upstream.text());
+    }
   } catch (e) {
-    res.status(502).json({ error: 'Не удалось связаться с ' + provider + ': ' + e.message });
+    if (res.headersSent) res.end();
+    else res.status(502).json({ error: 'Не удалось связаться с ' + provider + ': ' + e.message });
   }
 };

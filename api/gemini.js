@@ -34,6 +34,14 @@ module.exports = async (req, res) => {
     return;
   }
 
+  // ?stream=1 (set by the client only for the actual generation call, via
+  // :streamGenerateContent?alt=sse — see geminiFetch/aiComplete) switches
+  // this from "buffer the whole reply, so JSON error bodies/Retry-After can
+  // be inspected" to "pipe bytes through as they arrive," which is what
+  // live "the AI is typing" progress needs. Every other call (model list,
+  // model self-test) keeps the buffered path unchanged.
+  const streaming = req.query && req.query.stream === '1';
+
   try {
     const upstream = await fetch(GEMINI_BASE + path, {
       method: req.method,
@@ -45,13 +53,22 @@ module.exports = async (req, res) => {
         ? (typeof req.body === 'string' ? req.body : JSON.stringify(req.body || {}))
         : undefined,
     });
-    const text = await upstream.text();
     res.status(upstream.status);
     res.setHeader('content-type', upstream.headers.get('content-type') || 'application/json');
     const retryAfter = upstream.headers.get('retry-after');
     if (retryAfter) res.setHeader('retry-after', retryAfter);
-    res.send(text);
+
+    if (streaming && upstream.body) {
+      for await (const chunk of upstream.body) res.write(chunk);
+      res.end();
+    } else {
+      res.send(await upstream.text());
+    }
   } catch (e) {
-    res.status(502).json({ error: 'Не удалось связаться с Gemini API: ' + e.message });
+    // A streaming response may already have sent headers by the time the
+    // upstream connection drops — res.headersSent guards against trying to
+    // send a second (JSON error) response on top of a already-started one.
+    if (res.headersSent) res.end();
+    else res.status(502).json({ error: 'Не удалось связаться с Gemini API: ' + e.message });
   }
 };
