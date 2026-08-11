@@ -149,6 +149,9 @@
   "functions": {
     "api/gemini.js": {
       "maxDuration": 60
+    },
+    "api/llm.js": {
+      "maxDuration": 60
     }
   }
 }

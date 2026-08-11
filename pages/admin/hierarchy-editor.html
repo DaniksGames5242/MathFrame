@@ -4839,18 +4839,83 @@
     return fetch('/api/gemini?path=' + encodeURIComponent(path), Object.assign({}, opts, { headers }));
   }
 
+  // Alternative providers for accounts whose Gemini free tier is region/
+  // account-restricted (limit:0 on generativelanguage.googleapis.com quotas
+  // — nothing this app can fix, see api/gemini.js). Both are OpenAI-
+  // compatible chat APIs relayed through /api/llm (see api/llm.js — same
+  // no-CORS-from-the-browser reasoning as Gemini). Neither supports a real
+  // web-search tool the way Gemini's google_search does, so generation on
+  // these providers leans entirely on the model's own trained knowledge —
+  // fine for stable reference facts (theorems don't change), weaker for
+  // anything that would benefit from a live check.
+  const AI_PROVIDERS = {
+    gemini: {
+      label: 'Google Gemini',
+      keyPlaceholder: 'AIzaSy…',
+      keyHint: 'Ключ хранится только в этом браузере (localStorage). Google не разрешает браузерам обращаться к Gemini API напрямую, поэтому запросы идут через сервер MathFrame — он передаёт ключ дальше в Gemini API, не сохраняя и не логируя его. Получить бесплатный ключ можно в Google AI Studio (aistudio.google.com) — но у некоторых аккаунтов (например, по региону) бесплатная квота может быть нулевой для всех моделей; это ограничение самого Google, проверьте это на странице использования API-ключа.',
+      supportsSearch: true,
+    },
+    groq: {
+      label: 'Groq',
+      keyPlaceholder: 'gsk_…',
+      keyHint: 'Ключ хранится только в этом браузере (localStorage), запросы идут через сервер MathFrame (Groq тоже не отвечает на запросы прямо из браузера). Бесплатный ключ: console.groq.com/keys — щедрые бесплатные лимиты на открытые модели (Llama, и т.п.), но без доступа к поиску в интернете — качество генерации опирается только на знания самой модели.',
+      supportsSearch: false,
+    },
+    openrouter: {
+      label: 'OpenRouter',
+      keyPlaceholder: 'sk-or-…',
+      keyHint: 'Ключ хранится только в этом браузере (localStorage), запросы идут через сервер MathFrame. Бесплатный ключ: openrouter.ai/keys — в списке моделей показаны только модели с бесплатным тарифом (id оканчивается на ":free"), но их дневной лимит обычно небольшой и завязан на IP/аккаунт, без доступа к поиску в интернете.',
+      supportsSearch: false,
+    },
+  };
+
+  function llmFetch(provider, path, apiKey, opts){
+    opts = opts || {};
+    const headers = Object.assign(
+      { 'x-llm-key': apiKey },
+      opts.method === 'POST' ? { 'content-type': 'application/json' } : {},
+      opts.headers || {}
+    );
+    return fetch('/api/llm?provider=' + encodeURIComponent(provider) + '&path=' + encodeURIComponent(path), Object.assign({}, opts, { headers }));
+  }
+
   function loadAiSettings(){
+    const empty = () => { const s = {}; Object.keys(AI_PROVIDERS).forEach(id => { s[id] = { apiKey:'', model:'' }; }); return s; };
     try {
       const raw = localStorage.getItem(AI_SETTINGS_KEY);
       const p = raw ? JSON.parse(raw) : null;
-      return {
-        apiKey: (p && typeof p.apiKey === 'string') ? p.apiKey : '',
-        model: (p && typeof p.model === 'string') ? p.model : ''
-      };
-    } catch (e){ return { apiKey:'', model:'' }; }
+      const byProvider = empty();
+      Object.keys(AI_PROVIDERS).forEach(id => {
+        const src = p && p.byProvider && p.byProvider[id];
+        if (src){
+          if (typeof src.apiKey === 'string') byProvider[id].apiKey = src.apiKey;
+          if (typeof src.model === 'string') byProvider[id].model = src.model;
+        }
+      });
+      // Migrate the old single-provider {apiKey, model} shape (always meant
+      // Gemini) into byProvider.gemini, so existing saved keys survive.
+      if (p && typeof p.apiKey === 'string' && !byProvider.gemini.apiKey) byProvider.gemini.apiKey = p.apiKey;
+      if (p && typeof p.model === 'string' && !byProvider.gemini.model) byProvider.gemini.model = p.model;
+      const provider = (p && AI_PROVIDERS[p.provider]) ? p.provider : 'gemini';
+      return { provider, byProvider };
+    } catch (e){ return { provider: 'gemini', byProvider: empty() }; }
   }
-  function saveAiSettings(s){
+  // patch: { provider?, apiKey?, model? } — apiKey/model apply to `provider`
+  // (or the currently active provider if omitted), everything else in
+  // storage (other providers' saved keys, etc.) is preserved untouched.
+  function saveAiSettings(patch){
+    const s = loadAiSettings();
+    if (patch.provider && AI_PROVIDERS[patch.provider]) s.provider = patch.provider;
+    const pid = (patch.provider && AI_PROVIDERS[patch.provider]) ? patch.provider : s.provider;
+    if (typeof patch.apiKey === 'string') s.byProvider[pid].apiKey = patch.apiKey;
+    if (typeof patch.model === 'string') s.byProvider[pid].model = patch.model;
     try { localStorage.setItem(AI_SETTINGS_KEY, JSON.stringify(s)); } catch (e){ /* quota / private mode */ }
+  }
+  // {provider, apiKey, model} for whichever provider is currently selected —
+  // the shape most call sites actually want instead of the full byProvider map.
+  function currentAiSettings(){
+    const s = loadAiSettings();
+    return Object.assign({ provider: s.provider }, s.byProvider[s.provider]);
   }
   function loadAiJob(){
     try {
@@ -5003,20 +5068,34 @@
     return list.map(t => 'id: ' + t.id + ' | title: ' + t.title + ' | type: ' + t.type).join('\n');
   }
 
-  /* ---------------- Gemini API ---------------- */
-  async function aiListModels(apiKey){
-    const r = await geminiFetch('models?pageSize=1000', apiKey);
-    const data = await r.json().catch(() => null);
-    if (!r.ok || !data || !Array.isArray(data.models)) {
-      throw new Error((data && data.error && data.error.message) || ('HTTP ' + r.status));
+  /* ---------------- model listing ---------------- */
+  async function aiListModels(provider, apiKey){
+    if (provider === 'gemini'){
+      const r = await geminiFetch('models?pageSize=1000', apiKey);
+      const data = await r.json().catch(() => null);
+      if (!r.ok || !data || !Array.isArray(data.models)) {
+        throw new Error((data && data.error && data.error.message) || ('HTTP ' + r.status));
+      }
+      return data.models
+        .filter(m => Array.isArray(m.supportedGenerationMethods) && m.supportedGenerationMethods.includes('generateContent'))
+        .map(m => ({
+          id: (m.name || '').replace(/^models\//, ''),
+          display_name: m.displayName || (m.name || '').replace(/^models\//, '')
+        }))
+        .filter(m => m.id);
     }
-    return data.models
-      .filter(m => Array.isArray(m.supportedGenerationMethods) && m.supportedGenerationMethods.includes('generateContent'))
-      .map(m => ({
-        id: (m.name || '').replace(/^models\//, ''),
-        display_name: m.displayName || (m.name || '').replace(/^models\//, '')
-      }))
-      .filter(m => m.id);
+    // Groq / OpenRouter — OpenAI-compatible GET /models → { data: [{id, ...}] }
+    const r = await llmFetch(provider, 'models', apiKey);
+    const data = await r.json().catch(() => null);
+    if (!r.ok || !data || !Array.isArray(data.data)) {
+      throw new Error((data && data.error && (data.error.message || data.error)) || ('HTTP ' + r.status));
+    }
+    let list = data.data.map(m => ({ id: m.id, display_name: m.id })).filter(m => m.id);
+    // OpenRouter mixes free and paid models in the same listing — id ends in
+    // ":free" for the ones that don't need a paid balance; keep only those,
+    // since the whole point of this provider option is a free API.
+    if (provider === 'openrouter') list = list.filter(m => m.id.endsWith(':free'));
+    return list;
   }
   function sleep(ms){ return new Promise(res => setTimeout(res, ms)); }
 
@@ -5053,45 +5132,73 @@
      that force a real search rather than a memorized answer. */
   const AI_TEST_PROMPT = 'Это проверка связи и возможностей модели, ответь по существу, без лишних вступлений. Сначала подтверди, что ты меня слышишь, одним словом «ОК». Затем, обязательно воспользовавшись поиском в интернете (не отвечай по памяти, так как эти данные регулярно меняются и могли устареть), кратко укажи: 1) сегодняшнюю дату; 2) номер текущей стабильной версии языка Python; 3) год основания Массачусетского технологического института. Ответ дай сжато, в 3-4 строки, без форматирования и пояснений сверх запрошенного.';
 
-  async function aiTestModel(apiKey, modelId){
+  async function aiTestModel(provider, apiKey, modelId){
     const t0 = performance.now();
+    const TIMEOUT = (typeof AbortSignal !== 'undefined' && AbortSignal.timeout) ? AbortSignal.timeout(30000) : undefined;
     try {
-      const r = await geminiFetch('models/' + encodeURIComponent(modelId) + ':generateContent', apiKey, {
+      if (provider === 'gemini'){
+        const r = await geminiFetch('models/' + encodeURIComponent(modelId) + ':generateContent', apiKey, {
+          method: 'POST',
+          body: JSON.stringify({
+            contents: [{ role: 'user', parts: [{ text: AI_TEST_PROMPT }] }],
+            generationConfig: { maxOutputTokens: 400 },
+            tools: [{ google_search: {} }]
+          }),
+          signal: TIMEOUT
+        });
+        const latencyMs = performance.now() - t0;
+        const data = await r.json().catch(() => null);
+        if (!r.ok || !data){
+          const err = (data && data.error && data.error.message) || ('HTTP ' + r.status);
+          aiLog('Тест модели', modelId, '— HTTP-ошибка за', latencyMs.toFixed(0) + ' мс:', err);
+          return { ok: false, webSearch: false, latencyMs, error: err };
+        }
+        const cand = (data.candidates || [])[0];
+        if (!cand){
+          const reason = data.promptFeedback && data.promptFeedback.blockReason;
+          const err = reason ? ('заблокировано (' + reason + ')') : 'пустой ответ';
+          aiLog('Тест модели', modelId, '—', err, 'за', latencyMs.toFixed(0) + ' мс');
+          return { ok: false, webSearch: false, latencyMs, error: err };
+        }
+        const text = ((cand.content && cand.content.parts) || []).filter(b => typeof b.text === 'string').map(b => b.text).join('').trim();
+        const gm = cand.groundingMetadata || cand.grounding_metadata;
+        const webSearch = !!(gm && (
+          (gm.webSearchQueries && gm.webSearchQueries.length) ||
+          (gm.groundingChunks && gm.groundingChunks.length) ||
+          (gm.groundingChunks === undefined && gm.searchEntryPoint)
+        ));
+        if (!text){
+          aiLog('Тест модели', modelId, '— пустой текстовый ответ за', latencyMs.toFixed(0) + ' мс');
+          return { ok: false, webSearch: false, latencyMs, error: 'пустой текстовый ответ' };
+        }
+        aiLog('Тест модели', modelId, '—', (webSearch ? 'поиск использован' : 'поиск НЕ использован'), ',', latencyMs.toFixed(0) + ' мс', ', ответ:', text.slice(0, 120));
+        return { ok: true, webSearch, latencyMs, error: null };
+      }
+      // Groq / OpenRouter — OpenAI-compatible chat/completions, no search
+      // tool to request or check for; a non-empty reply is the whole test.
+      const r = await llmFetch(provider, 'chat/completions', apiKey, {
         method: 'POST',
         body: JSON.stringify({
-          contents: [{ role: 'user', parts: [{ text: AI_TEST_PROMPT }] }],
-          generationConfig: { maxOutputTokens: 400 },
-          tools: [{ google_search: {} }]
+          model: modelId,
+          messages: [{ role: 'user', content: AI_TEST_PROMPT }],
+          max_tokens: 400
         }),
-        signal: (typeof AbortSignal !== 'undefined' && AbortSignal.timeout) ? AbortSignal.timeout(30000) : undefined
+        signal: TIMEOUT
       });
       const latencyMs = performance.now() - t0;
       const data = await r.json().catch(() => null);
       if (!r.ok || !data){
-        const err = (data && data.error && data.error.message) || ('HTTP ' + r.status);
+        const err = (data && data.error && (data.error.message || data.error)) || ('HTTP ' + r.status);
         aiLog('Тест модели', modelId, '— HTTP-ошибка за', latencyMs.toFixed(0) + ' мс:', err);
         return { ok: false, webSearch: false, latencyMs, error: err };
       }
-      const cand = (data.candidates || [])[0];
-      if (!cand){
-        const reason = data.promptFeedback && data.promptFeedback.blockReason;
-        const err = reason ? ('заблокировано (' + reason + ')') : 'пустой ответ';
-        aiLog('Тест модели', modelId, '—', err, 'за', latencyMs.toFixed(0) + ' мс');
-        return { ok: false, webSearch: false, latencyMs, error: err };
-      }
-      const text = ((cand.content && cand.content.parts) || []).filter(b => typeof b.text === 'string').map(b => b.text).join('').trim();
-      const gm = cand.groundingMetadata || cand.grounding_metadata;
-      const webSearch = !!(gm && (
-        (gm.webSearchQueries && gm.webSearchQueries.length) ||
-        (gm.groundingChunks && gm.groundingChunks.length) ||
-        (gm.groundingChunks === undefined && gm.searchEntryPoint)
-      ));
+      const text = ((data.choices || [])[0] && data.choices[0].message && data.choices[0].message.content || '').trim();
       if (!text){
         aiLog('Тест модели', modelId, '— пустой текстовый ответ за', latencyMs.toFixed(0) + ' мс');
         return { ok: false, webSearch: false, latencyMs, error: 'пустой текстовый ответ' };
       }
-      aiLog('Тест модели', modelId, '—', (webSearch ? 'поиск использован' : 'поиск НЕ использован'), ',', latencyMs.toFixed(0) + ' мс', ', ответ:', text.slice(0, 120));
-      return { ok: true, webSearch, latencyMs, error: null };
+      aiLog('Тест модели', modelId, '— ответ получен,', latencyMs.toFixed(0) + ' мс', ', ответ:', text.slice(0, 120));
+      return { ok: true, webSearch: false, latencyMs, error: null };
     } catch (e){
       const latencyMs = performance.now() - t0;
       const err = (e && e.name === 'TimeoutError') ? 'таймаут (30 с)' : ((e && e.message) || String(e));
@@ -5100,56 +5207,106 @@
     }
   }
 
-  async function aiComplete(apiKey, model, system, userText, opts){
+  // ctx = { provider, apiKey, model } — bundled instead of separate
+  // positional args because this (and aiCompleteRetry below) is called from
+  // a dozen places across aiGenerateOne's pipeline; threading three
+  // interdependent values through every one of those individually would be
+  // easy to get out of sync (e.g. apiKey for one provider, model for another).
+  async function aiComplete(ctx, system, userText, opts){
     opts = opts || {};
     const label = opts.label || 'запрос';
     const t0 = performance.now();
-    aiLog(label, '→ отправка (' + model + (opts.webSearch ? ', с поиском' : '') + ')');
-    const body = {
-      contents: [{ role: 'user', parts: [{ text: userText }] }],
-      systemInstruction: { parts: [{ text: system }] },
-      generationConfig: { maxOutputTokens: opts.maxTokens || 4096 }
-    };
-    if (opts.webSearch) body.tools = [{ google_search: {} }];
-    const r = await geminiFetch('models/' + encodeURIComponent(model) + ':generateContent', apiKey, {
+    aiLog(label, '→ отправка (' + ctx.model + (opts.webSearch ? ', с поиском' : '') + ')');
+
+    if (ctx.provider === 'gemini'){
+      const body = {
+        contents: [{ role: 'user', parts: [{ text: userText }] }],
+        systemInstruction: { parts: [{ text: system }] },
+        generationConfig: { maxOutputTokens: opts.maxTokens || 4096 }
+      };
+      if (opts.webSearch) body.tools = [{ google_search: {} }];
+      const r = await geminiFetch('models/' + encodeURIComponent(ctx.model) + ':generateContent', ctx.apiKey, {
+        method: 'POST',
+        body: JSON.stringify(body)
+      });
+      const dt = performance.now() - t0;
+      const data = await r.json().catch(() => null);
+      if (!r.ok || !data){
+        const err = (data && data.error && data.error.message) || ('HTTP ' + r.status);
+        aiLog(label, '✗ ошибка за', dt.toFixed(0) + ' мс:', err);
+        throw new Error(err);
+      }
+      const cand = (data.candidates || [])[0];
+      if (!cand) {
+        const reason = data.promptFeedback && data.promptFeedback.blockReason;
+        const err = reason ? ('Заблокировано (' + reason + ')') : 'Пустой ответ модели';
+        aiLog(label, '✗', err, 'за', dt.toFixed(0) + ' мс');
+        throw new Error(err);
+      }
+      const text = ((cand.content && cand.content.parts) || []).filter(b => typeof b.text === 'string').map(b => b.text).join('\n').trim();
+      // A truncated response is worse than a failed one — it looks fine at a
+      // glance and gets saved as-is (see the "Пространственная фигура"
+      // cut-off description). finishReason 'MAX_TOKENS' means the model hit
+      // the maxOutputTokens ceiling mid-thought; throw a distinguishable
+      // error so aiCompleteRetry can retry with a bigger budget instead of
+      // silently accepting the partial text.
+      if (cand.finishReason === 'MAX_TOKENS'){
+        aiLog(label, '⚠ ответ обрезан по лимиту токенов (maxOutputTokens=' + (opts.maxTokens || 4096) + '), получено символов:', text.length);
+        const err = new Error('Ответ обрезан по лимиту токенов (' + (opts.maxTokens || 4096) + ')');
+        err.truncated = true;
+        throw err;
+      }
+      aiLog(label, '✓ готово за', dt.toFixed(0) + ' мс, символов:', text.length);
+      return text;
+    }
+
+    // Groq / OpenRouter — OpenAI-compatible chat/completions. No search
+    // tool exists to request here (opts.webSearch is simply ignored),
+    // system prompts still tell the model "у тебя есть доступ к интернету"
+    // (unchanged, shared prompt text) — on these providers that's not
+    // literally true, so treat their output as resting on the model's own
+    // trained knowledge, not a live check.
+    const r = await llmFetch(ctx.provider, 'chat/completions', ctx.apiKey, {
       method: 'POST',
-      body: JSON.stringify(body)
+      body: JSON.stringify({
+        model: ctx.model,
+        messages: [{ role: 'system', content: system }, { role: 'user', content: userText }],
+        max_tokens: opts.maxTokens || 4096
+      })
     });
     const dt = performance.now() - t0;
     const data = await r.json().catch(() => null);
     if (!r.ok || !data){
-      const err = (data && data.error && data.error.message) || ('HTTP ' + r.status);
+      const err = (data && data.error && (data.error.message || data.error)) || ('HTTP ' + r.status);
       aiLog(label, '✗ ошибка за', dt.toFixed(0) + ' мс:', err);
       throw new Error(err);
     }
-    const cand = (data.candidates || [])[0];
-    if (!cand) {
-      const reason = data.promptFeedback && data.promptFeedback.blockReason;
-      const err = reason ? ('Заблокировано (' + reason + ')') : 'Пустой ответ модели';
+    const choice = (data.choices || [])[0];
+    if (!choice){
+      const err = 'Пустой ответ модели';
       aiLog(label, '✗', err, 'за', dt.toFixed(0) + ' мс');
       throw new Error(err);
     }
-    const text = ((cand.content && cand.content.parts) || []).filter(b => typeof b.text === 'string').map(b => b.text).join('\n').trim();
-    // A truncated response is worse than a failed one — it looks fine at a
-    // glance and gets saved as-is (see the "Пространственная фигура" cut-off
-    // description). finishReason 'MAX_TOKENS' means the model hit the
-    // maxOutputTokens ceiling mid-thought; throw a distinguishable error so
-    // aiCompleteRetry can retry with a bigger budget instead of silently
-    // accepting the partial text.
-    if (cand.finishReason === 'MAX_TOKENS'){
-      aiLog(label, '⚠ ответ обрезан по лимиту токенов (maxOutputTokens=' + (opts.maxTokens || 4096) + '), получено символов:', text.length);
+    const text = ((choice.message && choice.message.content) || '').trim();
+    if (choice.finish_reason === 'length'){
+      aiLog(label, '⚠ ответ обрезан по лимиту токенов (max_tokens=' + (opts.maxTokens || 4096) + '), получено символов:', text.length);
       const err = new Error('Ответ обрезан по лимиту токенов (' + (opts.maxTokens || 4096) + ')');
       err.truncated = true;
       throw err;
     }
+    if (!text){
+      const err = 'Пустой текстовый ответ';
+      aiLog(label, '✗', err, 'за', dt.toFixed(0) + ' мс');
+      throw new Error(err);
+    }
     aiLog(label, '✓ готово за', dt.toFixed(0) + ' мс, символов:', text.length);
     return text;
   }
-  async function aiCompleteRetry(apiKey, model, system, userText, opts){
+  async function aiCompleteRetry(ctx, system, userText, opts){
     let lastErr;
     let effectiveOpts = opts;
     for (let attempt = 0; attempt < 2; attempt++){
-      try { return await aiComplete(apiKey, model, system, userText, effectiveOpts); }
+      try { return await aiComplete(ctx, system, userText, effectiveOpts); }
       catch (e){
         lastErr = e;
         if (attempt === 0){
@@ -5612,15 +5769,15 @@ id: <идентификатор> | title: <название темы> | type: <�
   // with a different number of pieces than steps went in (rare, but a
   // proof's steps must line up 1:1 with the stored <div>s) — formats each
   // step with its own call instead, which is slower but always correct.
-  async function aiFormatStepsIndividually(apiKey, model, steps, label){
+  async function aiFormatStepsIndividually(ctx, steps, label){
     const out = [];
     for (const s of steps){
-      out.push(await aiCompleteRetry(apiKey, model, AI_PROMPT_FORMAT, s, { maxTokens: 1200, label: (label || 'форматирование шага') }));
+      out.push(await aiCompleteRetry(ctx, AI_PROMPT_FORMAT, s, { maxTokens: 1200, label: (label || 'форматирование шага') }));
     }
     return out;
   }
 
-  async function aiGenerateOne(apiKey, model, node, topicIndex, stemIdx, doLinks, onStep){
+  async function aiGenerateOne(ctx, node, topicIndex, stemIdx, doLinks, onStep){
     onStep = onStep || function(){};
     const isFolder = node.type === 'folder';
     const isTheorem = node.type === 'theorem';
@@ -5632,9 +5789,9 @@ id: <идентификатор> | title: <название темы> | type: <�
       const userMsg = 'Раздел: ' + node.name +
         (children.length ? ('\nНепосредственно входящие темы: ' + children.join(', ')) : '');
       onStep('обзор раздела…');
-      const raw = await aiCompleteRetry(apiKey, model, AI_PROMPT_GENERATE_FOLDER, userMsg, { maxTokens: 800, label: 'обзор раздела' });
+      const raw = await aiCompleteRetry(ctx, AI_PROMPT_GENERATE_FOLDER, userMsg, { maxTokens: 800, label: 'обзор раздела' });
       onStep('форматирование (HTML)…');
-      formatted = await aiCompleteRetry(apiKey, model, AI_PROMPT_FORMAT, raw, { maxTokens: 1500, label: 'форматирование' });
+      formatted = await aiCompleteRetry(ctx, AI_PROMPT_FORMAT, raw, { maxTokens: 1500, label: 'форматирование' });
     } else if (isProof){
       // Context comes from the parent tree node — proofs are assumed to sit
       // directly under the theorem/fact they prove. If your hierarchy nests
@@ -5651,7 +5808,7 @@ id: <идентификатор> | title: <название темы> | type: <�
       }
 
       onStep('генерация шагов доказательства (с поиском в интернете)…');
-      const raw = await aiCompleteRetry(apiKey, model, AI_PROMPT_GENERATE_PROOF, context, { maxTokens: 3000, webSearch: true, label: 'генерация (доказательство)' });
+      const raw = await aiCompleteRetry(ctx, AI_PROMPT_GENERATE_PROOF, context, { maxTokens: 3000, webSearch: true, label: 'генерация (доказательство)' });
       let rawSteps = raw.split(/\n\s*\n+/).map(s => s.trim()).filter(Boolean);
       if (!rawSteps.length) rawSteps = [raw.trim()];
       onStep('шагов в черновике: ' + rawSteps.length);
@@ -5660,7 +5817,7 @@ id: <идентификатор> | title: <название темы> | type: <�
       let checkedSteps = rawSteps;
       try {
         const joinedForCheck = rawSteps.join('\n\n' + AI_STEP_MARKER + '\n\n');
-        const checkedRaw = await aiCompleteRetry(apiKey, model, AI_PROMPT_CHECK_PROOF,
+        const checkedRaw = await aiCompleteRetry(ctx, AI_PROMPT_CHECK_PROOF,
           'Контекст:\n' + context + '\n\nШаги доказательства:\n' + joinedForCheck,
           { maxTokens: 3500, label: 'проверка (доказательство)' });
         const parts = aiSplitByMarker(checkedRaw);
@@ -5672,12 +5829,12 @@ id: <идентификатор> | title: <название темы> | type: <�
 
       onStep('форматирование шагов (HTML + KaTeX)…');
       const joinedForFormat = checkedSteps.join('\n\n' + AI_STEP_MARKER + '\n\n');
-      const formattedRaw = await aiCompleteRetry(apiKey, model, AI_PROMPT_FORMAT_PROOF, joinedForFormat, { maxTokens: 4096, label: 'форматирование (доказательство)' });
+      const formattedRaw = await aiCompleteRetry(ctx, AI_PROMPT_FORMAT_PROOF, joinedForFormat, { maxTokens: 4096, label: 'форматирование (доказательство)' });
       let stepHtmls = aiSplitByMarker(formattedRaw);
       if (stepHtmls.length !== checkedSteps.length){
         aiLog('  ⚠ разметка форматирования доказательства разъехалась (' + stepHtmls.length + ' вместо ' + checkedSteps.length + '), форматируем шаги по отдельности');
         onStep('форматирование шагов по отдельности (из-за расхождения разметки)…');
-        stepHtmls = await aiFormatStepsIndividually(apiKey, model, checkedSteps, 'форматирование шага (доказательство)');
+        stepHtmls = await aiFormatStepsIndividually(ctx, checkedSteps, 'форматирование шага (доказательство)');
       }
       formatted = stepHtmls.map(h => '<div>' + h.trim() + '</div>').join('');
     } else {
@@ -5706,11 +5863,11 @@ id: <идентификатор> | title: <название темы> | type: <�
       if (childNames.length) userMsg += '\nДочерние темы, раскрываемые отдельными статьями (не дублируй их содержание здесь, упоминай не более чем обзорно, если вообще нужно): ' + childNames.join(', ');
 
       onStep('генерация текста (с поиском в интернете)…');
-      const raw = await aiCompleteRetry(apiKey, model, AI_PROMPT_GENERATE, userMsg, { maxTokens: 3000, webSearch: true, label: 'генерация' });
+      const raw = await aiCompleteRetry(ctx, AI_PROMPT_GENERATE, userMsg, { maxTokens: 3000, webSearch: true, label: 'генерация' });
       onStep('проверка и исправление…');
-      const checked = await aiCompleteRetry(apiKey, model, AI_PROMPT_CHECK, 'Название темы: ' + node.name + '\n\nОписание:\n' + raw, { maxTokens: 3000, label: 'проверка' });
+      const checked = await aiCompleteRetry(ctx, AI_PROMPT_CHECK, 'Название темы: ' + node.name + '\n\nОписание:\n' + raw, { maxTokens: 3000, label: 'проверка' });
       onStep('форматирование (HTML + KaTeX)…');
-      formatted = await aiCompleteRetry(apiKey, model, AI_PROMPT_FORMAT, checked, { maxTokens: 4096, label: 'форматирование' });
+      formatted = await aiCompleteRetry(ctx, AI_PROMPT_FORMAT, checked, { maxTokens: 4096, label: 'форматирование' });
     }
 
     if (!doLinks){ onStep('готово (без ссылок)'); return formatted; }
@@ -5726,7 +5883,7 @@ id: <идентификатор> | title: <название темы> | type: <�
     if (pool.length){
       try {
         onStep('поиск кандидатов через ИИ (' + pool.length + ' в пуле)…');
-        const resp = await aiCompleteRetry(apiKey, model, AI_PROMPT_FIND_CANDIDATES,
+        const resp = await aiCompleteRetry(ctx, AI_PROMPT_FIND_CANDIDATES,
           'Текст описания:\n' + plain + '\n\nСписок тем-кандидатов:\n' + candidateLines(pool),
           { maxTokens: 800, label: 'кандидаты (ИИ)' });
         const ids = new Set(JSON.parse(resp.replace(/^```(json)?/i, '').replace(/```$/, '').trim()));
@@ -5742,7 +5899,7 @@ id: <идентификатор> | title: <название темы> | type: <�
     if (!candidates.length){ onStep('готово (подходящих кандидатов на ссылки не найдено)'); return formatted; }
 
     onStep('расстановка ссылок (кандидатов: ' + candidates.length + ')…');
-    const linked = await aiCompleteRetry(apiKey, model, AI_PROMPT_LINKS,
+    const linked = await aiCompleteRetry(ctx, AI_PROMPT_LINKS,
       'Список тем-кандидатов:\n' + candidateLines(candidates) + '\n\nHTML-фрагмент описания:\n' + formatted,
       { maxTokens: 4096, webSearch: true, label: 'ссылки' });
 
@@ -5780,18 +5937,24 @@ id: <идентификатор> | title: <название темы> | type: <�
     if (aiRunning) return;
     const job = loadAiJob();
     if (!job || job.status === 'done' || job.status === 'cancelled') return;
-    const settings = loadAiSettings();
-    if (!settings.apiKey || !job.settings.model){
+    // The job was created under whatever provider was selected at the time
+    // (see startBtn) — always run it with that provider/key, not whatever
+    // happens to be selected in the UI right now (the panel may have been
+    // reopened and switched to a different provider since).
+    const provider = (job.settings.provider && AI_PROVIDERS[job.settings.provider]) ? job.settings.provider : 'gemini';
+    const providerSettings = loadAiSettings().byProvider[provider];
+    if (!providerSettings.apiKey || !job.settings.model){
       job.status = 'paused';
       saveAiJob(job);
       renderAiPanel();
       return;
     }
+    const ctx = { provider, apiKey: providerSettings.apiKey, model: job.settings.model };
     aiRunning = true; aiAbort = false; aiWantCancel = false;
     job.status = 'running';
     saveAiJob(job);
     renderAiPanel();
-    aiLog('=== Задание запущено: тем в очереди —', job.queue.length, ', модель —', job.settings.model, '===');
+    aiLog('=== Задание запущено: тем в очереди —', job.queue.length, ', провайдер —', provider, ', модель —', job.settings.model, '===');
 
     const topicIndex = buildTopicIndex();
     const stemIdx = buildStemIndex(topicIndex);
@@ -5831,7 +5994,7 @@ id: <идентификатор> | title: <название темы> | type: <�
 
       let html = null, errMsg = null;
       try {
-        html = await aiGenerateOne(settings.apiKey, job.settings.model, node, topicIndex, stemIdx, job.settings.links, onStep);
+        html = await aiGenerateOne(ctx, node, topicIndex, stemIdx, job.settings.links, onStep);
       } catch (err){
         errMsg = err.message || String(err);
       }
@@ -5896,8 +6059,11 @@ id: <идентификатор> | title: <название темы> | type: <�
 
   /* ---------------- UI ---------------- */
   let aiOverlayEl = null;
-  let aiModelsCache = [];
-  let aiLastCheckSummary = null; // { total, usable, noSearch, broken, checkedAt } — shown until the next check
+  // Keyed by provider id — checking Gemini shouldn't discard whatever was
+  // just checked for Groq, since switching the provider dropdown re-renders
+  // this same panel and should show each provider's own last check.
+  let aiModelsCache = {};      // provider -> models[]
+  let aiLastCheckSummary = {}; // provider -> { total, usable, noSearch, broken, brokenDetails }
 
   function aiTypeLabel(t){ return typeLabel(t); }
 
@@ -5943,11 +6109,42 @@ id: <идентификатор> | title: <название темы> | type: <�
   function renderAiSetupView(){
     const body = document.getElementById('aiBody');
     const foot = document.getElementById('aiFoot');
-    const settings = loadAiSettings();
+    const settings = currentAiSettings();
+    const provider = settings.provider;
+    const providerCfg = AI_PROVIDERS[provider];
     const roots = aiSelectedRootNodes();
 
     body.innerHTML = '';
     foot.innerHTML = '';
+
+    // --- provider ---
+    const secTitle0 = document.createElement('div');
+    secTitle0.className = 'ai-section-title'; secTitle0.textContent = 'Провайдер';
+    body.appendChild(secTitle0);
+
+    const providerRow = document.createElement('div'); providerRow.className = 'ai-row';
+    const providerSelect = document.createElement('select'); providerSelect.className = 'ai-select';
+    Object.keys(AI_PROVIDERS).forEach(id => {
+      const opt = document.createElement('option');
+      opt.value = id; opt.textContent = AI_PROVIDERS[id].label;
+      if (id === provider) opt.selected = true;
+      providerSelect.appendChild(opt);
+    });
+    // Full re-render on switch (rather than trying to live-swap every input)
+    // — each provider keeps its own saved key/model/check results, so the
+    // simplest correct thing is to just rebuild the panel for the new one.
+    providerSelect.addEventListener('change', () => {
+      saveAiSettings({ provider: providerSelect.value });
+      renderAiPanel();
+    });
+    providerRow.appendChild(providerSelect);
+    body.appendChild(providerRow);
+
+    if (!providerCfg.supportsSearch){
+      const searchNote = document.createElement('div'); searchNote.className = 'ai-hint';
+      searchNote.textContent = 'У этого провайдера нет доступа к поиску в интернете во время генерации — качество и актуальность текста опираются только на знания самой модели, без проверки в реальном времени.';
+      body.appendChild(searchNote);
+    }
 
     // --- API key + model ---
     const secTitle = document.createElement('div');
@@ -5956,14 +6153,14 @@ id: <идентификатор> | title: <название темы> | type: <�
 
     const keyRow = document.createElement('div'); keyRow.className = 'ai-row';
     const keyInput = document.createElement('input');
-    keyInput.className = 'ai-input'; keyInput.type = 'password'; keyInput.placeholder = 'AIzaSy…';
+    keyInput.className = 'ai-input'; keyInput.type = 'password'; keyInput.placeholder = providerCfg.keyPlaceholder;
     keyInput.value = settings.apiKey;
-    keyInput.addEventListener('input', () => { saveAiSettings({ apiKey: keyInput.value, model: modelSelect.value }); });
+    keyInput.addEventListener('input', () => { saveAiSettings({ provider, apiKey: keyInput.value, model: modelSelect.value }); });
     keyRow.appendChild(keyInput);
     body.appendChild(keyRow);
 
     const hint = document.createElement('div'); hint.className = 'ai-hint';
-    hint.textContent = 'Ключ хранится только в этом браузере (localStorage). Google не разрешает браузерам обращаться к Gemini API напрямую, поэтому запросы идут через сервер MathFrame — он передаёт ключ дальше в Gemini API, не сохраняя и не логируя его. Получить бесплатный ключ можно в Google AI Studio.';
+    hint.textContent = providerCfg.keyHint;
     body.appendChild(hint);
 
     const modelRow = document.createElement('div'); modelRow.className = 'ai-row';
@@ -5975,7 +6172,9 @@ id: <идентификатор> | title: <название темы> | type: <�
     body.appendChild(modelRow);
 
     const modelHint = document.createElement('div'); modelHint.className = 'ai-hint';
-    modelHint.textContent = 'Проверка отправляет каждой модели тестовый запрос: так отсеиваются модели, которые отвечают ошибкой вместо текста, и те, что не пользуются поиском в интернете (это нужно для первого шага генерации). Рядом с названием показана скорость ответа — список отсортирован от самых быстрых.';
+    modelHint.textContent = providerCfg.supportsSearch
+      ? 'Проверка отправляет каждой модели тестовый запрос: так отсеиваются модели, которые отвечают ошибкой вместо текста, и те, что не пользуются поиском в интернете (это нужно для первого шага генерации). Рядом с названием показана скорость ответа — список отсортирован от самых быстрых.'
+      : 'Проверка отправляет каждой модели тестовый запрос, чтобы отсеять модели, которые отвечают ошибкой вместо текста. Рядом с названием показана скорость ответа — список отсортирован от самых быстрых.';
     body.appendChild(modelHint);
 
     // Check progress — hidden until checkBtn starts a run. Testing happens
@@ -6008,21 +6207,23 @@ id: <идентификатор> | title: <название темы> | type: <�
       if (selected && models.some(m => m.id === selected)) modelSelect.value = selected;
     }
     if (settings.model){ fillModels([{ id: settings.model, display_name: settings.model }], settings.model); }
-    if (aiModelsCache.length) fillModels(aiModelsCache, settings.model);
+    if ((aiModelsCache[provider] || []).length) fillModels(aiModelsCache[provider], settings.model);
 
     const checkSummary = document.createElement('div'); checkSummary.className = 'ai-hint';
     const checkBrokenList = document.createElement('div'); checkBrokenList.className = 'ai-hint';
     checkBrokenList.style.color = 'var(--dim)';
     function paintCheckSummary(){
-      if (!aiLastCheckSummary){
+      const s = aiLastCheckSummary[provider];
+      if (!s){
         checkSummary.textContent = ''; checkSummary.style.display = 'none';
         checkBrokenList.textContent = ''; checkBrokenList.style.display = 'none';
         return;
       }
-      const s = aiLastCheckSummary;
       checkSummary.style.display = '';
-      checkSummary.textContent = 'Проверено моделей: ' + s.total + ' · подходят (отвечают и умеют искать в интернете): ' + s.usable +
-        ' · без поиска в интернете: ' + s.noSearch + ' · с ошибками: ' + s.broken + '.';
+      checkSummary.textContent = providerCfg.supportsSearch
+        ? ('Проверено моделей: ' + s.total + ' · подходят (отвечают и умеют искать в интернете): ' + s.usable +
+           ' · без поиска в интернете: ' + s.noSearch + ' · с ошибками: ' + s.broken + '.')
+        : ('Проверено моделей: ' + s.total + ' · подходят: ' + s.usable + ' · с ошибками: ' + s.broken + '.');
       // Per-model reason for each failure — without this, "с ошибками: N"
       // used to be a dead end unless you dug through the console (F12).
       // Frequent culprit for a free-tier key testing many models at once:
@@ -6039,7 +6240,7 @@ id: <идентификатор> | title: <название темы> | type: <�
     body.appendChild(checkSummary);
     body.appendChild(checkBrokenList);
 
-    modelSelect.addEventListener('change', () => saveAiSettings({ apiKey: keyInput.value, model: modelSelect.value }));
+    modelSelect.addEventListener('change', () => saveAiSettings({ provider, apiKey: keyInput.value, model: modelSelect.value }));
     checkBtn.addEventListener('click', async () => {
       const key = keyInput.value.trim();
       if (!key){ setStatus('Сначала введите API-ключ.'); return; }
@@ -6048,17 +6249,17 @@ id: <идентификатор> | title: <название темы> | type: <�
       checkProgFill.style.width = '0%';
       checkProgCount.textContent = 'Получение списка моделей…';
       checkProgTesting.textContent = '';
-      aiLog('=== Проверка моделей: запрос списка ===');
+      aiLog('=== Проверка моделей (' + providerCfg.label + '): запрос списка ===');
       let models;
       try {
-        models = await aiListModels(key);
+        models = await aiListModels(provider, key);
       } catch (e){
         setStatus('Не удалось получить список моделей (' + e.message + ').');
         checkBtn.disabled = false; checkBtn.textContent = 'Проверить / обновить список';
         checkProgWrap.style.display = 'none';
         return;
       }
-      aiLog('Список получен, моделей:', models.length, '— тестируем каждую (ответ + поиск в интернете + скорость)…');
+      aiLog('Список получен, моделей:', models.length, '— тестируем каждую…');
       let completed = 0;
       const inFlight = new Set();
       function paintCheckProgress(){
@@ -6068,38 +6269,43 @@ id: <идентификатор> | title: <название темы> | type: <�
       }
       paintCheckProgress();
       // Concurrency 4 used to be riskier here than in the AI-generation job
-      // loop: this fires a real generateContent(+google_search) call per
-      // model, all at once, against a free-tier key's per-minute quota —
-      // most models can 429 ("rate limit") in a burst like that even though
-      // they're perfectly fine one at a time, which used to look like "only
-      // one model works" with no visible reason. Lower concurrency plus the
-      // per-model error list below (paintCheckSummary) makes the real cause
-      // visible instead of just an aggregate "с ошибками: N".
+      // loop: this fires a real completion call per model, all at once,
+      // against a free-tier key's per-minute quota — most models can 429
+      // ("rate limit") in a burst like that even though they're perfectly
+      // fine one at a time, which used to look like "only one model works"
+      // with no visible reason. Lower concurrency plus the per-model error
+      // list below (paintCheckSummary) makes the real cause visible instead
+      // of just an aggregate "с ошибками: N".
       const tested = await aiMapLimit(models, 2, async (m) => {
         const name = m.display_name || m.id;
         inFlight.add(name);
         paintCheckProgress();
-        const res = await aiTestModel(key, m.id);
+        const res = await aiTestModel(provider, key, m.id);
         inFlight.delete(name);
         completed++;
         checkBtn.textContent = 'Проверка моделей… ' + completed + ' / ' + models.length;
         paintCheckProgress();
         return Object.assign({}, m, { ok: res.ok, webSearch: res.webSearch, latencyMs: res.latencyMs, testError: res.error });
       });
-      const usable = tested.filter(m => m.ok && m.webSearch).sort((a, b) => a.latencyMs - b.latencyMs);
-      const noSearch = tested.filter(m => m.ok && !m.webSearch);
+      // "usable" requires search support only for providers that actually
+      // have a search tool to offer — Groq/OpenRouter never will, so
+      // webSearch there is always false and shouldn't disqualify them.
+      const usable = (providerCfg.supportsSearch ? tested.filter(m => m.ok && m.webSearch) : tested.filter(m => m.ok))
+        .sort((a, b) => a.latencyMs - b.latencyMs);
+      const noSearch = providerCfg.supportsSearch ? tested.filter(m => m.ok && !m.webSearch) : [];
       const broken = tested.filter(m => !m.ok);
       aiLog('=== Проверка моделей завершена: подходят', usable.length, ', без поиска', noSearch.length, ', с ошибками', broken.length, '===');
 
-      aiModelsCache = usable;
-      aiLastCheckSummary = {
+      aiModelsCache[provider] = usable;
+      aiLastCheckSummary[provider] = {
         total: tested.length, usable: usable.length, noSearch: noSearch.length, broken: broken.length,
         brokenDetails: broken.map(m => ({ name: m.display_name || m.id, error: m.testError || 'неизвестная ошибка' }))
       };
       fillModels(usable, modelSelect.value || settings.model);
       paintCheckSummary();
-      saveAiSettings({ apiKey: key, model: modelSelect.value });
-      setStatus('Проверено моделей: ' + tested.length + ', подходят: ' + usable.length + ' (без поиска в интернете: ' + noSearch.length + ', с ошибками: ' + broken.length + ').');
+      saveAiSettings({ provider, apiKey: key, model: modelSelect.value });
+      setStatus('Проверено моделей: ' + tested.length + ', подходят: ' + usable.length +
+        (providerCfg.supportsSearch ? (' (без поиска в интернете: ' + noSearch.length + ', с ошибками: ' + broken.length + ').') : (' (с ошибками: ' + broken.length + ').')));
       checkBtn.disabled = false; checkBtn.textContent = 'Проверить / обновить список';
       checkProgWrap.style.display = 'none';
     });
@@ -6170,11 +6376,11 @@ id: <идентификатор> | title: <название темы> | type: <�
       if (!keyInput.value.trim() || !modelSelect.value){ setStatus('Укажите API-ключ и выберите модель.'); return; }
       const queue = buildAiQueue(roots, types);
       if (!queue.length){ setStatus('Среди выбранного нет тем подходящего типа.'); return; }
-      saveAiSettings({ apiKey: keyInput.value, model: modelSelect.value });
+      saveAiSettings({ provider, apiKey: keyInput.value, model: modelSelect.value });
       const job = {
         status: 'running',
         createdAt: new Date().toISOString(),
-        settings: { types: [...types], replace: replaceChk.checked, links: linksChk.checked, model: modelSelect.value },
+        settings: { provider, types: [...types], replace: replaceChk.checked, links: linksChk.checked, model: modelSelect.value },
         queue, cursor: 0, backup: {}, results: {}
       };
       saveAiJob(job);
