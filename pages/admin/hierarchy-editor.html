@@ -892,6 +892,29 @@
   .ai-usage-fill{ height:100%; background:var(--accent); width:0%; transition:width .25s var(--smooth), background .25s var(--smooth); }
   .ai-usage-fill.warn{ background:#c9a227; }
   .ai-usage-fill.danger{ background:var(--danger); }
+
+  /* ---- Average-time chart (see openAiStatsDialog) ----
+     One measure (average duration) across one categorical axis (topic type),
+     faceted by mode — so it's a single-series chart: every bar wears the same
+     accent, and no legend is needed (the facet title says what is plotted).
+     Scale is shared across facets so "generation takes far longer than a
+     clarify pass" stays readable straight off the bar lengths. */
+  .tstat-dlg{ max-width:560px; }
+  .tstat-facet{ margin-top:14px; }
+  .tstat-facet-title{
+    font-size:11px; letter-spacing:.07em; color:var(--faint); font-variant:small-caps; margin-bottom:7px;
+  }
+  .tstat-row{ display:flex; align-items:center; gap:10px; padding:3px 0; }
+  .tstat-label{ flex:0 0 116px; font-size:12.5px; color:var(--dim); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .tstat-track{ flex:1 1 auto; min-width:0; height:14px; background:var(--ink-1); border-radius:2px; }
+  .tstat-bar{
+    height:100%; background:var(--accent); border-radius:0 4px 4px 0;   /* square at the baseline, rounded data-end */
+    min-width:3px;                                                       /* a tiny average still has to be visible */
+    transition:width .25s var(--smooth);
+  }
+  .tstat-val{ flex:0 0 84px; text-align:right; font-size:12px; color:var(--text); font-variant-numeric:tabular-nums; }
+  .tstat-n{ flex:0 0 52px; text-align:right; font-size:11px; color:var(--faint); font-variant-numeric:tabular-nums; }
+  .tstat-empty{ font-size:12.5px; color:var(--faint); font-style:italic; padding:10px 0; }
   .ai-log{
     max-height:220px; overflow-y:auto; background:var(--ink-1); border:1px solid var(--rule-soft);
     border-radius:3px; display:flex; flex-direction:column;
@@ -4966,6 +4989,103 @@
     });
     return { ms: total, pending };
   }
+  const AI_MODE_LABELS = { generate: 'Генерация', normalize: 'Нормализация формул', clarify: 'Выправление формулировок' };
+  // Averages read best in seconds up to a minute, then as minutes+seconds —
+  // aiFmtEta's hours/minutes rounding is for the whole queue, not one topic.
+  function aiFmtAvg(ms){
+    const s = Math.round(ms / 1000);
+    if (s < 60) return s + ' с';
+    return Math.floor(s / 60) + ' мин ' + (s % 60) + ' с';
+  }
+  function aiResetStats(){
+    const s = loadAiStats();
+    s.byKey = {};   // only the timing averages; the last quota reading is unrelated and stays
+    saveAiStats(s);
+  }
+  // Average time per topic type, one facet per mode. Single measure, so every
+  // bar is the same accent and there is no legend — see the .tstat-* CSS.
+  function openAiStatsDialog(){
+    const veil = document.createElement('div');
+    veil.className = 'veil';
+    const dlg = document.createElement('div');
+    dlg.className = 'dlg tstat-dlg';
+    veil.appendChild(dlg);
+
+    const close = () => {
+      anim(dlg, [{opacity:1,transform:'none'},{opacity:0,transform:'translateY(8px) scale(.96)'}], {duration:D(160), easing:OUT});
+      anim(veil, [{opacity:1},{opacity:0}], {duration:D(160), easing:OUT}).finished.then(() => veil.remove());
+    };
+
+    function paint(){
+      dlg.innerHTML = '';
+      const title = document.createElement('div'); title.className = 'dt';
+      title.textContent = 'Среднее время на тему';
+      dlg.appendChild(title);
+
+      const note = document.createElement('div'); note.className = 'ai-hint';
+      note.textContent = 'На основе этих значений считается расчётное время до конца генерации. Считается отдельно по каждому режиму и типу темы, накапливается между запусками и хранится только в этом браузере. В среднее идут только темы, прошедшие с первой попытки.';
+      dlg.appendChild(note);
+
+      const stats = loadAiStats();
+      const keys = Object.keys(stats.byKey).filter(k => stats.byKey[k] && stats.byKey[k].avgMs > 0);
+      if (!keys.length){
+        const empty = document.createElement('div'); empty.className = 'tstat-empty';
+        empty.textContent = 'Пока нет данных — статистика появится после первой успешно сгенерированной темы.';
+        dlg.appendChild(empty);
+      } else {
+        // One shared scale across all facets: modes differ several-fold, and
+        // per-facet scales would hide exactly that difference.
+        const maxMs = Math.max.apply(null, keys.map(k => stats.byKey[k].avgMs));
+        Object.keys(AI_MODE_LABELS).forEach(mode => {
+          const rows = keys.filter(k => k.indexOf(mode + ':') === 0);
+          if (!rows.length) return;
+          const facet = document.createElement('div'); facet.className = 'tstat-facet';
+          const ft = document.createElement('div'); ft.className = 'tstat-facet-title';
+          ft.textContent = AI_MODE_LABELS[mode];
+          facet.appendChild(ft);
+          rows.sort((a, b) => stats.byKey[b].avgMs - stats.byKey[a].avgMs).forEach(k => {
+            const v = stats.byKey[k];
+            const type = k.slice(mode.length + 1);
+            const row = document.createElement('div'); row.className = 'tstat-row';
+            row.title = AI_MODE_LABELS[mode] + ' · ' + typeLabel(type) + ': ' + aiFmtAvg(v.avgMs) + ' в среднем, замеров: ' + v.n;
+            const label = document.createElement('span'); label.className = 'tstat-label';
+            label.textContent = typeLabel(type);
+            const track = document.createElement('div'); track.className = 'tstat-track';
+            const bar = document.createElement('div'); bar.className = 'tstat-bar';
+            bar.style.width = Math.max(1, Math.round(v.avgMs / maxMs * 100)) + '%';
+            track.appendChild(bar);
+            const val = document.createElement('span'); val.className = 'tstat-val';
+            val.textContent = aiFmtAvg(v.avgMs);
+            const n = document.createElement('span'); n.className = 'tstat-n';
+            n.textContent = 'n=' + v.n;
+            row.append(label, track, val, n);
+            facet.appendChild(row);
+          });
+          dlg.appendChild(facet);
+        });
+      }
+
+      const row = document.createElement('div'); row.className = 'row';
+      const closeBtn = document.createElement('button');
+      closeBtn.type = 'button'; closeBtn.className = 'dbtn'; closeBtn.textContent = 'Закрыть';
+      closeBtn.addEventListener('click', close);
+      const resetBtn = document.createElement('button');
+      resetBtn.type = 'button'; resetBtn.className = 'dbtn warn'; resetBtn.textContent = 'Сбросить статистику';
+      resetBtn.disabled = !keys.length;
+      resetBtn.addEventListener('click', () => {
+        confirmDlg('Сбросить накопленные средние значения времени? Расчётное время до конца генерации снова станет приблизительным, пока статистика не накопится заново.',
+          () => { aiResetStats(); paint(); renderAiPanel(); setStatus('Статистика времени сброшена.'); },
+          'Сбросить');
+      });
+      row.append(closeBtn, resetBtn);
+      dlg.appendChild(row);
+    }
+
+    paint();
+    document.body.appendChild(veil);
+    veil.addEventListener('click', e => { if (e.target === veil) close(); });
+    dlg.querySelector('.dbtn').focus();
+  }
   // Set once by grantAccess() after the Firebase admin-gate check — the uid
   // this browser is signed in as, used to key the cross-device sync document
   // (see "Cross-device sync" below). Null until then, so sync is a no-op
@@ -7280,7 +7400,15 @@ id: <идентификатор> | title: <название темы> | type: <�
     clarifyBtn.disabled = !roots.length;
     clarifyBtn.addEventListener('click', () => startJob('clarify'));
 
-    foot.innerHTML = '<div class="ai-foot-left"></div>';
+    foot.innerHTML = '';
+    const left = document.createElement('div'); left.className = 'ai-foot-left';
+    const statsBtn = document.createElement('button');
+    statsBtn.type = 'button'; statsBtn.className = 'ai-btn';
+    statsBtn.textContent = 'Статистика времени';
+    statsBtn.title = 'Среднее время генерации по типам тем — то, из чего складывается расчётное время до конца. Отсюда же его можно сбросить.';
+    statsBtn.addEventListener('click', openAiStatsDialog);
+    left.appendChild(statsBtn);
+    foot.appendChild(left);
     const right = document.createElement('div'); right.className = 'ai-foot-right';
     right.append(clarifyBtn, normalizeBtn, startBtn);
     foot.appendChild(right);
@@ -7466,7 +7594,12 @@ id: <идентификатор> | title: <название темы> | type: <�
     rollbackBtn.addEventListener('click', () => {
       confirmDlg('Восстановить описания, какими они были до этой генерации?', aiRollbackJob, 'Откатить');
     });
-    left.appendChild(rollbackBtn);
+    const statsBtn2 = document.createElement('button');
+    statsBtn2.type = 'button'; statsBtn2.className = 'ai-btn';
+    statsBtn2.textContent = 'Статистика времени';
+    statsBtn2.title = 'Среднее время генерации по типам тем — то, из чего складывается расчётное время до конца. Отсюда же его можно сбросить.';
+    statsBtn2.addEventListener('click', openAiStatsDialog);
+    left.append(rollbackBtn, statsBtn2);
 
     if (job.status === 'running'){
       // Cancel/stop used to only appear once the job was already paused —
