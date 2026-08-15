@@ -57,6 +57,7 @@ module.exports = async (req, res) => {
     res.setHeader('content-type', upstream.headers.get('content-type') || 'application/json');
     const retryAfter = upstream.headers.get('retry-after');
     if (retryAfter) res.setHeader('retry-after', retryAfter);
+    res.setHeader('access-control-expose-headers', 'retry-after');
 
     if (streaming && upstream.body) {
       for await (const chunk of upstream.body) res.write(chunk);

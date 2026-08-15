@@ -18,6 +18,17 @@ const BASES = {
   mistral: 'https://api.mistral.ai/v1/',
 };
 
+// Not every provider sends every one of these (or any of them) — whatever
+// does come back is passed through untouched for the client to interpret.
+const RATE_LIMIT_HEADERS = [
+  'x-ratelimit-limit-requests',
+  'x-ratelimit-remaining-requests',
+  'x-ratelimit-limit-tokens',
+  'x-ratelimit-remaining-tokens',
+  'x-ratelimit-reset-requests',
+  'x-ratelimit-reset-tokens',
+];
+
 module.exports = async (req, res) => {
   const key = req.headers['x-llm-key'];
   if (!key || typeof key !== 'string') {
@@ -71,6 +82,14 @@ module.exports = async (req, res) => {
     // "N requests per minute" rather than "per second".
     const retryAfter = upstream.headers.get('retry-after');
     if (retryAfter) res.setHeader('retry-after', retryAfter);
+    // Rate-limit headers are the only real, provider-reported quota signal
+    // available — the editor's usage bar reads them and falls back to a
+    // local request counter when a provider doesn't send them.
+    for (const h of RATE_LIMIT_HEADERS) {
+      const v = upstream.headers.get(h);
+      if (v) res.setHeader(h, v);
+    }
+    res.setHeader('access-control-expose-headers', ['retry-after'].concat(RATE_LIMIT_HEADERS).join(', '));
 
     if (streaming && upstream.body) {
       for await (const chunk of upstream.body) res.write(chunk);
