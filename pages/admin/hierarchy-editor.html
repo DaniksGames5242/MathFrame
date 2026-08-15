@@ -899,7 +899,16 @@
      accent, and no legend is needed (the facet title says what is plotted).
      Scale is shared across facets so "generation takes far longer than a
      clarify pass" stays readable straight off the bar lengths. */
-  .tstat-dlg{ max-width:560px; }
+  /* .dlg has no max-height (it was built for a two-line confirm), so with a
+     facet per mode this overflowed the centred veil and got clipped with
+     nothing to scroll. Header and buttons stay put; the facets scroll. */
+  .tstat-dlg{
+    max-width:560px; max-height:min(86vh, 720px);
+    display:flex; flex-direction:column;
+  }
+  .tstat-dlg .dt{ flex:0 0 auto; }
+  .tstat-dlg .row{ flex:0 0 auto; margin-top:16px; }
+  .tstat-scroll{ flex:1 1 auto; min-height:0; overflow-y:auto; }
   .tstat-facet{ margin-top:14px; }
   .tstat-facet-title{
     font-size:11px; letter-spacing:.07em; color:var(--faint); font-variant:small-caps; margin-bottom:7px;
@@ -5067,16 +5076,21 @@
       title.textContent = 'Среднее время на тему';
       dlg.appendChild(title);
 
+      const scroll = document.createElement('div'); scroll.className = 'tstat-scroll';
+      dlg.appendChild(scroll);
+
       const note = document.createElement('div'); note.className = 'ai-hint';
-      note.textContent = 'На основе этих значений считается расчётное время до конца генерации. Считается отдельно по каждому режиму и типу темы, накапливается между запусками и хранится только в этом браузере. В среднее идут только темы, прошедшие с первой попытки.';
-      dlg.appendChild(note);
+      note.textContent = 'На основе этих значений считается расчётное время до конца генерации. Считается отдельно по каждому режиму и типу темы, накапливается между запусками и хранится только в этом браузере. В среднее идут только темы, прошедшие с первой попытки. Режимы и типы, по которым замеров ещё не было, здесь не показываются.';
+      scroll.appendChild(note);
 
       const stats = loadAiStats();
       const keys = Object.keys(stats.byKey).filter(k => stats.byKey[k] && stats.byKey[k].avgMs > 0);
       if (!keys.length){
         const empty = document.createElement('div'); empty.className = 'tstat-empty';
-        empty.textContent = 'Пока нет данных — статистика появится после первой успешно сгенерированной темы.';
-        dlg.appendChild(empty);
+        // Worth naming the retry rule here: after a run full of 429s the
+        // window can legitimately be empty even though topics did finish.
+        empty.textContent = 'Пока нет данных — статистика появится после первой темы, сгенерированной с первой попытки. Темы, которые завершились только после повторов, в среднее не идут: там основное время уходит на ожидание между попытками, а не на саму генерацию.';
+        scroll.appendChild(empty);
       } else {
         // One shared scale across all facets: modes differ several-fold, and
         // per-facet scales would hide exactly that difference.
@@ -5106,7 +5120,7 @@
             row.append(label, track, val, n);
             facet.appendChild(row);
           });
-          dlg.appendChild(facet);
+          scroll.appendChild(facet);
         });
       }
 
