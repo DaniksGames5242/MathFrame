@@ -883,6 +883,15 @@
   }
   .ai-progress-fill{ height:100%; background:var(--accent); width:0%; transition:width .25s var(--smooth); }
   .ai-progress-stats{ display:flex; justify-content:space-between; font-size:11.5px; color:var(--faint); }
+  .ai-usage-wrap{ display:flex; flex-direction:column; gap:6px; }
+  .ai-usage-head{ display:flex; justify-content:space-between; align-items:baseline; font-size:11.5px; color:var(--faint); }
+  .ai-usage-pct{ font-variant-numeric:tabular-nums; color:var(--dim); }
+  .ai-usage-bar{
+    height:5px; border-radius:3px; background:var(--ink-1); overflow:hidden; border:1px solid var(--rule-soft);
+  }
+  .ai-usage-fill{ height:100%; background:var(--accent); width:0%; transition:width .25s var(--smooth), background .25s var(--smooth); }
+  .ai-usage-fill.warn{ background:#c9a227; }
+  .ai-usage-fill.danger{ background:var(--danger); }
   .ai-log{
     max-height:220px; overflow-y:auto; background:var(--ink-1); border:1px solid var(--rule-soft);
     border-radius:3px; display:flex; flex-direction:column;
@@ -4868,7 +4877,95 @@
 
   const AI_SETTINGS_KEY = 'mf-ai-settings-v2';
   const AI_JOB_KEY = 'mf-ai-job-v1';
+  const AI_STATS_KEY = 'mf-ai-stats-v1';
   const AI_TYPES_SUPPORTED = ['topic', 'folder', 'theorem', 'proof'];
+
+  /* ---------------- timing stats for the ETA ----------------
+     Average time one topic takes, kept per (mode, type) pair rather than per
+     type alone: a "clarify" pass over a theorem and a full generation of the
+     same theorem differ by far more than two topic types differ from each
+     other, so a single per-type average would make the estimate useless the
+     moment you switch modes. Persisted on its own key (not inside the job)
+     so it survives across jobs and keeps getting better — a first run with
+     no history falls back to the overall average, then to a rough default.
+     Deliberately kept device-local: generation speed depends on the machine
+     and connection, so syncing these between devices would make each one's
+     estimate worse, not better. */
+  const AI_FALLBACK_MS = { generate: 90000, normalize: 25000, clarify: 35000 };
+  function loadAiStats(){
+    try {
+      const raw = localStorage.getItem(AI_STATS_KEY);
+      const p = raw ? JSON.parse(raw) : null;
+      return (p && typeof p === 'object' && p.byKey && typeof p.byKey === 'object') ? p : { byKey: {} };
+    } catch (e){ return { byKey: {} }; }
+  }
+  function saveAiStats(s){
+    try { localStorage.setItem(AI_STATS_KEY, JSON.stringify(s)); } catch (e){ /* quota / private mode */ }
+  }
+  function aiStatKey(mode, type){ return (mode || 'generate') + ':' + (type || 'topic'); }
+  // Running mean, but with the sample weight capped: past ~20 topics a new
+  // measurement would otherwise barely move the average, so a model/provider
+  // switch (which can change the per-topic time several-fold) would take
+  // hundreds of topics to show up in the estimate.
+  function recordAiDuration(mode, type, ms){
+    if (!(ms > 0)) return;
+    const stats = loadAiStats();
+    const key = aiStatKey(mode, type);
+    const cur = stats.byKey[key];
+    if (!cur || !(cur.avgMs > 0)){
+      stats.byKey[key] = { n: 1, avgMs: ms };
+    } else {
+      const w = Math.min(cur.n, 20);
+      stats.byKey[key] = { n: cur.n + 1, avgMs: (cur.avgMs * w + ms) / (w + 1) };
+    }
+    saveAiStats(stats);
+  }
+  function aiAvgMsFor(stats, mode, type){
+    const exact = stats.byKey[aiStatKey(mode, type)];
+    if (exact && exact.avgMs > 0) return exact.avgMs;
+    // No history for this exact type yet — average whatever else this mode
+    // has measured before falling back to a hardcoded guess.
+    let sum = 0, n = 0;
+    Object.keys(stats.byKey).forEach(k => {
+      if (k.indexOf((mode || 'generate') + ':') !== 0) return;
+      const v = stats.byKey[k];
+      if (v && v.avgMs > 0){ sum += v.avgMs; n++; }
+    });
+    if (n) return sum / n;
+    return AI_FALLBACK_MS[mode] || AI_FALLBACK_MS.generate;
+  }
+  function plural(n, one, few, many){
+    const a = Math.abs(n) % 100, b = a % 10;
+    if (a > 10 && a < 20) return many;
+    if (b > 1 && b < 5) return few;
+    if (b === 1) return one;
+    return many;
+  }
+  function aiFmtEta(ms){
+    if (!(ms > 0)) return null;
+    const totalMin = Math.round(ms / 60000);
+    if (totalMin < 1) return 'меньше минуты';
+    const h = Math.floor(totalMin / 60), m = totalMin % 60;
+    const parts = [];
+    if (h) parts.push(h + ' ' + plural(h, 'час', 'часа', 'часов'));
+    if (m || !h) parts.push(m + ' ' + plural(m, 'минута', 'минуты', 'минут'));
+    return parts.join(', ');
+  }
+  // Sums (average time for a type) × (how many of that type are still
+  // pending), across every type left in the queue.
+  function aiEstimateRemainingMs(job){
+    const stats = loadAiStats();
+    const mode = (job.settings && job.settings.mode) || 'generate';
+    let total = 0, pending = 0;
+    job.queue.forEach(tid => {
+      const r = job.results[tid];
+      if (r && (r.status === 'done' || r.status === 'error' || r.status === 'skipped')) return;
+      const node = findNodeByTopicId(tid);
+      pending++;
+      total += aiAvgMsFor(stats, mode, node ? node.type : 'topic');
+    });
+    return { ms: total, pending };
+  }
   // Set once by grantAccess() after the Firebase admin-gate check — the uid
   // this browser is signed in as, used to key the cross-device sync document
   // (see "Cross-device sync" below). Null until then, so sync is a no-op
@@ -5292,6 +5389,55 @@
     }
   }
 
+  /* ---------------- quota / usage meter ----------------
+     No provider exposes "how much of your free tier is left" as an API, so
+     this uses the best real signal available and says which one it used:
+     (1) x-ratelimit-* response headers, when the provider sends them (Groq,
+     Mistral and OpenRouter generally do — the relay passes them through);
+     (2) failing that, a local count of requests sent in the last 60 s
+     against an assumed per-minute cap, which is only a rough guide.
+     Gemini sends no such headers at all, hence the local fallback. */
+  const AI_ASSUMED_RPM = { gemini: 15, groq: 30, openrouter: 20, mistral: 60 };
+  // Restored from storage so reopening the panel (or reloading the page)
+  // still shows the last reading instead of an empty slot — stamped with the
+  // time it was taken, since a quota reading goes stale as windows reset.
+  let aiUsage = (function(){ const s = loadAiStats(); return s.usage || null; })();
+  const aiRequestTimes = [];   // timestamps for the local rolling-window fallback
+  function aiNoteRequestSent(){
+    const now = Date.now();
+    aiRequestTimes.push(now);
+    while (aiRequestTimes.length && now - aiRequestTimes[0] > 60000) aiRequestTimes.shift();
+  }
+  function aiNoteUsage(r, provider){
+    const num = h => { const v = r.headers.get(h); if (v == null) return null; const n = Number(v); return isNaN(n) ? null : n; };
+    let best = null;
+    [['requests', 'запросы'], ['tokens', 'токены']].forEach(([kind, ru]) => {
+      const limit = num('x-ratelimit-limit-' + kind);
+      const remaining = num('x-ratelimit-remaining-' + kind);
+      if (limit == null || remaining == null || !(limit > 0)) return;
+      const pct = Math.max(0, Math.min(100, Math.round((limit - remaining) / limit * 100)));
+      // Whichever axis is closer to its cap is the one that will actually
+      // stop the job, so that's the one worth showing.
+      if (!best || pct > best.pct){
+        best = { pct, detail: ru + ': ' + (limit - remaining) + ' из ' + limit, source: 'provider' };
+      }
+    });
+    if (!best){
+      const rpm = AI_ASSUMED_RPM[provider] || 15;
+      const used = aiRequestTimes.length;
+      best = {
+        pct: Math.max(0, Math.min(100, Math.round(used / rpm * 100))),
+        detail: 'запросов за минуту: ' + used + ' из ~' + rpm,
+        source: 'local'
+      };
+    }
+    best.at = Date.now();
+    aiUsage = best;
+    const s = loadAiStats();
+    s.usage = best;
+    saveAiStats(s);
+  }
+
   // Retry-After can be either delta-seconds ("30") or an HTTP-date; either
   // way this is the provider itself telling us how long to actually wait
   // on a 429, which beats guessing — some free tiers cap per-minute or even
@@ -5370,7 +5516,9 @@
       };
       if (opts.webSearch) body.tools = [{ google_search: {} }];
       const path = 'models/' + encodeURIComponent(ctx.model) + (streamed ? ':streamGenerateContent?alt=sse' : ':generateContent');
+      aiNoteRequestSent();
       const r = await geminiFetch(path, ctx.apiKey, { method: 'POST', body: JSON.stringify(body), stream: streamed });
+      aiNoteUsage(r, ctx.provider);
 
       if (!streamed){
         const dt = performance.now() - t0;
@@ -5435,6 +5583,7 @@
     // интернету" (unchanged, shared prompt text) — on these providers
     // that's not literally true, so treat their output as resting on the
     // model's own trained knowledge, not a live check.
+    aiNoteRequestSent();
     const r = await llmFetch(ctx.provider, 'chat/completions', ctx.apiKey, {
       method: 'POST',
       body: JSON.stringify({
@@ -5445,6 +5594,7 @@
       }),
       stream: streamed
     });
+    aiNoteUsage(r, ctx.provider);
 
     if (!streamed){
       const dt = performance.now() - t0;
@@ -6512,6 +6662,10 @@ id: <идентификатор> | title: <название темы> | type: <�
       if (!failed && html !== null){
         node.description = html;
         render();
+        // Only successful single-attempt topics feed the ETA averages — a
+        // topic that needed retries spent most of its time in backoff, not
+        // in generation, so counting it would inflate every later estimate.
+        if (attempts === 1) recordAiDuration(mode, node.type, durationMs);
         job.results[tid] = { status: 'done', description: html, durationMs, attempts };
         aiLog('--- «' + node.name + '» готово за ' + (durationMs / 1000).toFixed(1) + ' с' + (attempts > 1 ? (' (попыток: ' + attempts + ')') : '') + ' ---');
       } else if (!failed && attempts < MAX_TOPIC_ATTEMPTS){
@@ -7163,6 +7317,51 @@ id: <идентификатор> | title: <название темы> | type: <�
     stats.innerHTML = '<span>' + prog.done + ' / ' + prog.total + '</span><span>готово: ' + okCount + ' · пропущено: ' + skipCount + ' · ошибок: ' + errCount + ' · ' + aiStatusLabel(job.status) + '</span>';
     wrap.appendChild(stats);
     body.appendChild(wrap);
+
+    // Recomputed on every render (so it moves after each finished topic) —
+    // no point showing it once the queue is empty.
+    if (job.status === 'running' || job.status === 'paused'){
+      const est = aiEstimateRemainingMs(job);
+      const etaText = aiFmtEta(est.ms);
+      if (etaText && est.pending){
+        const eta = document.createElement('div'); eta.className = 'ai-hint';
+        const stats0 = loadAiStats();
+        const mode0 = (job.settings && job.settings.mode) || 'generate';
+        const measured = Object.keys(stats0.byKey).some(k => k.indexOf(mode0 + ':') === 0);
+        eta.textContent = 'Осталось примерно: ' + etaText + ' (тем в очереди: ' + est.pending + ')' +
+          (measured ? '' : ' — оценка приблизительная, пока нет своей статистики по времени');
+        body.appendChild(eta);
+      }
+    }
+
+    // Quota meter — see aiNoteUsage for where the numbers come from.
+    if (aiUsage){
+      const uWrap = document.createElement('div'); uWrap.className = 'ai-usage-wrap';
+      const uHead = document.createElement('div'); uHead.className = 'ai-usage-head';
+      const uLabel = document.createElement('span');
+      uLabel.textContent = 'Использование лимита нейросети';
+      const uPct = document.createElement('span'); uPct.className = 'ai-usage-pct';
+      uPct.textContent = aiUsage.pct + '%';
+      uHead.append(uLabel, uPct);
+      const uBar = document.createElement('div'); uBar.className = 'ai-usage-bar';
+      const uFill = document.createElement('div');
+      uFill.className = 'ai-usage-fill' + (aiUsage.pct >= 90 ? ' danger' : aiUsage.pct >= 70 ? ' warn' : '');
+      uFill.style.width = aiUsage.pct + '%';
+      uBar.appendChild(uFill);
+      const uNote = document.createElement('div'); uNote.className = 'ai-hint';
+      // A quota reading is a snapshot, and the window it measured may have
+      // reset since — so anything not from the last couple of minutes is
+      // labelled with when it was actually taken rather than shown as current.
+      const age = aiUsage.at ? (Date.now() - aiUsage.at) : 0;
+      const stale = age > 120000
+        ? ' · снято в ' + new Date(aiUsage.at).toLocaleTimeString('ru-RU', { hour12: false, hour: '2-digit', minute: '2-digit' })
+        : '';
+      uNote.textContent = aiUsage.detail + (aiUsage.source === 'provider'
+        ? ' — по данным провайдера'
+        : ' — локальная оценка: этот провайдер не сообщает остаток квоты') + stale;
+      uWrap.append(uHead, uBar, uNote);
+      body.appendChild(uWrap);
+    }
 
     if (job.status === 'running' && aiRemoteLease && aiRemoteLease.deviceId !== DEVICE_ID && aiLeaseIsFresh(aiRemoteLease)){
       const remoteHint = document.createElement('div'); remoteHint.className = 'ai-hint';
