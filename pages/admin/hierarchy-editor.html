@@ -4936,9 +4936,7 @@
   // measurement would otherwise barely move the average, so a model/provider
   // switch (which can change the per-topic time several-fold) would take
   // hundreds of topics to show up in the estimate.
-  function recordAiDuration(mode, type, ms){
-    if (!(ms > 0)) return;
-    const stats = loadAiStats();
+  function applyAiDuration(stats, mode, type, ms){
     const key = aiStatKey(mode, type);
     const cur = stats.byKey[key];
     if (!cur || !(cur.avgMs > 0)){
@@ -4947,7 +4945,42 @@
       const w = Math.min(cur.n, 20);
       stats.byKey[key] = { n: cur.n + 1, avgMs: (cur.avgMs * w + ms) / (w + 1) };
     }
-    saveAiStats(stats);
+  }
+  // Folds every finished topic of `job` that hasn't been counted yet into the
+  // local averages. This — not a call at the moment a topic finishes — is the
+  // single path into the stats, because plenty of measurements never pass
+  // through this tab at all: a reload or an update mid-job, a job resumed
+  // after a pause, or topics generated while another device held the lease.
+  // Each is recorded exactly once, tracked by a ledger of topic ids scoped to
+  // the current job (it resets when a different job starts, so it can't grow
+  // without bound).
+  function aiSyncStatsFromJob(job){
+    if (!job || !job.results) return 0;
+    const stats = loadAiStats();
+    const jobKey = job.createdAt || '';
+    let dirty = false;
+    if (stats.countedJob !== jobKey){ stats.countedJob = jobKey; stats.countedIds = {}; dirty = true; }
+    if (!stats.countedIds){ stats.countedIds = {}; dirty = true; }
+    const mode = (job.settings && job.settings.mode) || 'generate';
+    let added = 0;
+    Object.keys(job.results).forEach(tid => {
+      if (stats.countedIds[tid]) return;
+      const r = job.results[tid];
+      if (!r || r.status !== 'done' || !(r.durationMs > 0)) return;
+      // Marked either way: a retried topic spent most of its time in backoff
+      // rather than generating, so it stays out of the averages — but it must
+      // not be re-examined on every later pass.
+      stats.countedIds[tid] = 1;
+      dirty = true;
+      if (r.attempts && r.attempts > 1) return;
+      const node = findNodeByTopicId(tid);
+      applyAiDuration(stats, mode, node ? node.type : 'topic', r.durationMs);
+      added++;
+    });
+    // This runs after every finished topic and on every stats repaint, so
+    // it only writes when something actually changed.
+    if (dirty) saveAiStats(stats);
+    return added;
   }
   function aiAvgMsFor(stats, mode, type){
     const exact = stats.byKey[aiStatKey(mode, type)];
@@ -5006,6 +5039,9 @@
   function aiResetStats(){
     const s = loadAiStats();
     s.byKey = {};   // only the timing averages; the last quota reading is unrelated and stays
+    // countedIds is deliberately kept: clearing it would let the very next
+    // backfill re-add the running job's whole history, and the reset would
+    // look like it did nothing. A reset means "start measuring from here".
     saveAiStats(s);
   }
   // Average time per topic type, one facet per mode. Single measure, so every
@@ -5023,6 +5059,9 @@
     };
 
     function paint(){
+      // Fold in anything the current job has finished but this tab hasn't
+      // counted yet, so the chart is never behind the job it describes.
+      aiSyncStatsFromJob(loadAiJob());
       dlg.innerHTML = '';
       const title = document.createElement('div'); title.className = 'dt';
       title.textContent = 'Среднее время на тему';
@@ -6685,6 +6724,10 @@ id: <идентификатор> | title: <название темы> | type: <�
     aiRunning = true; aiAbort = false; aiWantCancel = false; aiStopping = false;
     job.status = 'running';
     saveAiJob(job);
+    // Picks up everything already finished before this runner took over —
+    // a resumed job, or one that outlived a page reload mid-generation.
+    const backfilled = aiSyncStatsFromJob(job);
+    if (backfilled) aiLog('В статистику времени добавлено ранее завершённых тем:', backfilled);
     renderAiPanel();
     aiLog('=== Задание запущено (' + (MODE_LABELS[mode] || mode) + '): тем в очереди —', job.queue.length, ', провайдер —', provider, ', модель —', job.settings.model, '===');
 
@@ -6788,10 +6831,6 @@ id: <идентификатор> | title: <название темы> | type: <�
       if (!failed && html !== null){
         node.description = html;
         render();
-        // Only successful single-attempt topics feed the ETA averages — a
-        // topic that needed retries spent most of its time in backoff, not
-        // in generation, so counting it would inflate every later estimate.
-        if (attempts === 1) recordAiDuration(mode, node.type, durationMs);
         job.results[tid] = { status: 'done', description: html, durationMs, attempts };
         aiLog('--- «' + node.name + '» готово за ' + (durationMs / 1000).toFixed(1) + ' с' + (attempts > 1 ? (' (попыток: ' + attempts + ')') : '') + ' ---');
       } else if (!failed && attempts < MAX_TOPIC_ATTEMPTS){
@@ -6808,6 +6847,7 @@ id: <идентификатор> | title: <название темы> | type: <�
       }
       job.cursor++;
       saveAiJob(job);
+      aiSyncStatsFromJob(job);
       renderAiPanel();
     }
 
@@ -7037,6 +7077,9 @@ id: <идентификатор> | title: <название темы> | type: <�
 
   function openAiPanel(){
     if (aiOverlayEl) return;
+    // Catches measurements this tab never saw recorded — most often a job
+    // that was already running when the page was reloaded or updated.
+    aiSyncStatsFromJob(loadAiJob());
     const overlay = document.createElement('div');
     overlay.id = 'aiOverlay';
     overlay.innerHTML =
