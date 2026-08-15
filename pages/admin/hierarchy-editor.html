@@ -961,12 +961,18 @@
     background:var(--accent-line); vertical-align:-1px; animation:aiCaret .8s step-end infinite;
   }
   @keyframes aiCaret{ 0%,100%{ opacity:1 } 50%{ opacity:0 } }
+  /* Buttons here carry full Russian labels ("Откатить к исходным описаниям"),
+     and .ai-btn is flex:0 0 auto — so without wrapping the two groups simply
+     overrun the 560px modal and paint on top of each other. Both the footer
+     and each group wrap; margin-left:auto keeps the right group right-aligned
+     on the line it lands on, which justify-content can't do once wrapped. */
   .ai-foot{
-    flex:0 0 auto; display:flex; align-items:center; justify-content:space-between; gap:10px;
+    flex:0 0 auto; display:flex; align-items:center; justify-content:space-between;
+    flex-wrap:wrap; gap:10px;
     padding:14px 18px; border-top:1px solid var(--rule-soft);
   }
-  .ai-foot-left{ display:flex; gap:8px; }
-  .ai-foot-right{ display:flex; gap:8px; }
+  .ai-foot-left{ display:flex; gap:8px; flex-wrap:wrap; min-width:0; }
+  .ai-foot-right{ display:flex; gap:8px; flex-wrap:wrap; min-width:0; margin-left:auto; }
 
   #aiBanner{
     position:fixed; left:50%; bottom:52px; transform:translateX(-50%) translateY(8px); z-index:1500;
@@ -7596,7 +7602,7 @@ id: <идентификатор> | title: <название темы> | type: <�
     });
     const statsBtn2 = document.createElement('button');
     statsBtn2.type = 'button'; statsBtn2.className = 'ai-btn';
-    statsBtn2.textContent = 'Статистика времени';
+    statsBtn2.textContent = 'Статистика';   // shorter than in the setup view: this row also carries Откатить + Пауза/Остановить
     statsBtn2.title = 'Среднее время генерации по типам тем — то, из чего складывается расчётное время до конца. Отсюда же его можно сбросить.';
     statsBtn2.addEventListener('click', openAiStatsDialog);
     left.append(rollbackBtn, statsBtn2);
