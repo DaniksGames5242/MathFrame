@@ -1441,6 +1441,16 @@
   function isValidSlugId(s){
     return typeof s === 'string' && /^[a-z0-9]+(-[a-z0-9]+)*$/.test(s);
   }
+  // The original auto-numbered ids ("n1", "n764") pass isValidSlugId — they
+  // are lowercase alphanumerics — which is why they survived every load
+  // untouched. They are not slugs in any useful sense though: nothing about
+  // "n764" says which topic it is, and the interactive-example files are
+  // named after the id. Treated as legacy so they get regenerated from the
+  // title, with every topic: link pointing at them rewritten to match (see
+  // buildTreeFromFlatTopics) — otherwise 15k+ internal links would go dead.
+  function isLegacyNumericId(s){
+    return typeof s === 'string' && /^n\d+$/.test(s);
+  }
   function collectTopicIds(nodes, set){
     set = set || new Set();
     nodes.forEach(n => { if (n.topicId) set.add(n.topicId); collectTopicIds(n.children, set); });
@@ -1607,7 +1617,7 @@
   let lastLoadReport = null;
   function buildTreeFromFlatTopics(list){
     idCounter = 1;
-    const report = { total:0, ids:0, types:0, classes:0, difficulty:0, titles:0, parents:0 };
+    const report = { total:0, ids:0, types:0, classes:0, difficulty:0, titles:0, parents:0, links:0 };
     const usedIds = new Set();
     const byOriginalId = new Map();
     const parentRefByOriginal = new Map();
@@ -1621,8 +1631,9 @@
       const title = (typeof raw.title === 'string' && raw.title.trim()) ? raw.title.trim() : 'Без названия';
       if (title === 'Без названия' && !(typeof raw.title === 'string' && raw.title.trim())) report.titles++;
 
-      let tid = (originalId && isValidSlugId(originalId)) ? originalId : slugify(title);
-      if (!originalId || !isValidSlugId(originalId)) report.ids++;
+      const keepId = originalId && isValidSlugId(originalId) && !isLegacyNumericId(originalId);
+      let tid = keepId ? originalId : slugify(title);
+      if (!keepId) report.ids++;
       if (usedIds.has(tid)){
         report.ids++;
         let i = 2;
@@ -1676,6 +1687,30 @@
       else roots.push(node);
     });
 
+    // Descriptions link to other topics by id (<a href="topic:ID">). Any id
+    // that just changed above would leave those links pointing at nothing,
+    // so they are rewritten in the same pass. Done over the whole map at
+    // once rather than per node, because a description can link to any topic
+    // in the base, not only to its own subtree.
+    const idMap = new Map();
+    entries.forEach(({ node, originalId }) => {
+      if (originalId && originalId !== node.topicId) idMap.set(originalId, node.topicId);
+    });
+    if (idMap.size){
+      // Longest ids first: without it "n1" would match inside "n12" and
+      // corrupt every link whose id shares a prefix with a shorter one.
+      const olds = [...idMap.keys()].sort((a, b) => b.length - a.length);
+      const re = new RegExp('topic:(' + olds.map(s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')(?![a-zA-Z0-9-])', 'g');
+      entries.forEach(({ node }) => {
+        if (!node.description) return;
+        const next = node.description.replace(re, (m, old) => {
+          report.links++;
+          return 'topic:' + idMap.get(old);
+        });
+        if (next !== node.description) node.description = next;
+      });
+    }
+
     lastLoadReport = report;
     return roots;
   }
@@ -1688,6 +1723,7 @@
     if (r.classes) parts.push('класс: ' + r.classes);
     if (r.difficulty) parts.push('сложность: ' + r.difficulty);
     if (r.titles) parts.push('заголовок: ' + r.titles);
+    if (r.links) parts.push('ссылок перенаправлено: ' + r.links);
     return parts.length ? ('Исправлено автоматически — ' + parts.join(', ') + '.') : 'Ошибок не обнаружено.';
   }
   function countDescendants(node){
