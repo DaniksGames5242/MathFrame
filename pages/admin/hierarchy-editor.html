@@ -1008,6 +1008,32 @@
     font-family:var(--serif); font-size:12px; color:var(--accent-line); background:transparent;
     border:1px solid var(--accent); border-radius:3px; padding:4px 10px; cursor:pointer;
   }
+
+  #aiAlertBanner{
+    position:fixed; left:50%; top:16px; transform:translateX(-50%) translateY(-8px); z-index:2000;
+    background:#2a1310; border:1px solid var(--danger); border-radius:4px; padding:10px 14px;
+    display:flex; align-items:center; gap:12px; font-size:12.5px; color:#f3d3ca;
+    box-shadow:0 14px 34px rgba(0,0,0,.55); opacity:0; pointer-events:none; max-width:min(640px,90vw);
+    transition:opacity .2s var(--smooth), transform .2s var(--spring);
+    animation:aiAlertPulse 1.6s ease-in-out infinite;
+  }
+  #aiAlertBanner.on{ opacity:1; transform:translateX(-50%) translateY(0); pointer-events:auto; }
+  #aiAlertBanner span{ flex:1 1 auto; }
+  #aiAlertBanner button{
+    font-family:var(--serif); font-size:12px; color:#f3d3ca; background:transparent;
+    border:1px solid var(--danger); border-radius:3px; padding:4px 10px; cursor:pointer; flex:0 0 auto;
+  }
+  @keyframes aiAlertPulse{ 0%,100%{ border-color:var(--danger); } 50%{ border-color:#f3d3ca; } }
+
+  #aiDimOverlay{
+    position:fixed; inset:0; z-index:2500; background:#000;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px;
+    text-align:center; padding:24px; cursor:pointer;
+    opacity:0; pointer-events:none; transition:opacity .5s ease;
+  }
+  #aiDimOverlay.on{ opacity:.97; pointer-events:auto; }
+  #aiDimOverlay span{ font-family:var(--serif); font-size:13px; color:#3a3a3a; max-width:520px; }
+  #aiDimOverlay .ai-dim-hint{ font-family:var(--serif); font-size:11px; color:#232323; }
 </style>
 </head>
 <body>
@@ -2896,7 +2922,8 @@
       { sep:true },
       { ic:'ai', label:'Автогенерация описаний…', run:openAiPanel },
       { sep:true },
-      { ic:'save', label:'Экспортировать локально', run:doExportLocal }
+      { ic:'save', label:'Экспортировать локально', run:doExportLocal },
+      { ic:'open', label:'Импортировать локально…', run:doImportLocal }
     ],
     edit: [
       { ic:'undo', label:'Отменить', key:'Ctrl+Z', run:performUndo, id:'mUndo' },
@@ -3020,21 +3047,30 @@
     return true;
   }
 
+  // Core network call, no UI/status side effects — shared by the manual
+  // "Сохранить в GitHub" action and the AI job's auto-commit, which needs to
+  // know success/failure programmatically instead of just reading a status
+  // string.
+  async function saveToGitHubCore(){
+    const r = await fetch('/api/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: flattenTreeToTopics(treeData, null) }),
+    });
+    const data = await r.json().catch(() => null);
+    if (!r.ok || !data || !data.ok) {
+      throw new Error((data && data.error) || ('HTTP ' + r.status));
+    }
+    return data;
+  }
+
   async function saveToGitHub(){
     if (ghBusy) return;
     ghBusy = true;
     syncEnabled();
     setStatus('Сохранение в GitHub…');
     try {
-      const r = await fetch('/api/config', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: flattenTreeToTopics(treeData, null) }),
-      });
-      const data = await r.json().catch(() => null);
-      if (!r.ok || !data || !data.ok) {
-        throw new Error((data && data.error) || ('HTTP ' + r.status));
-      }
+      const data = await saveToGitHubCore();
       setGhDirty(false);
       setStatus('Сохранено в GitHub' + (data.commit ? (' — коммит ' + data.commit.slice(0, 7)) : '') + '.');
     } catch (err) {
@@ -3043,6 +3079,33 @@
       ghBusy = false;
       syncEnabled();
     }
+  }
+
+  /* ---------------- AI job auto-commit ----------------
+     Called by aiRunJob every few completed topics (see MAX_TOPIC_ATTEMPTS'
+     neighbor AI_COMMIT_EVERY below). Two attempts total — "больше одной
+     попытки" per the spec — with a short pause between them; a manual save
+     already in flight is waited out rather than raced against.
+     ============================================================ */
+  async function aiCommitToGitHub(){
+    for (let attempt = 1; attempt <= 2; attempt++){
+      let waited = 0;
+      while (ghBusy && waited < 10000){ await sleepAbortable(500); waited += 500; }
+      ghBusy = true; syncEnabled();
+      try {
+        const data = await saveToGitHubCore();
+        setGhDirty(false);
+        ghBusy = false; syncEnabled();
+        setStatus('Автокоммит в GitHub' + (data.commit ? (' — коммит ' + data.commit.slice(0, 7)) : '') + '.');
+        aiLog('✓ автокоммит в GitHub успешен' + (data.commit ? (' (' + data.commit.slice(0, 7) + ')') : ''));
+        return true;
+      } catch (err) {
+        ghBusy = false; syncEnabled();
+        aiLog('⚠ автокоммит в GitHub не удался (попытка ' + attempt + ' из 2):', err.message);
+        if (attempt < 2) await sleepAbortable(3000);
+      }
+    }
+    return false;
   }
 
   /* ============================================================
@@ -4191,6 +4254,45 @@
     setStatus('Локальная копия сохранена в config.json.');
   }
 
+  // Loads a config.json (or a { content: [...] } wrapper, same shape the
+  // /api/config GET returns) picked from disk back into the tree — the
+  // counterpart to doExportLocal, for recovering from a save-to-GitHub
+  // failure that triggered an automatic local export. Deliberately does NOT
+  // push straight to GitHub: the imported file replaces the in-memory tree
+  // and marks it dirty so the author can review it before an explicit
+  // «Сохранить в GitHub».
+  function doImportLocal(){
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'application/json,.json';
+    input.addEventListener('change', () => {
+      const file = input.files && input.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        let parsed;
+        try { parsed = JSON.parse(String(reader.result)); }
+        catch (e){ setStatus('Не удалось прочитать файл — повреждённый JSON.'); return; }
+        const flat = Array.isArray(parsed) ? parsed : (parsed && Array.isArray(parsed.content) ? parsed.content : null);
+        if (!flat){ setStatus('Файл не похож на config.json (ожидался массив тем или { content: [...] }).'); return; }
+        let rebuilt;
+        try { rebuilt = buildTreeFromFlatTopics(flat); }
+        catch (e){ setStatus('Не удалось разобрать структуру тем из файла: ' + e.message); return; }
+        nodeEls.forEach(rec => rec.li.remove());
+        nodeEls.clear();
+        treeData = rebuilt;
+        applyExpandState(treeData);
+        selectedIds.clear(); selectionMode = false; currentId = null; anchorId = null;
+        flatOrder(treeData).forEach(id => enterOf.set(id, 'cascade'));
+        render();
+        scheduleAutosave();
+        setStatus('Локальный файл импортирован — тем: ' + flatOrder(treeData).length + '. Проверьте и сохраните в GitHub вручную, если всё верно.');
+      };
+      reader.readAsText(file);
+    });
+    input.click();
+  }
+
   /* ============================================================
      Inspector — edit every parameter of the selected topic(s).
      With several topics selected, a field shows its shared value,
@@ -4965,7 +5067,18 @@
   const AI_SETTINGS_KEY = 'mf-ai-settings-v2';
   const AI_JOB_KEY = 'mf-ai-job-v1';
   const AI_STATS_KEY = 'mf-ai-stats-v1';
+  const AI_POWERSAVE_KEY = 'mf-ai-powersave-v1';
   const AI_TYPES_SUPPORTED = ['topic', 'folder', 'theorem', 'proof'];
+
+  // Device-local, not synced — same reasoning as the timing stats: whether
+  // it's worth dimming the screen depends on the machine/situation you're
+  // running the job on right now, not on the account.
+  function aiPowerSaveEnabled(){
+    try { return localStorage.getItem(AI_POWERSAVE_KEY) === '1'; } catch (e){ return false; }
+  }
+  function aiSetPowerSave(on){
+    try { localStorage.setItem(AI_POWERSAVE_KEY, on ? '1' : '0'); } catch (e){}
+  }
 
   /* ---------------- timing stats for the ETA ----------------
      Average time one topic takes, kept per (mode, type) pair rather than per
@@ -5454,6 +5567,20 @@
     try { localStorage.setItem(AI_SETTINGS_KEY, JSON.stringify(s)); } catch (e){ /* quota / private mode */ }
     aiSyncPush({ settings: s });
   }
+  // Writes one provider's key without touching which provider is currently
+  // selected in the setup dropdown — used by the running-job view's key
+  // field, where the job's own provider (job.settings.provider) can differ
+  // from whatever the setup view happens to show right now. saveAiSettings
+  // above always switches s.provider along with the key, which would be a
+  // surprising side effect here.
+  function saveAiKeyForProvider(providerId, apiKey){
+    if (!AI_PROVIDERS[providerId]) return;
+    const s = loadAiSettings();
+    if (!s.byProvider[providerId]) s.byProvider[providerId] = { apiKey: '', model: '' };
+    s.byProvider[providerId].apiKey = apiKey;
+    try { localStorage.setItem(AI_SETTINGS_KEY, JSON.stringify(s)); } catch (e){ /* quota / private mode */ }
+    aiSyncPush({ settings: s });
+  }
   // {provider, apiKey, model} for whichever provider is currently selected —
   // the shape most call sites actually want instead of the full byProvider map.
   function currentAiSettings(){
@@ -5466,6 +5593,11 @@
       if (!raw) return null;
       const p = JSON.parse(raw);
       if (!p || !Array.isArray(p.queue) || !p.settings) return null;
+      // Defaults for jobs saved before these fields existed.
+      if (typeof p.committedThrough !== 'number') p.committedThrough = 0;
+      if (typeof p.doneSinceCommit !== 'number') p.doneSinceCommit = 0;
+      if (!('stopReason' in p)) p.stopReason = null;
+      if (!('stopMessage' in p)) p.stopMessage = null;
       return p;
     } catch (e){ return null; }
   }
@@ -6199,17 +6331,25 @@
   };
   const AI_DEFAULT_SECTION = 'geometry';
   function aiSection(id){ return AI_SECTIONS[id] || AI_SECTIONS[AI_DEFAULT_SECTION]; }
-  // Best guess for the dropdown's initial value: the section the selected
-  // topics actually sit under, found by walking up to the root and matching
-  // its title against the section labels.
-  function aiGuessSection(nodes){
-    for (const n of (nodes || [])){
-      const path = ancestorPath(n.id);
-      const rootTitle = (path ? path.split(' › ')[0] : n.name) || '';
-      const hit = Object.keys(AI_SECTIONS).find(k => AI_SECTIONS[k].label.toLowerCase() === rootTitle.trim().toLowerCase());
-      if (hit) return hit;
-    }
-    return null;
+  // Which of the 8 top-level branches a node sits under, matched by walking
+  // up to the tree's root and comparing its title against the section
+  // labels — this is what lets generation auto-pick the right prompts per
+  // topic instead of needing one section chosen for the whole job, so a run
+  // can freely mix roots from several branches at once (see aiRunJob).
+  // Returns null if the node's own top-level ancestor doesn't match any
+  // known branch name (custom/renamed top-level items).
+  function aiSectionForNode(node){
+    const path = ancestorPath(node.id);
+    const rootTitle = (path ? path.split(' › ')[0] : node.name) || '';
+    return Object.keys(AI_SECTIONS).find(k => AI_SECTIONS[k].label.toLowerCase() === rootTitle.trim().toLowerCase()) || null;
+  }
+  // Every distinct section the given nodes resolve to — used to show the
+  // admin which branches were auto-detected when several roots (possibly
+  // from different branches) are selected at once.
+  function aiGuessSections(nodes){
+    const set = new Set();
+    (nodes || []).forEach(n => { const hit = aiSectionForNode(n); if (hit) set.add(hit); });
+    return [...set];
   }
 
   /* ---------------- Prompts ---------------- */
@@ -6999,6 +7139,7 @@ id: <идентификатор> | title: <название темы> | type: <�
   // up on it and moves to the next. Counted per topic across the whole job,
   // not per resume — see `spentAttempts` in the loop below.
   const MAX_TOPIC_ATTEMPTS = 10;
+  const AI_COMMIT_EVERY = 10; // auto-commit to GitHub after this many completed topics
   let aiRunning = false;    // true while the async loop below is actively mid-flight
   let aiAbort = false;      // set by pause/cancel to stop the loop at the next safe point
   let aiWantCancel = false; // distinguishes "cancel" from a plain "pause" once the loop stops
@@ -7023,6 +7164,153 @@ id: <идентификатор> | title: <название темы> | type: <�
     const total = job.queue.length;
     const done = job.queue.filter(tid => job.results[tid] && job.results[tid].status !== undefined).length;
     return { done, total };
+  }
+
+  // Everything before job.committedThrough is safely in GitHub — its
+  // (potentially large) generated HTML no longer needs to live a second time
+  // in job.results, which is what used to let a long job's local/cloud
+  // storage grow without bound (and then fail to save at all past the quota,
+  // silently). Only the still-uncommitted tail — at most AI_COMMIT_EVERY
+  // topics — keeps its description text, so a reload can still recover it
+  // via aiCheckResumeOnBoot even before the next commit lands.
+  function aiMarkCommitted(job){
+    for (let i = 0; i < job.cursor && i < job.queue.length; i++){
+      const r = job.results[job.queue[i]];
+      if (r && r.status === 'done' && 'description' in r) delete r.description;
+    }
+    job.committedThrough = job.cursor;
+    job.doneSinceCommit = 0;
+  }
+
+  /* ---------------- sound + visual alert ----------------
+     Fired when generation stops itself because it can't make progress
+     unattended: a topic exhausted every retry, or a commit to GitHub failed
+     twice in a row. Both are meant to be impossible to miss even if the tab
+     isn't focused — a synthesized beep (no audio asset needed), a banner
+     that stays up until the panel is opened or the job is resumed/discarded,
+     and a flashing tab title. ============================================ */
+  let aiAlertAudioCtx = null;
+  function aiPlayAlertSound(){
+    try {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return;
+      if (!aiAlertAudioCtx) aiAlertAudioCtx = new Ctx();
+      const ctx = aiAlertAudioCtx;
+      if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+      const beepAt = (t, freq) => {
+        const osc = ctx.createOscillator(), gain = ctx.createGain();
+        osc.type = 'sine'; osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0.0001, t);
+        gain.gain.exponentialRampToValueAtTime(0.25, t + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.28);
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.start(t); osc.stop(t + 0.3);
+      };
+      const now = ctx.currentTime;
+      beepAt(now, 880); beepAt(now + 0.35, 880); beepAt(now + 0.7, 1046.5);
+    } catch (e){ /* autoplay policy or no Web Audio — the banner still shows */ }
+  }
+  let aiAlertBannerEl = null;
+  let aiAlertTitleTimer = null;
+  let aiAlertOrigTitle = null;
+  function aiStopTitleFlash(){
+    if (aiAlertTitleTimer){ clearInterval(aiAlertTitleTimer); aiAlertTitleTimer = null; }
+    if (aiAlertOrigTitle != null){ document.title = aiAlertOrigTitle; aiAlertOrigTitle = null; }
+  }
+  function aiStartTitleFlash(){
+    if (aiAlertTitleTimer) return; // already flashing
+    aiAlertOrigTitle = document.title;
+    let on = false;
+    aiAlertTitleTimer = setInterval(() => {
+      document.title = on ? aiAlertOrigTitle : '⚠ Автогенерация остановлена';
+      on = !on;
+    }, 1000);
+  }
+  function aiRemoveAlertBanner(){
+    if (!aiAlertBannerEl) return;
+    const b = aiAlertBannerEl; aiAlertBannerEl = null;
+    b.classList.remove('on');
+    setTimeout(() => b.remove(), 200);
+    aiStopTitleFlash();
+  }
+  function aiShowAlertBanner(message){
+    aiRemoveAlertBanner();
+    const el = document.createElement('div');
+    el.id = 'aiAlertBanner';
+    const span = document.createElement('span'); span.textContent = message;
+    const btn = document.createElement('button'); btn.type = 'button'; btn.textContent = 'Открыть';
+    btn.addEventListener('click', () => { openAiPanel(); });
+    const close = document.createElement('button'); close.type = 'button'; close.textContent = '✕';
+    close.title = 'Скрыть (задание остаётся на паузе)';
+    close.addEventListener('click', aiRemoveAlertBanner);
+    el.append(span, btn, close);
+    document.body.appendChild(el);
+    aiAlertBannerEl = el;
+    requestAnimationFrame(() => el.classList.add('on'));
+  }
+  function aiFireAlert(message){
+    aiStopDim(); // nothing to save power for once generation needs attention
+    aiPlayAlertSound();
+    aiShowAlertBanner(message);
+    aiStartTitleFlash();
+  }
+
+  /* ---------------- power-save dimming ----------------
+     A long unattended run has no reason to keep the screen lit — this
+     doesn't (can't, from a web page) turn the monitor off, but painting the
+     whole viewport near-black does cut real power on OLED/AMOLED screens
+     (the common case on phones and a lot of laptops) and, more importantly,
+     lets the OS/device's own screen-off timeout do its job without the
+     admin having to babysit brightness settings during a multi-hour job.
+     The overlay's own text is refreshed on a slow interval rather than
+     following every render, so it doesn't undo the point by keeping the GPU
+     busy while dimmed. ============================================ */
+  let aiDimEl = null;
+  let aiDimTimer = null;
+  let aiPeekTimer = null;
+  function aiDimText(){
+    const job = loadAiJob();
+    if (!job) return 'Автогенерация описаний…';
+    const prog = aiJobProgress(job);
+    let etaText = null;
+    if (job.status === 'running'){
+      const est = aiEstimateRemainingMs(job);
+      etaText = aiFmtEta(est.ms);
+    }
+    return 'Автогенерация описаний: ' + prog.done + ' / ' + prog.total +
+      (etaText ? (' · осталось примерно ' + etaText) : '');
+  }
+  function aiStartDim(){
+    if (aiDimEl) return;
+    const el = document.createElement('div');
+    el.id = 'aiDimOverlay';
+    const span = document.createElement('span'); span.textContent = aiDimText();
+    const hint = document.createElement('div'); hint.className = 'ai-dim-hint';
+    hint.textContent = 'Экран притемнён для экономии заряда во время автогенерации — нажмите, чтобы посмотреть';
+    el.append(span, hint);
+    el.addEventListener('click', aiPeekDim);
+    document.body.appendChild(el);
+    aiDimEl = el;
+    requestAnimationFrame(() => el.classList.add('on'));
+    aiDimTimer = setInterval(() => { if (aiDimEl) aiDimEl.querySelector('span').textContent = aiDimText(); }, 3000);
+  }
+  function aiStopDim(){
+    clearTimeout(aiPeekTimer); aiPeekTimer = null;
+    if (aiDimTimer){ clearInterval(aiDimTimer); aiDimTimer = null; }
+    if (!aiDimEl) return;
+    const el = aiDimEl; aiDimEl = null;
+    el.classList.remove('on');
+    setTimeout(() => el.remove(), 200);
+  }
+  // A tap doesn't need to turn power-save off entirely — it just peeks for a
+  // few seconds and re-dims if the job (and the setting) are still active.
+  function aiPeekDim(){
+    if (!aiDimEl) return;
+    aiDimEl.classList.remove('on');
+    clearTimeout(aiPeekTimer);
+    aiPeekTimer = setTimeout(() => {
+      if (aiDimEl && aiRunning && aiPowerSaveEnabled()) aiDimEl.classList.add('on');
+    }, 4000);
   }
 
   async function aiRunJob(){
@@ -7062,7 +7350,10 @@ id: <идентификатор> | title: <название темы> | type: <�
     const MODE_LABELS = { generate: 'генерация', normalize: 'нормализация формул', clarify: 'выправление формулировок' };
     aiRunning = true; aiAbort = false; aiWantCancel = false; aiStopping = false;
     job.status = 'running';
+    job.stopReason = null; job.stopMessage = null;
     saveAiJob(job);
+    aiRemoveAlertBanner();
+    if (aiPowerSaveEnabled()) aiStartDim();
     // Picks up everything already finished before this runner took over —
     // a resumed job, or one that outlived a page reload mid-generation.
     const backfilled = aiSyncStatsFromJob(job);
@@ -7070,8 +7361,24 @@ id: <идентификатор> | title: <название темы> | type: <�
     renderAiPanel();
     aiLog('=== Задание запущено (' + (MODE_LABELS[mode] || mode) + '): тем в очереди —', job.queue.length, ', провайдер —', provider, ', модель —', job.settings.model, '===');
 
+    // Defensive: retry the earliest still-'error' topic first if one exists
+    // before the cursor (normal operation already leaves the cursor sitting
+    // exactly on a freshly-failed topic without advancing past it — see the
+    // error branch below — so this only matters for a legacy job saved
+    // before that behavior existed, or a hand-edited queue/cursor).
+    for (let i = 0; i < job.cursor && i < job.queue.length; i++){
+      const r = job.results[job.queue[i]];
+      if (r && r.status === 'error'){ job.cursor = i; break; }
+    }
+
     const topicIndex = buildTopicIndex();
     const stemIdx = buildStemIndex(topicIndex);
+    // Distinguishes an automatic error-stop from a normal "ran off the end
+    // of the queue" — without it, an auto-commit failing on exactly the
+    // last topic (cursor already advanced past it) would fall through to
+    // the tail's "completed" branch and overwrite the paused/save-error
+    // status that was just set.
+    let stoppedForAlert = false;
 
     while (job.cursor < job.queue.length){
       if (aiAbort) break;
@@ -7082,29 +7389,50 @@ id: <идентификатор> | title: <название темы> | type: <�
         job.cursor++; saveAiJob(job); renderAiPanel();
         continue;
       }
-      if (mode === 'normalize' || mode === 'clarify'){
-        // Opposite of generation's skip rule — both normalization modes
-        // only make sense on a topic that already has something written.
-        if (!(node.description || '').trim()){
-          job.results[tid] = { status: 'skipped' };
-          job.cursor++; saveAiJob(job); renderAiPanel();
-          continue;
-        }
-      } else {
-        const already = (node.description || '').trim().length >= 20;
-        if (already && !job.settings.replace){
-          job.results[tid] = { status: 'skipped' };
-          job.cursor++; saveAiJob(job); renderAiPanel();
-          continue;
+      const existing = job.results[tid];
+      // A topic already marked 'error' by this job stopped a previous run
+      // outright (see below) — a resume must retry exactly it, not
+      // re-litigate the skip decision against whatever node.description
+      // happens to hold right now. 'done'/'skipped' shouldn't normally be
+      // reached here (the cursor should already be past them) but are
+      // handled defensively rather than falling through to a re-generate.
+      if (existing && (existing.status === 'done' || existing.status === 'skipped')){
+        job.cursor++; continue;
+      }
+      const isRetry = !!(existing && existing.status === 'error');
+      if (!isRetry){
+        if (mode === 'normalize' || mode === 'clarify'){
+          // Opposite of generation's skip rule — both normalization modes
+          // only make sense on a topic that already has something written.
+          if (!(node.description || '').trim()){
+            job.results[tid] = { status: 'skipped' };
+            job.cursor++; saveAiJob(job); renderAiPanel();
+            continue;
+          }
+        } else {
+          const already = (node.description || '').trim().length >= 20;
+          if (already && !job.settings.replace){
+            job.results[tid] = { status: 'skipped' };
+            job.cursor++; saveAiJob(job); renderAiPanel();
+            continue;
+          }
         }
       }
       if (!job.backup.hasOwnProperty(tid)) job.backup[tid] = node.description || '';
-      // Attempts already spent on this topic carry over from whatever ran
-      // before (an earlier pause, a reload, or another device that had the
-      // lease) — the cap has to be per topic overall, not per resume, or a
-      // topic that always fails could be retried forever across resumes.
-      const spentAttempts = (job.results[tid] && job.results[tid].attempts) || 0;
-      job.results[tid] = { status: 'running', step: 'подготовка…', attempts: spentAttempts };
+      // A topic that fully exhausted its attempts and stopped the job gets a
+      // fresh budget on resume — the operator is expected to have done
+      // something about it (network, key) before clicking Продолжить. A
+      // topic merely interrupted mid-cycle (still 'running' from an unclean
+      // reload) keeps its spent attempts, so a crash loop can't retry it
+      // forever.
+      const spentAttempts = isRetry ? 0 : ((existing && existing.attempts) || 0);
+      // Per-topic, not per-job: lets one run cover roots from several
+      // branches at once (e.g. Геометрия и Алгебра selected together) and
+      // still give each topic its own branch's prompts. Falls back to the
+      // job's configured section for a topic whose own top-level ancestor
+      // doesn't match any known branch name.
+      const topicSection = aiSectionForNode(node) || job.settings.section || AI_DEFAULT_SECTION;
+      job.results[tid] = { status: 'running', step: 'подготовка (' + aiSection(topicSection).label + ')…', attempts: spentAttempts };
       saveAiJob(job);
       renderAiPanel();
 
@@ -7143,10 +7471,18 @@ id: <идентификатор> | title: <название темы> | type: <�
         attempts++;
         if (attempts > 1) onStep('попытка ' + attempts + ' из ' + MAX_TOPIC_ATTEMPTS + '…');
         failed = false;
+        // Re-read the key on every attempt, not just once at the top of the
+        // job: editing it in the panel while generation is running (say,
+        // after a VPN toggle broke the old one) must take effect on the very
+        // next request without having to stop and restart the whole job.
+        const liveKey = ((loadAiSettings().byProvider[provider] || {}).apiKey) || ctx.apiKey;
+        const attemptCtx = (liveKey === ctx.apiKey && topicSection === ctx.section)
+          ? ctx
+          : Object.assign({}, ctx, { apiKey: liveKey, section: topicSection });
         try {
-          html = mode === 'normalize' ? await aiNormalizeOne(ctx, node, onStep, onLive)
-            : mode === 'clarify' ? await aiClarifyOne(ctx, node, onStep, onLive)
-            : await aiGenerateOne(ctx, node, topicIndex, stemIdx, job.settings.links, onStep, onLive);
+          html = mode === 'normalize' ? await aiNormalizeOne(attemptCtx, node, onStep, onLive)
+            : mode === 'clarify' ? await aiClarifyOne(attemptCtx, node, onStep, onLive)
+            : await aiGenerateOne(attemptCtx, node, topicIndex, stemIdx, job.settings.links, onStep, onLive);
           errMsg = null;
         } catch (err){
           failed = true;
@@ -7169,9 +7505,39 @@ id: <идентификатор> | title: <название темы> | type: <�
       const durationMs = performance.now() - topicT0;
       if (!failed && html !== null){
         node.description = html;
+        scheduleAutosave();
         render();
         job.results[tid] = { status: 'done', description: html, durationMs, attempts };
+        job.doneSinceCommit++;
         aiLog('--- «' + node.name + '» готово за ' + (durationMs / 1000).toFixed(1) + ' с' + (attempts > 1 ? (' (попыток: ' + attempts + ')') : '') + ' ---');
+        job.cursor++;
+        saveAiJob(job);
+        aiSyncStatsFromJob(job);
+        renderAiPanel();
+        // Auto-commit: this is the durable store now — generated
+        // descriptions no longer depend on the local job cache surviving a
+        // reload once they're in GitHub. Two failed attempts here (see
+        // aiCommitToGitHub) stop the whole job rather than silently piling
+        // up more uncommitted work behind a broken connection.
+        if (job.doneSinceCommit >= AI_COMMIT_EVERY){
+          const ok = await aiCommitToGitHub();
+          if (ok){
+            aiMarkCommitted(job);
+            saveAiJob(job);
+          } else {
+            doExportLocal();
+            job.status = 'paused';
+            job.stopReason = 'save-error';
+            job.stopMessage = 'Не удалось сохранить прогресс в GitHub после двух попыток (обработано тем: ' +
+              aiJobProgress(job).done + ') — на всякий случай скачана локальная копия config.json. ' +
+              'Проверьте связь и нажмите «Продолжить», либо импортируйте копию через «Импортировать локально…».';
+            saveAiJob(job);
+            aiFireAlert(job.stopMessage);
+            renderAiPanel();
+            stoppedForAlert = true;
+            break;
+          }
+        }
       } else if (!failed && attempts < MAX_TOPIC_ATTEMPTS){
         // The mode function returned null without throwing — nothing to do
         // for this topic (e.g. an empty description in a normalize run).
@@ -7179,30 +7545,68 @@ id: <идентификатор> | title: <название темы> | type: <�
         // pause landing exactly on the last failed attempt, then a resume)
         // can't be misreported as a clean skip.
         job.results[tid] = { status: 'skipped', attempts };
+        job.cursor++;
+        saveAiJob(job);
+        aiSyncStatsFromJob(job);
+        renderAiPanel();
       } else {
         errMsg = errMsg || 'исчерпан лимит попыток (' + MAX_TOPIC_ATTEMPTS + ')';
         job.results[tid] = { status: 'error', error: errMsg, durationMs, attempts };
         aiLog('--- «' + node.name + '» ОШИБКА за ' + (durationMs / 1000).toFixed(1) + ' с, попыток: ' + attempts + ':', errMsg, '---');
+        // Cursor deliberately NOT advanced — this topic is what the very
+        // next resume (whether from the alert banner's "Продолжить" or a
+        // reload) will retry first, before anything else in the queue.
+        saveAiJob(job);
+        aiSyncStatsFromJob(job);
+        // Best-effort: flush whatever finished right before this failure, so
+        // a topic erroring out doesn't leave recently-generated descriptions
+        // sitting uncommitted for longer than necessary.
+        let committed = true;
+        if (job.doneSinceCommit > 0){
+          committed = await aiCommitToGitHub();
+          if (committed){ aiMarkCommitted(job); saveAiJob(job); }
+        }
+        job.status = 'paused';
+        job.stopReason = 'topic-error';
+        job.stopMessage = 'Тема «' + node.name + '» не сгенерировалась после ' + attempts + ' попыток: ' + errMsg + '.' +
+          (committed ? '' : ' Также не удалось сохранить прогресс в GitHub — скачана локальная копия config.json.');
+        if (!committed) doExportLocal();
+        saveAiJob(job);
+        aiFireAlert(job.stopMessage);
+        renderAiPanel();
+        stoppedForAlert = true;
+        break;
       }
-      job.cursor++;
-      saveAiJob(job);
-      aiSyncStatsFromJob(job);
-      renderAiPanel();
     }
 
     aiRunning = false;
     aiStopping = false;
+    aiStopDim();
     aiReleaseLease();
     if (aiWantCancel){
       // storage was already cleared by aiDiscardJob(); nothing left to persist
       aiWantCancel = false;
-    } else if (!aiAbort && job.cursor >= job.queue.length){
+    } else if (!aiAbort && !stoppedForAlert && job.cursor >= job.queue.length){
+      // Natural completion — flush anything generated since the last
+      // periodic commit so the run never ends with work sitting only in
+      // the browser.
+      if (job.doneSinceCommit > 0){
+        const ok = await aiCommitToGitHub();
+        if (ok){ aiMarkCommitted(job); }
+        else {
+          doExportLocal();
+          job.stopReason = 'save-error';
+          job.stopMessage = 'Генерация завершена, но финальный коммит в GitHub не удался — скачана локальная копия config.json. Сохраните её вручную через «Сохранить в GitHub», когда связь восстановится.';
+          aiFireAlert(job.stopMessage);
+        }
+      }
       job.status = 'done';
       saveAiJob(job);
       setStatus('Автогенерация описаний завершена.');
       aiLog('=== Задание завершено ===');
     } else if (aiAbort){
       job.status = 'paused';
+      if (!job.stopReason) job.stopReason = 'manual';
       saveAiJob(job);
       aiLog('=== Задание приостановлено ===');
     }
@@ -7233,6 +7637,7 @@ id: <идентификатор> | title: <название темы> | type: <�
       const node = findNodeByTopicId(tid);
       if (node){ node.description = job.backup[tid]; n++; }
     });
+    scheduleAutosave();
     render();
     setStatus('Откат выполнен — восстановлено описаний: ' + n + '. Не забудьте сохранить в GitHub, если нужно закрепить откат.');
     renderAiPanel();
@@ -7240,6 +7645,7 @@ id: <идентификатор> | title: <название темы> | type: <�
   function aiDiscardJob(){
     clearAiJob();
     aiRemoveBanner();
+    aiRemoveAlertBanner();
     renderAiPanel();
   }
 
@@ -7416,6 +7822,7 @@ id: <идентификатор> | title: <название темы> | type: <�
 
   function openAiPanel(){
     if (aiOverlayEl) return;
+    aiStopDim(); // opening the panel means the admin wants to look at it
     // Catches measurements this tab never saw recorded — most often a job
     // that was already running when the page was reloaded or updated.
     aiSyncStatsFromJob(loadAiJob());
@@ -7444,6 +7851,9 @@ id: <идентификатор> | title: <название темы> | type: <�
     document.removeEventListener('keydown', aiEscHandler);
     aiLastViewKind = null;   // a reopened panel starts at the top, not at the old scroll offset
     setTimeout(() => o.remove(), 180);
+    // Re-engage power-save dimming if the job is still running and the
+    // setting is on — openAiPanel lifted it just for this look.
+    if (aiRunning && aiPowerSaveEnabled()) aiStartDim();
   }
 
   // Both views rebuild #aiBody wholesale (innerHTML = ''), and a running job
@@ -7698,15 +8108,30 @@ id: <идентификатор> | title: <название темы> | type: <�
 
     // --- section ---
     // Picks which set of prompts to use: the wording, the topic taxonomy and
-    // the worked examples all differ per field of mathematics (see AI_SECTIONS).
+    // the worked examples all differ per field of mathematics (see
+    // AI_SECTIONS). Determined automatically per topic from which of the 8
+    // top-level branches it sits under (aiSectionForNode) — so selecting
+    // several roots that span different branches (e.g. Геометрия и Алгебра
+    // at once) just works, each topic gets its own branch's prompts. The
+    // dropdown below only matters as a fallback for a topic whose top-level
+    // ancestor doesn't match any known branch name.
     const secTitleS = document.createElement('div');
     secTitleS.className = 'ai-section-title'; secTitleS.style.marginTop = '2px';
     secTitleS.textContent = 'Раздел справочника';
     body.appendChild(secTitleS);
 
+    const detectedSections = aiGuessSections(roots);
+    if (detectedSections.length){
+      const detectedNote = document.createElement('div'); detectedNote.className = 'ai-hint';
+      detectedNote.textContent = 'Определено автоматически по выбранным темам: ' +
+        detectedSections.map(id => AI_SECTIONS[id].label).join(', ') +
+        '. Каждая тема получает промпты своего раздела — можно выбирать темы сразу из нескольких разделов.';
+      body.appendChild(detectedNote);
+    }
+
     const sectionRow = document.createElement('div'); sectionRow.className = 'ai-row';
     const sectionSelect = document.createElement('select'); sectionSelect.className = 'ai-select';
-    const guessed = aiGuessSection(roots);
+    const guessed = detectedSections[0] || null;
     const savedSection = AI_SECTIONS[settings.section] ? settings.section : null;
     const initialSection = guessed || savedSection || AI_DEFAULT_SECTION;
     Object.keys(AI_SECTIONS).forEach(id => {
@@ -7720,9 +8145,9 @@ id: <идентификатор> | title: <название темы> | type: <�
     body.appendChild(sectionRow);
 
     const sectionNote = document.createElement('div'); sectionNote.className = 'ai-hint';
-    sectionNote.textContent = guessed
-      ? 'Определён по выбранным темам. Промпты подстраиваются под раздел: формулировки, типы тем и структура описания у каждого раздела свои — если выбранные темы относятся к другому разделу, поменяйте здесь.'
-      : 'Промпты подстраиваются под раздел: формулировки, типы тем и структура описания у каждого раздела свои. Раздел не удалось определить по выбранным темам — проверьте, что здесь выбрано верное.';
+    sectionNote.textContent = detectedSections.length
+      ? 'Запасной раздел — используется только для темы, чей верхний раздел не удалось определить автоматически (например, если она не лежит ни в одном из 8 основных разделов).'
+      : 'Раздел не удалось определить по выбранным темам автоматически — выберите здесь тот, что подходит; он будет применён ко всем темам в очереди.';
     body.appendChild(sectionNote);
 
     // --- topics ---
@@ -7781,6 +8206,15 @@ id: <идентификатор> | title: <название темы> | type: <�
     linksNote.textContent = 'Дороже по числу запросов к нейросети (ещё 1–2 вызова на тему).';
     body.appendChild(linksNote);
 
+    const powerRow = document.createElement('label'); powerRow.className = 'ai-checkrow';
+    const powerChk = document.createElement('input'); powerChk.type = 'checkbox'; powerChk.checked = aiPowerSaveEnabled();
+    powerRow.append(powerChk, Object.assign(document.createElement('span'), { textContent: 'Гасить экран во время генерации (экономия заряда)' }));
+    powerChk.addEventListener('change', () => aiSetPowerSave(powerChk.checked));
+    body.appendChild(powerRow);
+    const powerNote = document.createElement('div'); powerNote.className = 'ai-hint';
+    powerNote.textContent = 'Экран притемняется на весь просмотр, пока задание выполняется — генерация продолжается как обычно. Нажмите в любом месте, чтобы ненадолго посмотреть.';
+    body.appendChild(powerNote);
+
     // --- footer ---
     function startJob(mode){
       const types = new Set(AI_TYPES_SUPPORTED.filter(t => typeChecks[t].checked));
@@ -7789,11 +8223,29 @@ id: <идентификатор> | title: <название темы> | type: <�
       const queue = buildAiQueue(roots, types);
       if (!queue.length){ setStatus('Среди выбранного нет тем подходящего типа.'); return; }
       saveAiSettings({ provider, apiKey: keyInput.value, model: modelSelect.value });
+      // Computed once here rather than on every render of the job view: the
+      // queue can run into the thousands, and each lookup walks the tree —
+      // fine once at job creation, wasteful several times a second while
+      // the job is running.
+      const detectedSectionsAtStart = [...new Set(
+        queue.map(tid => { const n = findNodeByTopicId(tid); return n && aiSectionForNode(n); }).filter(Boolean)
+      )];
       const job = {
         status: 'running',
         createdAt: new Date().toISOString(),
-        settings: { provider, mode, section: sectionSelect.value, types: [...types], replace: replaceChk.checked, links: linksChk.checked, model: modelSelect.value },
-        queue, cursor: 0, backup: {}, results: {}
+        settings: {
+          provider, mode, section: sectionSelect.value, types: [...types], replace: replaceChk.checked, links: linksChk.checked, model: modelSelect.value,
+          detectedSections: detectedSectionsAtStart
+        },
+        queue, cursor: 0, backup: {}, results: {},
+        // committedThrough: queue index up to which results are safely in
+        // GitHub — everything before it can have its (heavy) description
+        // text dropped from local/cloud job storage without losing anything,
+        // since a reload just re-fetches that part from GitHub anyway. This
+        // is what keeps the job payload small regardless of how many
+        // thousands of topics it eventually covers (see aiMarkCommitted).
+        committedThrough: 0, doneSinceCommit: 0,
+        stopReason: null, stopMessage: null
       };
       saveAiJob(job);
       renderAiPanel();
@@ -7841,15 +8293,70 @@ id: <идентификатор> | title: <название темы> | type: <�
   function renderAiJobView(job){
     const body = document.getElementById('aiBody');
     const foot = document.getElementById('aiFoot');
+    // A running job re-renders several times a second (see onLive below) —
+    // without this, retyping the API key mid-generation would get the field
+    // yanked out from under the cursor on every streamed chunk.
+    const prevKeyInput = document.getElementById('aiJobKeyInput');
+    const keyFocusState = (prevKeyInput && document.activeElement === prevKeyInput)
+      ? { start: prevKeyInput.selectionStart, end: prevKeyInput.selectionEnd }
+      : null;
     body.innerHTML = ''; foot.innerHTML = '';
 
     // Which prompts this job is running under — fixed when it started, so
     // it's worth showing rather than leaving the reader to infer it from
     // whatever the setup dropdown happens to say now.
     const modeNote = document.createElement('div'); modeNote.className = 'ai-section-title';
+    const detected = job.settings.detectedSections;
+    const sectionsLabel = (Array.isArray(detected) && detected.length)
+      ? detected.map(id => (AI_SECTIONS[id] || {}).label || id).join(', ')
+      : aiSection(job.settings.section).label;
     modeNote.textContent = (AI_MODE_LABELS[job.settings.mode || 'generate'] || 'Генерация') +
-      ' · раздел «' + aiSection(job.settings.section).label + '»';
+      ' · раздел' + (Array.isArray(detected) && detected.length > 1 ? 'ы' : '') + ' «' + sectionsLabel + '»';
     body.appendChild(modeNote);
+
+    // Why the job is sitting on a pause right now — a manual Пауза needs no
+    // explanation, but an automatic stop (topic exhausted its retries, or a
+    // GitHub commit failed twice) does, right here where «Продолжить» is.
+    if (job.stopMessage && (job.stopReason === 'topic-error' || job.stopReason === 'save-error')){
+      const stopNote = document.createElement('div'); stopNote.className = 'ai-hint'; stopNote.style.color = 'var(--danger)';
+      stopNote.textContent = job.stopMessage;
+      body.appendChild(stopNote);
+    }
+
+    // API key for this job's provider — editable right here, live, so a key
+    // that stopped working mid-run (VPN toggled, quota rotated) can be
+    // swapped without stopping the job: aiRunJob re-reads it on every
+    // attempt instead of using the value it captured at job start.
+    const jobProviderCfg = AI_PROVIDERS[job.settings.provider];
+    if (jobProviderCfg){
+      const keyNote = document.createElement('div'); keyNote.className = 'ai-hint';
+      keyNote.textContent = 'API-ключ (' + jobProviderCfg.label + ') — можно поменять прямо во время генерации:';
+      body.appendChild(keyNote);
+      const keyRow = document.createElement('div'); keyRow.className = 'ai-row';
+      const keyInputLive = document.createElement('input');
+      keyInputLive.id = 'aiJobKeyInput';
+      keyInputLive.className = 'ai-input'; keyInputLive.type = 'password'; keyInputLive.placeholder = jobProviderCfg.keyPlaceholder;
+      keyInputLive.value = (loadAiSettings().byProvider[job.settings.provider] || {}).apiKey || '';
+      keyInputLive.addEventListener('input', () => saveAiKeyForProvider(job.settings.provider, keyInputLive.value));
+      keyRow.appendChild(keyInputLive);
+      body.appendChild(keyRow);
+      if (keyFocusState){
+        keyInputLive.focus();
+        try { keyInputLive.setSelectionRange(keyFocusState.start, keyFocusState.end); } catch (e){}
+      }
+    }
+
+    const powerRowJob = document.createElement('label'); powerRowJob.className = 'ai-checkrow';
+    const powerChkJob = document.createElement('input'); powerChkJob.type = 'checkbox'; powerChkJob.checked = aiPowerSaveEnabled();
+    powerRowJob.append(powerChkJob, Object.assign(document.createElement('span'), { textContent: 'Гасить экран во время генерации (экономия заряда)' }));
+    powerChkJob.addEventListener('change', () => {
+      // Doesn't dim immediately even if just turned on — the panel is open
+      // and visibly in front of the admin right now; closeAiPanel() engages
+      // it the moment they actually step away.
+      aiSetPowerSave(powerChkJob.checked);
+      if (!powerChkJob.checked) aiStopDim();
+    });
+    body.appendChild(powerRowJob);
 
     const prog = aiJobProgress(job);
     const wrap = document.createElement('div'); wrap.className = 'ai-progress-wrap';
@@ -8119,6 +8626,14 @@ id: <идентификатор> | title: <название темы> | type: <�
       });
       if (applied) render();
       aiShowResumeBanner(job);
+      // A job that auto-paused on a topic/save error before the reload
+      // needs the same visible alert back — silently, without the sound
+      // (that already fired once when it first happened), so a reload
+      // doesn't quietly bury the fact that something needs attention.
+      if (job.status === 'paused' && (job.stopReason === 'topic-error' || job.stopReason === 'save-error') && job.stopMessage){
+        aiShowAlertBanner(job.stopMessage);
+        aiStartTitleFlash();
+      }
       if (job.status === 'running') aiRunJob();
     }
   }
