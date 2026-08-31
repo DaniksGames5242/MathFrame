@@ -50,6 +50,15 @@
   .host{color:var(--muted); font-size:11px}
   .note{font-size:12px; color:var(--muted); margin-top:6px; line-height:1.5}
   select{background:#0d0f14; color:var(--text); border:1px solid var(--border); border-radius:8px; padding:9px}
+  .src-item{display:flex; align-items:center; gap:6px; font-size:12px; background:#0d0f14; border:1px solid var(--border); border-radius:8px; padding:6px 10px}
+  .src-item input{accent-color:var(--accent)}
+  .src-count{color:var(--muted); font-size:11px}
+  .copy-btn{
+    background:#232838; color:var(--text); border:1px solid var(--border); border-radius:6px;
+    padding:5px 10px; font-size:11px; cursor:pointer; white-space:nowrap;
+  }
+  .copy-btn:hover{background:#2b3142}
+  .copy-btn.copied{background:rgba(62,207,122,.2); color:var(--ok); border-color:var(--ok)}
 </style>
 </head>
 <body>
@@ -58,10 +67,16 @@
 <div class="sub">Загружает список ключей, парсит хосты и замеряет время отклика каждого сервера.</div>
 
 <div class="panel">
-  <label>Источник списка (raw-ссылка на текстовый файл с vless:// ссылками, по одной в строке)</label>
-  <input id="sourceUrl" type="text" value="https://raw.githubusercontent.com/igareck/vpn-configs-for-russia/main/BLACK_VLESS_RUS.txt">
+  <label>Источники (можно выбрать несколько — списки объединятся и продублированные ключи уберутся)</label>
+  <div id="sourceList" class="row" style="align-items:flex-start; gap:14px"></div>
+
+  <div style="margin-top:12px">
+    <label>Ещё один источник вручную (raw-ссылка на .txt со списком vless://)</label>
+    <input id="sourceUrl" type="text" placeholder="https://raw.githubusercontent.com/.../file.txt">
+  </div>
+
   <div class="row">
-    <button id="loadBtn">Загрузить список</button>
+    <button id="loadBtn">Загрузить выбранные источники</button>
     <span class="stat" id="loadStat"></span>
   </div>
 
@@ -103,7 +118,7 @@
 <div class="panel">
   <table>
     <thead>
-      <tr><th>#</th><th>Имя / страна</th><th>Хост:порт</th><th>Статус</th><th>Латентность</th></tr>
+      <tr><th>#</th><th>Имя / страна</th><th>Хост:порт</th><th>Статус</th><th>Латентность</th><th></th></tr>
     </thead>
     <tbody id="resultsBody"></tbody>
   </table>
@@ -111,6 +126,26 @@
 
 <script>
 let servers = []; // {raw, name, host, port, status, latency}
+
+const SOURCES = [
+  { id: 'igareck_black', label: '🇷🇺 igareck — BLACK_VLESS_RUS (обычный VPN)', url: 'https://raw.githubusercontent.com/igareck/vpn-configs-for-russia/main/BLACK_VLESS_RUS.txt', checked: true },
+  { id: 'igareck_white', label: '🇷🇺 igareck — Vless-Reality White Lists', url: 'https://raw.githubusercontent.com/igareck/vpn-configs-for-russia/refs/heads/main/Vless-Reality-White-Lists-Rus-Mobile.txt', checked: false },
+  { id: 'barryfar', label: '🌍 barry-far — V2ray-Config (VLESS)', url: 'https://raw.githubusercontent.com/barry-far/V2ray-config/main/Splitted-By-Protocol/vless.txt', checked: true },
+  { id: 'epodonios', label: '🌍 Epodonios — All Configs Sub', url: 'https://raw.githubusercontent.com/Epodonios/v2ray-configs/main/All_Configs_Sub.txt', checked: false },
+  { id: 'delta_kronecker', label: '🌍 Delta-Kronecker — all_configs', url: 'https://raw.githubusercontent.com/Delta-Kronecker/V2ray-Config/refs/heads/main/config/all_configs.txt', checked: false },
+];
+
+function renderSourceList(){
+  const wrap = document.getElementById('sourceList');
+  wrap.innerHTML = '';
+  SOURCES.forEach(src => {
+    const div = document.createElement('label');
+    div.className = 'src-item';
+    div.innerHTML = `<input type="checkbox" data-id="${src.id}" ${src.checked ? 'checked' : ''}> ${escapeHtml(src.label)}`;
+    wrap.appendChild(div);
+  });
+}
+renderSourceList();
 
 function parseVlessList(text){
   return text.split('\n')
@@ -149,10 +184,51 @@ function renderTable(){
       <td><span class="host">${escapeHtml(s.host)}:${s.port}</span></td>
       <td><span class="badge ${badgeClass}">${badgeText}</span></td>
       <td>${s.latency !== null ? s.latency + ' мс' : '—'}</td>
+      <td><button class="copy-btn" data-idx="${i}">Копировать</button></td>
     `;
     body.appendChild(tr);
   });
 }
+
+async function copyKey(raw, btn){
+  let ok = false;
+  try {
+    await navigator.clipboard.writeText(raw);
+    ok = true;
+  } catch (e) {
+    // Fallback для окружений без доступа к Clipboard API
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = raw;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+    } catch (e2) {
+      ok = false;
+    }
+  }
+  if (btn) {
+    const original = btn.textContent;
+    btn.textContent = ok ? 'Скопировано' : 'Ошибка';
+    btn.classList.toggle('copied', ok);
+    setTimeout(() => {
+      btn.textContent = original;
+      btn.classList.remove('copied');
+    }, 1500);
+  }
+}
+
+document.getElementById('resultsBody').addEventListener('click', (e) => {
+  const btn = e.target.closest('.copy-btn');
+  if (!btn) return;
+  const idx = parseInt(btn.dataset.idx, 10);
+  const server = servers[idx];
+  if (server) copyKey(server.raw, btn);
+});
 
 function escapeHtml(str){
   const d = document.createElement('div');
@@ -234,21 +310,48 @@ function updateProgress(done, total){
 }
 
 document.getElementById('loadBtn').addEventListener('click', async () => {
-  const url = document.getElementById('sourceUrl').value.trim();
   const stat = document.getElementById('loadStat');
-  if (!url) return;
-  stat.textContent = 'Загрузка...';
-  try {
-    const res = await fetch(url, { cache: 'no-store' });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const text = await res.text();
-    servers = parseVlessList(text);
-    stat.textContent = `Загружено серверов: ${servers.length}`;
-    document.getElementById('startBtn').disabled = servers.length === 0;
-    renderTable();
-  } catch (e) {
-    stat.textContent = 'Ошибка загрузки: ' + e.message + ' (возможно, CORS блокирует запрос — попробуй вставить список вручную)';
+  const checked = Array.from(document.querySelectorAll('#sourceList input[type=checkbox]:checked'))
+    .map(cb => SOURCES.find(s => s.id === cb.dataset.id))
+    .filter(Boolean);
+
+  const customUrl = document.getElementById('sourceUrl').value.trim();
+  const urls = checked.map(s => ({ label: s.label, url: s.url }));
+  if (customUrl) urls.push({ label: 'ручной источник', url: customUrl });
+
+  if (urls.length === 0) {
+    stat.textContent = 'Выбери хотя бы один источник или укажи ссылку вручную.';
+    return;
   }
+
+  stat.textContent = `Загрузка ${urls.length} источник(ов)...`;
+  const seen = new Map(); // raw -> server, для дедупликации
+  const errors = [];
+
+  await Promise.all(urls.map(async ({ label, url }) => {
+    try {
+      const res = await fetch(url, { cache: 'no-store' });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const text = await res.text();
+      const parsed = parseVlessList(text);
+      parsed.forEach(s => {
+        // Дедуп по host:port — один и тот же сервер может встречаться под разными именами
+        const key = `${s.host}:${s.port}`;
+        if (!seen.has(key)) seen.set(key, s);
+      });
+    } catch (e) {
+      errors.push(`${label}: ${e.message}`);
+    }
+  }));
+
+  servers = Array.from(seen.values());
+  let statText = `Загружено уникальных серверов: ${servers.length}`;
+  if (errors.length) {
+    statText += ` (ошибки: ${errors.join('; ')} — эти источники, возможно, блокирует CORS, попробуй вставить их содержимое вручную)`;
+  }
+  stat.textContent = statText;
+  document.getElementById('startBtn').disabled = servers.length === 0;
+  renderTable();
 });
 
 document.getElementById('parseManualBtn').addEventListener('click', () => {
