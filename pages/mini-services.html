@@ -22,14 +22,15 @@
 /* ===== оболочка страницы ===== */
 main{
   max-width:1080px;margin:0 auto;
-  padding:1.6rem clamp(1rem,4vw,1.5rem) 4rem;
+  padding:1.2rem clamp(1rem,4vw,1.5rem) 4rem;
   padding-left:max(clamp(1rem,4vw,1.5rem),var(--safe-l));
   padding-right:max(clamp(1rem,4vw,1.5rem),var(--safe-r));
   padding-bottom:calc(4rem + var(--safe-b));
 }
-.page-head{margin-bottom:1.4rem}
-.page-head h1{font-size:clamp(1.7rem,4.4vw,2.3rem);margin:.5rem 0 .4rem}
-.page-head p{color:var(--text-secondary);font-size:.95rem;max-width:56ch}
+/* Заголовок страницы виден только скринридерам, а описание — компактная подпись
+   под переключателем сервисов, а не большой блок над ним. */
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.svc-hint{margin:.7rem .15rem 0;color:var(--text-tertiary);font-size:.82rem;max-width:70ch}
 
 /* ---- список сервисов ---- */
 .svc-grid{
@@ -483,14 +484,10 @@ label.f input:focus,label.f select:focus{border-color:var(--accent);box-shadow:0
 <div id="app-header"></div>
 
 <main>
-  <div class="page-head mf-above">
-    <span class="mf-label">Инструменты</span>
-    <h1 class="mf-axis-title">Мини-сервисы</h1>
-    <p>Калькуляторы и визуализации. Формулы вводятся двумерным полем —
-       с дробями, корнями и степенями, как на бумаге.</p>
-  </div>
+  <h1 class="sr-only">Мини-сервисы</h1>
 
   <div class="svc-grid" id="svcGrid"></div>
+  <p class="svc-hint">Калькуляторы и визуализации. Формулы вводятся двумерным полем — с дробями, корнями и степенями, как на бумаге.</p>
   <div class="work" id="work"></div>
 </main>
 
