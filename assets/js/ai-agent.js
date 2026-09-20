@@ -268,9 +268,13 @@
     const out = [];
     for (const m of messages) {
       if (!m || !m.content || m.error) continue;
+      // Список «Источники из интернета», который сервер дописывает к ответу, — это
+      // оформление для читателя; обратно в историю он не нужен.
+      const content = m.content.replace(/\n*\*\*Источники из интернета:\*\*[\s\S]*$/, '').trim();
+      if (!content) continue;
       const last = out[out.length - 1];
-      if (last && last.role === m.role) last.content += '\n\n' + m.content;
-      else out.push({ role: m.role, content: m.content });
+      if (last && last.role === m.role) last.content += '\n\n' + content;
+      else out.push({ role: m.role, content });
     }
     return out.slice(-12);
   }
