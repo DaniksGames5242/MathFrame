@@ -8983,14 +8983,15 @@ theorem (Теорема) — узел, целиком посвящённый о�
      actually fetches/renders the topic tree — only runs once access is
      confirmed, so a non-admin never triggers the GitHub read either.
      ============================================================ */
-  const SUPER_ADMIN_EMAIL = 'mathframe.ru@gmail.com';
+  // Владельцы сайта — те, кто может назначать администраторов. Тот же список, что в правилах Firestore (isSuper()) и в api/chat.js.
+  const SUPER_ADMIN_EMAILS = ['iagniukovd@gmail.com', 'daniksgames5242@gmail.com', 'mathframe.ru@gmail.com', 'danil.iagniukov@gmail.com'];
   function initAuthCheck(){
     if (window.Auth) window.Auth.onAuthChange(checkAccess);
     else document.addEventListener('authReady', () => window.Auth.onAuthChange(checkAccess));
   }
   function checkAccess(user){
     if (!user) return denyAccess();
-    if (user.email === SUPER_ADMIN_EMAIL) return grantAccess(user);
+    if (SUPER_ADMIN_EMAILS.includes(String(user.email || '').toLowerCase())) return grantAccess(user);
     firebase.firestore().collection('admins').doc(user.uid).get().then(doc => {
       if (doc.exists && doc.data().granted) grantAccess(user); else denyAccess();
     }).catch(() => denyAccess());

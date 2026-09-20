@@ -1,7 +1,8 @@
 // common.js – шапка, подвал, тема, аутентификация и настройки
 
 // ===== АДМИН / FIRESTORE (пользователи, посещения, доступ к панели) =====
-const SUPER_ADMIN_EMAIL = 'mathframe.ru@gmail.com';
+// Владельцы сайта — те, кто может назначать администраторов. Тот же список, что в правилах Firestore (isSuper()) и в api/chat.js.
+const MF_SUPER_ADMIN_EMAILS = ['iagniukovd@gmail.com', 'daniksgames5242@gmail.com', 'mathframe.ru@gmail.com', 'danil.iagniukov@gmail.com'];
 let _firestoreLoadingPromise = null;
 function ensureFirestore() {
     if (window.firebase && firebase.firestore) return Promise.resolve();
@@ -51,7 +52,7 @@ function updateAdminNavLink(user) {
     const link = document.getElementById('admin-nav-link');
     if (!link) return;
     if (!user) { link.style.display = 'none'; return; }
-    if (user.email === SUPER_ADMIN_EMAIL) { link.style.display = ''; return; }
+    if (MF_SUPER_ADMIN_EMAILS.includes(String(user.email || '').toLowerCase())) { link.style.display = ''; return; }
     ensureFirestore().then(() => {
         return firebase.firestore().collection('admins').doc(user.uid).get();
     }).then(doc => {

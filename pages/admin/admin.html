@@ -130,7 +130,9 @@
 
 <script>
 (function () {
-  const SUPER_ADMIN_EMAIL = 'mathframe.ru@gmail.com';
+  // Владельцы сайта — те, кто может назначать администраторов. Тот же список, что в правилах Firestore (isSuper()) и в api/chat.js.
+  const SUPER_ADMIN_EMAILS = ['iagniukovd@gmail.com', 'daniksgames5242@gmail.com', 'mathframe.ru@gmail.com', 'danil.iagniukov@gmail.com'];
+  const isSuperEmail = e => SUPER_ADMIN_EMAILS.includes(String(e || '').toLowerCase());
   const db = firebase.firestore();
   let isSuperAdmin = false;
   let allTopics = [];
@@ -154,7 +156,7 @@
 
   function checkAccess(user) {
     if (!user) return denyAccess();
-    if (user.email === SUPER_ADMIN_EMAIL) {
+    if (isSuperEmail(user.email)) {
       isSuperAdmin = true;
       return grantAccess(user);
     }
@@ -218,7 +220,7 @@
           displayName: data.displayName || '',
           createdAt: data.createdAt && data.createdAt.toDate ? data.createdAt.toDate() : null,
           lastLogin: data.lastLogin && data.lastLogin.toDate ? data.lastLogin.toDate() : null,
-          isAdmin: data.email === SUPER_ADMIN_EMAIL ? true : !!adminMap.get(d.id),
+          isAdmin: isSuperEmail(data.email) ? true : !!adminMap.get(d.id),
           isBanned: bannedSet.has(d.id)
         };
       });
@@ -365,7 +367,7 @@
     document.getElementById('usersEmpty').style.display = users.length ? 'none' : 'block';
     users.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
     tbody.innerHTML = users.map(u => {
-      const isSelfSuper = u.email === SUPER_ADMIN_EMAIL;
+      const isSelfSuper = isSuperEmail(u.email);
       let accessCell = u.isAdmin
         ? `<span class="badge admin">админ</span>`
         : `<span class="badge no">нет доступа</span>`;

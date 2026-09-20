@@ -12,7 +12,8 @@
 // сюда нужно добавить настоящую проверку: например, принимать Firebase
 // ID-token в заголовке Authorization и проверять его через firebase-admin,
 // сверяя email/uid с тем же критерием, что и checkAdmin() на клиенте (email
-// mathframe.ru@gmail.com или документ в admins/{uid} с granted:true).
+// любой из адресов владельцев (см. SUPER_ADMIN_EMAILS в api/chat.js) или документ
+// в admins/{uid} с granted:true).
 // Ниже оставлен помеченный TODO-блок с местом для этой проверки.
 
 const { OWNER, REPO, BRANCH, ghHeaders, requireToken } = require('./_github');

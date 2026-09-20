@@ -7280,8 +7280,9 @@ ${bodyXml}
           refreshExampleAdminUi();
           return;
         }
-        const SUPER_ADMIN_EMAIL = 'mathframe.ru@gmail.com';
-        if (user.email === SUPER_ADMIN_EMAIL) {
+        // Владельцы сайта — те, кто может назначать администраторов. Тот же список, что в правилах Firestore (isSuper()) и в api/chat.js.
+        const SUPER_ADMIN_EMAILS = ['iagniukovd@gmail.com', 'daniksgames5242@gmail.com', 'mathframe.ru@gmail.com', 'danil.iagniukov@gmail.com'];
+        if (SUPER_ADMIN_EMAILS.includes(String(user.email || '').toLowerCase())) {
           isAdmin = true;
           els.adminActions.classList.remove('hidden');
           refreshExampleAdminUi();

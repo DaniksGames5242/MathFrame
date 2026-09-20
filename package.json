@@ -1,0 +1,8 @@
+{
+  "name": "mathframe",
+  "private": true,
+  "description": "MathFrame — статический сайт + serverless-функции в /api (Vercel). Единственная зависимость нужна api/chat.js: WebSocket-клиент к серверу Джарвиса.",
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}
