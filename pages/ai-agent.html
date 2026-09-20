@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>AI‑агент — MathFrame</title>
+<meta name="description" content="Помощник по математике: объясняет темы справочника, разбирает решения и отвечает на вопросы." />
+
+<style>
+  @font-face { font-family:'BodyFont'; src:url('/assets/fonts/body-font.otf') format('opentype');
+               font-weight:400; font-display:swap; }
+  @font-face { font-family:'BodyFont'; src:url('/assets/fonts/body-font-bold.otf') format('opentype');
+               font-weight:700; font-display:swap; }
+</style>
+<link rel="stylesheet" href="/assets/css/common.css" />
+<!-- KaTeX уже используется в справочнике и мини-сервисах — тот же набор файлов. -->
+<link rel="stylesheet" href="/assets/lib/katex/katex.min.css" />
+<script defer src="/assets/lib/katex/katex.min.js"></script>
+
+<style>
+[hidden]{display:none !important}
+
+/* ===== оболочка страницы ===== */
+main{
+  max-width:860px;margin:0 auto;
+  padding:1.6rem clamp(1rem,4vw,1.5rem) 1rem;
+  padding-left:max(clamp(1rem,4vw,1.5rem),var(--safe-l));
+  padding-right:max(clamp(1rem,4vw,1.5rem),var(--safe-r));
+}
+.page-head{margin-bottom:1.1rem}
+.page-head h1{font-size:clamp(1.7rem,4.4vw,2.3rem);margin:.5rem 0 .4rem}
+.page-head p{color:var(--text-secondary);font-size:.95rem;max-width:58ch}
+
+/* ===== карточка чата ===== */
+.agent{
+  background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r-lg);
+  display:flex;flex-direction:column;
+}
+
+/* панель темы */
+.agent-top{
+  display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;
+  padding:.7rem .9rem;border-bottom:1px solid var(--border);
+}
+.agent-top .spacer{flex:1 1 auto}
+.chip-topic{
+  display:inline-flex;align-items:center;gap:.4rem;max-width:100%;
+  padding:.28rem .4rem .28rem .8rem;border-radius:2rem;font-size:.82rem;
+  background:var(--accent-soft);color:var(--accent);border:1px solid var(--accent);
+}
+.chip-topic span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.chip-topic button{
+  flex:0 0 auto;width:1.35rem;height:1.35rem;border-radius:50%;border:0;cursor:pointer;
+  background:transparent;color:inherit;font-size:1rem;line-height:1;
+}
+.chip-topic button:hover{background:var(--accent);color:#fff}
+.tbtn{
+  font:inherit;font-size:.82rem;padding:.4rem .8rem;min-height:34px;border-radius:var(--r-sm);
+  border:1px solid var(--border-strong);background:var(--bg-sunken);color:var(--text-secondary);cursor:pointer;
+  transition:color var(--t),border-color var(--t);
+}
+.tbtn:hover:not(:disabled){color:var(--accent);border-color:var(--accent)}
+.tbtn:disabled{opacity:.45;cursor:default}
+
+/* выбор темы */
+.picker{padding:.7rem .9rem;border-bottom:1px solid var(--border);background:var(--bg-sunken)}
+.picker input{
+  width:100%;padding:.55rem .75rem;border-radius:var(--r-sm);font:inherit;font-size:16px;
+  border:1px solid var(--border-strong);background:var(--bg-card);color:var(--text-primary);outline:none;
+}
+.picker input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.picker ul{list-style:none;margin:.4rem 0 0;padding:0;max-height:240px;overflow:auto}
+.picker li button{
+  width:100%;text-align:left;font:inherit;font-size:.92rem;padding:.5rem .6rem;border:0;border-radius:var(--r-sm);
+  background:transparent;color:var(--text-primary);cursor:pointer;
+}
+.picker li button:hover{background:var(--accent-soft);color:var(--accent)}
+.pick-empty{color:var(--text-tertiary);font-size:.85rem;padding:.4rem .6rem}
+
+/* лента сообщений */
+.log{padding:1rem clamp(.7rem,3vw,1.1rem) .4rem;display:flex;flex-direction:column;gap:1rem;min-height:38vh}
+.msg{display:flex}
+.msg-user{justify-content:flex-end}
+.msg-body{min-width:0;max-width:100%}
+.msg-user .msg-body{
+  max-width:88%;padding:.6rem .9rem;border-radius:var(--r-lg) var(--r-lg) 4px var(--r-lg);
+  background:var(--accent-soft);border:1px solid var(--accent);white-space:pre-wrap;word-break:break-word;
+}
+.msg-assistant .msg-body{width:100%}
+
+/* ответ */
+.md{line-height:1.65;font-size:1rem;word-break:break-word}
+.md > :first-child{margin-top:0}
+.md > :last-child{margin-bottom:0}
+.md p{margin:.55em 0}
+.md h3,.md h4{margin:1.1em 0 .4em;font-family:var(--font-display)}
+.md h3{font-size:1.15rem}
+.md h4{font-size:1.02rem}
+.md ul,.md ol{margin:.5em 0;padding-left:1.4em}
+.md li{margin:.25em 0}
+.md a{color:var(--accent);text-decoration:underline;text-underline-offset:2px}
+.md strong{font-weight:700}
+.md hr{border:0;border-top:1px solid var(--border);margin:1em 0}
+.md blockquote{margin:.6em 0;padding:.2rem 1rem;border-left:3px solid var(--accent);color:var(--text-secondary)}
+.md code{font-family:var(--font-mono);font-size:.88em;background:var(--bg-sunken);border-radius:4px;padding:.12em .35em}
+.md pre{margin:.7em 0;padding:.8rem 1rem;overflow-x:auto;background:var(--bg-sunken);border:1px solid var(--border);border-radius:var(--r)}
+.md pre code{background:none;padding:0}
+.mfa-math[data-display="1"]{display:block;margin:.7em 0;overflow-x:auto;overflow-y:hidden;text-align:center}
+.mfa-math .katex{font-size:1.06em}
+
+.typing{display:inline-flex;gap:5px;padding:.5rem 0}
+.typing span{width:7px;height:7px;border-radius:50%;background:var(--text-tertiary);animation:mfaDot 1.1s infinite ease-in-out}
+.typing span:nth-child(2){animation-delay:.15s}
+.typing span:nth-child(3){animation-delay:.3s}
+@keyframes mfaDot{0%,80%,100%{opacity:.3;transform:scale(.8)}40%{opacity:1;transform:scale(1)}}
+
+.msg-err{margin-top:.6rem;padding:.55rem .8rem;border-radius:var(--r-sm);font-size:.9rem;
+  color:#f87171;background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.3)}
+.msg-src{display:flex;flex-wrap:wrap;gap:.4rem;align-items:center;margin-top:.7rem;font-size:.78rem;color:var(--text-tertiary)}
+.src-chip{
+  padding:.15rem .6rem;border-radius:2rem;font-size:.78rem;text-decoration:none;
+  color:var(--accent);border:1px solid var(--border-strong);background:var(--bg-sunken);
+  transition:border-color var(--t),background var(--t);
+}
+.src-chip:hover{border-color:var(--accent);background:var(--accent-soft)}
+.msg-acts{display:flex;gap:.3rem;margin-top:.5rem}
+.act{
+  display:inline-flex;align-items:center;gap:.35rem;font:inherit;font-size:.78rem;
+  padding:.25rem .55rem;border-radius:var(--r-sm);border:0;background:transparent;color:var(--text-tertiary);cursor:pointer;
+}
+.act svg{width:14px;height:14px}
+.act:hover{color:var(--accent);background:var(--accent-soft)}
+
+/* пустое состояние */
+.agent-empty{padding:1.5rem .3rem 1rem;text-align:center}
+.agent-empty h2{font-size:1.35rem;margin-bottom:.4rem}
+.agent-empty p{color:var(--text-secondary);font-size:.93rem;max-width:46ch;margin:0 auto 1.1rem}
+.suggest{display:grid;gap:.5rem;grid-template-columns:repeat(2,minmax(0,1fr));text-align:left}
+@media (max-width:560px){ .suggest{grid-template-columns:minmax(0,1fr)} }
+.suggest-chip{
+  font:inherit;font-size:.88rem;line-height:1.4;text-align:left;padding:.7rem .9rem;border-radius:var(--r);
+  border:1px solid var(--border);background:var(--bg-sunken);color:var(--text-primary);cursor:pointer;
+  transition:border-color var(--t),background var(--t),transform var(--t);
+}
+.suggest-chip:hover{border-color:var(--accent);background:var(--accent-soft)}
+.suggest-chip:active{transform:scale(.99)}
+
+/* баннеры */
+.agent-banner{margin:0 clamp(.7rem,3vw,1.1rem);padding:.6rem .85rem;border-radius:var(--r-sm);font-size:.88rem}
+.agent-banner.warn{color:var(--accent-3);background:rgba(242,180,92,.1);border:1px solid rgba(242,180,92,.35)}
+.agent-banner.info{color:var(--text-secondary);background:var(--bg-sunken);border:1px solid var(--border)}
+
+/* поле ввода: прилипает к низу экрана, пока лента длинная */
+.composer{
+  position:sticky;bottom:0;z-index:5;margin-top:.5rem;
+  padding:.7rem clamp(.7rem,3vw,1.1rem) calc(.7rem + var(--safe-b, 0px));
+  background:var(--bg-card);border-top:1px solid var(--border);border-radius:0 0 var(--r-lg) var(--r-lg);
+  backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+}
+.login-bar{
+  display:flex;gap:.7rem;align-items:center;justify-content:space-between;flex-wrap:wrap;
+  margin-bottom:.6rem;padding:.55rem .8rem;border-radius:var(--r-sm);font-size:.88rem;
+  background:var(--accent-soft);border:1px solid var(--accent);color:var(--text-primary);
+}
+.compose-row{display:flex;gap:.55rem;align-items:flex-end}
+.compose-row textarea{
+  flex:1 1 auto;min-width:0;resize:none;min-height:44px;max-height:180px;padding:.65rem .85rem;
+  font:inherit;font-size:16px;line-height:1.45;color:var(--text-primary);
+  background:var(--bg-sunken);border:1px solid var(--border-strong);border-radius:var(--r);outline:none;
+}
+.compose-row textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.compose-row textarea:disabled{opacity:.6}
+.round{
+  flex:0 0 auto;width:44px;height:44px;border-radius:var(--r);border:0;cursor:pointer;color:#fff;
+  display:inline-flex;align-items:center;justify-content:center;
+  background:linear-gradient(135deg,var(--accent),var(--accent-hover));box-shadow:0 6px 18px var(--accent-glow);
+  transition:transform var(--t) var(--e-out),opacity var(--t);
+}
+.round:hover:not(:disabled){transform:translateY(-1px)}
+.round:disabled{opacity:.4;cursor:default;box-shadow:none}
+.round.stop{background:var(--bg-sunken);color:var(--text-primary);border:1px solid var(--border-strong);box-shadow:none}
+.round svg{width:20px;height:20px}
+.fineprint{margin-top:.5rem;font-size:.74rem;color:var(--text-tertiary);text-align:center}
+
+@media (max-width:640px){
+  .msg-user .msg-body{max-width:94%}
+}
+@media (prefers-reduced-motion:reduce){
+  .typing span{animation:none;opacity:.7}
+}
+</style>
+
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
+</head>
+<body data-page="ai-agent">
+
+<div id="app-header"></div>
+
+<main>
+  <div class="page-head">
+    <h1>AI‑агент</h1>
+    <p>Объяснение или решение от помощника, который понимает контекст справочника: подбирает нужные темы и опирается на них.</p>
+  </div>
+
+  <section class="agent mf-ticks" aria-label="Чат с AI‑агентом">
+    <div class="agent-top">
+      <span class="chip-topic" id="agentCtx" hidden></span>
+      <button type="button" class="tbtn" id="agentPick">Выбрать тему</button>
+      <span class="spacer"></span>
+      <button type="button" class="tbtn" id="agentNew">Новый диалог</button>
+    </div>
+
+    <div class="picker" id="agentPicker" hidden>
+      <input type="search" id="agentPickInput" placeholder="Название темы справочника…" autocomplete="off" />
+      <ul id="agentPickList"></ul>
+    </div>
+
+    <div class="log" id="agentLog" role="log" aria-live="polite"></div>
+    <div class="agent-banner info" id="agentBanner" hidden></div>
+
+    <form class="composer" id="agentForm" autocomplete="off">
+      <div class="login-bar" id="agentLogin" hidden>
+        <span>Войдите в аккаунт, чтобы задать вопрос агенту.</span>
+        <button type="button" class="btn small primary" id="agentLoginBtn">Войти</button>
+      </div>
+      <div class="compose-row">
+        <textarea id="agentInput" rows="1" maxlength="4000" aria-label="Ваш вопрос" placeholder="Спросите что угодно о математике…"></textarea>
+        <button type="submit" class="round" id="agentSend" aria-label="Отправить">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+        </button>
+        <button type="button" class="round stop" id="agentStop" aria-label="Остановить" hidden>
+          <svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+        </button>
+      </div>
+      <div class="fineprint">Enter — отправить, Shift+Enter — новая строка. Агент может ошибаться — важное перепроверяйте.</div>
+    </form>
+  </section>
+</main>
+
+<div id="app-footer"></div>
+
+<script>var PAGE_ROOT = '/';</script>
+<script src="/assets/js/mathframe-ui.js"></script>
+<script src="/assets/js/auth.js"></script>
+<script src="/assets/js/common.js"></script>
+<script src="/assets/js/ai-agent.js"></script>
+</body>
+</html>
