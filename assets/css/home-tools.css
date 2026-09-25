@@ -1,0 +1,158 @@
+/* ============================================================================
+   Раскрытие карточек инструментов на главной странице
+   ----------------------------------------------------------------------------
+   Каждая карточка из .sections при клике «вырастает» на всё место раздела
+   и показывает быстрые варианты для этого инструмента. У каждого инструмента
+   свой акцентный цвет (--tool-accent), заданный прямо на карточке.
+   ========================================================================== */
+
+.section-card[data-tool] { cursor: pointer; }
+.section-card[data-tool="spravochnik"]   { --tool-accent: #5b8cff; --tool-accent-soft: rgba(91,140,255,.16); }
+.section-card[data-tool="mini-services"] { --tool-accent: #56dcc8; --tool-accent-soft: rgba(86,220,200,.16); }
+.section-card[data-tool="forum"]         { --tool-accent: #f2b45c; --tool-accent-soft: rgba(242,180,92,.16); }
+.section-card[data-tool="ai-agent"]      { --tool-accent: #9b6bff; --tool-accent-soft: rgba(155,107,255,.18); }
+.section-card[data-tool="playground"]    { --tool-accent: #4ad991; --tool-accent-soft: rgba(74,217,145,.16); }
+
+html.light .section-card[data-tool="spravochnik"]   { --tool-accent: #2f5fe0; --tool-accent-soft: rgba(47,95,224,.10); }
+html.light .section-card[data-tool="mini-services"] { --tool-accent: #0f9c8a; --tool-accent-soft: rgba(15,156,138,.10); }
+html.light .section-card[data-tool="forum"]         { --tool-accent: #c47f12; --tool-accent-soft: rgba(196,127,18,.10); }
+html.light .section-card[data-tool="ai-agent"]      { --tool-accent: #6d3fd6; --tool-accent-soft: rgba(109,63,214,.12); }
+html.light .section-card[data-tool="playground"]    { --tool-accent: #12a05e; --tool-accent-soft: rgba(18,160,94,.10); }
+
+.section-card[data-tool]:hover,
+.section-card[data-tool]:focus-visible {
+  border-color: var(--tool-accent);
+  box-shadow: var(--shadow-lg), 0 0 0 1px var(--tool-accent-soft);
+}
+.section-card[data-tool]:hover::after { background: radial-gradient(320px circle at var(--mx, 50%) var(--my, 50%), var(--tool-accent-soft), transparent 70%); }
+.section-card[data-tool]:hover h3 svg { color: var(--tool-accent); }
+
+.tools-stage { position: relative; }
+
+/* «Призрак» — цветной прямоугольник, который анимированно растёт из карточки
+   на весь раздел, пока за ним подменяется содержимое. */
+.tool-ghost {
+  position: absolute;
+  z-index: 6;
+  border-radius: var(--r-lg);
+  background: var(--bg-card);
+  border: 1px solid var(--tool-accent, var(--accent));
+  box-shadow: var(--shadow-lg), 0 0 0 1px var(--tool-accent-soft, var(--accent-soft));
+  opacity: 0;
+  pointer-events: none;
+  transition: left .5s var(--e-out), top .5s var(--e-out),
+              width .5s var(--e-out), height .5s var(--e-out),
+              opacity .3s var(--e-out);
+}
+.tool-ghost.is-on { opacity: 1; }
+
+.sections.is-hidden { display: none; }
+
+.tool-panel {
+  position: relative;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 1.7rem clamp(1.1rem, 4vw, 2.2rem) 2rem;
+  border-radius: var(--r-lg);
+  border: 1px solid var(--tool-accent, var(--accent));
+  background: var(--bg-card);
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  box-shadow: var(--shadow-lg), 0 0 0 1px var(--tool-accent-soft, var(--accent-soft));
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity .35s var(--e-out), transform .35s var(--e-out);
+}
+.tool-panel[hidden] { display: none; }
+.tool-panel.is-visible { opacity: 1; transform: none; }
+
+.tool-panel-close {
+  position: absolute; top: 1.1rem; right: 1.1rem;
+  width: 34px; height: 34px; border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--bg-raised);
+  color: var(--text-secondary);
+  font-size: 1rem; line-height: 1;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  transition: var(--transition-smooth);
+}
+.tool-panel-close:hover { color: var(--tool-accent); border-color: var(--tool-accent); transform: rotate(90deg); }
+
+.tool-panel-head { display: flex; align-items: flex-start; gap: .9rem; padding-right: 2.6rem; margin-bottom: 1.3rem; }
+.tool-panel-head svg { width: 26px; height: 26px; flex: 0 0 auto; color: var(--tool-accent); margin-top: .1rem; }
+.tool-panel-head h3 { font-family: var(--font-display); font-size: 1.32rem; color: var(--text-primary); margin-bottom: .3rem; }
+.tool-panel-head p { color: var(--text-secondary); font-size: .93rem; max-width: 46ch; }
+
+.tool-panel-body { min-height: 88px; }
+.tool-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr));
+  gap: .7rem;
+}
+
+.tool-item {
+  display: flex; align-items: center; gap: .7rem;
+  padding: .8rem .9rem;
+  border-radius: var(--r);
+  border: 1px solid var(--border);
+  background: var(--bg-sunken);
+  color: var(--text-primary);
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  transition: border-color var(--t) var(--e-out), background var(--t) var(--e-out), transform var(--t) var(--e-out);
+}
+.tool-item:hover, .tool-item:focus-visible {
+  border-color: var(--tool-accent);
+  background: var(--tool-accent-soft);
+  transform: translateY(-2px);
+}
+.tool-item-glyph {
+  flex: 0 0 auto;
+  width: 34px; height: 34px; border-radius: var(--r-sm);
+  display: flex; align-items: center; justify-content: center;
+  background: var(--tool-accent-soft);
+  color: var(--tool-accent);
+  font-family: var(--font-math);
+  font-size: 1.05rem;
+}
+.tool-item-text { min-width: 0; flex: 1 1 auto; }
+.tool-item-text b { display: block; font-size: .93rem; font-weight: 600; }
+.tool-item-text span { display: block; font-size: .8rem; color: var(--text-tertiary); margin-top: .1rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tool-item-arrow { flex: 0 0 auto; color: var(--tool-accent); opacity: .7; transition: transform var(--t) var(--e-out); }
+.tool-item:hover .tool-item-arrow { transform: translateX(3px); opacity: 1; }
+
+.tool-item.is-skeleton { pointer-events: none; }
+.tool-item.is-skeleton .tool-item-glyph,
+.tool-item.is-skeleton .tool-item-text b,
+.tool-item.is-skeleton .tool-item-text span {
+  background: var(--border); color: transparent; border-radius: var(--r-sm);
+  animation: toolSkeletonPulse 1.3s ease-in-out infinite;
+}
+.tool-item.is-skeleton .tool-item-text b { height: .9em; width: 70%; }
+.tool-item.is-skeleton .tool-item-text span { height: .75em; width: 45%; margin-top: .35rem; }
+@keyframes toolSkeletonPulse { 0%, 100% { opacity: .5; } 50% { opacity: 1; } }
+
+.tool-empty { color: var(--text-secondary); font-size: .92rem; padding: .5rem 0; }
+
+.tool-panel-cta {
+  display: inline-flex; align-items: center; gap: .4rem;
+  margin-top: 1.4rem;
+  color: var(--tool-accent);
+  font-weight: 600; font-size: .92rem;
+}
+.tool-panel-cta::after { content: '→'; transition: transform var(--t) var(--e-out); }
+.tool-panel-cta:hover::after { transform: translateX(5px); }
+
+@media (max-width: 640px) {
+  .tool-panel { padding: 1.4rem 1rem 1.6rem; }
+  .tool-panel-head svg { display: none; }
+  .tool-panel-head { padding-right: 2.4rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tool-ghost { transition: opacity .2s linear !important; }
+  .tool-panel { transition: opacity .2s linear !important; transform: none !important; }
+  .tool-item, .tool-panel-close { transition: none; }
+}

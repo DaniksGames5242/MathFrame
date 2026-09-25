@@ -15,6 +15,7 @@
                  font-weight:700; font-style:normal; font-display:swap; }
   </style>
   <link rel="stylesheet" href="/assets/css/common.css" />
+  <link rel="stylesheet" href="/assets/css/home-tools.css" />
 
   <style>
   /* ======================================================================
@@ -32,24 +33,12 @@
 
 
   /* ===== ФОН HERO =====
+     Своего фона у hero нет: сквозь него видна общая подложка сайта
+     (сетка + WebGL-изолинии из mathframe-ui.js), как на остальных разделах.
      Порядок слоёв снизу вверх:
-       1. background-image      — картинка hero-bg
-       2. canvas трассеров      — z-index:1, ставит mathframe-ui.js
-       3. .hero::after          — z-index:2, растворяющий градиент внизу
-       4. .hero-inner (контент) — z-index:3
-     Если картинки нет, background-image не отрисуется и останется
-     background-color — страница не ломается. */
-  :root{
-    --hero-bg-dark:url('/assets/img/hero-bg.webp');
-    --hero-bg-light:url('/assets/img/hero-bg-light.webp');
-    --hero-bg:var(--hero-bg-dark);
-    --hero-bg-color:#020408;
-  }
-  html.light{
-    --hero-bg:var(--hero-bg-light);
-    --hero-bg-color:#f0f4ff;
-  }
-
+       1. #mf-canvas            — fixed, общий фон страницы (линии тока)
+       2. canvas трассеров      — z-index:1, частицы в том же поле
+       3. .hero-inner (контент) — z-index:3 */
 
   /* Hero занимает ВСЮ ширину окна: иначе фоновая картинка обрезалась бы по
      1180px и по бокам оставались полосы, а боковые панели (они позиционируются
@@ -66,38 +55,14 @@
     padding-right:max(clamp(1rem,4vw,1.5rem),var(--safe-r));
     min-height:calc(100vh - var(--header-height));
     overflow:hidden;
-    background-color:var(--hero-bg-color);
-    background-image:var(--hero-bg);
-    background-size:cover;
-    background-position:center;
-    background-repeat:no-repeat;
-    transition:background-color .4s ease, background-image .4s ease;
   }
-  /* Растворение низа hero в фоне страницы: картинка и частицы плавно уходят
-     в --bg-body, поэтому стык с блоком разделов не читается как линия.
-     Градиент перекрывает и фон, и трассеры (z-index:2), но лежит под
-     контентом (.hero-inner, z-index:3), чтобы не гасить текст и кнопки.
-     Высота в vh с потолком в px: на низких экранах градиент не должен
-     съедать половину первого экрана. */
-  .hero::after{
-    content:'';
-    position:absolute;left:0;right:0;bottom:0;
-    height:min(22vh,180px);
-    z-index:2;
-    pointer-events:none;
-    background:linear-gradient(to bottom,
-      rgba(0,0,0,0) 0%,
-      color-mix(in srgb, var(--bg-body) 55%, transparent) 55%,
-      var(--bg-body) 100%);
-  }
-  /* Резервный вариант там, где нет color-mix */
-  @supports not (color: color-mix(in srgb, red 50%, transparent)){
-    .hero::after{
-      background:linear-gradient(to bottom, rgba(2,4,8,0) 0%, rgba(2,4,8,.6) 55%, #04060c 100%);
-    }
-    html.light .hero::after{
-      background:linear-gradient(to bottom, rgba(251,252,254,0) 0%, rgba(251,252,254,.6) 55%, #fbfcfe 100%);
-    }
+  /* Растворение низа hero: гасим маской ТОЛЬКО частицы. Прежний градиент
+     в --bg-body поверх всего hero закрывал и общую подложку (сетку, изолинии),
+     и на стыке с разделами получалась пустая полоса. Высота в vh с потолком
+     в px — на низких экранах маска не съедает половину первого экрана. */
+  .hero .mf-tracers-canvas{
+    -webkit-mask-image:linear-gradient(to bottom,#000 calc(100% - min(22vh,180px)),transparent);
+            mask-image:linear-gradient(to bottom,#000 calc(100% - min(22vh,180px)),transparent);
   }
 
   .hero-inner{
@@ -278,7 +243,8 @@
             <!-- c: середина гипотенузы (175,205) + отступ по внешней нормали (1,-1)/√2 -->
             <text class="fig-lbl figFade" style="--d:2.1s" x="188" y="192"
                   text-anchor="middle" dominant-baseline="middle">c</text>
-            <text class="fig-lbl figFade" style="--d:2.35s" x="250" y="298"
+            <!-- формула — в свободном углу под квадратом a, не пересекает фигуру -->
+            <text class="fig-lbl figFade" style="--d:2.35s" x="80" y="292"
                   text-anchor="middle" dominant-baseline="middle"
                   font-size="18" fill="var(--accent)">c² = a² + b²</text>
           </g>
@@ -294,8 +260,9 @@
         <p>Каждый — самостоятельный инструмент, но все они говорят на одном языке сцен.</p>
       </div>
 
-      <section class="sections">
-        <div class="section-card mf-ticks">
+      <div class="tools-stage" id="toolsStage">
+      <section class="sections" id="toolsGrid">
+        <div class="section-card mf-ticks" data-tool="spravochnik">
           <span class="card-num">§ 01</span>
           <h3>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
@@ -309,7 +276,7 @@
           <a href="/spravochnik/">Открыть</a>
         </div>
 
-        <div class="section-card mf-ticks">
+        <div class="section-card mf-ticks" data-tool="mini-services">
           <span class="card-num">§ 02</span>
           <h3>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
@@ -323,7 +290,7 @@
           <a href="/mini-services/">Попробовать</a>
         </div>
 
-        <div class="section-card mf-ticks">
+        <div class="section-card mf-ticks" data-tool="forum">
           <span class="card-num">§ 03</span>
           <h3>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
@@ -336,7 +303,7 @@
           <a href="/forum/">Перейти</a>
         </div>
 
-        <div class="section-card mf-ticks">
+        <div class="section-card mf-ticks" data-tool="ai-agent">
           <span class="card-num">§ 04</span>
           <h3>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
@@ -350,7 +317,7 @@
           <a href="/ai-agent/">Задать вопрос</a>
         </div>
 
-        <div class="section-card mf-ticks">
+        <div class="section-card mf-ticks" data-tool="playground">
           <span class="card-num">§ 05</span>
           <h3>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
@@ -363,6 +330,22 @@
           <a href="/playground/">Открыть редактор</a>
         </div>
       </section>
+
+      <div class="tool-panel" id="toolPanel" hidden>
+        <button type="button" class="tool-panel-close" aria-label="Закрыть">✕</button>
+        <div class="tool-panel-head">
+          <span class="tool-panel-icon"></span>
+          <div>
+            <h3 class="tool-panel-title"></h3>
+            <p class="tool-panel-desc"></p>
+          </div>
+        </div>
+        <div class="tool-panel-body"></div>
+        <a class="tool-panel-cta" href="#"></a>
+      </div>
+
+      <div class="tool-ghost" id="toolGhost" aria-hidden="true"></div>
+      </div>
     </div>
   </main>
 
@@ -372,6 +355,7 @@
   <script src="/assets/js/mathframe-ui.js"></script>
   <script src="/assets/js/auth.js"></script>
   <script src="/assets/js/common.js"></script>
+  <script src="/assets/js/home-tools.js"></script>
 
   <script>
   /* Логотип подстраивается под тему. Если файла нет — onerror в разметке
