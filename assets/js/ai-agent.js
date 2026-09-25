@@ -388,6 +388,114 @@
 
     const byUpdated = (a, b) => b.updatedAt - a.updatedAt;
     const cur = () => (uid ? chats.get(activeId) : anon) || null;
+    let webSearch = false;                 // сервер умеет искать в интернете (для подписи «думает»)
+
+    /* ---- движение ----
+       Лента и список чатов перерисовываются целиком, поэтому «новизна» хранится не в DOM, а
+       при самих объектах: когда что-то впервые показано. Возраст уходит в --mfa-age, и CSS
+       продолжает анимацию с того же места, а не запускает её на каждой перерисовке. */
+    const motionOff = () => (window.MathFrameUI && window.MathFrameUI.motionOff ? window.MathFrameUI.motionOff()
+      : !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches));
+    const now = () => performance.now();
+    const seen = new WeakMap();
+    const markOld = obj => seen.set(obj, { old: true });
+    function ageOf(obj, key) {
+      let r = seen.get(obj);
+      if (!r) seen.set(obj, r = {});
+      if (r.old) return Infinity;
+      if (!(key in r)) r[key] = now();
+      return now() - r[key];
+    }
+    // Класс анимации — только если с первого показа прошло меньше win мс.
+    function fresh(node, obj, key, cls, win) {
+      const age = ageOf(obj, key);
+      if (age >= win || motionOff()) return;
+      node.classList.add(cls);
+      node.style.setProperty('--mfa-age', Math.round(age) + 'ms');
+    }
+    function replay(node, cls) {
+      if (motionOff()) return;
+      node.classList.remove(cls); void node.offsetWidth; node.classList.add(cls);
+    }
+
+    // Хвост потока: символы, пришедшие за последние TOK_MS, проявляются. Отрезки помнятся в
+    // координатах видимого текста и на каждой перерисовке оборачиваются заново с отрицательной
+    // задержкой — поэтому не мигают, хотя разметка ответа каждый раз строится с нуля.
+    const TOK_MS = 360;
+    const tails = new WeakMap();
+    function textNodes(root) {
+      const out = [], w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+      for (let n = w.nextNode(); n; n = w.nextNode()) out.push(n);
+      return out;
+    }
+    function fadeTail(md, m) {
+      if (!md || motionOff()) return;
+      // один обход за кадр: узлы с их смещениями
+      let total = 0;
+      const list = textNodes(md).map(n => { const a = total; total += n.data.length; return { n, a }; });
+      const t = now();
+      let st = tails.get(m);
+      if (!st) tails.set(m, st = { len: 0, marks: [] });
+      if (total > st.len) st.marks.push({ from: st.len, to: total, t });
+      st.len = total;
+      st.marks = st.marks.filter(k => t - k.t < TOK_MS && k.from < total);
+      // с конца: splitText оставляет в узле начало, поэтому смещения более ранних кусков не меняются
+      st.marks.slice().sort((x, y) => y.from - x.from).forEach(k => {
+        for (let j = list.length - 1; j >= 0; j--) {
+          const n = list[j].n, a = list[j].a, b = a + n.data.length;
+          if (b <= k.from) break;
+          const s = Math.max(a, k.from), e = Math.min(b, k.to);
+          if (e <= s || !n.data.slice(s - a, e - a).trim()) continue;
+          let mid = n;
+          if (s > a) mid = mid.splitText(s - a);
+          if (e < b) mid.splitText(e - s);
+          const span = document.createElement('span');
+          span.className = 'mfa-tok';
+          span.style.animationDelay = -Math.round(t - k.t) + 'ms';
+          mid.parentNode.insertBefore(span, mid);
+          span.appendChild(mid);
+        }
+      });
+    }
+
+    // Курсор — в конец последнего текстового блока ответа.
+    function appendCaret(md) {
+      let t = md.lastElementChild;
+      while (t && /^(UL|OL|BLOCKQUOTE)$/.test(t.tagName) && t.lastElementChild) t = t.lastElementChild;
+      if (t && t.tagName === 'PRE') t = t.querySelector('code') || t;
+      if (t && /^(HR|BR|IMG)$/.test(t.tagName)) t = md;
+      if (!t || t.classList.contains('mfa-math')) t = md;
+      const caret = document.createElement('span');
+      caret.className = 'mfa-caret'; caret.setAttribute('aria-hidden', 'true');
+      t.appendChild(caret);
+    }
+
+    // Индикатор «думает»: самописец + подпись. Подпись честная: справочник — только если
+    // темы действительно ушли с вопросом, интернет — только если сервер умеет искать.
+    const WAVE_D = (() => {
+      let d = '';
+      for (let x = 0; x <= 60; x++) d += (x ? 'L' : 'M') + x + ' ' + (8 - 4.5 * Math.sin(2 * Math.PI * x / 16)).toFixed(2);
+      return d;
+    })();
+    function typingEl(m) {
+      const box = document.createElement('div'); box.className = 'typing';
+      box.innerHTML = '<span class="tp-plot" aria-hidden="true"><span class="tp-trace"><svg viewBox="0 0 60 16"><path d="' +
+        WAVE_D + '"/></svg></span><i class="tp-pen"></i></span><span class="tp-label"></span>';
+      const label = box.querySelector('.tp-label');
+      const steps = [[0, 'Думает…']];
+      if ((m.sources || []).length) steps.push([1400, 'Сверяется со справочником…']);
+      steps.push([4200, webSearch ? 'Ищет источники…' : 'Формулирует ответ…']);
+      const age = ageOf(m, 'in');
+      let i = 0;
+      while (i + 1 < steps.length && steps[i + 1][0] <= age) i++;
+      label.textContent = steps[i][1];
+      steps.slice(i + 1).forEach(([at, text]) => setTimeout(() => {
+        if (!box.isConnected) return;
+        label.textContent = text;
+        replay(label, 'mfa-lbl');
+      }, at - age));
+      return box;
+    }
 
     /* ---- формулы ---- */
     const mathCache = new Map();
@@ -659,6 +767,24 @@
       el.sync.classList.toggle('err', !!isErr);
     }
 
+    // Чаты, впервые увиденные в первые секунды после входа, — это загрузка списка, а не новые.
+    const chatSeen = new Map();
+    let primeUntil = 0, sideActive = null;
+    function collapseThen(li, fn) {
+      let done = false;
+      const go = () => { if (!done) { done = true; fn(); } };
+      if (motionOff() || !li.animate) { go(); return; }
+      const h = li.offsetHeight + 'px';
+      li.style.overflow = 'hidden'; li.style.pointerEvents = 'none';
+      const a = li.animate([
+        { opacity: 1, transform: 'none', height: h, marginBottom: '2px' },
+        { opacity: 0, transform: 'translateX(-16px)', height: h, marginBottom: '2px', offset: 0.5 },
+        { opacity: 0, transform: 'translateX(-16px)', height: '0px', marginBottom: '0px', paddingTop: '0px', paddingBottom: '0px' },
+      ], { duration: 320, easing: 'cubic-bezier(.22,1,.36,1)', fill: 'forwards' });
+      a.onfinish = go;
+      setTimeout(go, 450);
+    }
+
     function renderSidebar() {
       el.chatList.innerHTML = '';
       if (!uid) {
@@ -673,6 +799,10 @@
         const li = document.createElement('li');
         li.className = 'chat-item' + (c.id === activeId ? ' on' : '');
         li.tabIndex = 0; li.setAttribute('role', 'button'); li.dataset.id = c.id;
+        if (!chatSeen.has(c.id)) chatSeen.set(c.id, now() < primeUntil ? -Infinity : now());
+        const age = now() - chatSeen.get(c.id);
+        if (age < 400 && !motionOff()) { li.classList.add('mfa-ci-in'); li.style.setProperty('--mfa-age', Math.round(age) + 'ms'); }
+        else if (c.id === activeId && sideActive !== activeId && sideActive !== null && !motionOff()) li.classList.add('mfa-on-in');
         const main = document.createElement('div'); main.className = 'ci-main';
         const t = document.createElement('div'); t.className = 'ci-title' + (c.title || c.messages.length ? '' : ' empty');
         t.textContent = c.title || (c.messages.length ? deriveTitle((c.messages.find(m => m.role === 'user') || {}).content) : 'Новый чат');
@@ -685,16 +815,18 @@
         del.innerHTML = ICON.trash;
         del.addEventListener('click', e => {
           e.stopPropagation();
-          if (!c.messages.length || confirm('Удалить чат «' + (t.textContent || 'Новый чат') + '»?')) removeChat(c.id);
+          if (!c.messages.length || confirm('Удалить чат «' + (t.textContent || 'Новый чат') + '»?')) collapseThen(li, () => removeChat(c.id));
         });
         li.appendChild(del);
         li.addEventListener('click', () => openChat(c.id));
         li.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target === li) { e.preventDefault(); openChat(c.id); } });
         el.chatList.appendChild(li);
       });
+      sideActive = activeId;
       renderSyncNote();
     }
 
+    let topChat = null, topTopic = null;
     function renderTop() {
       const c = cur();
       if (document.activeElement !== el.title) el.title.value = c ? c.title : '';
@@ -707,9 +839,11 @@
         const x = document.createElement('button'); x.type = 'button'; x.title = 'Убрать тему'; x.setAttribute('aria-label', 'Убрать тему'); x.textContent = '×';
         x.addEventListener('click', () => setTopic(null));
         el.ctx.append(label, x);
+        if (c.id === topChat && topic.id !== topTopic) replay(el.ctx, 'mfa-chip-pop');
       } else {
         el.ctx.hidden = true;
       }
+      topChat = c ? c.id : null; topTopic = topic ? topic.id : null;
       el.pick.textContent = topic ? 'Сменить тему' : 'Выбрать тему';
     }
 
@@ -723,6 +857,7 @@
     function buildMessage(c, m, isLast) {
       const wrap = document.createElement('div');
       wrap.className = 'msg msg-' + m.role;
+      fresh(wrap, m, 'in', m.role === 'user' ? 'mfa-in-user' : 'mfa-in-bot', 600);
       const body = document.createElement('div');
       body.className = 'msg-body';
       if (m.role === 'user') {
@@ -732,13 +867,11 @@
         md.className = 'md';
         md.innerHTML = m.content ? mdToHtml(m.content) : '';
         body.appendChild(md);
-        if (c.busy && isLast && !m.content) {
-          const dots = document.createElement('div'); dots.className = 'typing';
-          dots.innerHTML = '<span></span><span></span><span></span>';
-          body.appendChild(dots);
-        }
+        if (c.busy && isLast && m.content) appendCaret(md);
+        if (c.busy && isLast && !m.content) body.appendChild(typingEl(m));
         if (m.error) {
           const err = document.createElement('div'); err.className = 'msg-err'; err.textContent = m.error;
+          fresh(err, m, 'err', 'mfa-fresh', 500);
           body.appendChild(err);
         }
         // Под ответом — только те темы справочника, на которые он реально сослался,
@@ -752,6 +885,7 @@
             a.href = '/spravochnik/#' + encodeURIComponent(s.id); a.textContent = s.title; a.className = 'src-chip';
             src.appendChild(a);
           });
+          fresh(src, m, 'src', 'mfa-fresh', 500);
           body.appendChild(src);
         }
         if (!c.busy || !isLast) {
@@ -771,24 +905,49 @@
             r.addEventListener('click', regenerate);
             acts.appendChild(r);
           }
-          if (acts.children.length) body.appendChild(acts);
+          if (acts.children.length) { fresh(acts, m, 'acts', 'mfa-fresh', 500); body.appendChild(acts); }
         }
       }
       wrap.appendChild(body);
       return wrap;
     }
 
+    // Эмблема: оси, кривая, касательная в точке перегиба (t = ½ кривой Безье), точка касания.
+    const EMBLEM = '<svg class="agent-emblem" viewBox="0 0 120 72" aria-hidden="true">' +
+      '<path class="ae-axis ae-draw" pathLength="1" style="--d:.05s;--dur:.7s" d="M10 62H114"/>' +
+      '<path class="ae-axis ae-draw" pathLength="1" style="--d:.15s;--dur:.6s" d="M18 70V6"/>' +
+      '<path class="ae-tick ae-draw" pathLength="1" style="--d:.45s;--dur:.3s" d="M58.25 59V65M15 34.75H21"/>' +
+      '<path class="ae-curve ae-draw" pathLength="1" style="--d:.4s;--dur:1.1s" d="M22 56C52 56 60 14 108 12"/>' +
+      '<path class="ae-tan ae-draw" pathLength="1" style="--d:1.05s;--dur:.6s" d="M32.25 58.54L84.25 10.96"/>' +
+      '<circle class="ae-halo" style="--d:1.35s" cx="58.25" cy="34.75" r="3.5"/>' +
+      '<circle class="ae-pt ae-pop" style="--d:1.3s" cx="58.25" cy="34.75" r="3.5"/></svg>';
+
+    let logChatId = null, logChatObj = null;
     function renderLog() {
       const c = cur();
+      // Другой чат (или история целиком пришла заново) — это не «новые сообщения»:
+      // всё помечается показанным, лента только мягко проявляется.
+      const unseen = c ? c.messages.filter(m => !seen.has(m)).length : 0;
+      const switched = !c || c.id !== logChatId;
+      // тот же чат, но объект заменён снимком из аккаунта — это не новые сообщения
+      if (c && (switched || unseen > 2 || c !== logChatObj)) {
+        c.messages.forEach(m => { if (!seen.has(m)) markOld(m); });
+        if (switched && logChatId !== null && c.messages.length) replay(el.log, 'mfa-swap');
+      }
+      logChatId = c ? c.id : null; logChatObj = c;
       el.log.innerHTML = '';
       if (!c || !c.messages.length) {
         const empty = document.createElement('div'); empty.className = 'agent-empty';
-        empty.innerHTML = '<h2>AI‑агент MathFrame</h2><p>Помощник по математике, который знает справочник: подбирает нужные темы и опирается на их описания, ' +
+        const age = c ? ageOf(c, 'empty') : Infinity;
+        if (age > 2600 || motionOff()) empty.classList.add('mfa-static');
+        else empty.style.setProperty('--mfa-age', Math.round(age) + 'ms');
+        empty.innerHTML = EMBLEM + '<h2 class="ae-in" style="--d:.2s">AI‑агент MathFrame</h2><p class="ae-in" style="--d:.3s">Помощник по математике, который знает справочник: подбирает нужные темы и опирается на их описания, ' +
           'при необходимости ищет сведения в интернете и записывает формулы. Выберите тему вверху, чтобы задать вопрос в её контексте, ' +
           'или просто спросите.</p>';
         const chips = document.createElement('div'); chips.className = 'suggest';
         SUGGESTIONS.forEach(t => {
-          const b = document.createElement('button'); b.type = 'button'; b.className = 'suggest-chip'; b.textContent = t;
+          const b = document.createElement('button'); b.type = 'button'; b.className = 'suggest-chip ae-in'; b.textContent = t;
+          b.style.setProperty('--d', (0.42 + chips.children.length * 0.06).toFixed(2) + 's');
           b.addEventListener('click', () => submit(t));
           chips.appendChild(b);
         });
@@ -796,6 +955,9 @@
         el.log.appendChild(empty);
       } else {
         c.messages.forEach((m, i) => el.log.appendChild(buildMessage(c, m, i === c.messages.length - 1)));
+        // последний ответ только что дописан — его хвост догорает, а не выскакивает
+        const lm = c.messages[c.messages.length - 1];
+        if (tails.has(lm)) fadeTail(el.log.lastElementChild.querySelector('.md'), lm);
         hydrateMath(el.log);
       }
     }
@@ -811,15 +973,21 @@
         const m = c.messages[c.messages.length - 1];
         if (!last || !m) return;
         const near = el.scroll.scrollHeight - el.scroll.scrollTop - el.scroll.clientHeight < 160;
-        last.replaceWith(buildMessage(c, m, true));
-        hydrateMath(el.log.lastElementChild);
+        const next = buildMessage(c, m, true);
+        fadeTail(next.querySelector('.md'), m);
+        last.replaceWith(next);
+        hydrateMath(next);
         if (near) el.scroll.scrollTop = el.scroll.scrollHeight;
       });
     }
 
+    let prevBusy = null, prevBusyChat = null;
     function updateChrome() {
       const c = cur();
       const busy = !!(c && c.busy);
+      const cid = c ? c.id : null;
+      if (cid === prevBusyChat && prevBusy !== null && busy !== prevBusy) replay(busy ? el.stop : el.send, 'mfa-swap-in');
+      prevBusy = busy; prevBusyChat = cid;
       const canWrite = !!uid && configured && !!c;
       el.input.disabled = !canWrite;
       el.send.disabled = !canWrite || busy;
@@ -837,9 +1005,10 @@
     let bannerTimer = null;
     function showBanner(text, kind, sticky) {
       clearTimeout(bannerTimer); bannerTimer = null;
-      if (!text) { el.banner.hidden = true; return; }
+      if (!text) { el.banner.hidden = true; el.banner.classList.remove('mfa-re'); return; }
+      if (!el.banner.hidden && el.banner.textContent !== text) replay(el.banner, 'mfa-re');
       el.banner.hidden = false;
-      el.banner.className = 'agent-banner ' + (kind || 'info');
+      el.banner.classList.remove('info', 'warn'); el.banner.classList.add(kind || 'info');
       el.banner.textContent = text;
       if (!sticky) bannerTimer = setTimeout(restoreBanner, 9000);
     }
@@ -1013,6 +1182,7 @@
       pushChat(c);          // вопрос сохраняется сразу, не дожидаясь ответа
       el.input.value = ''; autosize();
       renderTop();
+      if (window.MathFrameUI && window.MathFrameUI.burst) window.MathFrameUI.burst(el.send, { count: 9, spread: 24 });
       run(c);
     }
 
@@ -1047,11 +1217,23 @@
         li.appendChild(b); el.pickList.appendChild(li);
       });
     }
+    // Открытие анимирует CSS (при снятии hidden); закрытие — короткий уход, потом hidden.
+    let pickerOpen = false, pickerTimer = 0;
     function openPicker() {
+      clearTimeout(pickerTimer);
+      pickerOpen = true;
+      el.picker.classList.remove('mfa-closing');
       el.picker.hidden = false; el.pick.setAttribute('aria-expanded', 'true');
       renderPicker(); el.pickInput.focus();
     }
-    function closePicker() { el.picker.hidden = true; el.pick.setAttribute('aria-expanded', 'false'); }
+    function closePicker() {
+      if (!pickerOpen) return;
+      pickerOpen = false;
+      el.pick.setAttribute('aria-expanded', 'false');
+      if (motionOff()) { el.picker.hidden = true; return; }
+      el.picker.classList.add('mfa-closing');
+      pickerTimer = setTimeout(() => { el.picker.hidden = true; el.picker.classList.remove('mfa-closing'); }, 170);
+    }
     function openDrawer() { el.card.classList.add('drawer-open'); el.scrim.hidden = false; }
     function closeDrawer() { el.card.classList.remove('drawer-open'); el.scrim.hidden = true; }
 
@@ -1069,7 +1251,7 @@
     el.newBtn.addEventListener('click', () => { newChat(); });
     el.menu.addEventListener('click', () => (el.card.classList.contains('drawer-open') ? closeDrawer() : openDrawer()));
     el.scrim.addEventListener('click', closeDrawer);
-    el.pick.addEventListener('click', () => (el.picker.hidden ? openPicker() : closePicker()));
+    el.pick.addEventListener('click', () => (pickerOpen ? closePicker() : openPicker()));
     el.pickInput.addEventListener('input', renderPicker);
     el.title.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); el.title.blur(); } });
     el.title.addEventListener('change', () => {
@@ -1080,9 +1262,13 @@
       if (c.messages.length) { c.updatedAt = Date.now(); pushChat(c); }
       renderSidebar();
     });
-    document.addEventListener('keydown', e => { if (e.key === 'Escape') { closePicker(); closeDrawer(); } });
+    document.addEventListener('keydown', e => {
+      if (e.key !== 'Escape') return;
+      if (pickerOpen && el.picker.contains(document.activeElement)) el.pick.focus();   // фокус не теряется вместе с панелью
+      closePicker(); closeDrawer();
+    });
     document.addEventListener('click', e => {
-      if (el.picker.hidden) return;
+      if (!pickerOpen) return;
       if (el.picker.contains(e.target) || el.pick.contains(e.target)) return;
       closePicker();
     });
@@ -1097,6 +1283,7 @@
       stopSync();
       user = u; uid = nextUid;
       chats = new Map(); activeId = null; migrated = false;
+      chatSeen.clear(); primeUntil = now() + 2500; sideActive = null;
       applyRole(null);            // пока сервер не ответил (и после выхода) — как у обычного пользователя
       if (uid) {
         localRead().forEach(c => chats.set(c.id, c));
@@ -1118,6 +1305,7 @@
     else document.addEventListener('authReady', () => window.Auth.onAuthChange(onUser));
 
     fetch('/api/chat', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(d => {
+      if (d && d.webSearch) webSearch = true;
       if (d && d.configured === false) {
         configured = false; baseConfigured = false;
         showBanner(NOT_CONF_TEXT, 'warn', true);
@@ -1135,7 +1323,7 @@
       chats.forEach(c => { if (c.topicId && !topicsById.has(c.topicId)) c.topicId = null; });
       if (anon.topicId && !topicsById.has(anon.topicId)) anon.topicId = null;
       renderTop(); renderSidebar();
-      if (!el.picker.hidden) renderPicker();
+      if (pickerOpen) renderPicker();
       applyUrlTopic();
     }).catch(() => {
       // Без справочника агент работает как обычный чат — это не ошибка для пользователя.

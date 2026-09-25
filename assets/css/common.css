@@ -220,7 +220,8 @@ h1, h2, h3, h4, h5, h6 {
                               calc(var(--mf-grid-step) * 5) calc(var(--mf-grid-step) * 5),
                               calc(var(--mf-grid-step) * 5) calc(var(--mf-grid-step) * 5); }
 }
-#mf-canvas { opacity: 0; transition: opacity 1.2s var(--e-out); }
+/* canvas — заменяемый элемент: inset:0 его не растягивает, без явных размеров он 300×150 */
+#mf-canvas { width: 100%; height: 100%; opacity: 0; transition: opacity 1.2s var(--e-out); }
 #mf-canvas.mf-ready { opacity: 1; }
 .mf-vignette {
   background:
@@ -455,6 +456,8 @@ h1, h2, h3, h4, h5, h6 {
 .btn-outline:hover { background: var(--accent-soft); color: var(--accent-hover); }
 .btn.danger { color: #f87171; border-color: rgba(248,113,113,.32); background: rgba(248,113,113,.06); }
 .btn.danger:hover { background: rgba(248,113,113,.14); border-color: #f87171; }
+html.light .btn.danger { color: #c73a3a; border-color: rgba(199,58,58,.32); background: rgba(199,58,58,.05); }
+html.light .btn.danger:hover { background: rgba(199,58,58,.12); border-color: #c73a3a; }
 .btn.small { padding: .45rem 1rem; font-size: .84rem; border-radius: var(--r-sm); }
 .btn.centered { margin: 0 auto; display: flex; }
 .btn:disabled, .btn[aria-disabled="true"] { opacity: .45; pointer-events: none; }
@@ -1120,6 +1123,7 @@ a, button, .section-card, .mf-card, .theme-option, .account-circle {
          мини-сервисы — динамическая решётка ячеек
          песочница    — фигуры Хладни
          админка      — решётка, приглушённая палитра
+         AI-агент     — рельеф функции потерь (изолинии уровня), фиолетовый
    ========================================================================== */
 [data-page="reference"]  { --accent:#7a7cff; --accent-hover:#9698ff; --accent-2:#59c8ff; --accent-3:#f2b45c;
                            --accent-soft:rgba(122,124,255,.14); --accent-glow:rgba(122,124,255,.40); }
@@ -1131,6 +1135,8 @@ a, button, .section-card, .mf-card, .theme-option, .account-circle {
                            --accent-soft:rgba(139,123,255,.15); --accent-glow:rgba(139,123,255,.40); }
 [data-page="admin"]      { --accent:#7d90b0; --accent-hover:#94a6c4; --accent-2:#7ee3b0; --accent-3:#ffb066;
                            --accent-soft:rgba(125,144,176,.14); --accent-glow:rgba(125,144,176,.32); }
+[data-page="ai-agent"]   { --accent:#9b6bff; --accent-hover:#b08bff; --accent-2:#5cc8ff; --accent-3:#f2b45c;
+                           --accent-soft:rgba(155,107,255,.14); --accent-glow:rgba(155,107,255,.38); }
 
 /* Светлая тема: те же оттенки, но затемнённые до нужного контраста на белом */
 html.light [data-page="reference"]  { --accent:#4a48d8; --accent-hover:#3a38c0; --accent-2:#0f7fc4; --accent-soft:rgba(74,72,216,.10); --accent-glow:rgba(74,72,216,.22); }
@@ -1138,6 +1144,7 @@ html.light [data-page="forum"]      { --accent:#0d7fae; --accent-hover:#0a6b93; 
 html.light [data-page="services"]   { --accent:#0f8a72; --accent-hover:#0b715e; --accent-2:#0f7fc4; --accent-soft:rgba(15,138,114,.10); --accent-glow:rgba(15,138,114,.22); }
 html.light [data-page="playground"] { --accent:#5b46d6; --accent-hover:#4a37b8; --accent-2:#c2437a; --accent-soft:rgba(91,70,214,.10); --accent-glow:rgba(91,70,214,.22); }
 html.light [data-page="admin"]      { --accent:#465a78; --accent-hover:#374861; --accent-2:#0f9c6b; --accent-soft:rgba(70,90,120,.10); --accent-glow:rgba(70,90,120,.20); }
+html.light [data-page="ai-agent"]   { --accent:#6d3fd6; --accent-hover:#5a31b8; --accent-2:#0f7fc4; --accent-soft:rgba(109,63,214,.10); --accent-glow:rgba(109,63,214,.22); }
 
 /* Мелкие «характерные жесты» разделов — по одному на страницу, чтобы отличие
    читалось, но язык оставался общим. */

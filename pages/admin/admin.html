@@ -2,89 +2,246 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <title>Админ‑панель — MathFrame</title>
-<link rel="stylesheet" href="../assets/css/common.css" />
+<meta name="robots" content="noindex" />
 
 <style>
-  #admin-gate { position: fixed; inset: 0; background: var(--bg-body); z-index: 500;
-    display: flex; align-items: center; justify-content: center; color: var(--text-secondary); font-size: 1.1rem; }
-  #admin-root { display: none; max-width: 1200px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
+  @font-face { font-family:'BodyFont'; src:url('/assets/fonts/body-font.otf') format('opentype');
+               font-weight:400; font-display:swap; }
+  @font-face { font-family:'BodyFont'; src:url('/assets/fonts/body-font-bold.otf') format('opentype');
+               font-weight:700; font-display:swap; }
+</style>
+<link rel="stylesheet" href="/assets/css/common.css" />
 
-  .admin-title { font-size: 1.9rem; font-weight: 800; margin-bottom: 0.3rem; }
-  .admin-sub { color: var(--text-secondary); margin-bottom: 2rem; }
+<style>
+  /* Статусные цвета — только из токенов; красный для «плохо» тот же, что у .btn.danger */
+  body { --ok: var(--accent-2); --warn: var(--accent-3); --bad: #f87171; }
+  html.light body { --bad: #c73a3a; }
 
-  .cards-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
-  .stat-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 1rem; padding: 1.2rem 1.4rem;
-    backdrop-filter: blur(20px); box-shadow: var(--shadow); }
-  .stat-card .num { font-size: 2rem; font-weight: 800; color: var(--accent); }
-  .stat-card .label { color: var(--text-secondary); font-size: 0.9rem; margin-top: 0.2rem; }
+  /* ===== экран проверки доступа ===== */
+  #admin-gate {
+    position: fixed; inset: 0; z-index: 500;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1rem;
+    background:
+      linear-gradient(to right, var(--mf-grid-minor) 1px, transparent 1px),
+      linear-gradient(to bottom, var(--mf-grid-minor) 1px, transparent 1px),
+      var(--bg-body);
+    background-size: var(--mf-grid-step) var(--mf-grid-step), var(--mf-grid-step) var(--mf-grid-step), auto;
+    background-position: center;
+  }
+  #admin-gate .mf-spinner .mf-sp-arc { transform-box: fill-box; }
+  #admin-gate .mf-label::before { display: none; }
 
-  .section { background: var(--bg-card); border: 1px solid var(--border); border-radius: 1rem; padding: 1.5rem;
-    margin-bottom: 2rem; backdrop-filter: blur(20px); box-shadow: var(--shadow); }
-  .section h2 { font-size: 1.25rem; margin-bottom: 1rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
-  .section h2 small { font-weight: 400; font-size: 0.8rem; color: var(--text-secondary); }
+  /* ===== оболочка ===== */
+  #admin-root {
+    display: none; max-width: 1180px; margin: 0 auto;
+    padding: 2.2rem clamp(1rem,4vw,1.5rem) 3rem;
+    padding-left: max(clamp(1rem,4vw,1.5rem), var(--safe-l));
+    padding-right: max(clamp(1rem,4vw,1.5rem), var(--safe-r));
+  }
 
-  .charts-grid { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 1.2rem; }
-  .chart-box { min-height: 220px; position: relative; }
-  .chart-box canvas { max-height: 220px; }
-  @media (max-width: 900px) { .charts-grid { grid-template-columns: 1fr; } }
+  .admin-head { margin-bottom: 1.6rem; }
+  .admin-head h1 { font-size: clamp(1.7rem, 3.4vw, 2.3rem); margin: .55rem 0 .6rem; }
+  .admin-head p { color: var(--text-secondary); max-width: 60ch; }
 
-  table.admin-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
-  .admin-table th, .admin-table td { text-align: left; padding: 0.6rem 0.7rem; border-bottom: 1px solid var(--border); }
-  .admin-table th { color: var(--text-secondary); font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.03em; }
+  /* ===== сводка: плитки как .hero-meta на главной ===== */
+  .cards-grid {
+    display: grid; gap: .8rem; margin-bottom: 1.2rem;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
+  }
+  .stat-card.mf-card {
+    padding: 1rem 1.1rem .95rem; border-radius: var(--r);
+    display: flex; flex-direction: column; gap: .35rem; min-width: 0;
+  }
+  .stat-card .num {
+    font-family: var(--font-display); font-weight: 700; font-size: 1.75rem; line-height: 1;
+    color: var(--text-primary); font-variant-numeric: tabular-nums;
+  }
+  .stat-card .num small { font-size: .55em; color: var(--text-tertiary); font-weight: 400; margin-left: .1em; }
+  .stat-card .label {
+    font-family: var(--font-mono); font-size: .66rem; letter-spacing: .13em;
+    text-transform: uppercase; color: var(--text-tertiary); line-height: 1.35;
+  }
+  .stat-card .idx {
+    position: absolute; top: .7rem; right: .85rem;
+    font-family: var(--font-mono); font-size: .62rem; letter-spacing: .12em; color: var(--text-tertiary); opacity: .7;
+  }
+  .stat-card .meter { display: block; height: 3px; border-radius: 99px; background: var(--border); overflow: hidden; margin-top: .2rem; }
+  .stat-card .meter i { display: block; height: 100%; border-radius: inherit; background: var(--accent); }
+
+  /* ===== секции ===== */
+  /* Большие панели не наклоняются за курсором (mathframe-ui.js): наклон
+     искажал бы таблицы и сбивал координаты подсказок Chart.js. Подсветка остаётся. */
+  .admin-panel.mf-card { transform: none !important; padding: 1.4rem 1.5rem 1.5rem; margin-bottom: 1.2rem; }
+  @media (prefers-reduced-motion: no-preference) {
+    html:not(.mf-no-motion) .admin-panel.mf-reveal:not(.mf-in) { transform: translateY(22px) !important; }
+  }
+  .panel-head {
+    display: flex; align-items: flex-end; justify-content: space-between; gap: .8rem 1rem;
+    flex-wrap: wrap; margin-bottom: 1.1rem;
+  }
+  .panel-head h2 { font-size: 1.3rem; margin-top: .35rem; display: flex; align-items: baseline; gap: .6rem; flex-wrap: wrap; }
+  .panel-head h2 small, .panel-head .count {
+    font-family: var(--font-mono); font-weight: 400; font-size: .7rem; letter-spacing: .1em;
+    color: var(--text-tertiary); text-transform: uppercase;
+  }
+  .panel-head .count {
+    padding: .1rem .5rem; border: 1px solid var(--border-strong); border-radius: 99px; color: var(--text-secondary);
+  }
+  .actions-row { display: flex; gap: .5rem; flex-wrap: wrap; }
+
+  /* ===== графики ===== */
+  .charts-grid { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: .9rem; }
+  .chart-cell {
+    background: var(--bg-sunken); border: 1px solid var(--border); border-radius: var(--r);
+    padding: .8rem .9rem .7rem; min-width: 0;
+  }
+  .chart-cell .cap {
+    font-family: var(--font-mono); font-size: .64rem; letter-spacing: .13em; text-transform: uppercase;
+    color: var(--text-tertiary); margin-bottom: .5rem;
+  }
+  .chart-box { height: 220px; position: relative; }
+  @media (max-width: 900px) {
+    .charts-grid { grid-template-columns: 1fr 1fr; }
+    .charts-grid .chart-cell:first-child { grid-column: 1 / -1; }
+  }
+  @media (max-width: 480px) {
+    .charts-grid { gap: .6rem; }
+    .chart-cell { padding: .7rem .6rem .5rem; }
+    .chart-box { height: 190px; }
+  }
+
+  /* ===== панель фильтров ===== */
+  .toolbar { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; margin-bottom: .9rem; }
+  .search { flex: 1 1 220px; min-width: 0; position: relative; }
+  .search svg {
+    position: absolute; left: .75rem; top: 50%; transform: translateY(-50%);
+    width: 15px; height: 15px; color: var(--text-tertiary); pointer-events: none;
+  }
+  .toolbar input[type="text"] {
+    width: 100%; padding: .55rem .9rem .55rem 2.2rem; border-radius: var(--r-sm);
+    border: 1px solid var(--border-strong); background: var(--bg-sunken);
+    color: var(--text-primary); font: inherit; font-size: .92rem; outline: none;
+    transition: border-color var(--t), box-shadow var(--t);
+  }
+  .toolbar input[type="text"]::placeholder { color: var(--text-tertiary); }
+  .toolbar input[type="text"]:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .chip {
+    padding: .38rem .85rem; border-radius: 99px; border: 1px solid var(--border-strong);
+    background: transparent; color: var(--text-secondary); cursor: pointer;
+    font: inherit; font-size: .84rem; white-space: nowrap;
+    transition: color var(--t), border-color var(--t), background var(--t);
+  }
+  .chip:hover { color: var(--text-primary); border-color: var(--accent); }
+  .chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .chip.active { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
+
+  /* ===== таблицы ===== */
+  .table-wrap {
+    max-height: 440px; overflow: auto; border: 1px solid var(--border); border-radius: var(--r);
+    background: var(--bg-sunken); overscroll-behavior: contain;
+  }
+  table.admin-table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+  #usersTbody { white-space: nowrap; }
+  .users-table { min-width: 900px; }
+  .admin-table th, .admin-table td { text-align: left; padding: .6rem .6rem; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  .admin-table th {
+    position: sticky; top: 0; z-index: 1; background: var(--mf-ink-2);
+    font-family: var(--font-mono); font-weight: 500; font-size: .64rem; letter-spacing: .13em;
+    text-transform: uppercase; color: var(--text-tertiary);
+  }
+  .admin-table tbody tr { transition: background var(--t-fast); }
+  .admin-table tbody tr:hover { background: var(--accent-soft); }
   .admin-table tr:last-child td { border-bottom: none; }
-  .badge { display: inline-block; padding: 0.15rem 0.6rem; border-radius: 1rem; font-size: 0.75rem; font-weight: 600; }
-  .badge.yes { background: rgba(34,197,94,0.15); color: #22c55e; }
-  .badge.no { background: rgba(239,68,68,0.12); color: #ef4444; }
-  .badge.admin { background: rgba(129,140,248,0.18); color: var(--accent); }
-  .badge.banned { background: rgba(239,68,68,0.2); color: #ef4444; }
+  .admin-table td.muted { color: var(--text-tertiary); }
+  .admin-table td.date { font-family: var(--font-mono); font-size: .76rem; line-height: 1.35; color: var(--text-secondary);
+    font-variant-numeric: tabular-nums; white-space: normal; width: 7rem; }
+  .admin-table td .btn.small + .btn.small { margin-left: .35rem; }
 
-  .toolbar { display: flex; gap: 0.6rem; flex-wrap: wrap; margin-bottom: 1rem; }
-  .toolbar input[type="text"] { flex: 1; min-width: 180px; padding: 0.55rem 0.9rem; border-radius: 0.5rem;
-    border: 1px solid var(--border); background: rgba(255,255,255,0.05); color: var(--text-primary); outline: none; }
-  .chip { padding: 0.4rem 0.9rem; border-radius: 1rem; border: 1px solid var(--border); background: transparent;
-    color: var(--text-secondary); cursor: pointer; font-size: 0.85rem; transition: var(--transition-smooth); }
-  .chip.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  /* ===== бейджи ===== */
+  .badge {
+    display: inline-flex; align-items: center; gap: .4rem; padding: .12rem .55rem;
+    border-radius: 99px; font-size: .74rem; font-weight: 600; line-height: 1.5; white-space: nowrap;
+    --c: var(--text-secondary);
+    color: var(--c); background: color-mix(in srgb, var(--c) 13%, transparent);
+    border: 1px solid color-mix(in srgb, var(--c) 28%, transparent);
+  }
+  .badge::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+  /* На белом фоне светлые статусные оттенки слишком бледны — подмешиваем основной текст */
+  html.light .badge { color: color-mix(in srgb, var(--c) 72%, var(--text-primary)); }
+  .badge.yes { --c: var(--ok); }
+  .badge.no { --c: var(--warn); }
+  .badge.admin { --c: var(--accent); }
+  .badge.banned { --c: var(--bad); }
+  /* «нет доступа» — не проблема, а обычное состояние: нейтральный цвет */
+  .badge.no.neutral { --c: var(--text-tertiary); }
 
-  .empty-hint { color: var(--text-secondary); font-size: 0.9rem; padding: 1rem 0; text-align: center; }
-  .table-wrap { max-height: 420px; overflow: auto; }
+  .empty-hint {
+    color: var(--text-tertiary); font-family: var(--font-mono); font-size: .72rem;
+    letter-spacing: .12em; text-transform: uppercase; padding: 1.2rem 0 .3rem; text-align: center;
+  }
 
-  .actions-row { display: flex; gap: 0.6rem; flex-wrap: wrap; }
-  .btn.small { padding: 0.3rem 0.7rem; font-size: 0.75rem; }
-  .btn.danger { background: rgba(239,68,68,0.2); color: #ef4444; border-color: #ef4444; }
-  .btn.danger:hover { background: #ef4444; color: #fff; }
+  @media (max-width: 640px) {
+    #admin-root { padding-top: 1.4rem; }
+    .admin-panel.mf-card { padding: 1.05rem .95rem 1.1rem; border-radius: var(--r); }
+    .stat-card .num { font-size: 1.45rem; }
+    .panel-head .actions-row { width: 100%; }
+    .panel-head .actions-row .btn { flex: 1 1 auto; }
+    .table-wrap { max-height: 60vh; }
+  }
 </style>
 </head>
-<body>
+<body data-page="admin">
 
-<div id="admin-gate">Проверка доступа…</div>
+<div id="admin-gate" role="status" aria-live="polite">
+  <svg class="mf-spinner" viewBox="0 0 44 44" aria-hidden="true">
+    <circle class="mf-sp-track" cx="22" cy="22" r="18" />
+    <circle class="mf-sp-arc" cx="22" cy="22" r="18" />
+  </svg>
+  <span class="mf-label">Проверка доступа…</span>
+</div>
 
 <div id="app-header"></div>
 
-<div id="admin-root">
-  <div class="admin-title">Админ‑панель</div>
-  <div class="admin-sub">Пользователи, статистика сайта и содержимое справочника</div>
+<main id="admin-root">
+  <header class="admin-head">
+    <span class="mf-label">Управление · MathFrame</span>
+    <h1 class="mf-axis-title">Админ‑панель</h1>
+    <p>Пользователи, статистика сайта и содержимое справочника</p>
+  </header>
 
   <div class="cards-grid" id="cardsGrid"></div>
 
-  <div class="section">
-    <h2>Статистика <small id="visitsRangeLabel"></small></h2>
-    <div class="charts-grid">
-      <div class="chart-box"><canvas id="visitsChart"></canvas></div>
-      <div class="chart-box"><canvas id="descChart"></canvas></div>
-      <div class="chart-box"><canvas id="exampleChart"></canvas></div>
+  <section class="admin-panel mf-card mf-ticks" data-mf-reveal>
+    <div class="panel-head">
+      <div>
+        <span class="mf-label">§ 01 · Трафик</span>
+        <h2>Статистика <small id="visitsRangeLabel"></small></h2>
+      </div>
     </div>
-  </div>
+    <div class="charts-grid">
+      <div class="chart-cell"><div class="cap">Посещения по дням</div><div class="chart-box"><canvas id="visitsChart"></canvas></div></div>
+      <div class="chart-cell"><div class="cap">Описания тем</div><div class="chart-box"><canvas id="descChart"></canvas></div></div>
+      <div class="chart-cell"><div class="cap">Интерактивные примеры</div><div class="chart-box"><canvas id="exampleChart"></canvas></div></div>
+    </div>
+  </section>
 
-  <div class="section">
-    <h2>Темы справочника
-      <span class="actions-row">
+  <section class="admin-panel mf-card mf-ticks" data-mf-reveal>
+    <div class="panel-head">
+      <div>
+        <span class="mf-label">§ 02 · Справочник</span>
+        <h2>Темы справочника</h2>
+      </div>
+      <div class="actions-row">
         <button class="btn primary small" id="goEditorBtn">Перейти в редактор тем</button>
-      </span>
-    </h2>
+      </div>
+    </div>
     <div class="toolbar">
-      <input type="text" id="topicSearch" placeholder="Поиск по названию…" />
+      <label class="search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input type="text" id="topicSearch" placeholder="Поиск по названию…" aria-label="Поиск по названию темы" />
+      </label>
       <button class="chip active" data-filter="all">Все</button>
       <button class="chip" data-filter="no-desc">Без описания</button>
       <button class="chip" data-filter="no-example">Без примера</button>
@@ -97,36 +254,41 @@
       </table>
     </div>
     <div class="empty-hint" id="topicsEmpty" style="display:none;">Ничего не найдено</div>
-  </div>
+  </section>
 
-  <div class="section">
-    <h2>Пользователи (<span id="usersCount">0</span>)
+  <section class="admin-panel mf-card mf-ticks" data-mf-reveal>
+    <div class="panel-head">
+      <div>
+        <span class="mf-label">§ 03 · Доступ</span>
+        <h2>Пользователи <span class="count" id="usersCount">0</span></h2>
+      </div>
       <div class="actions-row">
         <button class="btn small" id="exportUsersBtn">Экспорт CSV</button>
         <button class="btn small" id="exportStatsBtn">Экспорт статистики JSON</button>
       </div>
-    </h2>
+    </div>
     <div class="table-wrap">
-      <table class="admin-table">
+      <table class="admin-table users-table">
         <thead><tr><th>Пользователь</th><th>Email</th><th>Регистрация</th><th>Последний вход</th><th>Доступ к панели</th><th>Статус</th><th>Действия</th></tr></thead>
         <tbody id="usersTbody"></tbody>
       </table>
     </div>
     <div class="empty-hint" id="usersEmpty" style="display:none;">Пользователи не найдены</div>
-  </div>
-</div>
+  </section>
+</main>
 
 <div id="app-footer"></div>
 
+<script src="/assets/js/mathframe-ui.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 
-<script>var PAGE_ROOT = '../';</script>
-<script src="../assets/js/auth.js"></script>
-<script src="../assets/js/common.js"></script>
+<script>var PAGE_ROOT = '/';</script>
+<script src="/assets/js/auth.js"></script>
+<script src="/assets/js/common.js"></script>
 
 <script>
 (function () {
@@ -138,8 +300,12 @@
   let allTopics = [];
   let allUsers = [];
 
+  // Токены читаем с body: акцент раздела задаётся на <body data-page="admin">, а не на <html>
   function css(varName) {
-    return getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+    return getComputedStyle(document.body).getPropertyValue(varName).trim();
+  }
+  function motionOff() {
+    return window.MathFrameUI ? window.MathFrameUI.motionOff() : false;
   }
 
   // ===== ИНИЦИАЛИЗАЦИЯ АУТЕНТИФИКАЦИИ =====
@@ -262,12 +428,14 @@
   }
 
   // ===== КАРТОЧКИ =====
+  let cardsShown = false;
   function renderCards(topics, visits, usersCount) {
     const nonFolder = topics.filter(t => t.type !== 'folder');
     const folders = topics.filter(t => t.type === 'folder');
     const withDesc = nonFolder.filter(t => t.description && String(t.description).trim().length > 0);
     const withExample = nonFolder.filter(t => !!t.example);
     const today = new Date().toISOString().slice(0, 10);
+    const fmt = n => Number(n).toLocaleString('ru-RU');
 
     const cards = [
       { num: usersCount, label: 'Пользователей' },
@@ -275,15 +443,120 @@
       { num: visits.days[today] || 0, label: 'Посещений сегодня' },
       { num: nonFolder.length, label: 'Тем' },
       { num: folders.length, label: 'Папок' },
-      { num: `${withDesc.length}/${nonFolder.length}`, label: 'С описанием' },
-      { num: `${withExample.length}/${nonFolder.length}`, label: 'С интерактивным примером' },
+      { num: withDesc.length, of: nonFolder.length, label: 'С описанием' },
+      { num: withExample.length, of: nonFolder.length, label: 'С интерактивным примером' },
     ];
-    document.getElementById('cardsGrid').innerHTML = cards.map(c =>
-      `<div class="stat-card"><div class="num">${c.num}</div><div class="label">${c.label}</div></div>`
-    ).join('');
+    // Повторная отрисовка (после бана/удаления) не должна заново «въезжать»
+    const cls = cardsShown ? ' mf-reveal mf-in' : '';
+    document.getElementById('cardsGrid').innerHTML = cards.map((c, i) => {
+      const ratio = c.of != null;
+      const pct = ratio && c.of ? Math.round(c.num / c.of * 100) : 0;
+      return `<div class="stat-card mf-card mf-ticks${cls}" data-mf-reveal>
+        <span class="idx">${String(i + 1).padStart(2, '0')}</span>
+        <b class="num">${fmt(c.num)}${ratio ? `<small>/${fmt(c.of)}</small>` : ''}</b>
+        <span class="label">${c.label}</span>
+        ${ratio ? `<i class="meter" title="${pct}%"><i style="width:${pct}%"></i></i>` : ''}
+      </div>`;
+    }).join('');
+    if (!cardsShown && window.MathFrameUI) window.MathFrameUI.reveal();
+    cardsShown = true;
   }
 
   // ===== ГРАФИКИ =====
+  // Цвета и шрифты — из токенов «Плоскости», перечитываются при смене темы
+  const charts = {};
+  function withAlpha(color, a) {
+    const c = String(color).trim();
+    let m = c.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
+    if (m) {
+      let h = m[1];
+      if (h.length === 3) h = h.split('').map(x => x + x).join('');
+      const n = parseInt(h, 16);
+      return `rgba(${n >> 16 & 255},${n >> 8 & 255},${n & 255},${a})`;
+    }
+    m = c.match(/rgba?\(([^)]+)\)/);
+    if (m) { const p = m[1].split(',').map(s => s.trim()); return `rgba(${p[0]},${p[1]},${p[2]},${a})`; }
+    return c;
+  }
+  function theme() {
+    return {
+      accent: css('--accent'), accent2: css('--accent-2'),
+      text1: css('--text-primary'), text2: css('--text-secondary'), text3: css('--text-tertiary'),
+      border: css('--border'), borderStrong: css('--border-strong'), raised: css('--bg-raised'),
+      sans: css('--font-sans'), mono: css('--font-mono'), display: css('--font-display')
+    };
+  }
+  function tooltipOpts(T) {
+    return {
+      backgroundColor: T.raised, borderColor: T.borderStrong, borderWidth: 1,
+      titleColor: T.text1, bodyColor: T.text2, cornerRadius: 6, padding: 10,
+      titleFont: { family: T.mono, size: 11 }, bodyFont: { family: T.sans, size: 12 },
+      displayColors: false
+    };
+  }
+  function anim() {
+    return motionOff() ? false : { duration: 700, easing: 'easeOutQuart' };
+  }
+
+  // Процент в центре «бублика»: крупно display-шрифтом, подпись моно
+  const centerLabel = {
+    id: 'mfCenter',
+    afterDraw(chart, _args, o) {
+      if (!o || o.text == null) return;
+      const a = chart.chartArea, ctx = chart.ctx;
+      const x = (a.left + a.right) / 2, y = (a.top + a.bottom) / 2;
+      ctx.save();
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillStyle = o.color; ctx.font = `700 26px ${o.display}`;
+      ctx.fillText(o.text, x, y - 5);
+      ctx.fillStyle = o.subColor; ctx.font = `10px ${o.mono}`;
+      ctx.fillText(o.sub, x, y + 17);
+      ctx.restore();
+    }
+  };
+
+  function visitsOptions(T) {
+    return {
+      maintainAspectRatio: false, animation: anim(),
+      interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { display: false }, tooltip: tooltipOpts(T) },
+      scales: {
+        x: { ticks: { color: T.text3, font: { family: T.mono, size: 10 }, maxRotation: 0, autoSkipPadding: 10 },
+             grid: { display: false }, border: { color: T.borderStrong } },
+        y: { beginAtZero: true, ticks: { color: T.text3, font: { family: T.mono, size: 10 }, precision: 0, maxTicksLimit: 5 },
+             grid: { color: T.border }, border: { display: false } }
+      }
+    };
+  }
+  function styleVisitsDataset(ds, T) {
+    ds.borderColor = T.accent;
+    ds.pointBackgroundColor = T.accent;
+    ds.pointHoverBackgroundColor = T.accent;
+    ds.backgroundColor = ctx => {
+      const area = ctx.chart.chartArea;
+      if (!area) return withAlpha(T.accent, 0.15);
+      const g = ctx.chart.ctx.createLinearGradient(0, area.top, 0, area.bottom);
+      g.addColorStop(0, withAlpha(T.accent, 0.30));
+      g.addColorStop(1, withAlpha(T.accent, 0));
+      return g;
+    };
+  }
+
+  function donutOptions(T, pct, sub) {
+    return {
+      maintainAspectRatio: false, animation: anim(), cutout: '74%',
+      plugins: {
+        legend: { position: 'bottom', labels: { color: T.text2, font: { family: T.sans, size: 12 },
+                  usePointStyle: true, pointStyle: 'circle', boxWidth: 7, boxHeight: 7, padding: 12 } },
+        tooltip: Object.assign(tooltipOpts(T), { displayColors: true, usePointStyle: true }),
+        mfCenter: { text: pct + '%', sub, color: T.text1, subColor: T.text3, display: T.display, mono: T.mono }
+      }
+    };
+  }
+  function donutColors(T, main) {
+    return [main, withAlpha(T.text3, 0.28)];
+  }
+
   function renderVisitsChart(visits) {
     const days = [];
     for (let i = 13; i >= 0; i--) {
@@ -291,27 +564,19 @@
       d.setDate(d.getDate() - i);
       days.push(d.toISOString().slice(0, 10));
     }
-    document.getElementById('visitsRangeLabel').textContent = '— последние 14 дней';
-    new Chart(document.getElementById('visitsChart'), {
+    document.getElementById('visitsRangeLabel').textContent = 'последние 14 дней';
+    const T = theme();
+    const ds = {
+      label: 'Посещения',
+      data: days.map(d => visits.days[d] || 0),
+      fill: true, tension: 0.35, borderWidth: 2,
+      pointRadius: 0, pointHoverRadius: 4, pointHitRadius: 12
+    };
+    styleVisitsDataset(ds, T);
+    charts.visits = new Chart(document.getElementById('visitsChart'), {
       type: 'line',
-      data: {
-        labels: days.map(d => d.slice(5)),
-        datasets: [{
-          label: 'Посещения',
-          data: days.map(d => visits.days[d] || 0),
-          borderColor: css('--accent'),
-          backgroundColor: 'rgba(129,140,248,0.15)',
-          fill: true, tension: 0.35, pointRadius: 2
-        }]
-      },
-      options: {
-        maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
-        scales: {
-          x: { ticks: { color: css('--text-secondary') }, grid: { display: false } },
-          y: { beginAtZero: true, ticks: { color: css('--text-secondary'), precision: 0 }, grid: { color: css('--border') } }
-        }
-      }
+      data: { labels: days.map(d => d.slice(8) + '.' + d.slice(5, 7)), datasets: [ds] },
+      options: visitsOptions(T)
     });
   }
 
@@ -319,21 +584,45 @@
     const nonFolder = topics.filter(t => t.type !== 'folder');
     const withDesc = nonFolder.filter(t => t.description && String(t.description).trim().length > 0).length;
     const withExample = nonFolder.filter(t => !!t.example).length;
-    const commonOpts = {
-      maintainAspectRatio: false,
-      plugins: { legend: { position: 'bottom', labels: { color: css('--text-secondary'), boxWidth: 12 } } }
+    const pct = n => nonFolder.length ? Math.round(n / nonFolder.length * 100) : 0;
+    const T = theme();
+    const donut = (id, labels, values, key, sub) => {
+      const ch = new Chart(document.getElementById(id), {
+        type: 'doughnut',
+        data: { labels, datasets: [{ data: values, backgroundColor: donutColors(T, T[key]), borderWidth: 0, spacing: 2, hoverOffset: 3 }] },
+        options: donutOptions(T, pct(values[0]), sub),
+        plugins: [centerLabel]
+      });
+      ch.$mfKey = key;
+      return ch;
     };
-    new Chart(document.getElementById('descChart'), {
-      type: 'doughnut',
-      data: { labels: ['С описанием', 'Без описания'], datasets: [{ data: [withDesc, nonFolder.length - withDesc], backgroundColor: [css('--accent'), 'rgba(148,163,184,0.35)'] }] },
-      options: commonOpts
-    });
-    new Chart(document.getElementById('exampleChart'), {
-      type: 'doughnut',
-      data: { labels: ['С примером', 'Без примера'], datasets: [{ data: [withExample, nonFolder.length - withExample], backgroundColor: ['#22c55e', 'rgba(148,163,184,0.35)'] }] },
-      options: commonOpts
+    charts.desc = donut('descChart', ['С описанием', 'Без описания'], [withDesc, nonFolder.length - withDesc], 'accent', 'С ОПИСАНИЕМ');
+    charts.example = donut('exampleChart', ['С примером', 'Без примера'], [withExample, nonFolder.length - withExample], 'accent2', 'С ПРИМЕРОМ');
+  }
+
+  // Смена темы (класс на <html>) и догрузка шрифтов: перекрашиваем без анимации
+  let lastThemeKey = null;
+  function restyleCharts(force) {
+    const key = document.documentElement.classList.contains('light') ? 'light' : 'dark';
+    if (!force && key === lastThemeKey) return;
+    lastThemeKey = key;
+    const T = theme();
+    if (charts.visits) {
+      styleVisitsDataset(charts.visits.data.datasets[0], T);
+      charts.visits.options = visitsOptions(T);
+      charts.visits.update('none');
+    }
+    [charts.desc, charts.example].forEach(ch => {
+      if (!ch) return;
+      const c = ch.options.plugins.mfCenter;
+      ch.data.datasets[0].backgroundColor = donutColors(T, T[ch.$mfKey]);
+      ch.options = donutOptions(T, parseInt(c.text, 10), c.sub);
+      ch.update('none');
     });
   }
+  new MutationObserver(() => restyleCharts(false))
+    .observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => restyleCharts(true));
 
   // ===== ТАБЛИЦА ТЕМ =====
   function renderTopicsTable(topics) {
@@ -353,9 +642,9 @@
       const hasDesc = t.description && String(t.description).trim();
       return `<tr>
         <td>${escapeHtml(t.title || t.id || '—')}</td>
-        <td>${isFolder ? 'Папка' : 'Тема'}</td>
-        <td>${isFolder ? '—' : `<span class="badge ${hasDesc ? 'yes' : 'no'}">${hasDesc ? 'есть' : 'нет'}</span>`}</td>
-        <td>${isFolder ? '—' : `<span class="badge ${t.example ? 'yes' : 'no'}">${t.example ? 'есть' : 'нет'}</span>`}</td>
+        <td class="muted">${isFolder ? 'Папка' : 'Тема'}</td>
+        <td${isFolder ? ' class="muted"' : ''}>${isFolder ? '—' : `<span class="badge ${hasDesc ? 'yes' : 'no'}">${hasDesc ? 'есть' : 'нет'}</span>`}</td>
+        <td${isFolder ? ' class="muted"' : ''}>${isFolder ? '—' : `<span class="badge ${t.example ? 'yes' : 'no'}">${t.example ? 'есть' : 'нет'}</span>`}</td>
       </tr>`;
     }).join('');
   }
@@ -370,7 +659,7 @@
       const isSelfSuper = isSuperEmail(u.email);
       let accessCell = u.isAdmin
         ? `<span class="badge admin">админ</span>`
-        : `<span class="badge no">нет доступа</span>`;
+        : `<span class="badge no neutral">нет доступа</span>`;
       if (isSuperAdmin && !isSelfSuper) {
         accessCell += ` <button class="btn small" data-uid="${u.uid}" data-grant="${u.isAdmin ? '0' : '1'}" style="margin-left:0.5rem;">${u.isAdmin ? 'Отозвать' : 'Выдать'}</button>`;
       }
@@ -393,9 +682,9 @@
 
       return `<tr>
         <td>${escapeHtml(u.displayName || '—')}</td>
-        <td>${escapeHtml(u.email)}</td>
-        <td>${formatDate(u.createdAt)}</td>
-        <td>${formatDate(u.lastLogin)}</td>
+        <td class="muted">${escapeHtml(u.email)}</td>
+        <td class="date">${formatDate(u.createdAt)}</td>
+        <td class="date">${formatDate(u.lastLogin)}</td>
         <td>${accessCell}</td>
         <td>${statusCell}</td>
         <td>${actionsCell}</td>

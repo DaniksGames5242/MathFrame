@@ -71,7 +71,21 @@ html.agent-page #app-footer{display:none}
 .ci-title{font-size:.88rem;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ci-title.empty{color:var(--text-tertiary);font-style:italic}
 .ci-meta{display:flex;align-items:center;gap:.4rem;font-size:.72rem;color:var(--text-tertiary)}
-.ci-dot{width:6px;height:6px;border-radius:50%;background:var(--accent);animation:mfaDot 1.1s infinite ease-in-out}
+.chat-item{position:relative;transition:background var(--t) var(--e-out),border-color var(--t) var(--e-out)}
+.chat-item::before{content:'';position:absolute;left:-1px;top:22%;bottom:22%;width:2px;border-radius:2px;
+  background:var(--accent);transform:scaleY(0);transition:transform var(--t) var(--e-out)}
+.chat-item.on::before{transform:none}
+.chat-item.mfa-on-in{animation:mfaOnIn .3s var(--e-out) backwards}
+.chat-item.mfa-on-in::before{animation:mfaBar .34s var(--e-out) backwards}
+@keyframes mfaOnIn{from{background:transparent;border-color:transparent}}
+@keyframes mfaBar{from{transform:scaleY(0)}}
+.chat-item.mfa-ci-in{animation:mfaCiIn .34s var(--e-out) backwards;animation-delay:calc(0ms - var(--mfa-age,0ms))}
+@keyframes mfaCiIn{from{opacity:0;transform:translateX(-14px)}}
+/* «отвечает…»: точка-локус с расходящимся кольцом */
+.ci-dot{position:relative;flex:0 0 auto;width:6px;height:6px;border-radius:50%;background:var(--accent-2)}
+.ci-dot::after{content:'';position:absolute;inset:-3px;border-radius:50%;border:1px solid var(--accent-2);
+  opacity:0;animation:mfaRing 1.5s var(--e-out) infinite}
+@keyframes mfaRing{0%{opacity:.9;transform:scale(.4)}100%{opacity:0;transform:scale(1.7)}}
 .ci-del{
   flex:0 0 auto;width:28px;height:28px;border:0;border-radius:var(--r-sm);cursor:pointer;
   display:inline-flex;align-items:center;justify-content:center;
@@ -148,9 +162,17 @@ html.agent-page #app-footer{display:none}
 }
 .picker li button:hover{background:var(--accent-soft);color:var(--accent)}
 .pick-empty{color:var(--text-tertiary);font-size:.85rem;padding:.4rem .6rem}
+/* открытие — CSS-анимация срабатывает сама при снятии hidden; закрытие — класс из JS */
+.picker{animation:mfaDrop .26s var(--e-out) backwards;transform-origin:50% 0}
+.picker.mfa-closing{animation:mfaDropOut .16s var(--e-inout) forwards;pointer-events:none}
+@keyframes mfaDrop{from{opacity:0;transform:translateY(-8px)}}
+@keyframes mfaDropOut{to{opacity:0;transform:translateY(-6px)}}
+.picker input,.chat-title,.compose-row textarea{transition:border-color var(--t) var(--e-out),box-shadow var(--t) var(--e-out),background var(--t)}
+.chip-topic.mfa-chip-pop{animation:mfaChipPop .36s var(--e-spring) backwards}
+@keyframes mfaChipPop{0%{opacity:0;transform:scale(.82)}60%{opacity:1}}
 
 /* лента сообщений — единственное, что прокручивается */
-.log-scroll{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;scroll-behavior:auto}
+.log-scroll{flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;scroll-behavior:auto}
 .log{padding:1rem clamp(.7rem,3vw,1.2rem) 1.2rem;display:flex;flex-direction:column;gap:1rem;max-width:860px;margin:0 auto}
 .msg{display:flex}
 .msg-user{justify-content:flex-end}
@@ -181,11 +203,42 @@ html.agent-page #app-footer{display:none}
 .mfa-math[data-display="1"]{display:block;margin:.7em 0;overflow-x:auto;overflow-y:hidden;text-align:center}
 .mfa-math .katex{font-size:1.06em}
 
-.typing{display:inline-flex;gap:5px;padding:.5rem 0}
-.typing span{width:7px;height:7px;border-radius:50%;background:var(--text-tertiary);animation:mfaDot 1.1s infinite ease-in-out}
-.typing span:nth-child(2){animation-delay:.15s}
-.typing span:nth-child(3){animation-delay:.3s}
-@keyframes mfaDot{0%,80%,100%{opacity:.3;transform:scale(.8)}40%{opacity:1;transform:scale(1)}}
+/* «Думает»: самописец. Кривая равномерно уезжает влево, перо-точка качается по вертикали
+   в той же фазе (период волны 16px = 1.2s, перо стоит в x = 44 ≡ 3/4 периода), поэтому
+   кажется, что перо само вычерчивает синусоиду. Только transform. */
+.typing{display:inline-flex;align-items:center;gap:.7rem;padding:.45rem 0;color:var(--text-tertiary);font-size:.84rem}
+.tp-plot{position:relative;flex:0 0 auto;width:48px;height:16px}
+.tp-plot::before{content:'';position:absolute;left:0;width:44px;top:8px;height:1px;background:var(--border-strong)}
+.tp-trace{position:absolute;left:0;top:0;width:44px;height:16px;overflow:hidden;
+  -webkit-mask-image:linear-gradient(90deg,transparent,#000 60%);mask-image:linear-gradient(90deg,transparent,#000 60%)}
+.tp-trace svg{display:block;width:60px;height:16px;animation:mfaTrace 1.2s linear infinite}
+.tp-trace path{fill:none;stroke:var(--accent-2);stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.tp-pen{position:absolute;left:41px;top:5px;width:6px;height:6px;border-radius:50%;
+  background:var(--accent-3);box-shadow:0 0 8px var(--accent-3);transform:translateY(4.5px);
+  animation:mfaPen .6s cubic-bezier(.37,0,.63,1) infinite alternate}
+@keyframes mfaTrace{to{transform:translateX(-16px)}}
+@keyframes mfaPen{from{transform:translateY(4.5px)}to{transform:translateY(-4.5px)}}
+.tp-label{display:inline-block}
+.tp-label.mfa-lbl{animation:mfaLbl .32s var(--e-out) backwards}
+@keyframes mfaLbl{from{opacity:0;transform:translateY(5px)}}
+
+/* поток: курсор в конце текста и проявление только что пришедших символов */
+.mfa-caret{display:inline-block;width:2px;height:1.05em;margin-left:2px;vertical-align:-.16em;border-radius:1px;
+  background:var(--accent);box-shadow:0 0 6px var(--accent-glow);animation:mfaBlink 1s steps(1) infinite}
+@keyframes mfaBlink{50%{opacity:.15}}
+.mfa-tok{animation:mfaTok .36s linear backwards}
+@keyframes mfaTok{from{opacity:0}}
+
+/* появление сообщений: вопрос — справа, ответ — снизу. --mfa-age: сколько уже прошло
+   (элемент перерисовывается — анимация продолжается, а не начинается заново) */
+.msg.mfa-in-user{animation:mfaUserIn .36s var(--e-out) backwards;animation-delay:calc(0ms - var(--mfa-age,0ms))}
+.msg.mfa-in-bot{animation:mfaRise .42s var(--e-out) backwards;animation-delay:calc(90ms - var(--mfa-age,0ms))}
+@keyframes mfaUserIn{from{opacity:0;transform:translateX(22px) scale(.98)}}
+@keyframes mfaRise{from{opacity:0;transform:translateY(10px)}}
+@keyframes mfaFade{from{opacity:0}}
+.log.mfa-swap{animation:mfaSwap .3s var(--e-out)}
+@keyframes mfaSwap{from{opacity:0;transform:translateY(6px)}}
+.mfa-fresh{animation:mfaRise .36s var(--e-out) backwards;animation-delay:calc(40ms - var(--mfa-age,0ms))}
 
 .msg-err{margin-top:.6rem;padding:.55rem .8rem;border-radius:var(--r-sm);font-size:.9rem;
   color:#f87171;background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.3)}
@@ -214,13 +267,38 @@ html.agent-page #app-footer{display:none}
   border:1px solid var(--border);background:var(--bg-sunken);color:var(--text-primary);cursor:pointer;
   transition:border-color var(--t),background var(--t),transform var(--t);
 }
-.suggest-chip:hover{border-color:var(--accent);background:var(--accent-soft)}
-.suggest-chip:active{transform:scale(.99)}
+.suggest-chip:hover{border-color:var(--accent);background:var(--accent-soft);transform:translateY(-2px);
+  box-shadow:0 10px 22px -12px var(--accent-glow)}
+.suggest-chip:active{transform:translateY(0) scale(.985);transition-duration:var(--t-fast)}
+.suggest-chip:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* эмблема пустого чата: оси → кривая → касательная → точка касания (вычерчивается один раз).
+   Задержки отсчитываются от --mfa-age: повторная отрисовка того же чата не запускает всё заново */
+.agent-emblem{display:block;width:118px;height:auto;margin:0 auto .9rem;overflow:visible}
+.agent-emblem path{fill:none;stroke-linecap:round;stroke-dasharray:1;stroke-dashoffset:0}
+.ae-axis{stroke:var(--border-strong);stroke-width:1.2}
+.ae-tick{stroke:var(--border-strong);stroke-width:1}
+.ae-curve{stroke:var(--accent-2);stroke-width:2.2}
+.ae-tan{stroke:var(--accent);stroke-width:1.4}
+.ae-pt{fill:var(--accent-3)}
+.ae-halo{fill:none;stroke:var(--accent-3);stroke-width:1;opacity:0;transform-box:fill-box;transform-origin:center}
+.agent-empty .ae-draw{animation:mfaDraw var(--dur,.9s) var(--e-out) backwards}
+.agent-empty .ae-pop{transform-box:fill-box;transform-origin:center;animation:mfaPtPop .42s var(--e-spring) backwards}
+.agent-empty .ae-halo{animation:mfaHalo 1s var(--e-out) backwards}
+.agent-empty .ae-in{animation:mfaRise .5s var(--e-out) backwards}
+.agent-empty .ae-draw,.agent-empty .ae-pop,.agent-empty .ae-halo,.agent-empty .ae-in{animation-delay:calc(var(--d,0s) - var(--mfa-age,0ms))}
+.agent-empty.mfa-static *{animation:none!important}
+@keyframes mfaDraw{from{stroke-dashoffset:1}}
+@keyframes mfaPtPop{from{opacity:0;transform:scale(0)}}
+@keyframes mfaHalo{0%{opacity:0;transform:scale(.6)}8%{opacity:.8}100%{opacity:0;transform:scale(3.2)}}
 
 /* баннеры */
 .agent-banner{flex:0 0 auto;margin:0 clamp(.7rem,3vw,1.1rem) .5rem;padding:.6rem .85rem;border-radius:var(--r-sm);font-size:.88rem}
 .agent-banner.warn{color:var(--accent-3);background:rgba(242,180,92,.1);border:1px solid rgba(242,180,92,.35)}
 .agent-banner.info{color:var(--text-secondary);background:var(--bg-sunken);border:1px solid var(--border)}
+.agent-banner,.login-bar{animation:mfaRise .38s var(--e-out) backwards}
+.agent-banner.mfa-re{animation:mfaFade .3s var(--e-out) backwards}
+.scrim{animation:mfaFade .25s var(--e-out) backwards}
 
 /* поле ввода — закреплено внизу */
 .composer{
@@ -249,6 +327,9 @@ html.agent-page #app-footer{display:none}
   transition:transform var(--t) var(--e-out),opacity var(--t);
 }
 .round:hover:not(:disabled){transform:translateY(-1px)}
+.round:active:not(:disabled){transform:scale(.9);transition-duration:var(--t-fast)}
+.round.mfa-swap-in{animation:mfaSwapIn .3s var(--e-spring) backwards}
+@keyframes mfaSwapIn{from{opacity:0;transform:scale(.55) rotate(-90deg)}}
 .round:disabled{opacity:.4;cursor:default;box-shadow:none}
 .round.stop{background:var(--bg-sunken);color:var(--text-primary);border:1px solid var(--border-strong);box-shadow:none}
 .round svg{width:20px;height:20px}
@@ -274,10 +355,17 @@ html.agent-page #app-footer{display:none}
   .fineprint{display:none}
 }
 @media (hover:none){ .ci-del{opacity:1} }
+/* меньше движения (система или переключатель «Анимации»): всё сразу в конечном виде */
 @media (prefers-reduced-motion:reduce){
-  .typing span,.ci-dot{animation:none;opacity:.7}
   .chats{transition:none}
+  .tp-trace svg,.tp-pen,.tp-label,.mfa-caret,.mfa-tok,.msg,.log,.mfa-fresh,.picker,.chip-topic,.round,
+  .chat-item,.chat-item::before,.agent-banner,.login-bar,.scrim,.agent-empty *{animation:none!important}
+  .ci-dot::after{display:none}
 }
+html.mf-no-motion :is(.tp-trace svg,.tp-pen,.tp-label,.mfa-caret,.mfa-tok,.msg,.log,.mfa-fresh,.picker,.chip-topic,.round,
+  .chat-item,.chat-item::before,.agent-banner,.login-bar,.scrim,.agent-empty *){animation:none!important}
+html.mf-no-motion .chat-item::before{animation:none!important}
+html.mf-no-motion .ci-dot::after{display:none}
 </style>
 
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
