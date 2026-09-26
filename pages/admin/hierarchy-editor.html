@@ -7708,6 +7708,12 @@ theorem (Теорема) — узел, целиком посвящённый о�
   const AI_MAX_THREADS = 8;
   const AI_MAX_THREADS_PER_KEY = 5;
   const AI_MAX_TOTAL_WORKERS = 40;
+  // How often a key that got throttled down by a 429 is offered one more
+  // thread back (see the recovery ticker in aiRunJob). Kept fairly long —
+  // this is a real provider rate limit that caused the backoff, not a
+  // glitch, so probing back up too eagerly would just walk straight back
+  // into it.
+  const AI_KEY_RECOVERY_INTERVAL_MS = 45000;
   function aiClampThreadsPerKey(n){
     n = Math.round(Number(n));
     if (!Number.isFinite(n) || n < 1) return 1;
@@ -7765,11 +7771,19 @@ theorem (Теорема) — узел, целиком посвящённый о�
       for (let s = 0; s < threadsPerKey; s++) workerSpecs.push({ k, s });
     });
     if (workerSpecs.length > AI_MAX_TOTAL_WORKERS) workerSpecs.length = AI_MAX_TOTAL_WORKERS;
-    // Mutable per-key concurrency ceiling — starts at threadsPerKey and can
-    // only shrink (never regrows mid-job), each time that key's provider
-    // answers with a 429. Not persisted: a fresh start/resume always gets the
-    // full configured thread count again, on the assumption that whatever
-    // caused the rate limiting last time may no longer apply.
+    // Mutable per-key concurrency ceiling — starts at threadsPerKey, drops by
+    // one each time that key's provider answers with a 429, and is nudged
+    // back up over time by the recovery ticker further down (a 429 is a
+    // temporary backoff signal, not a verdict that the key can never
+    // support that many threads again). Floored at 1, never 0: a key is a
+    // key, not a thread — as long as it hasn't been rejected outright (see
+    // killKeyThreads below, the only thing that actually drops it to 0),
+    // it always keeps at least one worker of its own, so N configured keys
+    // always means at least N topics generating at once, however much
+    // rate-limit backoff the individual threads-per-key setting has eaten
+    // into. Not persisted: a fresh start/resume always gets the full
+    // configured thread count again, on the assumption that whatever caused
+    // the rate limiting last time may no longer apply.
     const keyLimit = startKeys.map(() => threadsPerKey);
     const reduceKeyThreads = (k) => {
       if (keyLimit[k] <= 1) return;
@@ -8145,7 +8159,50 @@ theorem (Теорема) — узел, целиком посвящённый о�
       }
     };
 
-    await Promise.all(workerSpecs.map(spec => worker(spec)));
+    // Fire-and-forget rather than Promise.all: the recovery ticker below
+    // needs to be able to start *additional* workers after this point (for
+    // a key a 429 had backed off), and Promise.all only ever waits on the
+    // fixed array it was given at the start. Each worker still tracks its
+    // own membership via activeWorkers, so waitForIdle below sees it either
+    // way; a worker that throws unexpectedly is logged instead of taking
+    // the whole run down with it (the old Promise.all would have rejected
+    // outright on that, skipping every finalization branch below).
+    const spawnWorker = (spec) => {
+      worker(spec).catch(e => aiLog('⚠ поток [' + (spec.k + 1) + '.' + (spec.s + 1) + '] упал с необработанной ошибкой:', (e && e.message) || e));
+    };
+    workerSpecs.forEach(spawnWorker);
+
+    // Recovery ticker: periodically offers each throttled-but-still-live key
+    // one more thread back, up to its configured threadsPerKey — a slow,
+    // steady climb back rather than snapping straight back to full speed,
+    // so it doesn't just walk straight back into the same rate limit. Any
+    // key still over its (lower) limit gets backed off again immediately by
+    // reduceKeyThreads the next time it 429s, same as before — this only
+    // ever probes upward, never forces it.
+    const anyKeyRecoverable = () => startKeys.some((_, k) => keyLimit[k] > 0 && keyLimit[k] < threadsPerKey);
+    const recoveryTimer = (threadsPerKey > 1) ? setInterval(() => {
+      if (aiAbort || stopRequested) return;
+      startKeys.forEach((_, k) => {
+        if (keyLimit[k] > 0 && keyLimit[k] < threadsPerKey){
+          const slot = keyLimit[k];
+          keyLimit[k]++;
+          aiLog('✓ ключ №' + (k + 1) + ': пробуем вернуть поток — теперь ' + keyLimit[k] + ' из ' + threadsPerKey);
+          renderAiPanelSoon();
+          spawnWorker({ k, s: slot });
+        }
+      });
+    }, AI_KEY_RECOVERY_INTERVAL_MS) : null;
+
+    // Waits for every worker (initial and any the ticker above adds later)
+    // to actually stop, not just the initial batch — keeps waiting past
+    // activeWorkers briefly hitting 0 as long as recovery could still bring
+    // a throttled key back and there's still queue left for it to help
+    // with, so the run can't finalize (commit/pause/done) while a recovery
+    // pass is about to add a worker back.
+    while (activeWorkers > 0 || (!aiAbort && !stopRequested && (scan < job.queue.length || requeue.length > 0) && anyKeyRecoverable())){
+      await sleep(300);
+    }
+    if (recoveryTimer) clearInterval(recoveryTimer);
     aiAdvanceCursor(job);
 
     if (aiWantCancel){
