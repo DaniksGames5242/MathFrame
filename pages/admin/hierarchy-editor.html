@@ -5651,7 +5651,7 @@
   }
 
   function loadAiSettings(){
-    const empty = () => { const s = {}; Object.keys(AI_PROVIDERS).forEach(id => { s[id] = { apiKey:'', model:'' }; }); return s; };
+    const empty = () => { const s = {}; Object.keys(AI_PROVIDERS).forEach(id => { s[id] = { apiKey:'', model:'', threadsPerKey: 1 }; }); return s; };
     try {
       const raw = localStorage.getItem(AI_SETTINGS_KEY);
       const p = raw ? JSON.parse(raw) : null;
@@ -5661,6 +5661,7 @@
         if (src){
           if (typeof src.apiKey === 'string') byProvider[id].apiKey = src.apiKey;
           if (typeof src.model === 'string') byProvider[id].model = src.model;
+          if (Number.isFinite(src.threadsPerKey)) byProvider[id].threadsPerKey = aiClampThreadsPerKey(src.threadsPerKey);
         }
       });
       // Migrate the old single-provider {apiKey, model} shape (always meant
@@ -5672,9 +5673,10 @@
       return { provider, section, byProvider };
     } catch (e){ return { provider: 'gemini', section: '', byProvider: empty() }; }
   }
-  // patch: { provider?, section?, apiKey?, model? } — apiKey/model apply to
-  // `provider` (or the currently active provider if omitted), everything else
-  // in storage (other providers' saved keys, etc.) is preserved untouched.
+  // patch: { provider?, section?, apiKey?, model?, threadsPerKey? } — apiKey/
+  // model/threadsPerKey apply to `provider` (or the currently active provider
+  // if omitted), everything else in storage (other providers' saved keys,
+  // etc.) is preserved untouched.
   function saveAiSettings(patch){
     const s = loadAiSettings();
     if (patch.provider && AI_PROVIDERS[patch.provider]) s.provider = patch.provider;
@@ -5682,6 +5684,7 @@
     const pid = (patch.provider && AI_PROVIDERS[patch.provider]) ? patch.provider : s.provider;
     if (typeof patch.apiKey === 'string') s.byProvider[pid].apiKey = patch.apiKey;
     if (typeof patch.model === 'string') s.byProvider[pid].model = patch.model;
+    if (Number.isFinite(patch.threadsPerKey)) s.byProvider[pid].threadsPerKey = aiClampThreadsPerKey(patch.threadsPerKey);
     try { localStorage.setItem(AI_SETTINGS_KEY, JSON.stringify(s)); } catch (e){ /* quota / private mode */ }
     aiSyncPush({ settings: s });
   }
@@ -5694,8 +5697,19 @@
   function saveAiKeyForProvider(providerId, apiKey){
     if (!AI_PROVIDERS[providerId]) return;
     const s = loadAiSettings();
-    if (!s.byProvider[providerId]) s.byProvider[providerId] = { apiKey: '', model: '' };
+    if (!s.byProvider[providerId]) s.byProvider[providerId] = { apiKey: '', model: '', threadsPerKey: 1 };
     s.byProvider[providerId].apiKey = apiKey;
+    try { localStorage.setItem(AI_SETTINGS_KEY, JSON.stringify(s)); } catch (e){ /* quota / private mode */ }
+    aiSyncPush({ settings: s });
+  }
+  // Same reasoning as saveAiKeyForProvider above — the running-job view edits
+  // whichever provider that job used, which can differ from the setup
+  // dropdown's current selection; this must not switch it.
+  function saveAiThreadsPerKeyForProvider(providerId, threadsPerKey){
+    if (!AI_PROVIDERS[providerId]) return;
+    const s = loadAiSettings();
+    if (!s.byProvider[providerId]) s.byProvider[providerId] = { apiKey: '', model: '', threadsPerKey: 1 };
+    s.byProvider[providerId].threadsPerKey = aiClampThreadsPerKey(threadsPerKey);
     try { localStorage.setItem(AI_SETTINGS_KEY, JSON.stringify(s)); } catch (e){ /* quota / private mode */ }
     aiSyncPush({ settings: s });
   }
@@ -6305,6 +6319,13 @@
         lastErr = e;
         if (e.status === 429){
           rateLimitAttempt++;
+          // Tell the job runner right away, not just on final failure — with
+          // several threads hammering the same key at once, backing off the
+          // one request that got 429'd is not enough by itself, since the
+          // other threads on that key keep firing at the old rate. Shedding
+          // a thread for this key (down to a floor of 1) is what actually
+          // relieves the pressure that caused the 429 in the first place.
+          if (ctx && typeof ctx.onRateLimited === 'function') ctx.onRateLimited();
           // Prefer the provider's own Retry-After over a guess — a limit
           // that resets per minute (or per day) needs a very different wait
           // than a per-second one, and exponential backoff alone can't tell
@@ -7346,6 +7367,22 @@ theorem (Теорема) — узел, целиком посвящённый о�
   // separate from aiExpandedRows, which only expands the per-topic log.
   const aiExpandedSnapshots = new Set();
 
+  // render() walks/re-measures the whole tree (computeVisibleRows, windowing)
+  // — cheap once, but the AI job calls it on every single finished topic, and
+  // with several threads now finishing topics close together that adds up to
+  // real jank on a big hierarchy. Throttled the same way renderAiPanelSoon
+  // is: at most one real render per AI_TREE_RENDER_MIN_MS, trailing edge so
+  // the final state always lands.
+  const AI_TREE_RENDER_MIN_MS = 250;
+  let aiTreeRenderAt = 0;
+  let aiTreeRenderTimer = null;
+  function scheduleTreeRenderSoon(){
+    if (aiTreeRenderTimer) return;
+    const wait = AI_TREE_RENDER_MIN_MS - (performance.now() - aiTreeRenderAt);
+    if (wait <= 0){ aiTreeRenderAt = performance.now(); render(); return; }
+    aiTreeRenderTimer = setTimeout(() => { aiTreeRenderTimer = null; aiTreeRenderAt = performance.now(); render(); }, wait);
+  }
+
   function aiJobProgress(job){
     const total = job.queue.length;
     // 'running' isn't finished — with several workers, more than one topic can be in flight at once.
@@ -7493,10 +7530,19 @@ theorem (Теорема) — узел, целиком посвящённый о�
 
   /* ---------------- multi-key parallelism ----------------
      The key field may hold several API keys (separated by newlines, spaces,
-     commas or semicolons). aiRunJob starts one worker per key; each worker
-     only ever uses its own key, so every key's rate limit is respected on
-     its own and N keys give roughly N× throughput. */
+     commas or semicolons). Each key gets its own bank of workers — the
+     "потоков на ключ" setting — so N keys × M threads-per-key give roughly
+     N×M throughput, every worker of a given key sharing that one key's own
+     rate limit. Capped overall by AI_MAX_TOTAL_WORKERS so a careless huge
+     number can't spawn hundreds of concurrent requests. */
   const AI_MAX_THREADS = 8;
+  const AI_MAX_THREADS_PER_KEY = 5;
+  const AI_MAX_TOTAL_WORKERS = 40;
+  function aiClampThreadsPerKey(n){
+    n = Math.round(Number(n));
+    if (!Number.isFinite(n) || n < 1) return 1;
+    return Math.min(n, AI_MAX_THREADS_PER_KEY);
+  }
   function aiParseKeys(s){
     return [...new Set(String(s || '').split(/[\s,;]+/).map(k => k.trim()).filter(Boolean))];
   }
@@ -7536,6 +7582,39 @@ theorem (Теорема) — узел, целиком посвящённый о�
       renderAiPanel();
       return;
     }
+    // threadsPerKey is fixed for the whole job at the value configured when it
+    // was started/resumed (same rule as the key count itself) — changing the
+    // setting mid-run only takes effect the next time the job is (re)started.
+    // Each key gets its own bank of `threadsPerKey` workers, all sharing that
+    // one key and so that one key's rate limit; the pool is flattened and
+    // capped so a careless setting can't spawn more than AI_MAX_TOTAL_WORKERS
+    // requests at once.
+    const threadsPerKey = aiClampThreadsPerKey(providerSettings.threadsPerKey);
+    const workerSpecs = [];
+    startKeys.forEach((_, k) => {
+      for (let s = 0; s < threadsPerKey; s++) workerSpecs.push({ k, s });
+    });
+    if (workerSpecs.length > AI_MAX_TOTAL_WORKERS) workerSpecs.length = AI_MAX_TOTAL_WORKERS;
+    // Mutable per-key concurrency ceiling — starts at threadsPerKey and can
+    // only shrink (never regrows mid-job), each time that key's provider
+    // answers with a 429. Not persisted: a fresh start/resume always gets the
+    // full configured thread count again, on the assumption that whatever
+    // caused the rate limiting last time may no longer apply.
+    const keyLimit = startKeys.map(() => threadsPerKey);
+    const reduceKeyThreads = (k) => {
+      if (keyLimit[k] <= 1) return;
+      keyLimit[k]--;
+      aiLog('⚠ ключ №' + (k + 1) + ': слишком частые запросы — потоков для этого ключа теперь ' + keyLimit[k] + ' из ' + threadsPerKey);
+      setStatus('Ключ №' + (k + 1) + ': слишком частые запросы — количество потоков для него уменьшено до ' + keyLimit[k] + '.');
+      renderAiPanelSoon();
+    };
+    // A key the provider rejects outright is retried by no one — every
+    // worker sharing it (not just the one that discovered this) retires.
+    const killKeyThreads = (k) => {
+      if (keyLimit[k] === 0) return;
+      keyLimit[k] = 0;
+      renderAiPanelSoon();
+    };
     // Cross-device: refuse to start a second, independent run of the same
     // job while another device already holds a fresh lease on it — this is
     // the only thing standing between two open tabs/devices double-
@@ -7555,8 +7634,9 @@ theorem (Теорема) — узел, целиком посвящённый о�
     const baseCtx = { provider, model: job.settings.model, section: job.settings.section };
     const mode = job.settings.mode || 'generate';
     const MODE_LABELS = { generate: 'генерация', normalize: 'нормализация формул', clarify: 'выправление формулировок', types: 'определение типов тем' };
-    const threads = startKeys.length;
-    job.settings.threads = threads;   // read back by the ETA and the job view
+    const threads = workerSpecs.length;
+    job.settings.threads = threads;         // read back by the ETA and the job view
+    job.settings.threadsPerKey = threadsPerKey;
     aiRunning = true; aiAbort = false; aiWantCancel = false; aiStopping = false;
     job.status = 'running';
     job.stopReason = null; job.stopMessage = null;
@@ -7568,7 +7648,7 @@ theorem (Теорема) — узел, целиком посвящённый о�
     const backfilled = aiSyncStatsFromJob(job);
     if (backfilled) aiLog('В статистику времени добавлено ранее завершённых тем:', backfilled);
     renderAiPanel();
-    aiLog('=== Задание запущено (' + (MODE_LABELS[mode] || mode) + '): тем в очереди —', job.queue.length, ', потоков (ключей) —', threads, ', провайдер —', provider, ', модель —', job.settings.model, '===');
+    aiLog('=== Задание запущено (' + (MODE_LABELS[mode] || mode) + '): тем в очереди —', job.queue.length, ', ключей —', startKeys.length, ', потоков на ключ —', threadsPerKey, ', всего потоков —', threads, ', провайдер —', provider, ', модель —', job.settings.model, '===');
 
     // Defensive: retry the earliest still-'error' topic first if one exists
     // before the cursor (normal operation already leaves the cursor sitting
@@ -7589,17 +7669,22 @@ theorem (Теорема) — узел, целиком посвящённый о�
     // one — with hundreds of already-described topics in a row that was
     // hundreds of full saves/repaints back to back, with no chance for the
     // browser to breathe, and the page froze (and froze again after every
-    // reload, since the cursor resumed right at the same stretch). Skips are
-    // now persisted at most every ~40ms and hand the thread back each time.
-    // Every exit from the workers below saves the job anyway, so nothing
-    // pending here can be lost.
-    let lastSkipFlush = performance.now();
-    const noteSkip = async () => {
-      if (performance.now() - lastSkipFlush < 40) return;
+    // reload, since the cursor resumed right at the same stretch). Persisted
+    // at most every ~40ms and hands the thread back each time. Also used for
+    // completed ('done') topics, not just skips: with several threads per
+    // key now finishing topics close together, that same full JSON-stringify-
+    // to-localStorage cost on every single completion is exactly what made
+    // generation feel laggy even on fast machines as thread counts grew.
+    // Every exit from the workers below saves the job anyway (see the error/
+    // requeue/exhausted branches, which stay immediate), so nothing pending
+    // here can be lost for longer than this window.
+    let lastPersistFlush = performance.now();
+    const notePersist = async () => {
+      if (performance.now() - lastPersistFlush < 40) return;
       if (!aiWantCancel) saveAiJob(job);   // never resurrect a job that was just discarded
       renderAiPanelSoon();
       await sleep(0);
-      lastSkipFlush = performance.now();
+      lastPersistFlush = performance.now();
     };
 
     // Shared state of the worker pool. All of it is touched only between
@@ -7650,17 +7735,22 @@ theorem (Теорема) — узел, целиком посвящённый о�
       return ok;
     };
 
-    const worker = async (w) => {
+    const worker = async (spec) => {
+      const k = spec.k, s = spec.s;
       activeWorkers++;
       try {
         while (true){
+          // This slot was shed for its key (429 backoff, or the key died
+          // outright) — retire for the rest of the job rather than keep
+          // hammering a key the pool has already decided to go easier on.
+          if (s >= keyLimit[k]) break;
           const qi = claimNext();
           if (qi < 0) break;
           const tid = job.queue[qi];
           const node = findNodeByTopicId(tid);
           if (!node){
             job.results[tid] = { status: 'skipped', error: 'тема удалена из дерева' };
-            aiAdvanceCursor(job); await noteSkip();
+            aiAdvanceCursor(job); await notePersist();
             continue;
           }
           const existing = job.results[tid];
@@ -7675,7 +7765,7 @@ theorem (Теорема) — узел, целиком посвящённый о�
               // only make sense on a topic that already has something written.
               if (!(node.description || '').trim()){
                 job.results[tid] = { status: 'skipped' };
-                aiAdvanceCursor(job); await noteSkip();
+                aiAdvanceCursor(job); await notePersist();
                 continue;
               }
             } else if (mode === 'generate'){
@@ -7684,7 +7774,7 @@ theorem (Теорема) — узел, целиком посвящённый о�
               const already = (node.description || '').trim().length >= 20;
               if (already && !job.settings.replace){
                 job.results[tid] = { status: 'skipped' };
-                aiAdvanceCursor(job); await noteSkip();
+                aiAdvanceCursor(job); await notePersist();
                 continue;
               }
             }
@@ -7711,7 +7801,7 @@ theorem (Теорема) — узел, целиком посвящённый о�
 
           const topicT0 = performance.now();
           aiDetailLogs.set(tid, []);
-          const tag = threads > 1 ? ('[' + (w + 1) + '] ') : '';
+          const tag = threads > 1 ? ('[' + (k + 1) + (threadsPerKey > 1 ? ('.' + (s + 1)) : '') + '] ') : '';
           aiLog(tag + '--- «' + node.name + '» (' + tid + ', тип: ' + node.type + ') — старт ---');
           const onStep = (msg, snapshot) => {
             const list = aiDetailLogs.get(tid) || [];
@@ -7747,9 +7837,12 @@ theorem (Теорема) — узел, целиком посвящённый о�
             // job: editing them in the panel while generation is running (say,
             // after a VPN toggle broke the old one) must take effect on the very
             // next request without having to stop and restart the whole job.
-            // Worker w keeps to the w-th key.
+            // Every worker of slot s keeps to the k-th key.
             const liveKeys = aiParseKeys((loadAiSettings().byProvider[provider] || {}).apiKey);
-            const attemptCtx = Object.assign({}, baseCtx, { apiKey: liveKeys[w] || startKeys[w], section: topicSection });
+            const attemptCtx = Object.assign({}, baseCtx, {
+              apiKey: liveKeys[k] || startKeys[k], section: topicSection,
+              onRateLimited: () => reduceKeyThreads(k)
+            });
             try {
               html = mode === 'normalize' ? await aiNormalizeOne(attemptCtx, node, onStep, onLive)
                 : mode === 'clarify' ? await aiClarifyOne(attemptCtx, node, onStep, onLive)
@@ -7787,13 +7880,12 @@ theorem (Теорема) — узел, целиком посвящённый о�
               job.results[tid] = { status: 'done', description: html, durationMs, attempts };
             }
             scheduleAutosave();
-            render();
+            scheduleTreeRenderSoon();
             job.doneSinceCommit++;
             aiLog(tag + '--- «' + node.name + '» готово за ' + (durationMs / 1000).toFixed(1) + ' с' + (attempts > 1 ? (' (попыток: ' + attempts + ')') : '') + ' ---');
             aiAdvanceCursor(job);
-            saveAiJob(job);
             aiSyncStatsFromJob(job);
-            renderAiPanelSoon();
+            await notePersist();
             if (!committing && job.doneSinceCommit >= commitEvery){
               committing = true;
               try {
@@ -7812,20 +7904,41 @@ theorem (Теорема) — узел, целиком посвящённый о�
             // can't be misreported as a clean skip.
             job.results[tid] = { status: 'skipped', attempts };
             aiAdvanceCursor(job);
-            saveAiJob(job);
             aiSyncStatsFromJob(job);
-            renderAiPanelSoon();
-          } else if (aiIsKeyError(lastErr) && activeWorkers > 1){
-            // Dead key: hand the topic to the remaining workers and retire
-            // this one. (activeWorkers > 1 guarantees one of them is still
-            // running and will see the requeued index before it exits.)
-            aiLog(tag + '⚠ ключ №' + (w + 1) + ' отклонён провайдером (' + errMsg + ') — поток остановлен, тема «' + node.name + '» уйдёт другому потоку');
-            setStatus('Ключ №' + (w + 1) + ' не принят провайдером — этот поток остановлен, остальные продолжают работу.');
+            await notePersist();
+          } else if (aiIsKeyError(lastErr) && startKeys.some((_, ki) => ki !== k && keyLimit[ki] > 0)){
+            // Dead key: hand the topic to a genuinely different, still-live
+            // key and retire every thread sharing this one. Checking for
+            // another *key* (not just activeWorkers > 1) matters now that a
+            // key can have several threads of its own — every one of this
+            // key's siblings is about to retire too, so an activeWorkers
+            // count that only happened to include them would be no guarantee
+            // anyone is left to pick the topic back up.
+            aiLog(tag + '⚠ ключ №' + (k + 1) + ' отклонён провайдером (' + errMsg + ') — потоки этого ключа остановлены, тема «' + node.name + '» уйдёт другому потоку');
+            setStatus('Ключ №' + (k + 1) + ' не принят провайдером — потоки этого ключа остановлены, остальные продолжают работу.');
+            killKeyThreads(k);
             delete job.results[tid];
             requeue.push(qi);
             saveAiJob(job);
             renderAiPanelSoon();
             break;
+          } else if (lastErr && lastErr.status === 429 && activeWorkers > 1){
+            // Still rate-limited after aiCompleteRetry's own retry budget —
+            // shed one slot for this key (on top of whatever onRateLimited
+            // already shed during those retries) and hand the topic to
+            // whichever threads/keys are still going, rather than stopping
+            // the whole job over one key's limit. Only the slot(s) actually
+            // over the new, lower limit retire — the rest of this key's
+            // threads keep working.
+            reduceKeyThreads(k);
+            aiLog(tag + '⚠ ключ №' + (k + 1) + ': лимит запросов не снят за ' + attempts + ' попыток(и) — тема «' + node.name + '» уйдёт другому потоку');
+            setStatus('Ключ №' + (k + 1) + ': многократный лимит запросов — количество потоков для него уменьшено.');
+            delete job.results[tid];
+            requeue.push(qi);
+            saveAiJob(job);
+            renderAiPanelSoon();
+            if (s >= keyLimit[k]) break;
+            continue;
           } else {
             errMsg = errMsg || 'исчерпан лимит попыток (' + MAX_TOPIC_ATTEMPTS + ')';
             job.results[tid] = { status: 'error', error: errMsg, durationMs, attempts };
@@ -7846,7 +7959,7 @@ theorem (Теорема) — узел, целиком посвящённый о�
       }
     };
 
-    await Promise.all(startKeys.map((_, w) => worker(w)));
+    await Promise.all(workerSpecs.map(spec => worker(spec)));
     aiAdvanceCursor(job);
 
     if (aiWantCancel){
@@ -8267,20 +8380,49 @@ theorem (Теорема) — узел, целиком посвящённый о�
     body.appendChild(keyRow);
 
     const keyCount = document.createElement('div'); keyCount.className = 'ai-hint';
+
+    // Threads per key: each key gets its own bank of this many workers, all
+    // sharing that one key (and so its rate limit) — with N keys that's N×
+    // this number running at once, not just N. Kept modest by default (1)
+    // since a free-tier key can 429 fast once more than one request a
+    // second hits it; raising it is a deliberate trade against that risk.
+    const threadsRow = document.createElement('div'); threadsRow.className = 'ai-row ai-threads-row';
+    const threadsLabel = document.createElement('label');
+    threadsLabel.textContent = 'Потоков на ключ:';
+    threadsLabel.style.marginRight = '8px';
+    const threadsInput = document.createElement('input');
+    threadsInput.type = 'number'; threadsInput.min = '1'; threadsInput.max = String(AI_MAX_THREADS_PER_KEY);
+    threadsInput.step = '1'; threadsInput.className = 'ai-input ai-threads-input';
+    threadsInput.style.width = '70px'; threadsInput.style.display = 'inline-block';
+    threadsInput.value = String(aiClampThreadsPerKey(settings.threadsPerKey));
+    threadsLabel.appendChild(threadsInput);
+    threadsRow.appendChild(threadsLabel);
+    body.appendChild(threadsRow);
+
     const paintKeyCount = () => {
       const n = aiParseKeys(keyInput.value).length;
-      keyCount.textContent = n > 1
-        ? ('Ключей: ' + n + ' — генерация пойдёт в ' + Math.min(n, AI_MAX_THREADS) + ' параллельных потока(ов), по одному на ключ' +
-           (n > AI_MAX_THREADS ? (' (больше ' + AI_MAX_THREADS + ' не используется)') : '') +
+      const perKey = aiClampThreadsPerKey(threadsInput.value);
+      const total = Math.min(n * perKey, AI_MAX_TOTAL_WORKERS);
+      keyCount.textContent = n > 1 || perKey > 1
+        ? ('Ключей: ' + n + ' × потоков на ключ: ' + perKey + ' = всего одновременных потоков: ' + total +
+           (n * perKey > AI_MAX_TOTAL_WORKERS ? (' (больше ' + AI_MAX_TOTAL_WORKERS + ' в сумме не используется)') : '') +
            '. Проверка моделей ниже использует первый ключ.')
-        : 'Можно указать несколько ключей (каждый с новой строки) — тогда темы будут обрабатываться параллельно, по одному потоку на ключ.';
+        : 'Можно указать несколько ключей (каждый с новой строки) и/или увеличить число потоков на ключ выше — тогда темы будут обрабатываться параллельно.';
     };
     paintKeyCount();
     keyInput.addEventListener('input', () => {
       saveAiSettings({ provider, apiKey: keyInput.value, model: modelSelect.value });
       paintKeyCount();
     });
+    threadsInput.addEventListener('input', () => {
+      saveAiSettings({ provider, threadsPerKey: aiClampThreadsPerKey(threadsInput.value) });
+      paintKeyCount();
+    });
+    threadsInput.addEventListener('blur', () => { threadsInput.value = String(aiClampThreadsPerKey(threadsInput.value)); });
     body.appendChild(keyCount);
+    const threadsHint = document.createElement('div'); threadsHint.className = 'ai-hint';
+    threadsHint.textContent = 'Если провайдер начнёт отвечать «слишком много запросов» (429), количество потоков для конкретного ключа автоматически уменьшится на 1, а незавершённая тема уйдёт другому потоку — вручную снижать это число обычно не нужно.';
+    body.appendChild(threadsHint);
 
     const hint = document.createElement('div'); hint.className = 'ai-hint';
     hint.textContent = providerCfg.keyHint;
@@ -8552,7 +8694,8 @@ theorem (Теорема) — узел, целиком посвящённый о�
       if (!aiParseKeys(keyInput.value).length || !modelSelect.value){ setStatus('Укажите API-ключ и выберите модель.'); return; }
       const queue = buildAiQueue(roots, types);
       if (!queue.length){ setStatus('Среди выбранного нет тем подходящего типа.'); return; }
-      saveAiSettings({ provider, apiKey: keyInput.value, model: modelSelect.value });
+      const threadsPerKeyAtStart = aiClampThreadsPerKey(threadsInput.value);
+      saveAiSettings({ provider, apiKey: keyInput.value, model: modelSelect.value, threadsPerKey: threadsPerKeyAtStart });
       // Computed once here rather than on every render of the job view: the
       // queue can run into the thousands, and each lookup walks the tree —
       // fine once at job creation, wasteful several times a second while
@@ -8565,6 +8708,7 @@ theorem (Теорема) — узел, целиком посвящённый о�
         createdAt: new Date().toISOString(),
         settings: {
           provider, mode, section: sectionSelect.value, types: [...types], replace: replaceChk.checked, links: linksChk.checked, model: modelSelect.value,
+          threadsPerKey: threadsPerKeyAtStart,
           detectedSections: detectedSectionsAtStart
         },
         queue, cursor: 0, backup: {}, results: {},
@@ -8636,6 +8780,8 @@ theorem (Теорема) — узел, целиком посвящённый о�
     const keyFocusState = (prevKeyInput && document.activeElement === prevKeyInput)
       ? { start: prevKeyInput.selectionStart, end: prevKeyInput.selectionEnd }
       : null;
+    const prevThreadsInput = document.getElementById('aiJobThreadsInput');
+    const threadsWasFocused = !!(prevThreadsInput && document.activeElement === prevThreadsInput);
     body.innerHTML = ''; foot.innerHTML = '';
 
     // Which prompts this job is running under — fixed when it started, so
@@ -8648,7 +8794,8 @@ theorem (Теорема) — узел, целиком посвящённый о�
       : aiSection(job.settings.section).label;
     modeNote.textContent = (AI_MODE_LABELS[job.settings.mode || 'generate'] || 'Генерация') +
       ' · раздел' + (Array.isArray(detected) && detected.length > 1 ? 'ы' : '') + ' «' + sectionsLabel + '»' +
-      (job.settings.threads > 1 ? (' · потоков: ' + job.settings.threads) : '');
+      (job.settings.threads > 1 ? (' · потоков: ' + job.settings.threads +
+        (job.settings.threadsPerKey > 1 ? (' (по ' + job.settings.threadsPerKey + ' на ключ)') : '')) : '');
     body.appendChild(modeNote);
 
     // Why the job is sitting on a pause right now — a manual Пауза needs no
@@ -8681,6 +8828,24 @@ theorem (Теорема) — узел, целиком посвящённый о�
       keyInputLive.addEventListener('input', () => saveAiKeyForProvider(job.settings.provider, keyInputLive.value));
       keyRow.appendChild(keyInputLive);
       body.appendChild(keyRow);
+
+      const threadsRowLive = document.createElement('div'); threadsRowLive.className = 'ai-row ai-threads-row';
+      const threadsLabelLive = document.createElement('label');
+      threadsLabelLive.textContent = 'Потоков на ключ (при следующем продолжении):';
+      threadsLabelLive.style.marginRight = '8px';
+      const threadsInputLive = document.createElement('input');
+      threadsInputLive.id = 'aiJobThreadsInput';
+      threadsInputLive.type = 'number'; threadsInputLive.min = '1'; threadsInputLive.max = String(AI_MAX_THREADS_PER_KEY);
+      threadsInputLive.step = '1'; threadsInputLive.className = 'ai-input ai-threads-input';
+      threadsInputLive.style.width = '70px'; threadsInputLive.style.display = 'inline-block';
+      threadsInputLive.value = String(aiClampThreadsPerKey((loadAiSettings().byProvider[job.settings.provider] || {}).threadsPerKey));
+      threadsInputLive.addEventListener('input', () => saveAiThreadsPerKeyForProvider(job.settings.provider, threadsInputLive.value));
+      threadsInputLive.addEventListener('blur', () => { threadsInputLive.value = String(aiClampThreadsPerKey(threadsInputLive.value)); });
+      threadsLabelLive.appendChild(threadsInputLive);
+      threadsRowLive.appendChild(threadsLabelLive);
+      body.appendChild(threadsRowLive);
+
+      if (threadsWasFocused) threadsInputLive.focus();
       if (keyFocusState){
         keyInputLive.focus();
         try { keyInputLive.setSelectionRange(keyFocusState.start, keyFocusState.end); } catch (e){}
