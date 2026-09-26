@@ -4,6 +4,7 @@
 //
 // The GitHub token never leaves this server-side function.
 
+const zlib = require('zlib');
 const { OWNER, REPO, BRANCH, ghHeaders, requireToken } = require('./_github');
 
 const CONFIG_PATH = 'data/topics/config.json';
@@ -42,7 +43,19 @@ module.exports = async (req, res) => {
         res.status(502).json({ error: `config.json в репозитории повреждён (не валидный JSON): ${e.message}` });
         return;
       }
-      res.status(200).json({ content: parsed });
+      // config.json now sits right at (and, growing, will keep passing)
+      // Vercel Serverless Functions' ~4.5 MB response-payload limit — plain
+      // res.json() here started coming back as a flat HTTP 413 with no
+      // response body at all, breaking every load of the editor. Gzip
+      // shrinks this kind of repetitive JSON/text a lot (routinely 70-80%),
+      // buying real headroom before the file needs splitting up for real.
+      // fetch() in every modern browser decodes Content-Encoding: gzip
+      // transparently, so nothing on the client needs to change for this.
+      const payload = Buffer.from(JSON.stringify({ content: parsed }), 'utf-8');
+      const gzipped = zlib.gzipSync(payload);
+      res.setHeader('Content-Type', 'application/json; charset=utf-8');
+      res.setHeader('Content-Encoding', 'gzip');
+      res.status(200).send(gzipped);
     } catch (e) {
       res.status(500).json({ error: e.message });
     }
