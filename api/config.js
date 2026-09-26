@@ -52,11 +52,6 @@ module.exports = async (req, res) => {
   if (req.method === 'POST') {
     try {
       const body = typeof req.body === 'object' && req.body ? req.body : JSON.parse(req.body || '{}');
-      const topics = body.content;
-      if (!Array.isArray(topics)) {
-        res.status(400).json({ error: 'Ожидался { content: [...] } — плоский массив тем.' });
-        return;
-      }
 
       // Re-fetch the current sha right before writing, so a save from another
       // tab/device in between doesn't get silently overwritten.
@@ -68,6 +63,76 @@ module.exports = async (req, res) => {
         const details = await shaRes.text();
         res.status(shaRes.status).json({ error: `GitHub API вернул ${shaRes.status} при проверке текущей версии файла`, details });
         return;
+      }
+
+      let topics;
+      if (body.patch && typeof body.patch === 'object') {
+        // Partial update, used by the AI auto-generation job's periodic
+        // auto-commit: config.json is several MB by now, and a full replace
+        // on every auto-commit sends that whole file as the *request body*
+        // from the browser — which runs into Vercel's ~4.5 MB payload limit
+        // on the way in, well before GitHub's own (much larger) limit on the
+        // way out. Sending just the handful of topics a generation batch
+        // actually touched (id + the changed field(s), typically
+        // description or type) keeps the incoming request tiny regardless
+        // of how big the file has grown; the merge onto the full array
+        // happens here, server-side, where there's no such limit.
+        const upsert = Array.isArray(body.patch.upsert) ? body.patch.upsert : [];
+        const removeIds = Array.isArray(body.patch.removeIds)
+          ? body.patch.removeIds.filter(id => typeof id === 'string') : [];
+        if (!upsert.length && !removeIds.length) {
+          res.status(400).json({ error: 'Пустой patch — нечего сохранять.' });
+          return;
+        }
+        // Only the raw media type carries the actual bytes for a file this
+        // size (see the GET handler above) — the metadata fetch just above
+        // this block only ever gave us `sha`.
+        const contentRes = await fetch(`${CONTENTS_URL}?ref=${BRANCH}`, {
+          headers: { ...ghHeaders(), Accept: 'application/vnd.github.raw' },
+        });
+        if (!contentRes.ok) {
+          const details = await contentRes.text();
+          res.status(contentRes.status).json({ error: `GitHub API вернул ${contentRes.status} при чтении текущего config.json для патча`, details });
+          return;
+        }
+        const raw = await contentRes.text();
+        let current;
+        try {
+          current = JSON.parse(raw);
+        } catch (e) {
+          res.status(502).json({ error: `Текущий config.json в репозитории повреждён (не валидный JSON): ${e.message}` });
+          return;
+        }
+        if (!Array.isArray(current)) {
+          res.status(502).json({ error: 'Текущий config.json в репозитории не является массивом тем.' });
+          return;
+        }
+        const indexById = new Map(current.map((t, i) => [t && t.id, i]));
+        const missing = [];
+        upsert.forEach(item => {
+          if (!item || typeof item.id !== 'string') return;
+          const idx = indexById.get(item.id);
+          if (idx === undefined) { missing.push(item.id); return; }
+          // Shallow merge onto the existing entry — only whatever fields the
+          // client actually sent (description/type, usually) are touched;
+          // title, parent, class, difficulty etc. stay exactly as they were.
+          current[idx] = Object.assign({}, current[idx], item);
+        });
+        if (missing.length) {
+          // Not fatal for the rest of the batch, but worth knowing about —
+          // it means a topic the job generated for no longer exists under
+          // that id (renamed/deleted after the job started).
+          console.warn('config.json patch: id не найден в текущем файле:', missing.join(', '));
+        }
+        topics = removeIds.length
+          ? current.filter(t => !(t && removeIds.includes(t.id)))
+          : current;
+      } else {
+        topics = body.content;
+        if (!Array.isArray(topics)) {
+          res.status(400).json({ error: 'Ожидался { content: [...] } или { patch: { upsert, removeIds } }.' });
+          return;
+        }
       }
 
       const jsonText = JSON.stringify(topics, null, 2);

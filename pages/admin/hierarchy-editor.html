@@ -3180,6 +3180,27 @@
     return data;
   }
 
+  // Partial counterpart to saveToGitHubCore, for the AI job's auto-commit:
+  // sends only the topics a generation batch actually touched (id + the
+  // changed field, usually description or type) instead of the whole tree.
+  // config.json is several MB by now — a full replace on every auto-commit
+  // means sending that whole file as the request body on every batch, which
+  // runs into Vercel's ~4.5 MB payload limit long before GitHub's own (much
+  // larger) one. The server (api/config.js) merges this onto the current
+  // file itself, so the file on GitHub still ends up complete either way.
+  async function savePatchToGitHubCore(upsert){
+    const r = await fetch('/api/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ patch: { upsert } }),
+    });
+    const data = await r.json().catch(() => null);
+    if (!r.ok || !data || !data.ok) {
+      throw new Error((data && data.error) || ('HTTP ' + r.status));
+    }
+    return data;
+  }
+
   async function saveToGitHub(){
     if (ghBusy) return;
     ghBusy = true;
@@ -3203,13 +3224,18 @@
      попытки" per the spec — with a short pause between them; a manual save
      already in flight is waited out rather than raced against.
      ============================================================ */
-  async function aiCommitToGitHub(){
+  // upsert: [{id, description?} | {id, type?}, ...] for the topics this
+  // batch actually changed — when given (and non-empty), sends just that
+  // patch instead of the whole tree (see savePatchToGitHubCore above).
+  // Falls back to a full save when omitted, so a caller that doesn't track
+  // per-topic changes still works.
+  async function aiCommitToGitHub(upsert){
     for (let attempt = 1; attempt <= 2; attempt++){
       let waited = 0;
       while (ghBusy && waited < 10000){ await sleepAbortable(500); waited += 500; }
       ghBusy = true; syncEnabled();
       try {
-        const data = await saveToGitHubCore();
+        const data = (upsert && upsert.length) ? await savePatchToGitHubCore(upsert) : await saveToGitHubCore();
         setGhDirty(false);
         ghBusy = false; syncEnabled();
         setStatus('Автокоммит в GitHub' + (data.commit ? (' — коммит ' + data.commit.slice(0, 7)) : '') + '.');
@@ -7720,14 +7746,26 @@ theorem (Теорема) — узел, целиком посвящённый о�
     // aiCommitToGitHub) stop the whole job rather than silently piling up
     // more uncommitted work behind a broken connection.
     const commitBatch = async () => {
-      const covered = Object.keys(job.results).filter(t => {
+      // What this batch actually needs GitHub to know about: just the id
+      // plus whichever single field this mode changes. That's the whole
+      // point of the patch path (see aiCommitToGitHub/savePatchToGitHubCore)
+      // — config.json itself can be several MB, but this list is only ever
+      // as big as commitEvery.
+      const covered = [];
+      const upsert = [];
+      Object.keys(job.results).forEach(t => {
         const r = job.results[t];
-        return r && r.status === 'done' && 'description' in r;
+        if (!r || r.status !== 'done') return;
+        if (mode === 'types'){
+          if (typeof r.newType === 'string'){ upsert.push({ id: t, type: r.newType }); covered.push(t); }
+        } else if ('description' in r){
+          upsert.push({ id: t, description: r.description }); covered.push(t);
+        }
       });
       const countAtStart = job.doneSinceCommit;
-      const ok = await aiCommitToGitHub();
+      const ok = await aiCommitToGitHub(upsert);
       if (ok){
-        covered.forEach(t => { const r = job.results[t]; if (r) delete r.description; });
+        covered.forEach(t => { const r = job.results[t]; if (r){ delete r.description; delete r.newType; } });
         job.doneSinceCommit = Math.max(0, job.doneSinceCommit - countAtStart);
         job.committedThrough = job.cursor;
         if (!aiWantCancel) saveAiJob(job);
