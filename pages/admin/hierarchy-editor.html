@@ -5672,8 +5672,8 @@
     mistral: {
       label: 'Mistral',
       keyPlaceholder: '…',
-      keyHint: 'Ключ хранится только в этом браузере (localStorage), запросы идут через сервер MathFrame. Бесплатный ключ: console.mistral.ai/api-keys (тариф "Experiment" — бесплатный, без привязки карты, но с ограничением запросов в секунду и в месяц). В списке моделей может оказаться и то, к чему у бесплатного тарифа нет доступа — такие модели просто не пройдут проверку ключа/модели ниже.',
-      supportsSearch: false,
+      keyHint: 'Ключ хранится только в этом браузере (localStorage), запросы идут через сервер MathFrame. Бесплатный ключ: console.mistral.ai/api-keys (тариф "Experiment" — бесплатный, без привязки карты, но с ограничением запросов в секунду и в месяц). В списке моделей может оказаться и то, к чему у бесплатного тарифа нет доступа — такие модели просто не пройдут проверку ключа/модели ниже. Поиск в интернете действительно выполняется (через отдельный Conversations API Mistral, встроенный инструмент web_search), но эта же бета-квота, скорее всего, отдельная от обычного chat-лимита тарифа — стоит проверить расход на странице использования.',
+      supportsSearch: true,
     },
   };
 
@@ -6038,6 +6038,39 @@
         aiLog('Тест модели', modelId, '—', (webSearch ? 'поиск использован' : 'поиск НЕ использован'), ',', latencyMs.toFixed(0) + ' мс', ', ответ:', text.slice(0, 120));
         return { ok: true, webSearch, latencyMs, error: null };
       }
+      if (provider === 'mistral'){
+        // Mistral's search only exists on the Conversations API — see
+        // aiComplete's mistral+webSearch branch for the full reasoning.
+        // Whether the model actually invoked web_search (as opposed to
+        // ignoring the tool and answering from memory) shows up as a
+        // "tool.execution" entry in the response's outputs, the same way
+        // Gemini's groundingMetadata does for that provider above.
+        const r = await llmFetch('mistral', 'conversations', apiKey, {
+          method: 'POST',
+          body: JSON.stringify({
+            model: modelId,
+            inputs: [{ role: 'user', content: AI_TEST_PROMPT }],
+            tools: [{ type: 'web_search' }]
+          }),
+          signal: TIMEOUT
+        });
+        const latencyMs = performance.now() - t0;
+        const data = await r.json().catch(() => null);
+        if (!r.ok || !data){
+          const err = (data && data.message) || (data && data.error && (data.error.message || data.error)) || ('HTTP ' + r.status);
+          aiLog('Тест модели', modelId, '— HTTP-ошибка за', latencyMs.toFixed(0) + ' мс:', err);
+          return { ok: false, webSearch: false, latencyMs, error: err };
+        }
+        const outputs = Array.isArray(data.outputs) ? data.outputs : [];
+        const text = mistralOutputsText(outputs).trim();
+        const webSearch = outputs.some(o => o && o.type === 'tool.execution' && o.name === 'web_search');
+        if (!text){
+          aiLog('Тест модели', modelId, '— пустой текстовый ответ за', latencyMs.toFixed(0) + ' мс');
+          return { ok: false, webSearch: false, latencyMs, error: 'пустой текстовый ответ' };
+        }
+        aiLog('Тест модели', modelId, '—', (webSearch ? 'поиск использован' : 'поиск НЕ использован'), ',', latencyMs.toFixed(0) + ' мс', ', ответ:', text.slice(0, 120));
+        return { ok: true, webSearch, latencyMs, error: null };
+      }
       // Groq / OpenRouter — OpenAI-compatible chat/completions, no search
       // tool to request or check for; a non-empty reply is the whole test.
       const r = await llmFetch(provider, 'chat/completions', apiKey, {
@@ -6146,6 +6179,25 @@
       if (typeof data.detail === 'string') return data.detail;
     }
     return 'HTTP ' + status;
+  }
+
+  // Mistral's Conversations API represents a reply's text as either a plain
+  // string or a list of "content chunks" ({type:'text', text:'...'}, mixed
+  // with other chunk types this pipeline never asks for, like images) —
+  // used both by the final message.output entry and by each streamed
+  // message.output.delta event, so both call sites share this.
+  function mistralContentText(content){
+    if (typeof content === 'string') return content;
+    if (Array.isArray(content)) return content.map(c => (c && typeof c.text === 'string') ? c.text : '').join('');
+    return '';
+  }
+  // The non-streaming response's `outputs` list mixes the actual reply
+  // (type: "message.output") with entries for whatever tools ran along the
+  // way (type: "tool.execution" for the web_search call itself, etc.) —
+  // only the message.output entries are the text this pipeline wants.
+  function mistralOutputsText(outputs){
+    if (!Array.isArray(outputs)) return '';
+    return outputs.filter(o => o && o.type === 'message.output').map(o => mistralContentText(o.content)).join('');
   }
 
   // Reads a fetch Response body as an SSE stream ("data: <payload>\n\n"
@@ -6259,12 +6311,90 @@
       return aiFinalizeText(label, t0, text.trim(), finishReason === 'MAX_TOKENS', opts);
     }
 
+    // Mistral, only for the calls that actually need search: Mistral's own
+    // chat/completions endpoint (the branch below, shared with Groq/
+    // OpenRouter) has no search tool at all — the built-in web_search tool
+    // only exists on Mistral's separate Conversations API
+    // (POST /v1/conversations), a different request/response shape
+    // entirely (inputs/outputs, not messages/choices). Everything else
+    // this pipeline sends to Mistral keeps going through the plain
+    // chat/completions branch below, unaffected.
+    if (ctx.provider === 'mistral' && opts.webSearch){
+      const body = {
+        model: ctx.model,
+        instructions: system,
+        inputs: [{ role: 'user', content: userText }],
+        tools: [{ type: 'web_search' }],
+        stream: streamed
+      };
+      aiNoteRequestSent();
+      const r = await llmFetch('mistral', 'conversations', ctx.apiKey, { method: 'POST', body: JSON.stringify(body), stream: streamed });
+      aiNoteUsage(r, ctx.provider);
+
+      if (!streamed){
+        const dt = performance.now() - t0;
+        const data = await r.json().catch(() => null);
+        if (!r.ok || !data){
+          const msg = extractApiErrorMessage(data, r.status);
+          aiLog(label, '✗ ошибка за', dt.toFixed(0) + ' мс:', msg);
+          const err = new Error(msg);
+          err.status = r.status; err.retryAfterMs = parseRetryAfterMs(r);
+          throw err;
+        }
+        const text = mistralOutputsText(data.outputs);
+        if (!text){
+          aiLog(label, '✗ Пустой ответ модели за', dt.toFixed(0) + ' мс');
+          throw new Error('Пустой ответ модели');
+        }
+        // This API doesn't report a token-limit truncation the way
+        // chat/completions' finish_reason does, so that check is simply
+        // skipped here (same as it already is on every other empty/short
+        // response this pipeline can't classify further).
+        return aiFinalizeText(label, t0, text, false, opts);
+      }
+
+      if (!r.ok){
+        const dt = performance.now() - t0;
+        const raw = await r.text();
+        let data = null; try { data = JSON.parse(raw); } catch (e){}
+        const msg = extractApiErrorMessage(data, r.status);
+        aiLog(label, '✗ ошибка за', dt.toFixed(0) + ' мс:', msg);
+        const err = new Error(msg);
+        err.status = r.status; err.retryAfterMs = parseRetryAfterMs(r);
+        throw err;
+      }
+      let text = '', streamErr = null, streamErrCode = null;
+      await readSSE(r, raw => {
+        if (raw === '[DONE]') return;
+        let obj; try { obj = JSON.parse(raw); } catch (e){ return; }
+        if (obj.type === 'message.output.delta'){
+          const delta = mistralContentText(obj.content);
+          if (delta){ text += delta; opts.onDelta(text); }
+        } else if (obj.type === 'conversation.response.error'){
+          streamErr = obj.message || 'Ошибка потока Mistral';
+          streamErrCode = obj.code;
+        }
+      });
+      if (!text && streamErr){
+        const dt = performance.now() - t0;
+        aiLog(label, '✗', streamErr, 'за', dt.toFixed(0) + ' мс');
+        const err = new Error(streamErr);
+        // conversation.response.error carries an HTTP-like `code` — reuse
+        // it so a rate limit hit mid-stream still gets the normal 429
+        // retry/backoff path instead of failing the whole topic outright.
+        err.status = (typeof streamErrCode === 'number') ? streamErrCode : 500;
+        throw err;
+      }
+      return aiFinalizeText(label, t0, text.trim(), false, opts);
+    }
+
     // Groq / OpenRouter / Mistral — OpenAI-compatible chat/completions. No
     // search tool exists to request here (opts.webSearch is simply
     // ignored), system prompts still tell the model "у тебя есть доступ к
-    // интернету" (unchanged, shared prompt text) — on these providers
-    // that's not literally true, so treat their output as resting on the
-    // model's own trained knowledge, not a live check.
+    // интернету" (unchanged, shared prompt text) — on Groq/OpenRouter (and
+    // on Mistral whenever search wasn't requested) that's not literally
+    // true, so treat their output as resting on the model's own trained
+    // knowledge, not a live check.
     aiNoteRequestSent();
     const r = await llmFetch(ctx.provider, 'chat/completions', ctx.apiKey, {
       method: 'POST',
