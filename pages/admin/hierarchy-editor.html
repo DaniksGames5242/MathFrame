@@ -3163,21 +3163,44 @@
     return true;
   }
 
-  // Core network call, no UI/status side effects — shared by the manual
-  // "Сохранить в GitHub" action and the AI job's auto-commit, which needs to
-  // know success/failure programmatically instead of just reading a status
-  // string.
-  async function saveToGitHubCore(){
-    const r = await fetch('/api/config', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content: flattenTreeToTopics(treeData, null) }),
-    });
+  // Gzips the JSON body before it goes anywhere near /api/config. Even the
+  // small per-batch patch is worth it for consistency, but this is what
+  // makes a full-tree save survive at all: config.json is several MB, and
+  // the *request* itself (not just GitHub's response) runs into Vercel's
+  // ~4.5 MB payload limit — compressed, the same content is routinely a
+  // fifth of that. api/config.js reads the raw body itself (bodyParser is
+  // off there) and gunzips it based on this same Content-Encoding header.
+  // Falls back to a plain, uncompressed body on a browser old enough not to
+  // have CompressionStream (still correct, just as size-limited as before).
+  async function gzipJsonBody(obj){
+    const text = JSON.stringify(obj);
+    if (typeof CompressionStream !== 'function') return { body: text, gzipped: false };
+    try {
+      const stream = new Blob([text]).stream().pipeThrough(new CompressionStream('gzip'));
+      const body = await new Response(stream).arrayBuffer();
+      return { body, gzipped: true };
+    } catch (e) {
+      return { body: text, gzipped: false };
+    }
+  }
+  async function postConfig(obj){
+    const { body, gzipped } = await gzipJsonBody(obj);
+    const headers = { 'Content-Type': 'application/json' };
+    if (gzipped) headers['Content-Encoding'] = 'gzip';
+    const r = await fetch('/api/config', { method: 'POST', headers, body });
     const data = await r.json().catch(() => null);
     if (!r.ok || !data || !data.ok) {
       throw new Error((data && data.error) || ('HTTP ' + r.status));
     }
     return data;
+  }
+
+  // Core network call, no UI/status side effects — shared by the manual
+  // "Сохранить в GitHub" action and the AI job's auto-commit, which needs to
+  // know success/failure programmatically instead of just reading a status
+  // string.
+  async function saveToGitHubCore(){
+    return postConfig({ content: flattenTreeToTopics(treeData, null) });
   }
 
   // Partial counterpart to saveToGitHubCore, for the AI job's auto-commit:
@@ -3189,16 +3212,7 @@
   // larger) one. The server (api/config.js) merges this onto the current
   // file itself, so the file on GitHub still ends up complete either way.
   async function savePatchToGitHubCore(upsert){
-    const r = await fetch('/api/config', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ patch: { upsert } }),
-    });
-    const data = await r.json().catch(() => null);
-    if (!r.ok || !data || !data.ok) {
-      throw new Error((data && data.error) || ('HTTP ' + r.status));
-    }
-    return data;
+    return postConfig({ patch: { upsert } });
   }
 
   async function saveToGitHub(){

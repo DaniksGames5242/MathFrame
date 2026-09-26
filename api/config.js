@@ -10,7 +10,16 @@ const { OWNER, REPO, BRANCH, ghHeaders, requireToken } = require('./_github');
 const CONFIG_PATH = 'data/topics/config.json';
 const CONTENTS_URL = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${CONFIG_PATH}`;
 
-module.exports = async (req, res) => {
+function readRawBody(req){
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    req.on('data', (c) => chunks.push(c));
+    req.on('end', () => resolve(Buffer.concat(chunks)));
+    req.on('error', reject);
+  });
+}
+
+async function handler(req, res){
   if (!requireToken(res)) return;
 
   if (req.method === 'GET') {
@@ -64,7 +73,27 @@ module.exports = async (req, res) => {
 
   if (req.method === 'POST') {
     try {
-      const body = typeof req.body === 'object' && req.body ? req.body : JSON.parse(req.body || '{}');
+      // bodyParser is off (see the config export at the bottom of this
+      // file) — the request can be several MB even for a full-file save,
+      // and a gzip-compressed one (see the client's saveToGitHubCore) is
+      // raw binary that the platform's default JSON parser would otherwise
+      // try to UTF-8-decode before this code even runs.
+      let rawBody = await readRawBody(req);
+      if (/gzip/i.test(req.headers['content-encoding'] || '')) {
+        try {
+          rawBody = zlib.gunzipSync(rawBody);
+        } catch (e) {
+          res.status(400).json({ error: `Не удалось распаковать gzip-тело запроса: ${e.message}` });
+          return;
+        }
+      }
+      let body;
+      try {
+        body = rawBody.length ? JSON.parse(rawBody.toString('utf-8')) : {};
+      } catch (e) {
+        res.status(400).json({ error: `Тело запроса — не валидный JSON: ${e.message}` });
+        return;
+      }
 
       // Re-fetch the current sha right before writing, so a save from another
       // tab/device in between doesn't get silently overwritten.
@@ -177,4 +206,11 @@ module.exports = async (req, res) => {
   }
 
   res.status(405).json({ error: 'Метод не поддерживается' });
-};
+}
+
+module.exports = handler;
+// Body parsing is done by hand above (readRawBody + manual gunzip), so the
+// platform's own JSON body parser needs to stay out of the way — otherwise
+// it tries to UTF-8-decode-and-JSON.parse the raw gzip bytes on a
+// Content-Encoding: gzip request before this function ever runs.
+module.exports.config = { api: { bodyParser: false } };
