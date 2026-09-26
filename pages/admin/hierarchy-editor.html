@@ -7294,7 +7294,7 @@ id: <идентификатор> | title: <название темы> | type: <�
       }
 
       onStep('генерация шагов доказательства (с поиском в интернете)…');
-      const raw = await aiCompleteRetry(ctx, aiPromptGenerateProof(sec), context, { maxTokens: 3000, webSearch: true, label: 'генерация (доказательство)', onDelta: onLive });
+      const raw = await aiCompleteRetry(ctx, aiPromptGenerateProof(sec), context, { maxTokens: 3000, webSearch: ctx.webSearch !== false, label: 'генерация (доказательство)', onDelta: onLive });
       onLive('');
       let rawSteps = raw.split(/\n\s*\n+/).map(s => s.trim()).filter(Boolean);
       if (!rawSteps.length) rawSteps = [raw.trim()];
@@ -7352,7 +7352,7 @@ id: <идентификатор> | title: <название темы> | type: <�
       if (childNames.length) userMsg += '\nДочерние темы, раскрываемые отдельными статьями (не дублируй их содержание здесь, упоминай не более чем обзорно, если вообще нужно): ' + childNames.join(', ');
 
       onStep('генерация текста (с поиском в интернете)…');
-      const raw = await aiCompleteRetry(ctx, aiPromptGenerate(sec), userMsg, { maxTokens: 3000, webSearch: true, label: 'генерация', onDelta: onLive });
+      const raw = await aiCompleteRetry(ctx, aiPromptGenerate(sec), userMsg, { maxTokens: 3000, webSearch: ctx.webSearch !== false, label: 'генерация', onDelta: onLive });
       onLive('');
       onStep('генерация — готово', { label: 'Черновик текста', text: raw });
       onStep('проверка и исправление…');
@@ -7394,7 +7394,7 @@ id: <идентификатор> | title: <название темы> | type: <�
     onStep('расстановка ссылок (кандидатов: ' + candidates.length + ')…');
     const linked = await aiCompleteRetry(ctx, AI_PROMPT_LINKS,
       'Список тем-кандидатов:\n' + candidateLines(candidates) + '\n\nHTML-фрагмент описания:\n' + formatted,
-      { maxTokens: 4096, webSearch: true, label: 'ссылки' });
+      { maxTokens: 4096, webSearch: ctx.webSearch !== false, label: 'ссылки' });
 
     const validIds = new Set(topicIndex.map(t => t.id));
     const sanitized = sanitizeLinks(linked, validIds, node.topicId);
@@ -7801,7 +7801,11 @@ theorem (Теорема) — узел, целиком посвящённый о�
     // section is part of the job, not the current UI state — a job started
     // for Алгебра keeps generating algebra prompts even if the dropdown is
     // moved afterwards, or if it resumes on a device showing something else.
-    const baseCtx = { provider, model: job.settings.model, section: job.settings.section };
+    // Missing on a job saved before this setting existed — defaults to on,
+    // matching that job's original behavior (search, where the provider
+    // supports it, was always attempted before this toggle existed).
+    const webSearchEnabled = job.settings.webSearch !== false;
+    const baseCtx = { provider, model: job.settings.model, section: job.settings.section, webSearch: webSearchEnabled };
     const mode = job.settings.mode || 'generate';
     const MODE_LABELS = { generate: 'генерация', normalize: 'нормализация формул', clarify: 'выправление формулировок', types: 'определение типов тем' };
     const threads = workerSpecs.length;
@@ -8860,6 +8864,21 @@ theorem (Теорема) — узел, целиком посвящённый о�
     linksNote.textContent = 'Дороже по числу запросов к нейросети (ещё 1–2 вызова на тему).';
     body.appendChild(linksNote);
 
+    // Off switch for the whole pipeline's web-search step — separate from
+    // whether the provider/model even supports search. Exists mainly as an
+    // escape hatch: if a provider's search integration misbehaves (wrong
+    // request shape, a quota that's separate from its normal chat quota,
+    // etc.), this lets generation keep going on the model's own knowledge
+    // instead of every topic failing outright until the integration itself
+    // gets fixed.
+    const searchRow = document.createElement('label'); searchRow.className = 'ai-checkrow';
+    const searchChk = document.createElement('input'); searchChk.type = 'checkbox'; searchChk.checked = true;
+    searchRow.append(searchChk, Object.assign(document.createElement('span'), { textContent: 'Использовать поиск в интернете (если модель это умеет)' }));
+    body.appendChild(searchRow);
+    const searchNote2 = document.createElement('div'); searchNote2.className = 'ai-hint';
+    searchNote2.textContent = 'Если выключить, генерация опирается только на знания самой модели — без живой проверки фактов. Полезно выключить, если поиск у выбранного провайдера ведёт себя нестабильно.';
+    body.appendChild(searchNote2);
+
     const powerRow = document.createElement('label'); powerRow.className = 'ai-checkrow';
     const powerChk = document.createElement('input'); powerChk.type = 'checkbox'; powerChk.checked = aiPowerSaveEnabled();
     powerRow.append(powerChk, Object.assign(document.createElement('span'), { textContent: 'Гасить экран во время генерации (экономия заряда)' }));
@@ -8890,6 +8909,7 @@ theorem (Теорема) — узел, целиком посвящённый о�
         createdAt: new Date().toISOString(),
         settings: {
           provider, mode, section: sectionSelect.value, types: [...types], replace: replaceChk.checked, links: linksChk.checked, model: modelSelect.value,
+          webSearch: searchChk.checked,
           threadsPerKey: threadsPerKeyAtStart,
           detectedSections: detectedSectionsAtStart
         },
