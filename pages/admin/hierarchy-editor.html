@@ -6200,6 +6200,101 @@
     return outputs.filter(o => o && o.type === 'message.output').map(o => mistralContentText(o.content)).join('');
   }
 
+  /* ---------------- Wikipedia grounding (for Mistral) ----------------
+     Fetches the actual Wikipedia article for a topic — ru, plus (via
+     langlinks) its en counterpart — to hand the model as concrete
+     reference text instead of an open-ended web_search tool call. Found
+     to matter after auditing ~80 rare named theorems already on the site:
+     web_search alone, and even web_search + code_interpreter asked to
+     "verify itself" with real computation, both produced confidently
+     wrong "corrected" formulas; comparing against retrieved article text
+     did not. Wikipedia's API supports cross-origin calls directly from
+     the browser via &origin=*, so this needs no server relay. */
+  // Shared across every worker thread in a generation job (not per-key) —
+  // Wikipedia throttles an anonymous client hard after a handful of
+  // requests in quick succession (learned the hard way running a batch
+  // audit script: ~3 requests/second got every subsequent call back as a
+  // plain-text block page instead of JSON). With several generation
+  // threads each grounding a different topic at once, this is the only
+  // thing standing between that and every one of them hitting it here too.
+  const WIKI_MIN_GAP_MS = 1200;
+  let wikiLastCallAt = 0;
+  async function wikiThrottle(){
+    const wait = WIKI_MIN_GAP_MS - (performance.now() - wikiLastCallAt);
+    if (wait > 0) await sleep(wait);
+    wikiLastCallAt = performance.now();
+  }
+  async function wikiApiGet(lang, params){
+    await wikiThrottle();
+    const url = 'https://' + lang + '.wikipedia.org/w/api.php?' + params + '&format=json&origin=*';
+    const r = await fetch(url);
+    if (!r.ok) throw new Error('Wikipedia HTTP ' + r.status);
+    return r.json();
+  }
+  async function wikiFetchExtract(lang, title){
+    try {
+      const d = await wikiApiGet(lang, 'action=query&prop=extracts&explaintext=1&redirects=1&titles=' + encodeURIComponent(title));
+      const page = Object.values(d.query.pages)[0];
+      if (!page || page.missing !== undefined) return null;
+      return { title: page.title, extract: page.extract || '' };
+    } catch (e){ return null; }
+  }
+  async function wikiFetchEnTitle(ruTitle){
+    try {
+      const d = await wikiApiGet('ru', 'action=query&prop=langlinks&lllang=en&redirects=1&titles=' + encodeURIComponent(ruTitle));
+      const page = Object.values(d.query.pages)[0];
+      const ll = page && page.langlinks && page.langlinks[0];
+      return ll ? ll['*'] : null;
+    } catch (e){ return null; }
+  }
+  // Topic titles here sometimes carry a parenthetical gloss/alt-name
+  // ("Теорема Кэзи (обобщение теоремы Птолемея)") that no Wikipedia
+  // article title ever includes.
+  function wikiBareTitle(title){
+    return title.replace(/\s*\([^)]*\)\s*$/, '').trim();
+  }
+  // Last resort when ru.wikipedia has no article under this exact title:
+  // ask Mistral (with web_search) for the matching en.wikipedia title —
+  // a deterministic lookup ("what is this page called"), not a fact or
+  // formula judgement call, so an unverified model answer is low-risk
+  // here specifically; the actual content still comes from fetching and
+  // reading that article ourselves right after.
+  async function wikiGuessEnTitle(apiKey, ruTitle){
+    try {
+      const r = await llmFetch('mistral', 'conversations', apiKey, {
+        method: 'POST',
+        body: JSON.stringify({
+          model: 'mistral-small-latest',
+          instructions: 'Найди точное название статьи английской Википедии (en.wikipedia.org) об этом математическом объекте через поиск. Ответь ТОЛЬКО названием статьи, без кавычек и пояснений. Если не нашёл — ответь ровно: NONE.',
+          inputs: [{ role: 'user', content: ruTitle }],
+          tools: [{ type: 'web_search' }],
+          stream: false,
+        }),
+      });
+      const data = await r.json().catch(() => null);
+      if (!r.ok || !data) return null;
+      const text = mistralOutputsText(data.outputs).trim();
+      return (!text || /^NONE\.?$/i.test(text)) ? null : text;
+    } catch (e){ return null; }
+  }
+  // Returns { ru, en } (either possibly null) or null if neither language
+  // has an article — callers treat null as "nothing to ground on, fall
+  // back to whatever they'd otherwise do".
+  async function aiWikiGroundFor(title, apiKey){
+    const bt = wikiBareTitle(title);
+    const ru = await wikiFetchExtract('ru', bt);
+    let en = null;
+    if (ru){
+      const enTitle = await wikiFetchEnTitle(bt);
+      if (enTitle) en = await wikiFetchExtract('en', enTitle);
+    }
+    if (!en && apiKey){
+      const guessed = await wikiGuessEnTitle(apiKey, bt);
+      if (guessed) en = await wikiFetchExtract('en', guessed);
+    }
+    return (ru || en) ? { ru, en } : null;
+  }
+
   // Reads a fetch Response body as an SSE stream ("data: <payload>\n\n"
   // frames — what both Gemini's ?alt=sse and every OpenAI-compatible
   // provider's stream:true use), calling onData(payload) for each frame.
@@ -6320,13 +6415,27 @@
     // this pipeline sends to Mistral keeps going through the plain
     // chat/completions branch below, unaffected.
     if (ctx.provider === 'mistral' && opts.webSearch){
+      // Grounding on an actually-retrieved Wikipedia article (opts.wikiGround,
+      // fetched once per topic in aiGenerateOne — see aiWikiGroundFor) beats
+      // asking the model to search-and-verify itself: an audit of ~80 rare
+      // named theorems found web_search (even combined with code_interpreter
+      // for "self-verification") repeatedly produced confidently wrong
+      // answers, while comparing against real fetched article text did not.
+      // Falls back to the live web_search tool when no article was found
+      // (nothing worse than the old behavior for those).
+      const g = opts.wikiGround;
+      let refBlock = '';
+      if (g && (g.en || g.ru)){
+        if (g.en) refBlock += 'Статья Wikipedia (en) "' + g.en.title + '":\n' + g.en.extract.slice(0, 6000) + '\n\n';
+        if (g.ru) refBlock += 'Статья Wikipedia (ru) "' + g.ru.title + '":\n' + g.ru.extract.slice(0, 4000) + '\n\n';
+      }
       const body = {
         model: ctx.model,
-        instructions: system,
-        inputs: [{ role: 'user', content: userText }],
-        tools: [{ type: 'web_search' }],
+        instructions: system + (refBlock ? '\n\nОпирайся на приведённый ниже текст статьи Wikipedia об этой теме как на источник фактов — не придумывай то, чего там нет, и не полагайся только на собственную память там, где текст даёт точный ответ.' : ''),
+        inputs: [{ role: 'user', content: (refBlock ? ('--- Справочный материал (Wikipedia) ---\n' + refBlock + '--- Задание ---\n') : '') + userText }],
         stream: streamed
       };
+      if (!refBlock) body.tools = [{ type: 'web_search' }];
       aiNoteRequestSent();
       const r = await llmFetch('mistral', 'conversations', ctx.apiKey, { method: 'POST', body: JSON.stringify(body), stream: streamed });
       aiNoteUsage(r, ctx.provider);
@@ -7267,6 +7376,14 @@ id: <идентификатор> | title: <название темы> | type: <�
     const isProof = node.type === 'proof';
     let formatted;
 
+    // Fetched once per topic, reused by every search-requesting call below
+    // (main text, proof, links) — see aiWikiGroundFor and the Mistral
+    // branch of aiComplete for why this replaced a bare web_search call.
+    // Folder overviews never request search, so skip the fetch for those.
+    const wikiGround = (ctx.provider === 'mistral' && ctx.webSearch !== false && !isFolder)
+      ? await aiWikiGroundFor(node.name, ctx.apiKey).catch(() => null)
+      : null;
+
     if (isFolder){
       const children = node.children.map(c => c.name).filter(Boolean);
       const userMsg = 'Раздел: ' + node.name +
@@ -7294,7 +7411,7 @@ id: <идентификатор> | title: <название темы> | type: <�
       }
 
       onStep('генерация шагов доказательства (с поиском в интернете)…');
-      const raw = await aiCompleteRetry(ctx, aiPromptGenerateProof(sec), context, { maxTokens: 3000, webSearch: ctx.webSearch !== false, label: 'генерация (доказательство)', onDelta: onLive });
+      const raw = await aiCompleteRetry(ctx, aiPromptGenerateProof(sec), context, { maxTokens: 3000, webSearch: ctx.webSearch !== false, wikiGround, label: 'генерация (доказательство)', onDelta: onLive });
       onLive('');
       let rawSteps = raw.split(/\n\s*\n+/).map(s => s.trim()).filter(Boolean);
       if (!rawSteps.length) rawSteps = [raw.trim()];
@@ -7352,7 +7469,7 @@ id: <идентификатор> | title: <название темы> | type: <�
       if (childNames.length) userMsg += '\nДочерние темы, раскрываемые отдельными статьями (не дублируй их содержание здесь, упоминай не более чем обзорно, если вообще нужно): ' + childNames.join(', ');
 
       onStep('генерация текста (с поиском в интернете)…');
-      const raw = await aiCompleteRetry(ctx, aiPromptGenerate(sec), userMsg, { maxTokens: 3000, webSearch: ctx.webSearch !== false, label: 'генерация', onDelta: onLive });
+      const raw = await aiCompleteRetry(ctx, aiPromptGenerate(sec), userMsg, { maxTokens: 3000, webSearch: ctx.webSearch !== false, wikiGround, label: 'генерация', onDelta: onLive });
       onLive('');
       onStep('генерация — готово', { label: 'Черновик текста', text: raw });
       onStep('проверка и исправление…');

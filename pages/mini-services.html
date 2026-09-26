@@ -45,7 +45,7 @@ main{
   display:flex;flex-direction:column;gap:.25rem;min-height:0;
   transition:border-color var(--t),background var(--t),transform var(--t)
 }
-.svc:hover{border-color:var(--accent);background:var(--accent-soft)}
+@media (hover:hover){ .svc:hover{border-color:var(--accent);background:var(--accent-soft)} }
 .svc:active{transform:scale(.99)}
 .svc-ttl{display:flex;align-items:center;gap:.5rem;font-weight:600;font-size:.98rem}
 .svc-ttl .gl{
@@ -100,19 +100,16 @@ label.f input:focus,label.f select:focus{border-color:var(--accent);box-shadow:0
 .mini{
   font:inherit;font-size:.8rem;padding:.4rem .7rem;min-height:36px;
   border-radius:var(--r-sm);border:1px solid var(--border-strong);
-  background:var(--bg-sunken);color:var(--text-secondary);cursor:pointer
+  background:var(--bg-sunken);color:var(--text-secondary);cursor:pointer;
+  transition:color var(--t),border-color var(--t),transform .1s var(--e-out)
 }
-.mini:hover{color:var(--accent);border-color:var(--accent)}
+@media (hover:hover){ .mini:hover{color:var(--accent);border-color:var(--accent)} }
+.mini:active{transform:scale(.96)}
 
 @media (max-width:640px){
   .panel{padding:.9rem}
   .svc{padding:.85rem .9rem}
 }
-@media (hover:none),(pointer:coarse){
-  .svc:hover{border-color:var(--border);background:var(--bg-card)}
-  .svc.on{border-color:var(--accent);background:var(--accent-soft)}
-}
-
 /* ===================================================================
    ОБЫЧНЫЙ КАЛЬКУЛЯТОР
    =================================================================== */
@@ -153,11 +150,13 @@ label.f input:focus,label.f select:focus{border-color:var(--accent);box-shadow:0
   background:var(--bg-card);color:var(--text-primary);font:inherit;font-size:1.05rem;
   cursor:pointer;transition:background .12s,border-color .12s,transform .08s;
 }
-.calc-key:hover{border-color:var(--accent);background:var(--accent-soft)}
+@media (hover:hover){
+  .calc-key:hover{border-color:var(--accent);background:var(--accent-soft)}
+  .calc-key.calc-eq:hover{background:var(--accent-hover)}
+}
 .calc-key:active{transform:scale(.96)}
 .calc-key.calc-op{color:var(--accent);font-weight:600}
 .calc-key.calc-eq{background:var(--accent);color:#fff;border-color:transparent;font-weight:700}
-.calc-key.calc-eq:hover{background:var(--accent-hover)}
 /* «Ещё действия» — научная панель, раскрывается без скачка макета */
 .calc-pad-adv{
   max-height:0;opacity:0;overflow:hidden;
@@ -179,9 +178,10 @@ label.f input:focus,label.f select:focus{border-color:var(--accent);box-shadow:0
   display:flex;justify-content:space-between;gap:.6rem;
   padding:.5rem .7rem;border-radius:var(--r-sm);border:1px solid transparent;
   background:transparent;font:inherit;text-align:left;cursor:pointer;width:100%;
-  transition:background .12s,border-color .12s;
+  transition:background .12s,border-color .12s,transform .1s var(--e-out);
 }
-.calc-hist-item:hover{background:var(--accent-soft);border-color:var(--border)}
+@media (hover:hover){ .calc-hist-item:hover{background:var(--accent-soft);border-color:var(--border)} }
+.calc-hist-item:active{transform:scale(.98);background:var(--accent-soft)}
 .calc-hist-expr{color:var(--text-tertiary);font-family:var(--font-mono);font-size:.82rem;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .calc-hist-res{color:var(--text-primary);font-weight:600;flex:0 0 auto}
@@ -254,9 +254,10 @@ label.f input:focus,label.f select:focus{border-color:var(--accent);box-shadow:0
   font:inherit;font-size:.82rem;padding:.42rem .85rem;min-height:38px;
   border-radius:99px;border:1px solid var(--border-strong);
   background:var(--bg-sunken);color:var(--text-secondary);cursor:pointer;
-  transition:color var(--t),border-color var(--t),background var(--t)
+  transition:color var(--t),border-color var(--t),background var(--t),transform .1s var(--e-out)
 }
-.conv-chip:hover{color:var(--accent);border-color:var(--accent)}
+@media (hover:hover){ .conv-chip:hover{color:var(--accent);border-color:var(--accent)} }
+.conv-chip:active{transform:scale(.95)}
 .conv-chip.on{color:#fff;background:var(--accent);border-color:transparent;font-weight:600}
 
 .conv-body{display:flex;flex-direction:column;gap:.9rem}
@@ -272,7 +273,7 @@ label.f input:focus,label.f select:focus{border-color:var(--accent);box-shadow:0
   color:var(--accent);font-size:1.1rem;cursor:pointer;
   transition:transform var(--t) var(--e-spring),border-color var(--t)
 }
-.conv-swap:hover{border-color:var(--accent);transform:rotate(180deg)}
+@media (hover:hover){ .conv-swap:hover{border-color:var(--accent);transform:rotate(180deg)} }
 
 .conv-io{display:flex;align-items:center;gap:.7rem;flex-wrap:wrap}
 .conv-input{
@@ -348,9 +349,10 @@ label.f input:focus,label.f select:focus{border-color:var(--accent);box-shadow:0
   font:inherit;font-size:.78rem;padding:.35rem .7rem;min-height:34px;
   border-radius:var(--r-sm);border:1px solid var(--border);
   background:var(--bg-sunken);color:var(--text-secondary);cursor:pointer;
-  transition:color var(--t),border-color var(--t),background var(--t)
+  transition:color var(--t),border-color var(--t),background var(--t),transform .1s var(--e-out)
 }
-.geo-subchip:hover{color:var(--accent);border-color:var(--accent)}
+@media (hover:hover){ .geo-subchip:hover{color:var(--accent);border-color:var(--accent)} }
+.geo-subchip:active{transform:scale(.95)}
 .geo-subchip.on{color:var(--accent);border-color:var(--accent);background:var(--accent-soft);font-weight:600}
 
 /* ===================================================================
@@ -468,7 +470,7 @@ label.f input:focus,label.f select:focus{border-color:var(--accent);box-shadow:0
 /* Плитки инструментов и чипы — небольшой мягкий подъём при наведении поверх
    уже существующего наклона-к-курсору (initCards в mathframe-ui.js) */
 .svc{transition:transform var(--t) var(--e-out),border-color var(--t),background var(--t),box-shadow var(--t)}
-.svc:hover{box-shadow:0 6px 20px -8px rgba(91,140,255,.35)}
+@media (hover:hover){ .svc:hover{box-shadow:0 6px 20px -8px rgba(91,140,255,.35)} }
 
 @media (prefers-reduced-motion: reduce){
   .mf-pop,.mf-badge-pop,.mf-chip-pop,.mf-panel-enter,.mf-panel-enter .panel,.mf-hist-in,.calc-result-pop{animation:none!important}

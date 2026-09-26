@@ -69,6 +69,11 @@
     floor: Math.floor, ceil: Math.ceil, round: Math.round,
     ctg: function (x) { return 1 / Math.tan(x); },
     cot: function (x) { return 1 / Math.tan(x); },
+    // Русские школьные обозначения — раньше «tg x» разбиралось как t·g·x,
+    // а «arcsin» — как a·r·c·sin.
+    tg: Math.tan,
+    arcsin: Math.asin, arccos: Math.acos, arctg: Math.atan, arctan: Math.atan,
+    arcctg: function (x) { return Math.PI / 2 - Math.atan(x); },
     // Регистрируем здесь (а не только в комплексном модуле), иначе парсер не
     // узнаёт «conj(...)» как вызов функции вообще — примет «conj» за имя
     // переменной, а «(3+4i)» просто домножится рядом. Вещественные заглушки
@@ -95,38 +100,46 @@
 
   function lex(s) {
     var out = [], i = 0;
+    out.bad = [];   // нераспознанные символы и кривые числа — для строгого разбора
     s = String(s).replace(/\s+/g, '');
     while (i < s.length) {
       var c = s[i];
       if (/[0-9.]/.test(c)) {
         var j = i; while (j < s.length && /[0-9.]/.test(s[j])) j++;
-        out.push({ t: 'num', v: parseFloat(s.slice(i, j)) }); i = j; continue;
+        var lit = s.slice(i, j);
+        if ((lit.match(/\./g) || []).length > 1 || lit === '.') out.bad.push('число «' + lit + '»');
+        out.push({ t: 'num', v: parseFloat(lit) || 0, lit: lit }); i = j; continue;
       }
       if (/[a-zA-Zα-ωΑ-Ωπ]/.test(c)) {
         var k = i; while (k < s.length && /[a-zA-Zα-ωΑ-Ωπ]/.test(s[k])) k++;
         var word = s.slice(i, k);
-        // «xsin(y)» -> x, sin(y): отделяем известное имя функции с конца
+        // Слово целиком — функция/константа, либо склейка вроде «xsin», «sinx»,
+        // «2pix»: жадно выделяем самые длинные известные имена (функций и
+        // констант) в любом месте слова, остальные буквы — отдельные
+        // переменные. Раньше отделялось только имя В КОНЦЕ слова, и набранное
+        // с клавиатуры «sinx» превращалось в произведение s·i·n·x.
         if (!FUNCS[word] && CONSTS[word] === undefined && word.length > 1) {
-          var matched = false;
-          for (var L = word.length; L >= 2; L--) {
-            var tail = word.slice(word.length - L);
-            if (FUNCS[tail]) {
-              word.slice(0, word.length - L).split('').forEach(function (ch) { out.push({ t: 'id', v: ch }); });
-              out.push({ t: 'id', v: tail });
-              matched = true; break;
+          var j2 = 0;
+          while (j2 < word.length) {
+            var hit = null;
+            for (var L = word.length - j2; L >= 2; L--) {
+              var part = word.substr(j2, L);
+              if (FUNCS[part] || CONSTS[part] !== undefined) { hit = part; break; }
             }
+            if (hit) { out.push({ t: 'id', v: hit }); j2 += hit.length; }
+            else { out.push({ t: 'id', v: word[j2] }); j2++; }
           }
-          if (!matched) word.split('').forEach(function (ch) { out.push({ t: 'id', v: ch }); });
         } else {
           out.push({ t: 'id', v: word });
         }
         i = k; continue;
       }
-      if ('+-*/^(),!'.indexOf(c) >= 0) { out.push({ t: c }); i++; continue; }
+      if ('+-*/^(),!_'.indexOf(c) >= 0) { out.push({ t: c }); i++; continue; }
       if (c === '−') { out.push({ t: '-' }); i++; continue; }
       if (c === '·' || c === '×') { out.push({ t: '*' }); i++; continue; }
-      if (c === '÷') { out.push({ t: '/' }); i++; continue; }
-      i++; // неизвестный символ пропускаем
+      if (c === '÷' || c === ':') { out.push({ t: '/' }); i++; continue; }
+      out.bad.push('символ «' + c + '»');
+      i++; // неизвестный символ пропускаем (в строгом режиме — сообщаем)
     }
     return out;
   }
@@ -134,10 +147,18 @@
   /* =============================== 3. ПАРСЕР =============================
      Рекурсивный спуск. Поддерживает неявное умножение (2x, xy, 2(x+1)),
      правоассоциативную степень и унарный минус. */
-  function parse(src) {
+  // strict=true — не «прощать» ошибки ввода молча, а бросать Error с понятным
+  // человеку сообщением (незакрытая скобка, «2+», лишняя «)», мусорный
+  // символ). Нужен решателю: без этого «x+=5» тихо решалось как «x+0=5».
+  function parse(src, strict) {
     var T = lex(src), p = 0;
+    function problem(msg) { if (strict) throw new Error(msg); }
+    if (T.bad.length) problem('не удалось распознать ' + T.bad.join(', '));
+    if (strict && !T.length) problem('пустое выражение');
     function peek() { return T[p]; }
     function eat(t) { if (T[p] && T[p].t === t) { p++; return true; } return false; }
+    function need(t, msg) { if (!eat(t)) problem(msg); }
+    var TRIG_INV = { sin: 'asin', cos: 'acos', tan: 'atan', tg: 'atan' };
 
     function expr() { return addsub(); }
 
@@ -185,20 +206,30 @@
     // строго лучше старого, ничего не ломает. Нужно для векторов:
     // accent(vec) сериализуется в «vec(x,y,z)» — см. evalVector в services.js.
     function parenOrTupleBody() {
+      if (strict && peek() && peek().t === ')') problem('пустые скобки');
       var e = expr();
       if (peek() && peek().t === ',') {
         var items = [e];
         while (eat(',')) items.push(expr());
-        eat(')');
+        need(')', 'не закрыта скобка');
         return { t: 'tuple', items: items };
       }
-      eat(')');
+      need(')', 'не закрыта скобка');
       return e;
+    }
+    // Индекс «_(…)» или «_2» — у логарифма это основание: log_(2)(x).
+    function subscript() {
+      if (!eat('_')) return null;
+      if (eat('(')) return parenOrTupleBody();
+      var t = peek();
+      if (t && (t.t === 'num' || t.t === 'id')) { p++; return t.t === 'num' ? { t: 'num', v: t.v } : { t: 'var', name: t.v }; }
+      problem('пустой нижний индекс');
+      return null;
     }
     function atom() {
       var t = peek();
-      if (!t) return { t: 'num', v: 0 };
-      if (t.t === 'num') { p++; return { t: 'num', v: t.v }; }
+      if (!t) { problem('выражение оборвано — не хватает числа или переменной в конце'); return { t: 'num', v: 0 }; }
+      if (t.t === 'num') { p++; return t.lit && t.lit.indexOf('.') >= 0 ? { t: 'num', v: t.v, dec: true } : { t: 'num', v: t.v }; }
       if (t.t === '(') {
         p++;
         return parenOrTupleBody();
@@ -207,19 +238,48 @@
         p++;
         var name = t.v;
         if (FUNCS[name]) {
+          // log_(b)(x), а также степень самой функции: sin^2 x = (sin x)^2,
+          // sin^(-1) x = arcsin x. Раньше «sin^(2)(x)» разбиралось как
+          // sin(0)·… — показатель терялся, уравнение «решалось» неверно.
+          var base = subscript(), pw = null;
+          if (eat('^')) pw = eat('(') ? parenOrTupleBody() : postfix();
+          if (!base) base = subscript();
           var arg;
           if (eat('(')) { arg = parenOrTupleBody(); }
-          else arg = power();               // sin x
-          return { t: 'fn', name: name, a: arg };
+          else {
+            if (strict && !startsOperand()) problem('после «' + name + '» нет аргумента');
+            arg = power();               // sin x
+          }
+          var node = { t: 'fn', name: name, a: arg };
+          if (base) {
+            if (name === 'log' || name === 'lg' || name === 'ln') node = { t: 'fn', name: 'log', a: arg, base: base };
+            else problem('нижний индекс у «' + name + '» не поддерживается');
+          }
+          if (pw) {
+            if (pw.t === 'neg' && pw.a.t === 'num' && pw.a.v === 1 && TRIG_INV[name] && !base) return { t: 'fn', name: TRIG_INV[name], a: arg };
+            return { t: '^', a: node, b: pw };
+          }
+          return node;
         }
         if (CONSTS[name] !== undefined) return { t: 'num', v: CONSTS[name], sym: name };
         return { t: 'var', name: name };
       }
+      if (t.t === ')') problem('лишняя закрывающая скобка');
+      else if (t.t === ',') problem('запятая вне скобок — для десятичной дроби используйте точку: 2.5');
+      else if (t.t === '_') problem('нижний индекс без функции (он нужен только логарифму: log_2(x))');
+      else if (p === 0) problem('выражение начинается со знака «' + t.t + '»');
+      else problem('после знака «' + T[p - 1].t + '» не хватает числа или переменной');
       p++;
       return { t: 'num', v: 0 };
     }
 
     var ast = expr();
+    if (p < T.length) {
+      var rest = T[p];
+      if (rest.t === ')') problem('лишняя закрывающая скобка');
+      else if (rest.t === ',') problem('запятая вне скобок — для десятичной дроби используйте точку: 2.5');
+      else problem('не удалось разобрать выражение целиком');
+    }
     return ast;
   }
 
@@ -246,6 +306,7 @@
       case 'neg': return -evalAst(node.a, vars);
       case 'fact': return factorial(evalAst(node.a, vars));
       case 'fn': {
+        if (node.base) return Math.log(evalAst(node.a, vars)) / Math.log(evalAst(node.base, vars));
         var f = FUNCS[node.name];
         return f ? f(evalAst(node.a, vars)) : NaN;
       }
@@ -294,6 +355,10 @@
       }
       case 'fn': {
         var u = node.a, du = d(u, x), inner;
+        if (node.base) {
+          if (varsIn(node.base)[x]) return null;
+          return { t: '*', a: { t: '/', a: num(1), b: { t: '*', a: u, b: { t: 'fn', name: 'ln', a: node.base } } }, b: du };
+        }
         switch (node.name) {
           case 'sin': inner = { t: 'fn', name: 'cos', a: u }; break;
           case 'cos': inner = { t: 'neg', a: { t: 'fn', name: 'sin', a: u } }; break;
@@ -398,6 +463,7 @@
       case 'fn': {
         if (n.name === 'sqrt') return '\\sqrt{' + tex(n.a, 0) + '}';
         if (n.name === 'abs') return '\\left|' + tex(n.a, 0) + '\\right|';
+        if (n.base) return '\\log_{' + tex(n.base, 0) + '}\\left(' + tex(n.a, 0) + '\\right)';
         var known = ['sin','cos','tan','ln','log','exp','sinh','cosh','tanh','min','max'];
         var nm = known.indexOf(n.name) >= 0 ? '\\' + n.name : '\\mathrm{' + n.name + '}';
         return nm + '\\left(' + tex(n.a, 0) + '\\right)';
@@ -1793,6 +1859,8 @@
     traceEvalSteps: traceEvalSteps, exactAnswerTex: exactAnswerTex,
     simplifyRadical: simplifyRadical, quadraticRootTex: quadraticRootTex, decimalTerminates: decimalTerminates,
     evalSurd: evalSurd, surdToTex: surdToTex, surdToNumber: surdToNumber, surdIsRational: surdIsRational,
+    surdRat: surdRat, surdAdd: surdAdd, surdSub: surdSub, surdNeg: surdNeg, surdMul: surdMul,
+    surdDiv: surdDiv, surdMulRat: surdMulRat, surdSqrtInt: surdSqrtInt,
     hasVar: hasVar
   };
 
