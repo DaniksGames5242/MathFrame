@@ -99,6 +99,8 @@ html.mf-mobile .fx-composer, html.mf-mobile .reply-box, html.mf-mobile .fx-empty
   display: flex; flex-direction: column; align-items: flex-start; min-width: 76px;
   padding: .45rem .8rem; border-radius: var(--r); background: var(--bg-sunken); border: 1px solid var(--border);
 }
+.fx-stat { flex-wrap: wrap; }
+.fx-stat .ic { order: -1; width: 15px; height: 15px; margin-right: .35rem; align-self: center; color: var(--text-tertiary); }
 .fx-stat b { font-family: var(--font-display); font-size: 1.25rem; line-height: 1.1; font-variant-numeric: tabular-nums; }
 .fx-stat span { font-family: var(--font-mono); font-size: .64rem; letter-spacing: .12em; text-transform: uppercase; color: var(--text-tertiary); }
 

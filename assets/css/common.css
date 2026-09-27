@@ -135,10 +135,13 @@ html.light {
   --mf-ink-2: #ecf1f9;
   --mf-ink-3: #e2e9f5;
 
-  --accent:       #2f5fe0;
-  --accent-hover: #244cc4;
-  --accent-2:     #0f9c8a;
-  --accent-3:     #c47f12;
+  /* Полностью насыщенные фирменные тона на белом фоне читаются гораздо резче,
+     чем на тёмном (тот же hue при высокой светлоте фона бьёт по глазам) —
+     несколько приглушаем через oklch-смешение с серым, не трогая контраст. */
+  --accent:       color-mix(in oklch, #2f5fe0 85%, gray 15%);
+  --accent-hover: color-mix(in oklch, #244cc4 85%, gray 15%);
+  --accent-2:     color-mix(in oklch, #0f9c8a 85%, gray 15%);
+  --accent-3:     color-mix(in oklch, #c47f12 85%, gray 15%);
   --accent-soft:  rgba(47, 95, 224, 0.10);
   --accent-glow:  rgba(47, 95, 224, 0.22);
 
@@ -544,6 +547,14 @@ html.light .calc-eq > .mf-ripple {
   transition: transform var(--t-slow) var(--e-out), border-color var(--t),
               box-shadow var(--t-slow), background var(--t-slow);
 }
+/* На больших мониторах карточки использовали тот же padding/шрифт, что и на
+   обычном 1024-1280px экране — на широком поле они смотрятся непропорционально
+   крупными. Компактный ярус вместо этого чуть плотнее упаковывает содержимое. */
+@media (min-width: 1400px) {
+  .section-card, .mf-card, .svc { padding: 1.3rem 1.25rem 1.15rem; }
+  .section-card h3, .mf-card h3 { font-size: 1.05rem; }
+}
+
 /* Внутренняя «сетка графика» проявляется при наведении */
 .section-card::before, .mf-card::before, .svc::before {
   content: ''; position: absolute; inset: 0; pointer-events: none;
@@ -1009,6 +1020,20 @@ html.mf-mobile .section-card, html.mf-mobile .mf-card { backdrop-filter: none; -
   .nav-toggle { display: flex; }
   .mf-nav-indicator { display: none; }
 
+  /* Узкий экран: шапка и карточки занимают почти всю ширину/высоту, и с
+     обычным blur(18-20px) процедурный фон под ними полностью смазывается
+     в сплошное пятно — на телефоне его почти не видно ни в одном зазоре.
+     Меньше размытия и чуть больше прозрачности — фон и эффекты проступают
+     сквозь панели, а не только в узких щелях между ними. */
+  #app-header {
+    backdrop-filter: blur(10px) saturate(150%);
+    -webkit-backdrop-filter: blur(10px) saturate(150%);
+  }
+  .section-card, .mf-card, .svc {
+    backdrop-filter: blur(9px) saturate(140%);
+    -webkit-backdrop-filter: blur(9px) saturate(140%);
+  }
+
   #app-header nav {
     position: fixed; top: var(--header-height); left: 0; right: 0;
     flex-direction: column; align-items: stretch; gap: 0;
@@ -1291,13 +1316,16 @@ a, button, .section-card, .mf-card, .theme-option, .account-circle {
 [data-page="ai-agent"]   { --accent:#9b6bff; --accent-hover:#b08bff; --accent-2:#5cc8ff; --accent-3:#f2b45c;
                            --accent-soft:rgba(155,107,255,.14); --accent-glow:rgba(155,107,255,.38); }
 
-/* Светлая тема: те же оттенки, но затемнённые до нужного контраста на белом */
-html.light [data-page="reference"]  { --accent:#4a48d8; --accent-hover:#3a38c0; --accent-2:#0f7fc4; --accent-soft:rgba(74,72,216,.10); --accent-glow:rgba(74,72,216,.22); }
-html.light [data-page="forum"]      { --accent:#0d7fae; --accent-hover:#0a6b93; --accent-2:#0f9c6b; --accent-soft:rgba(13,127,174,.10); --accent-glow:rgba(13,127,174,.22); }
-html.light [data-page="services"]   { --accent:#0f8a72; --accent-hover:#0b715e; --accent-2:#0f7fc4; --accent-soft:rgba(15,138,114,.10); --accent-glow:rgba(15,138,114,.22); }
-html.light [data-page="playground"] { --accent:#5b46d6; --accent-hover:#4a37b8; --accent-2:#c2437a; --accent-soft:rgba(91,70,214,.10); --accent-glow:rgba(91,70,214,.22); }
+/* Светлая тема: те же оттенки, но затемнённые до нужного контраста на белом.
+   Полностью насыщенный фирменный тон на белом фоне читается резче, чем на
+   тёмном — приглушаем через oklch-смешение с серым (как --accent в § 2),
+   не трогая сами rgba-«мягкие» варианты (их alpha и так низкая). */
+html.light [data-page="reference"]  { --accent:color-mix(in oklch, #4a48d8 85%, gray 15%); --accent-hover:color-mix(in oklch, #3a38c0 85%, gray 15%); --accent-2:#0f7fc4; --accent-soft:rgba(74,72,216,.10); --accent-glow:rgba(74,72,216,.22); }
+html.light [data-page="forum"]      { --accent:color-mix(in oklch, #0d7fae 85%, gray 15%); --accent-hover:color-mix(in oklch, #0a6b93 85%, gray 15%); --accent-2:#0f9c6b; --accent-soft:rgba(13,127,174,.10); --accent-glow:rgba(13,127,174,.22); }
+html.light [data-page="services"]   { --accent:color-mix(in oklch, #0f8a72 85%, gray 15%); --accent-hover:color-mix(in oklch, #0b715e 85%, gray 15%); --accent-2:#0f7fc4; --accent-soft:rgba(15,138,114,.10); --accent-glow:rgba(15,138,114,.22); }
+html.light [data-page="playground"] { --accent:color-mix(in oklch, #5b46d6 85%, gray 15%); --accent-hover:color-mix(in oklch, #4a37b8 85%, gray 15%); --accent-2:#c2437a; --accent-soft:rgba(91,70,214,.10); --accent-glow:rgba(91,70,214,.22); }
 html.light [data-page="admin"]      { --accent:#465a78; --accent-hover:#374861; --accent-2:#0f9c6b; --accent-soft:rgba(70,90,120,.10); --accent-glow:rgba(70,90,120,.20); }
-html.light [data-page="ai-agent"]   { --accent:#6d3fd6; --accent-hover:#5a31b8; --accent-2:#0f7fc4; --accent-soft:rgba(109,63,214,.10); --accent-glow:rgba(109,63,214,.22); }
+html.light [data-page="ai-agent"]   { --accent:color-mix(in oklch, #6d3fd6 85%, gray 15%); --accent-hover:color-mix(in oklch, #5a31b8 85%, gray 15%); --accent-2:#0f7fc4; --accent-soft:rgba(109,63,214,.10); --accent-glow:rgba(109,63,214,.22); }
 
 /* Мелкие «характерные жесты» разделов — по одному на страницу, чтобы отличие
    читалось, но язык оставался общим. */
@@ -1330,12 +1358,14 @@ html.light [data-page="ai-agent"]   { --accent:#6d3fd6; --accent-hover:#5a31b8; 
   --page-color-admin:      #7d90b0;
 }
 html.light {
-  --page-color-home:       #2f5fe0;
-  --page-color-reference:  #4a48d8;
-  --page-color-services:   #0f8a72;
-  --page-color-forum:      #0d7fae;
-  --page-color-ai-agent:   #6d3fd6;
-  --page-color-playground: #5b46d6;
+  /* Та же приглушающая правка, что у --accent выше (см. § 2) — иначе цвета
+     разделов в шапке и маске перехода остаются «неоновыми» на белом фоне. */
+  --page-color-home:       color-mix(in oklch, #2f5fe0 85%, gray 15%);
+  --page-color-reference:  color-mix(in oklch, #4a48d8 85%, gray 15%);
+  --page-color-services:   color-mix(in oklch, #0f8a72 85%, gray 15%);
+  --page-color-forum:      color-mix(in oklch, #0d7fae 85%, gray 15%);
+  --page-color-ai-agent:   color-mix(in oklch, #6d3fd6 85%, gray 15%);
+  --page-color-playground: color-mix(in oklch, #5b46d6 85%, gray 15%);
   --page-color-admin:      #465a78;
 }
 

@@ -574,7 +574,9 @@
     '  edge = max(edge, max(lens, ring) * 0.85);',
     '  float puls = 0.88 + 0.12 * sin(uTime * 0.5 + L.w * 2.0);',
     '',
-    '  float base = mix(0.22, 0.34, uDark) * uGain;',
+    // Тёмные линии на белом теряются на глаз сильнее, чем светлые на чёрном
+    // при том же alpha — светлой теме нужна база не тише тёмной, а громче.
+    '  float base = mix(0.34, 0.30, uDark) * uGain;',
     '  float a = a0 * edge * puls * base',
     '          * (1.0 + mix(0.7, 1.0, uDark) * lens + mix(1.3, 2.2, uDark) * ring);',
     // «тихая» зона за колонкой текста (справочник): поле там заметно слабее
@@ -818,9 +820,10 @@
         // особенности — в мировых координатах (ячейка 0 шейдера: hero вверху страницы)
         var S = FlowMath.sing(time * 0.055, I.mx, I.my - B.sc), sc = B.sc;
         var step = Math.min(dt, 0.05) * 0.32;
-        // светлая тема: тёмные «чернильные» штрихи, тише светящихся тёмной;
+        // Тёмные «чернильные» штрихи на белом читаются на глаз слабее, чем
+        // светящиеся того же alpha на тёмном — светлой теме нужен пик ярче.
         // I.fade — общее проявление фона при загрузке
-        var peak = (0.26 + 0.14 * palette.dark) * (I.fade == null ? 1 : I.fade);
+        var peak = (0.40 - 0.06 * palette.dark) * (I.fade == null ? 1 : I.fade);
         var k = B.mn / SCALE * dpr;                // единица поля -> пиксели холста
         var ox = (B.W * 0.5 - B.left) * dpr, oy = (B.H * 0.5 - B.top) * dpr;
         var pl = I.pulses, spdR = PULSE_SPEED;

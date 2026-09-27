@@ -502,7 +502,7 @@ label.f input:focus,label.f select:focus{border-color:var(--accent);box-shadow:0
 /* Плитки инструментов и чипы — небольшой мягкий подъём при наведении поверх
    уже существующего наклона-к-курсору (initCards в mathframe-ui.js) */
 .svc{transition:transform var(--t) var(--e-out),border-color var(--t),background var(--t),box-shadow var(--t)}
-@media (hover:hover){ .svc:hover{box-shadow:0 6px 20px -8px rgba(91,140,255,.35)} }
+@media (hover:hover){ .svc:hover{box-shadow:0 6px 20px -8px var(--accent-glow)} }
 
 @media (prefers-reduced-motion: reduce){
   .mf-pop,.mf-badge-pop,.mf-chip-pop,.mf-panel-enter,.mf-panel-enter .panel,.mf-hist-in,.calc-result-pop{animation:none!important}
