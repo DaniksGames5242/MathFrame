@@ -92,6 +92,46 @@
     return (b && b.dataset.page) || (h && h.dataset.page) || 'home';
   }
 
+  /* ------------------------------------------------------- прокрутка фона
+     Фон «нарисован на странице»: canvas остаётся fixed размером с окно, но
+     шейдер и 2D-слои получают текущую прокрутку и сдвигают свои мировые
+     координаты. Обычно прокручивается окно; на страницах-приложениях (AI-агент:
+     лента чата) окно не скроллится — тогда фон привязывается к самому
+     крупному прокручиваемому контейнеру (узнаём о нём по событию scroll, в
+     фазе перехвата). Узкие панели (дерево тем, список чатов) не считаются.
+     PF_FIELD — скорость поля относительно контента (лёгкий параллакс глубины). */
+  var PF_FIELD = 0.9;
+  var SCR = { el: null, area: 0, y: 0, h: 1, vh: 1 };
+  function winScrollable() {
+    var de = document.scrollingElement || document.documentElement;
+    return de.scrollHeight > (window.innerHeight || 0) + 2;
+  }
+  try {
+    document.addEventListener('scroll', function (e) {
+      var t = e.target;
+      if (!t || t === document || t === document.documentElement || t === document.body ||
+          !t.getBoundingClientRect) return;
+      var r = t.getBoundingClientRect(), a = r.width * r.height;
+      if (a < (window.innerWidth || 1) * (window.innerHeight || 1) * 0.2) return;
+      if (winScrollable()) return;
+      if (!SCR.el || !SCR.el.isConnected || a > SCR.area * 0.9) { SCR.el = t; SCR.area = a; }
+    }, { capture: true, passive: true });
+  } catch (e) {}
+  function readScroll() {
+    var vh = window.innerHeight || 1, de = document.scrollingElement || document.documentElement;
+    var el = SCR.el;
+    if (el && (!el.isConnected || winScrollable())) { el = SCR.el = null; }
+    if (el) {
+      SCR.y = el.scrollTop || 0;
+      SCR.h = Math.max(vh, el.scrollHeight - el.clientHeight + vh);
+    } else {
+      SCR.y = window.scrollY || de.scrollTop || 0;
+      SCR.h = Math.max(vh, de.scrollHeight || vh);
+    }
+    SCR.vh = vh;
+    return SCR;
+  }
+
   /* Палитра фона — общая для шейдера, трассеров и 2D-слоёв (mf-backgrounds.js).
        tgt — целевые цвета текущей темы: перечитываются при смене темы, а не на
              каждом кадре (getComputedStyle в цикле дорог);
@@ -317,11 +357,16 @@
     'uniform float uGain;',
     'uniform int   uMode;',
     'uniform vec3  uDraw;',
+    'uniform float uScroll;',   // прокрутка в единицах поля (× PF_FIELD)
+    'uniform vec4  uCalm;',     // «тихий» прямоугольник (колонка текста), px холста
+    'uniform vec2  uCalmK;',    // x — яркость внутри него, y — мягкость края, px
     '',
     'const float PLIFE = ' + PULSE_LIFE.toFixed(2) + ';',
     'const float PSPD  = ' + PULSE_SPEED.toFixed(2) + ';',
     'const float TAU   = 6.2831853;',
     'vec2 EXT;',   // полуразмеры экрана в единицах поля (задаётся в main)
+    'float gT;',   // время ячейки мира (см. LINES)
+    'vec2  gM;',   // курсор в локальных координатах ячейки
     '',
     'vec2 cdiv(vec2 a, vec2 b){ float d = dot(b,b) + 1e-6;',
     '  return vec2(a.x*b.x + a.y*b.y, a.y*b.x - a.x*b.y) / d; }',
@@ -330,8 +375,8 @@
     'float ang(vec2 v){ return atan(v.y, v.x + 1e-6); }',
     '',
     'vec3 FIELD(vec2 p, out vec3 w){',
-    '  float t = uTime * 0.055;',
-    '  vec2 dm = p - uMouse;',
+    '  float t = gT * 0.055;',
+    '  vec2 dm = p - gM;',
     '  w = vec3(1.0);',
     '  if (uMode == 0) {',
     '    vec2 s1 = vec2(cos(t*0.90), sin(t*0.70)) * 0.95;',
@@ -356,14 +401,14 @@
     '    w = vec3(1.0 - smoothstep(0.45, 1.9, d),',
     '             (1.0 - smoothstep(0.25, 1.15, d)) * 0.55,',
     '             0.50);',
-    '    return vec3(d * 0.55 - uTime * 0.010,',
+    '    return vec3(d * 0.55 - gT * 0.010,',
     '                ang(v) * (24.0 / TAU) / 7.0 + t * 0.15,',
     '                dot(p, vec2(cos(a), sin(a))) * 0.16);',
     '  } else if (uMode == 2) {',
     '    vec2 s1 = EXT * vec2(-0.55 + 0.14*sin(t*0.9),     0.30 + 0.16*cos(t*0.7));',
     '    vec2 s2 = EXT * vec2( 0.52 + 0.12*cos(t*0.6+1.0), 0.18 + 0.20*sin(t*0.8+2.0));',
     '    vec2 s3 = EXT * vec2( 0.06 + 0.26*sin(t*0.5+3.0), -0.62 + 0.10*cos(t*0.9));',
-    '    s2 = mix(s2, uMouse, 0.35 * uPtr.z);',
+    '    s2 = mix(s2, gM, 0.35 * uPtr.z);',
     '    vec2 v1 = p - s1, v2 = p - s2, v3 = p - s3;',
     '    float d1 = length(v1), d2 = length(v2), d3 = length(v3);',
     '    float m12 = min(d1, d2);',
@@ -374,12 +419,12 @@
     '                (ang(v1) - ang(v2)) * (12.0 / TAU) / 7.0,',
     '                (ang(v2) - ang(v3)) * (10.0 / TAU) / 7.0);',
     '  } else if (uMode == 3) {',
-    '    float T = uTime * 0.10;',
+    '    float T = gT * 0.10;',
     '    float b1 = 0.28 * EXT.y;',
     '    float h1 = 0.42*sin(0.85*p.x + T) + 0.16*sin(2.2*p.x - 1.3*T) + b1;',
-    '    float hm = 0.42*sin(0.85*uMouse.x + T) + 0.16*sin(2.2*uMouse.x - 1.3*T) + b1;',
-    '    h1 += (uMouse.y - hm) * 0.9 * uPtr.z * gs(vec2(p.x - uMouse.x, 0.0), 1.6)',
-    '        * gs(vec2(0.0, uMouse.y - hm), 0.9);',
+    '    float hm = 0.42*sin(0.85*gM.x + T) + 0.16*sin(2.2*gM.x - 1.3*T) + b1;',
+    '    h1 += (gM.y - hm) * 0.9 * uPtr.z * gs(vec2(p.x - gM.x, 0.0), 1.6)',
+    '        * gs(vec2(0.0, gM.y - hm), 0.9);',
     '    float h2 = -0.42*EXT.y + 0.55*cos(0.62*p.x - 0.8*T) * exp(-0.045*p.x*p.x)',
     '             + 0.10*sin(3.1*p.x + 1.7*T);',
     '    float lo = min(0.0, h1), hi = max(0.0, h1);',
@@ -420,7 +465,7 @@
     '  float s  = 1.1;',
     '  float ch = sin(n*3.14159*p.x*s) * sin(m2*3.14159*p.y*s)',
     '           - sin(m2*3.14159*p.x*s) * sin(n*3.14159*p.y*s);',
-    '  ch += 0.45 * gs(dm, 1.4) * sin(length(dm) * 9.0 - uTime * 1.2);',
+    '  ch += 0.45 * gs(dm, 1.4) * sin(length(dm) * 9.0 - gT * 1.2);',
     '  return vec3(ch, ch, 0.0);',
     '}',
     '',
@@ -440,6 +485,32 @@
     '  return q;',
     '}',
     '',
+    // Изолинии одной «ячейки мира». Фон прокручивается вместе со страницей:
+    // мировая плоскость по вертикали разбита на ячейки высотой P (~1.25 экрана),
+    // у каждой — своё время (gT) и зеркальное отражение через одну, поэтому
+    // поле не повторяется и не «кончается» внизу длинной страницы. a, ax, ay —
+    // точка и две соседние (для оценки градиента) в мировых координатах.
+    // Возвращает (линии x/y, линии z, «скорость» для цвета, f.y для пульсации).
+    'vec4 LINES(vec2 a, vec2 ax, vec2 ay, float k, float P, float lw){',
+    '  float fl = mod(k, 2.0) > 0.5 ? -1.0 : 1.0;',
+    '  vec2 o = vec2(0.0, k * P), m = vec2(fl, 1.0);',
+    '  gT = uTime + k * 53.0;',
+    '  gM = (uMouse - vec2(0.0, uScroll) - o) * m;',
+    '  vec3 W, Wd;',
+    '  vec3 f0 = FIELD((a - o) * m, W);',
+    '  vec3 fx = FIELD((ax - o) * m, Wd) - f0;',
+    '  vec3 fy = FIELD((ay - o) * m, Wd) - f0;',
+    '  float kk = 7.0;',
+    '  vec3 g  = vec3(length(vec2(fx.x, fy.x)), length(vec2(fx.y, fy.y)),',
+    '                 length(vec2(fx.z, fy.z))) * kk;',
+    '  vec3 dd = abs(fract(f0 * kk + 0.5) - 0.5);',
+    '  vec3 l = vec3(1.0) - smoothstep(vec3(0.0), g * lw + 1e-5, dd);',
+    // линии гуще ~3 px сливаются в муар/пятно (у особенностей поля) — гасим
+    '  l *= vec3(1.0) - smoothstep(vec3(0.12), vec3(0.30), g);',
+    '  l *= uDraw * W;',
+    '  return vec4(max(l.x, l.y), l.z, clamp(length(f0.xy) * 0.42, 0.0, 1.0), f0.y);',
+    '}',
+    '',
     'void main(){',
     '  float mn = min(uRes.x, uRes.y);',
     '  EXT = 0.5 * uRes / mn * 2.7;',
@@ -451,26 +522,33 @@
     // Толщина изолиний держится постоянной в ПИКСЕЛЯХ за счёт численной оценки
     // градиента (две доп. выборки). Поэтому не нужен OES_standard_derivatives —
     // шейдер одинаково работает в WebGL1 и WebGL2.
+    // Линза и кольца — в координатах экрана (warp), затем сдвиг на прокрутку:
+    // дальше всё считается в мировых координатах страницы.
     '  float e  = 2.7 * zoom / mn;',
-    '  vec3 W, Wd;',
-    '  vec3 f0 = FIELD(warp(p), W);',
-    '  vec3 fx = FIELD(warp(p + vec2(e, 0.0)), Wd) - f0;',
-    '  vec3 fy = FIELD(warp(p + vec2(0.0, e)), Wd) - f0;',
-    '',
-    '  float k = 7.0;',
-    '  vec3 g  = vec3(length(vec2(fx.x, fy.x)), length(vec2(fx.y, fy.y)),',
-    '                 length(vec2(fx.z, fy.z))) * k;',
-    '  vec3 dd = abs(fract(f0 * k + 0.5) - 0.5);',
+    '  vec2 sc = vec2(0.0, uScroll);',
+    '  vec2 w0 = warp(p) - sc;',
+    '  vec2 wx = warp(p + vec2(e, 0.0)) - sc;',
+    '  vec2 wy = warp(p + vec2(0.0, e)) - sc;',
     // в светлой теме линии тоньше: тёмная линия на белом читается сильнее
     '  float lw = mix(1.05, 1.4, uDark) * (0.6 + 0.4 * fe);',
-    '  vec3 l = vec3(1.0) - smoothstep(vec3(0.0), g * lw + 1e-5, dd);',
-    // линии гуще ~3 px сливаются в муар/пятно (у особенностей поля) — гасим
-    '  l *= vec3(1.0) - smoothstep(vec3(0.12), vec3(0.30), g);',
-    '  l *= uDraw * W;',
-    '  float line = max(l.x, l.y);',
-    '  float lz = l.z;',
+    '  vec4 L;',
+    // решётка (6) и Хладни (4) и так бесконечны и однородны — без ячеек
+    '  if (uMode == 4 || uMode == 6) {',
+    '    L = LINES(w0, wx, wy, 0.0, 1.0, lw);',
+    '  } else {',
+    // на стыке ячеек — плавный перелив двух соседних (с обеих сторон
+    // границы вес ровно 0.5, поэтому шва нет)
+    '    float P = 2.5 * EXT.y;',
+    '    float k = floor(w0.y / P + 0.5);',
+    '    float ly = w0.y - k * P;',
+    '    float tb = smoothstep(0.34 * P, 0.5 * P, abs(ly)) * 0.5;',
+    '    L = LINES(w0, wx, wy, k, P, lw);',
+    '    if (tb > 0.002) L = mix(L, LINES(w0, wx, wy, k + (ly > 0.0 ? 1.0 : -1.0), P, lw), tb);',
+    '  }',
+    '  float line = L.x;',
+    '  float lz = L.y;',
     '',
-    '  float spd = clamp(length(f0.xy) * 0.42, 0.0, 1.0);',
+    '  float spd = L.z;',
     '  vec3 acc = mix(uColA, uColB, spd);',
     '  vec3 cDk = mix(acc, uColC, smoothstep(0.55, 1.0, spd) * 0.55);',
     '  vec3 cLt = mix(uInk, acc, 0.40);',
@@ -494,11 +572,18 @@
     '  float r    = length((gl_FragCoord.xy - 0.5*uRes) / mn);',
     '  float edge = 1.0 - 0.8 * smoothstep(0.35, 1.2, r);',
     '  edge = max(edge, max(lens, ring) * 0.85);',
-    '  float puls = 0.88 + 0.12 * sin(uTime * 0.5 + f0.y * 2.0);',
+    '  float puls = 0.88 + 0.12 * sin(uTime * 0.5 + L.w * 2.0);',
     '',
     '  float base = mix(0.22, 0.34, uDark) * uGain;',
     '  float a = a0 * edge * puls * base',
     '          * (1.0 + mix(0.7, 1.0, uDark) * lens + mix(1.3, 2.2, uDark) * ring);',
+    // «тихая» зона за колонкой текста (справочник): поле там заметно слабее
+    '  if (uCalm.z > uCalm.x) {',
+    '    vec2 fc = gl_FragCoord.xy; float s = uCalmK.y;',
+    '    float cm = smoothstep(uCalm.x - s, uCalm.x + s, fc.x) * (1.0 - smoothstep(uCalm.z - s, uCalm.z + s, fc.x))',
+    '             * smoothstep(uCalm.y - s, uCalm.y + s, fc.y) * (1.0 - smoothstep(uCalm.w - s, uCalm.w + s, fc.y));',
+    '    a *= mix(1.0, uCalmK.x, cm);',
+    '  }',
     '  gl_FragColor = vec4(col, a * fe);',
     '}'
   ].join('\n');
@@ -517,7 +602,10 @@
     home:       { mode: 0, draw: [0, 1, 0], gain: 1.0, overlay: true,
                   pal: { dark:  { b: '#56dcc8', c: '#f2b45c' },
                          light: { b: '#0f8f80', c: '#b86e0e', ink: '#172340' } } },
-    reference:  { mode: 1, draw: [1, 1, 1], gain: 0.9, overlay: true,
+    // справочник — страница для чтения: поле тише в целом, а за колонкой
+    // темы (calm.sel) — ещё в calm.k раз; то же и для 2D-слоя (api.calmAt)
+    reference:  { mode: 1, draw: [1, 1, 1], gain: 0.62, overlay: true,
+                  calm: { sel: '#sprContent, .spr-content', k: 0.38 },
                   pal: { dark:  { b: '#59c8ff', c: '#f2b45c' },
                          light: { b: '#1a6fb0', c: '#a8620c', ink: '#1c1d48' } } },
     forum:      { mode: 2, draw: [1, 1, 1], gain: 0.9, overlay: true,
@@ -585,7 +673,7 @@
 
     var U = {};
     ['uRes','uTime','uMouse','uPtr','uColA','uColB','uColC','uInk','uDark','uFade','uGain',
-     'uMode','uDraw'].forEach(function (n) {
+     'uMode','uDraw','uScroll','uCalm','uCalmK'].forEach(function (n) {
       U[n] = gl.getUniformLocation(prog, n);
     });
     U.uPulse = gl.getUniformLocation(prog, 'uPulse[0]');
@@ -631,6 +719,13 @@
         gl.uniform1f(U.uGain, mo.gain || 1);
         gl.uniform1i(U.uMode, mo.mode);
         gl.uniform3f(U.uDraw, mo.draw[0], mo.draw[1], mo.draw[2] || 0);
+        gl.uniform1f(U.uScroll, I.scrollF || 0);
+        // тихая зона: CSS-пиксели окна -> пиксели холста (ось y у GL снизу вверх)
+        var cz = I.calm, kx = cv.width / (window.innerWidth || 1), ky = cv.height / (window.innerHeight || 1);
+        if (cz) {
+          gl.uniform4f(U.uCalm, cz.x0 * kx, (window.innerHeight - cz.y1) * ky, cz.x1 * kx, (window.innerHeight - cz.y0) * ky);
+          gl.uniform2f(U.uCalmK, cz.k, 70 * kx);
+        } else gl.uniform4f(U.uCalm, 0, 0, 0, 0);
         gl.clearColor(0, 0, 0, 0);
         gl.clear(gl.COLOR_BUFFER_BIT);
         gl.drawArrays(gl.TRIANGLES, 0, 3);
@@ -657,8 +752,8 @@
   /* ------------------------------------------------------------- 3. mfTracers
      Частицы, плывущие вдоль тех же линий тока, что рисует шейдер режима 0.
      Живут только внутри контейнера [data-mf-tracers] (обычно hero), но
-     координаты считают в системе ОКНА — как фиксированный WebGL-фон, — поэтому
-     лежат ровно на изолиниях даже при прокрутке. Цвет — тот же, что у изолинии
+     координаты частиц — МИРОВЫЕ координаты поля (как в шейдере: экран минус
+     прокрутка I.scrollF), поэтому они лежат ровно на изолиниях и при прокрутке. Цвет — тот же, что у изолинии
      в этой точке; яркость лишь чуть выше, без неонового свечения. */
   function initTracers(host, lite) {
     if (!host || reduced) return null;
@@ -681,8 +776,10 @@
       B.vis = bot > top + 4 && r.width > 4;
       B.x0 = (Math.max(r.left, 0) - W * 0.5) / mn * SCALE;
       B.x1 = (Math.min(r.right, W) - W * 0.5) / mn * SCALE;
-      B.y0 = (H * 0.5 - bot) / mn * SCALE;
-      B.y1 = (H * 0.5 - top) / mn * SCALE;
+      var sc = BG.I.scrollF || 0;
+      B.y0 = (H * 0.5 - bot) / mn * SCALE - sc;
+      B.y1 = (H * 0.5 - top) / mn * SCALE - sc;
+      B.sc = sc;
       B.left = r.left; B.top = r.top; B.W = W; B.H = H; B.mn = mn;
     }
     function spawn(p) {
@@ -718,7 +815,8 @@
         ctx.globalCompositeOperation = 'source-over';
         if (!B.vis) return;
 
-        var S = FlowMath.sing(time * 0.055, I.mx, I.my);
+        // особенности — в мировых координатах (ячейка 0 шейдера: hero вверху страницы)
+        var S = FlowMath.sing(time * 0.055, I.mx, I.my - B.sc), sc = B.sc;
         var step = Math.min(dt, 0.05) * 0.32;
         // светлая тема: тёмные «чернильные» штрихи, тише светящихся тёмной;
         // I.fade — общее проявление фона при загрузке
@@ -741,7 +839,7 @@
           for (var j = 0; j < PULSE_MAX; j++) {
             var age = pl[j * 4 + 2];
             if (age < 0) continue;
-            var qx = p.x - pl[j * 4], qy = p.y - pl[j * 4 + 1];
+            var qx = p.x - pl[j * 4], qy = p.y + sc - pl[j * 4 + 1];
             var r = Math.sqrt(qx * qx + qy * qy) + 1e-4;
             var x = (r - age * spdR) / 0.3, env = 1 - age / PULSE_LIFE;
             var push = Math.exp(-x * x) * env * env * 0.6 * Math.min(dt, 0.05);
@@ -757,15 +855,15 @@
           FlowMath.eval(p.x, p.y, S, fv);
           fieldColor(Math.sqrt(fv[0] * fv[0] + fv[1] * fv[1]) * 0.42, rgb);
           // то же краевое затухание, что у изолиний, но с полом — hero живой
-          var rr = Math.sqrt(p.x * p.x + p.y * p.y) / SCALE;
+          var rr = Math.sqrt(p.x * p.x + (p.y + sc) * (p.y + sc)) / SCALE;
           var edge = 1 - Math.max(0, Math.min(1, (rr - 0.30) / 0.75));
           var alpha = Math.sin(p.life / p.max * Math.PI) * peak * (0.35 + 0.65 * edge);
 
           ctx.strokeStyle = 'rgba(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ',' + alpha.toFixed(3) + ')';
           ctx.lineWidth = p.w * dpr;
           ctx.beginPath();
-          ctx.moveTo(ox + sx * k, oy - sy * k);
-          ctx.lineTo(ox + p.x * k, oy - p.y * k);
+          ctx.moveTo(ox + sx * k, oy - (sy + sc) * k);
+          ctx.lineTo(ox + p.x * k, oy - (p.y + sc) * k);
           ctx.stroke();
         }
       }
@@ -786,7 +884,46 @@
      общим состоянием взаимодействия I и общим проявлением. */
   var BG = { layers: [], queue: [], booted: false, loop: false, field: null, tracers: null,
              I: { mx: 2.3, my: -0.95, pres: 0, sx: -1e4, sy: -1e4, touch: false, fade: 0,
-                  pulses: new Float32Array(PULSE_MAX * 4) } };
+                  pulses: new Float32Array(PULSE_MAX * 4),
+                  // прокрутка: scrollY — px основного скролла, docH — его полная
+                  // высота, vh — окно; scrollF — сдвиг поля (ед. поля × PF_FIELD)
+                  scrollY: 0, docH: 1, vh: 1, scrollF: 0,
+                  calm: null } };   // тихая зона {x0,y0,x1,y1,k} в px окна или null
+  /* Тихая зона раздела (PAGE_MOTIF.calm): прямоугольник колонки текста,
+     обрезанный окном. Элемент ищем редко, прямоугольник читаем каждый кадр
+     (один getBoundingClientRect — дёшево). */
+  var calmEl = null, calmSeek = 0;
+  function readCalm(now) {
+    var m = PAGE_MOTIF[pageName()], cfg = m && m.calm;
+    if (!cfg) return null;
+    if ((!calmEl || !calmEl.isConnected) && now >= calmSeek) {
+      calmSeek = now + 1000;
+      try { calmEl = document.querySelector(cfg.sel); } catch (e) { calmEl = null; }
+    }
+    if (!calmEl) return null;
+    var r = calmEl.getBoundingClientRect(), W = window.innerWidth, H = window.innerHeight;
+    var x0 = Math.max(0, r.left), x1 = Math.min(W, r.right), y0 = Math.max(0, r.top), y1 = Math.min(H, r.bottom);
+    if (x1 - x0 < 8 || y1 - y0 < 8) return null;
+    var c = BG.I.calm || {};
+    c.x0 = x0; c.x1 = x1; c.y0 = y0; c.y1 = y1; c.k = cfg.k;
+    return c;
+  }
+  /* Миллиметровая сетка (.mf-plane) тоже «нарисована на странице»: сдвигаем
+     слой на прокрутку по модулю крупного шага сетки (слой в CSS длиннее окна
+     на этот шаг), поэтому хватает transform, без перерисовки. */
+  var planeEl = null, planeStep = 0, planeLast = null;
+  function movePlane(y) {
+    if (!planeEl) {
+      planeEl = document.querySelector('.mf-plane');
+      if (!planeEl) return;
+      planeStep = (parseFloat(getComputedStyle(planeEl).getPropertyValue('--mf-grid-step')) || 24) * 5;
+    }
+    var off = -(((y * PF_FIELD) % planeStep) + planeStep) % planeStep;
+    off = Math.round(off * 10) / 10;
+    if (off === planeLast) return;
+    planeLast = off;
+    planeEl.style.transform = 'translate3d(0,' + off + 'px,0)';
+  }
   // плавная кривая проявления: быстрый старт без рывка, долгий мягкий хвост
   function easeFade(x) { x = Math.max(0, Math.min(1, x)); return 1 - Math.pow(1 - x, 3); }
   var FADE_IN = 1.8; // сек
@@ -805,6 +942,10 @@
     var pulses = [];   // { x, y, t } — t в секундах от t0
     var tmp = [0, 0];
     var fieldStart = -1, frameNo = 0, fadeAcc = 0;
+    // была ли настоящая мышь: без неё (телефон, до первого движения) «курсор»
+    // поля — точка покоя, и она закреплена на странице, а не на экране
+    var mouseSeen = false, lastSF = null;
+    window.addEventListener('resize', function () { planeEl = null; planeLast = null; }, { passive: true });
 
     function aim(x, y, isTouch) {
       toField(x, y, tmp);
@@ -813,6 +954,7 @@
       lastMove = performance.now(); inside = true; touch = !!isTouch;
     }
     window.addEventListener('pointermove', function (e) {
+      if (e.pointerType !== 'touch') mouseSeen = true;
       aim(e.clientX, e.clientY, e.pointerType === 'touch');
     }, { passive: true });
     // Тач вместо курсора: палец ведёт «линзу», пока касается экрана; после
@@ -832,7 +974,8 @@
       var tg = e.target;
       if (tg && tg.closest && tg.closest(IGNORE_TAP)) return;
       toField(e.clientX, e.clientY, tmp);
-      pulses.push({ x: tmp[0], y: tmp[1], t: (performance.now() - t0) / 1000 });
+      // кольцо живёт в мировых координатах: при прокрутке уезжает вместе со страницей
+      pulses.push({ x: tmp[0], y: tmp[1] - I.scrollF, t: (performance.now() - t0) / 1000 });
       if (pulses.length > PULSE_MAX) pulses.shift();
     }, { passive: true });
 
@@ -854,6 +997,18 @@
       var dtRaw = now - last;
       var dt = Math.min(0.05, dtRaw / 1000); last = now;
       var field = BG.field, tracers = BG.tracers, layers = BG.layers;
+      // прокрутка основного контента -> мировой сдвиг фона
+      readScroll();
+      var mnW = Math.min(window.innerWidth, window.innerHeight) || 1;
+      I.scrollY = SCR.y; I.docH = SCR.h; I.vh = SCR.vh;
+      I.scrollF = SCR.y / mnW * SCALE * PF_FIELD;
+      if (lastSF !== null && (!mouseSeen || touch)) {
+        var dS = I.scrollF - lastSF;
+        tmy += dS; I.my += dS;
+      }
+      lastSF = I.scrollF;
+      I.calm = readCalm(now);
+      movePlane(SCR.y);
       // курсор догоняем с инерцией — резкие рывки мыши не дёргают картинку
       I.mx += (tmx - I.mx) * 0.06; I.my += (tmy - I.my) * 0.06;
       I.sx += (tsx - I.sx) * 0.08; I.sy += (tsy - I.sy) * 0.08;
@@ -864,7 +1019,7 @@
       for (var i = 0; i < PULSE_MAX; i++) {
         var q = pulses[i], age = q ? time - q.t : -1;
         if (age > PULSE_LIFE) age = -1;
-        I.pulses[i * 4] = q ? q.x : 0; I.pulses[i * 4 + 1] = q ? q.y : 0;
+        I.pulses[i * 4] = q ? q.x : 0; I.pulses[i * 4 + 1] = q ? q.y + I.scrollF : 0;
         I.pulses[i * 4 + 2] = age; I.pulses[i * 4 + 3] = 0;
       }
       stepPalette(dt);
@@ -945,6 +1100,18 @@
     SCALE: SCALE, PULSE_SPEED: PULSE_SPEED, PULSE_LIFE: PULSE_LIFE, PULSE_MAX: PULSE_MAX,
     toField: toField, fromField: fromField, motionOff: motionOff, page: pageName,
     motif: function () { return currentMotif(); },
+    PF_FIELD: PF_FIELD,
+    // множитель яркости 2D-слоя в точке окна: внутри тихой зоны — calm.k
+    // (с мягким краем 70 px, как в шейдере), вне — 1
+    calmAt: function (x, y) {
+      var c = BG.I.calm;
+      if (!c) return 1;
+      var s = 70;
+      function st(a, b, v) { v = (v - a) / (b - a); v = v < 0 ? 0 : v > 1 ? 1 : v; return v * v * (3 - 2 * v); }
+      var m = st(c.x0 - s, c.x0 + s, x) * (1 - st(c.x1 - s, c.x1 + s, x)) *
+              st(c.y0 - s, c.y0 + s, y) * (1 - st(c.y1 - s, c.y1 + s, y));
+      return 1 + (c.k - 1) * m;
+    },
     add: function (factory) {
       if (reduced || typeof factory !== 'function') return;
       if (!BG.booted) { BG.queue.push(factory); return; }

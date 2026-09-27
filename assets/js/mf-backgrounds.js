@@ -84,9 +84,11 @@
   /* Читаемость: за колонкой контента элементы приглушены, на полях — ярче.
      На узком экране контент занимает всю ширину — ровно и тихо везде. */
   function readMask(x, y, W, H) {
-    if (W < 700) return 0.5;
+    // тихая зона раздела (справочник: колонка темы) — см. PAGE_MOTIF.calm
+    var k = api.calmAt ? api.calmAt(x, y) : 1;
+    if (W < 700) return 0.5 * k;
     var cw = Math.min(W, 1180) * 0.5, dx = Math.abs(x - W * 0.5);
-    return 0.24 + 0.76 * sstep(cw * 0.6, cw * 1.08, dx);
+    return (0.24 + 0.76 * sstep(cw * 0.6, cw * 1.08, dx)) * k;
   }
 
   /* Над контентом ли точка: редкий hit-test (раз в ~0.4 с на элемент).
@@ -570,96 +572,137 @@
   }
 
   /* =====================================================================
+     МИР СТРАНИЦЫ — общая модель положения для всех 2D-сцен
+       • фон «нарисован на странице»: у элемента неподвижный ЯКОРЬ в
+         координатах страницы; экранная y = якорь − pf·scrollY, где pf —
+         скорость слоя 0.86..1 (глубже — чуть медленнее: лёгкий параллакс);
+       • якоря раскладываются равномерно (jittered-сетка со сдвигом рядов) по
+         полосе высотой Hp = 3 экрана, и раскладка повторяется с этим периодом:
+         длинная страница заполнена на всю высоту, а число элементов ограничено;
+       • x-якорь — доля ширины с отступом на размер элемента и амплитуду
+         покачивания: ничего не вылезает за левый/правый край; при ресайзе якорь
+         плавно переезжает на новое место;
+       • движение — только ограниченное покачивание вокруг якоря плюс пружина
+         (курсор, волна клика), которая всегда возвращает к якорю. Ничего не
+         накапливается: через час элемент там же, где был.
+     ===================================================================== */
+  var SCREENS = 3;
+  function scrollY() { return I.scrollY || 0; }
+  function periodOf(L) { return Math.max(200, L.H) * SCREENS; }
+  // экранная y первой копии (с периодом Hp) якоря ay, видимой с запасом m
+  function firstCopy(ay, pf, Hp, m) {
+    var b = ay - pf * scrollY();
+    return b + Math.ceil((-m - b) / Hp) * Hp;
+  }
+  // равномерная раскладка: jittered-сетка cols × rows, ряды через один
+  // сдвинуты на четверть клетки (меньше «колонок»); нормированные [u, v]
+  function gridAnchors(cols, rows, jit) {
+    var pts = [];
+    for (var r = 0; r < rows; r++) for (var c = 0; c < cols; c++) {
+      var sh = (r & 1) ? 0.25 : -0.25;
+      pts.push([(c + 0.5 + sh + (Math.random() - 0.5) * jit) / cols,
+                (r + 0.5 + (Math.random() - 0.5) * jit) / rows]);
+    }
+    return pts;
+  }
+  // сетка для count элементов на экран при ширине W
+  function gridFor(W, perScreen) {
+    var cols = W >= 1200 ? 6 : W >= 900 ? 5 : W >= 600 ? 4 : 2;
+    var rps = Math.max(2, Math.round(perScreen / cols));
+    return { cols: cols, rows: rps * SCREENS };
+  }
+  // пружина к нулю с целью (tx, ty): полукритическое затухание, без дрейфа
+  function spring(e, tx, ty, dt, lim) {
+    e.vx += ((tx - e.dx) * 22 - e.vx * 7.5) * dt;
+    e.vy += ((ty - e.dy) * 22 - e.vy * 7.5) * dt;
+    e.dx = clamp(e.dx + e.vx * dt, -lim, lim);
+    e.dy = clamp(e.dy + e.vy * dt, -lim, lim);
+  }
+
+  /* =====================================================================
      ПЛАВАЮЩИЕ ЭЛЕМЕНТЫ — общая механика (главная, справочник, мини-сервисы)
-       • глубина z: размер, яркость, скорость дрейфа и параллакс (мышь, скролл);
+       • глубина z: размер, яркость, скорость слоя (pf) и параллакс мыши;
        • мягко расступаются у курсора и подсвечиваются;
        • волна от клика толкает их и слегка раскачивает;
        • readMask — за контентом тихо, на полях ярче.
      ===================================================================== */
-  // Раскладка «лучший кандидат» с весом к краям: равномерно, но реже за текстом
-  function placeAll(n, W) {
-    var pts = [];
-    for (var i = 0; i < n; i++) {
-      var best = null, bs = -1;
-      for (var k = 0; k < 14; k++) {
-        var u = Math.random(), v = Math.random(), md = 2;
-        for (var j = 0; j < pts.length; j++) {
-          var du = (u - pts[j][0]) * (W > 700 ? 1.6 : 1), dv = v - pts[j][1];
-          md = Math.min(md, du * du + dv * dv);
-        }
-        var edge = W > 700 ? 0.45 + 0.55 * sstep(0.18, 0.42, Math.abs(u - 0.5)) : 1;
-        var sc = Math.sqrt(md) * edge;
-        if (sc > bs) { bs = sc; best = [u, v]; }
-      }
-      pts.push(best);
-    }
-    return pts;
-  }
-
   function Floaters(L, items, opt) {
+    var alpha = opt.alpha || 0.3, Hp = opt.period || periodOf(L);
     items.sort(function (a, b) { return a.z - b.z; });
     items.forEach(function (e) {
-      e.ox = 0; e.oy = 0; e.kx = 0; e.ky = 0; e.hl = 0; e.sp = 0; e.spv = 0;
+      e.dx = 0; e.dy = 0; e.vx = 0; e.vy = 0; e.hl = 0; e.sp = 0; e.spv = 0; e.ax = null;
+      e.pf = 0.86 + 0.14 * clamp((e.z - 0.4) / 0.6, 0, 1);
+      e.amp = rnd(8, 16) * (0.6 + 0.4 * e.z);
+      e.w1 = rnd(0.10, 0.20); e.w2 = rnd(0.06, 0.13); e.p1 = rnd(0, 6.2832); e.p2 = rnd(0, 6.2832);
       if (e.appear == null) e.appear = 0;
     });
-    var speed = opt.speed || 1, alpha = opt.alpha || 0.3;
-    return function (time, dt) {
-      var W = L.W, H = L.H, c = L.ctx, sy = window.scrollY || 0;
-      var mx = 0, my = 0;
-      if (I.sx > -1e3 && !I.touch) { mx = (I.sx - W / 2) / W; my = (I.sy - H / 2) / H; }
-      var R = rings(W, H), on = cursorOn(), dk = Math.exp(-dt * 2.2);
-      for (var i = 0; i < items.length; i++) {
-        var e = items[i], z = e.z;
-        if (e.ready) e.appear = Math.min(1, e.appear + dt / 1.4);
-        e.u += (e.vx * z * speed * dt + e.kx * dt) / W;
-        e.v += (e.vy * z * speed * dt + e.ky * dt) / H;
-        e.kx *= dk; e.ky *= dk;
-        if (e.u > 20 || e.u < -20) e.u -= Math.floor(e.u);
-        if (e.v > 20 || e.v < -20) e.v -= Math.floor(e.v);
-        // раскачка от волны — затухающая пружина
-        e.spv += (-e.sp * 7 - e.spv * 2.6) * dt; e.sp += e.spv * dt;
-        var m = e.size * 1.6 + 20, spX = W + 2 * m, spY = H + 2 * m;
-        var x = e.u * W - mx * 46 * z, y = e.v * H - sy * 0.07 * z - my * 30 * z;
-        x = ((x + m) % spX + spX) % spX - m;
-        y = ((y + m) % spY + spY) % spY - m;
-        var tx = 0, ty = 0, hl = 0;
-        if (on) {
-          var dx = x - I.sx, dy = y - I.sy, d = Math.sqrt(dx * dx + dy * dy) + 1e-3, Rr = 140 + e.size;
-          if (d < Rr) { var q = 1 - d / Rr; tx = dx / d * q * q * 70 * I.pres; ty = dy / d * q * q * 70 * I.pres; hl = q * I.pres; }
-        }
-        for (var r = 0; r < R.length; r++) {
-          var rx = x - R[r].x, ry = y - R[r].y, rd = Math.sqrt(rx * rx + ry * ry) + 1e-3;
-          var wv = (rd - R[r].r) / (60 + e.size * 0.5), w = Math.exp(-wv * wv) * R[r].e;
-          if (w > 0.01) {
-            e.kx += rx / rd * w * 900 * dt; e.ky += ry / rd * w * 900 * dt;
-            e.spv += (e.ph > 3 ? 1 : -1) * w * 5 * dt;
-            hl = Math.max(hl, w * 0.8);
+    var api_ = {
+      items: items, period: Hp,
+      draw: function (time, dt) {
+        var W = L.W, H = L.H, c = L.ctx;
+        var mx = 0, my = 0;
+        if (I.sx > -1e3 && !I.touch) { mx = (I.sx - W / 2) / W; my = (I.sy - H / 2) / H; }
+        var R = rings(W, H), on = cursorOn(), ke = 1 - Math.exp(-dt * 3);
+        for (var i = 0; i < items.length; i++) {
+          var e = items[i], z = e.z;
+          if (e.ready) e.appear = Math.min(1, e.appear + dt / 1.4);
+          var hw = e.spr ? e.spr.w / 2 : e.size * 1.4, hh = e.spr ? e.spr.h / 2 : e.size * 1.3;
+          // якорь по x с отступом: элемент со всем покачиванием остаётся в окне
+          var mg = hw + e.amp + 24 * z + 10;
+          var txa = mg * 2 >= W ? W / 2 : clamp(e.u * W, mg, W - mg);
+          e.ax = e.ax == null ? txa : e.ax + (txa - e.ax) * ke;
+          // ограниченное покачивание вокруг якоря + параллакс мыши
+          var bx = e.ax + e.amp * (0.65 * Math.sin(time * e.w1 + e.p1) + 0.35 * Math.sin(time * e.w2 * 1.7 + e.p2)) - mx * 46 * z;
+          var by = e.v * Hp + e.amp * (0.6 * Math.cos(time * e.w2 + e.p2) + 0.4 * Math.sin(time * e.w1 * 1.3 + e.p1)) - my * 30 * z;
+          var m = hh + e.amp + 140, y0 = firstCopy(by, e.pf, Hp, m), vis = y0 < H + m;
+          var tx = 0, ty = 0, hl = 0;
+          if (vis) {
+            if (on) {
+              var dx = bx - I.sx, dy = y0 - I.sy, d = Math.sqrt(dx * dx + dy * dy) + 1e-3, Rr = 140 + e.size;
+              if (d < Rr) { var q = 1 - d / Rr; tx = dx / d * q * q * 70 * I.pres; ty = dy / d * q * q * 70 * I.pres; hl = q * I.pres; }
+            }
+            for (var r = 0; r < R.length; r++) {
+              var rx = bx + e.dx - R[r].x, ry = y0 + e.dy - R[r].y, rd = Math.sqrt(rx * rx + ry * ry) + 1e-3;
+              var wv = (rd - R[r].r) / (60 + e.size * 0.5), w = Math.exp(-wv * wv) * R[r].e;
+              if (w > 0.01) {
+                e.vx += rx / rd * w * 900 * dt; e.vy += ry / rd * w * 900 * dt;
+                e.spv += (e.p1 > 3 ? 1 : -1) * w * 5 * dt;
+                hl = Math.max(hl, w * 0.8);
+              }
+            }
+          }
+          spring(e, tx, ty, dt, 110);
+          // раскачка от волны — затухающая пружина угла
+          e.spv += (-e.sp * 7 - e.spv * 2.6) * dt; e.sp = clamp(e.sp + e.spv * dt, -0.6, 0.6);
+          e.hl += (hl - e.hl) * 0.08;
+          if (!vis) continue;
+          var x = bx + e.dx;
+          if (W > hw * 2 + 8) x = clamp(x, hw + 4, W - hw - 4);
+          var A = alpha * e.a * (0.38 + 0.62 * z) * readMask(x, y0, W, H) * L.fade * e.appear *
+                  themeGain() * (1 + 0.9 * e.hl) * occlusion(e, x, y0, W, H, time);
+          if (A < 0.004) continue;
+          var rot = e.rot + e.ra * Math.sin(time * e.rw + e.ph) + e.sp, s = 1 + 0.06 * e.hl;
+          for (var y = y0 + e.dy; y < H + m; y += Hp) {
+            c.save();
+            c.translate(x, y);
+            c.rotate(rot);
+            if (s !== 1) c.scale(s, s);
+            if (e.spr) {
+              c.globalAlpha = Math.min(1, A);
+              c.drawImage(TS.tinted(e.spr, e.col), -e.spr.w / 2, -e.spr.h / 2, e.spr.w, e.spr.h);
+            } else if (e.geo) {
+              e.geo(c, e.size, time, Math.min(1, A * 1.15), e);
+            }
+            c.restore();
           }
         }
-        e.ox += (tx - e.ox) * 0.06; e.oy += (ty - e.oy) * 0.06; e.hl += (hl - e.hl) * 0.08;
-        x += e.ox; y += e.oy;
-        var A = alpha * e.a * (0.38 + 0.62 * z) * readMask(x, y, W, H) * L.fade * e.appear *
-                themeGain() * (1 + 0.9 * e.hl) * occlusion(e, x, y, W, H, time);
-        if (A < 0.004) continue;
-        c.save();
-        c.translate(x, y);
-        c.rotate(e.rot + e.ra * Math.sin(time * e.rw + e.ph) + e.sp);
-        var s = 1 + 0.06 * e.hl;
-        if (s !== 1) c.scale(s, s);
-        if (e.spr) {
-          c.globalAlpha = Math.min(1, A);
-          c.drawImage(TS.tinted(e.spr, e.col), -e.spr.w / 2, -e.spr.h / 2, e.spr.w, e.spr.h);
-        } else if (e.geo) {
-          e.geo(c, e.size, time, Math.min(1, A * 1.15), e);
-        }
-        c.restore();
       }
     };
+    return api_;
   }
 
   function mkItem(z, u, v, extra) {
-    var ang = rnd(0, 6.2832), sp = rnd(5, 11);
-    var e = { z: z, u: u, v: v, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp - 2,
+    var e = { z: z, u: u, v: v,
               rot: rnd(-0.18, 0.18), ra: rnd(0.04, 0.10), rw: rnd(0.08, 0.2), ph: rnd(0, 6.2832),
               a: 1, col: 'a', ready: true };
     for (var k in extra) e[k] = extra[k];
@@ -705,45 +748,55 @@
     function () { return { geo: drawSpiral }; }
   ];
 
+  // спрайты формул делим между элементами (одна формула одного кегля — один спрайт)
+  var SPR_CACHE = {};
+  function sharedSprite(node, fs) {
+    var key = (node.__mfId || (node.__mfId = 's' + Math.random().toString(36).slice(2))) + '@' + Math.round(fs);
+    return SPR_CACHE[key] || (SPR_CACHE[key] = TS.sprite(node, Math.round(fs)));
+  }
+
   function sceneHome(L) {
     var W = L.W, H = L.H, us = unitScale(W, H);
     var n = W >= 1200 ? 24 : W >= 900 ? 19 : W >= 600 ? 14 : 10;
     if (LITE) n = Math.round(n * 0.65);
-    var nf = Math.round(n * 0.44), ng = Math.round(n * 0.18), nG = n - nf - ng;
-    var pts = placeAll(n, W), items = [], kinds = ['a', 'a', 'b', 'ink', 'c'];
+    var G = gridFor(W, n), pts = gridAnchors(G.cols, G.rows, 0.45), total = pts.length;
+    // доли видов как раньше: формулы 44%, символы 18%, фигуры — остальное
+    var kindsOf = [];
+    for (var q = 0; q < total; q++) kindsOf.push(q < total * 0.44 ? 'f' : q < total * 0.62 ? 'g' : 'G');
+    shuffle(kindsOf);
+    var items = [], kinds = ['a', 'a', 'b', 'ink', 'c'];
     var fl = shuffle(FORMULAS.slice()), gl = shuffle(GLYPHS.slice()), gs = shuffle(GEOS.slice());
-    var idx = 0, i;
-    for (i = 0; i < nf; i++, idx++) {
-      items.push(mkItem(rnd(0.45, 1), pts[idx][0], pts[idx][1],
-        { kind: 'f', node: fl[i % fl.length], fs: rnd(15, 22) * us, col: pick(kinds), ready: false }));
-    }
-    for (i = 0; i < ng; i++, idx++) {
-      var g = gl[i % gl.length];
-      items.push(mkItem(rnd(0.4, 0.9), pts[idx][0], pts[idx][1],
-        { kind: 'g', node: g[0], fs: rnd(44, 78) * us, col: pick(['a', 'b', 'ink']), a: 0.7, ready: false }));
-    }
-    for (i = 0; i < nG; i++, idx++) {
-      var e = mkItem(rnd(0.45, 1), pts[idx][0], pts[idx][1], gs[i % gs.length]());
-      e.size = rnd(34, 62) * us * (0.7 + 0.3 * e.z);
-      e.col = pick(['a', 'a', 'b', 'ink']);
-      e.a = 0.95;
+    var cf = 0, cg = 0, cG = 0;
+    for (var i = 0; i < total; i++) {
+      var pt = pts[i], k = kindsOf[i], e;
+      if (k === 'f') {
+        e = mkItem(rnd(0.45, 1), pt[0], pt[1],
+          { kind: 'f', node: fl[cf++ % fl.length], fs: rnd(15, 22) * us, col: pick(kinds), ready: false });
+      } else if (k === 'g') {
+        e = mkItem(rnd(0.4, 0.9), pt[0], pt[1],
+          { kind: 'g', node: gl[cg++ % gl.length][0], fs: rnd(44, 78) * us, col: pick(['a', 'b', 'ink']), a: 0.7, ready: false });
+      } else {
+        e = mkItem(rnd(0.45, 1), pt[0], pt[1], gs[cG++ % gs.length]());
+        e.size = rnd(34, 62) * us * (0.7 + 0.3 * e.z);
+        e.col = pick(['a', 'a', 'b', 'ink']);
+        e.a = 0.95;
+      }
+      if (e.kind) e.size = e.fs * (e.kind === 'g' ? 0.5 : 2.2) * (0.75 + 0.25 * e.z);
       items.push(e);
     }
-    items.forEach(function (e) {
-      if (e.kind) e.size = e.fs * (e.kind === 'g' ? 0.5 : 2.2) * (0.75 + 0.25 * e.z);
-    });
     // спрайты — когда подгрузятся шрифты; размер закладываем с учётом глубины
     whenFonts(function () {
       items.forEach(function (e) {
         if (!e.kind) return;
         try {
-          e.spr = TS.sprite(e.node, e.fs * (0.75 + 0.25 * e.z));
+          e.spr = sharedSprite(e.node, e.fs * (0.75 + 0.25 * e.z));
           e.size = Math.max(e.spr.w, e.spr.h) * 0.5;
           e.ready = true;
         } catch (x) {}
       });
     });
-    return Floaters(L, items, { alpha: 0.5, speed: 1 });
+    var F = Floaters(L, items, { alpha: 0.5 });
+    return { draw: F.draw, dbg: F };
   }
 
   /* =====================================================================
@@ -752,23 +805,29 @@
   function sceneReference(L) {
     var W = L.W, H = L.H, us = unitScale(W, H);
     // страницы-листы
-    var np = W >= 1100 ? 5 : W >= 700 ? 4 : 2, pts = placeAll(np, W), items = [];
-    for (var i = 0; i < np; i++) {
+    // Справочник — страница для чтения: весь 2D-слой заметно тише (плюс
+    // тихая зона за колонкой темы, см. readMask/PAGE_MOTIF.calm)
+    var pts = gridAnchors(W >= 700 ? 2 : 1, 2 * SCREENS, 0.5), items = [];
+    for (var i = 0; i < pts.length; i++) {
       var ln = []; for (var k = 0; k < 9; k++) ln.push(k === 4 ? 0.4 : rnd(0.55, 1));
       var e = mkItem(rnd(0.5, 1), pts[i][0], pts[i][1],
         { geo: drawPage, lines: ln, col: pick(['a', 'b']), a: 0.75, ra: rnd(0.03, 0.06) });
-      e.vy = -rnd(4, 8); e.vx = rnd(-2, 2);
       e.size = rnd(46, 64) * us;
       items.push(e);
     }
-    var pages = Floaters(L, items, { alpha: 0.42, speed: 1 });
+    var pagesF = Floaters(L, items, { alpha: 0.3 }), pages = pagesF.draw;
 
     // построения: шаги по времени, затем растворение и новое место
-    var nc = W >= 1100 ? 3 : W >= 700 ? 2 : 1, C = [];
+    // Каждое построение закреплено на странице: место выбирается в видимой
+    // сейчас части (своя полоса по высоте — без наложений), дальше оно
+    // прокручивается вместе с контентом; ушло за экран — вскоре пересоздаётся.
+    var nc = W >= 1100 ? 3 : W >= 700 ? 2 : 1, C = [], PFc = 0.95;
     function spawn(cst, time, first) {
       var side = Math.random() < 0.5;
-      var u = W > 700 ? (side ? rnd(0.06, 0.24) : rnd(0.76, 0.94)) : rnd(0.25, 0.75);
-      cst.u = u; cst.v = rnd(0.2, 0.82);
+      var u = L.W > 700 ? (side ? rnd(0.06, 0.24) : rnd(0.76, 0.94)) : rnd(0.25, 0.75);
+      cst.u = u;
+      cst.wy = scrollY() * PFc + L.H * (0.16 + 0.68 * (cst.slot + rnd(0.2, 0.8)) / nc);
+      cst.off = 0;
       cst.R = rnd(60, 105) * us;
       var a0 = rnd(0, 6.28);
       cst.th = [a0, a0 + rnd(1.6, 2.4), a0 + rnd(3.7, 4.6)];
@@ -776,7 +835,7 @@
       cst.t0 = time + (first ? rnd(0, 5) : rnd(0.5, 2.5));
       cst.dur = 17;
     }
-    for (var j = 0; j < nc; j++) { var cc = {}; spawn(cc, 0, true); C.push(cc); }
+    for (var j = 0; j < nc; j++) { var cc = { slot: j }; spawn(cc, 0, true); C.push(cc); }
     var LBL = ['A', 'B', 'C'];
 
     function seg(c, ax, ay, bx, by, p) { c.beginPath(); c.moveTo(ax, ay); c.lineTo(ax + (bx - ax) * p, ay + (by - ay) * p); c.stroke(); }
@@ -784,9 +843,16 @@
       var t = time - cst.t0;
       if (t < 0) return;
       if (t > cst.dur) { spawn(cst, time, false); return; }
-      var W = L.W, H = L.H, x = cst.u * W, y = cst.v * H - (window.scrollY || 0) * 0.04;
-      y = ((y % H) + H) % H;
-      var A = 0.55 * readMask(x, y, W, H) * L.fade * themeGain() * (1 - sstep(cst.dur - 2.2, cst.dur, t)) *
+      var W = L.W, H = L.H, mg = cst.R * 1.35 + 12;
+      var x = mg * 2 >= W ? W / 2 : clamp(cst.u * W, mg, W - mg), y = cst.wy - scrollY() * PFc;
+      // прокрутили прочь: через ~1.5 с за экраном — новое построение на виду
+      if (y < -mg || y > H + mg) {
+        cst.off += 1 / 60;
+        if (cst.off > 1.5) { spawn(cst, time, false); cst.t0 = time + rnd(0.3, 1.2); }
+        return;
+      }
+      cst.off = 0;
+      var A = 0.4 * readMask(x, y, W, H) * L.fade * themeGain() * (1 - sstep(cst.dur - 2.2, cst.dur, t)) *
               sstep(0, 0.6, t) * occlusion(cst, x, y, W, H, time);
       if (cursorOn()) { var dx = x - I.sx, dy = y - I.sy; A *= 1 + 0.8 * I.pres * Math.max(0, 1 - Math.sqrt(dx * dx + dy * dy) / 260); }
       if (A < 0.004) return;
@@ -887,12 +953,19 @@
     var cfg = W >= 1100 ? [[0.13, 0.34], [0.87, 0.66]] : W >= 700 ? [[0.16, 0.3], [0.84, 0.72]] : [[0.5, 0.8]];
     if (W >= 1500) cfg.push([0.86, 0.2]);
     var order = shuffle(FUNCS.map(function (_, i) { return i; }));
-    cfg.forEach(function (c, i) {
-      P.push({ u: c[0], v: c[1], w: W < 700 ? Math.min(W * 0.8, 320) : clamp(W * 0.17, 200, 290),
-               fi: order[i % order.length], nx: order[(i + 1) % order.length], k: i, t0: 1 + i * 2.2,
-               m: 0, px: 0, ph: rnd(0, 6), spr: {}, kx: 0, ky: 0, ox: 0, oy: 0 });
-    });
-    var ordPos = cfg.length;
+    // панели закреплены на странице: раскладка экрана повторяется на каждом из
+    // SCREENS экранов полосы (через один — зеркально), период Hp
+    var Hp = periodOf(L), idx = 0;
+    for (var sc = 0; sc < SCREENS; sc++) {
+      cfg.forEach(function (c) {
+        var i = idx++;
+        P.push({ u: sc & 1 ? 1 - c[0] : c[0], v: (sc + c[1]) / SCREENS,
+                 w: W < 700 ? Math.min(W * 0.8, 320) : clamp(W * 0.17, 200, 290),
+                 fi: order[i % order.length], nx: order[(i + 1) % order.length], k: i, t0: 1 + i * 2.2,
+                 m: 0, px: 0, ph: rnd(0, 6), spr: {}, dx: 0, dy: 0, vx: 0, vy: 0, ax: null });
+      });
+    }
+    var ordPos = P.length;
     function nextFn(p) { ordPos++; var n = order[ordPos % order.length]; if (n === p.fi) n = order[(ordPos + 1) % order.length]; return n; }
     var fontsOk = false;
     whenFonts(function () { fontsOk = true; });
@@ -912,9 +985,9 @@
     var small = [[V('f'), '′(', V('x'), ')'], [OP('∫', null, null, true, 1.4), V('f'), SP(0.1), 'd', V('x')],
                  [V('y'), ' = ', V('k'), V('x'), ' + ', V('b')], [FR(['Δ', V('y')], ['Δ', V('x')])],
                  [V('x'), ' ↦ ', V('f'), '(', V('x'), ')'], ['(', V('x'), SUB('', '0'), ', ', V('y'), SUB('', '0'), ')']];
-    var ns = W >= 1100 ? 6 : W >= 700 ? 4 : 3, pts = placeAll(ns, W), items = [];
+    var pts = gridAnchors(W >= 1100 ? 3 : W >= 700 ? 2 : 1, (W >= 700 ? 2 : 3) * SCREENS, 0.5), items = [];
     shuffle(small);
-    for (var s = 0; s < ns; s++) {
+    for (var s = 0; s < pts.length; s++) {
       items.push(mkItem(rnd(0.5, 1), pts[s][0], pts[s][1],
         { kind: 'f', node: small[s % small.length], fs: rnd(15, 20) * us, col: pick(['a', 'b', 'ink']), ready: false, a: 0.8 }));
     }
@@ -924,7 +997,7 @@
         try { e.spr = TS.sprite(e.node, e.fs); e.size = Math.max(e.spr.w, e.spr.h) * 0.5; e.ready = true; } catch (x) {}
       });
     });
-    var floaters = Floaters(L, items, { alpha: 0.42, speed: 0.8 });
+    var floaters = Floaters(L, items, { alpha: 0.42, period: Hp }).draw;
 
     function drawPanel(c, p, time, dt, R) {
       var W = L.W, H = L.H, w = p.w, h = w * 0.64;
@@ -938,18 +1011,20 @@
       }
       p.m = lt > cyc - 1.6 ? (lt - (cyc - 1.6)) / 1.6 : 0;
       var draw = n === 0 ? ease(lt / 1.8) : 1;
+      // якорь на странице: x с отступом на ширину панели, лёгкое покачивание,
+      // волна клика толкает панель пружиной, которая возвращает её на место
+      var mg = w / 2 + 16, tx0 = mg * 2 >= W ? W / 2 : clamp(p.u * W, mg, W - mg);
+      p.ax = p.ax == null ? tx0 : p.ax + (tx0 - p.ax) * (1 - Math.exp(-dt * 3));
       var bob = Math.sin(time * 0.3 + p.ph) * 6;
-      var cx = p.u * W, cy = p.v * H + bob - (window.scrollY || 0) * 0.05;
-      cy = ((cy + h) % (H + 2 * h) + (H + 2 * h)) % (H + 2 * h) - h;
+      var cx = p.ax, cy = firstCopy(p.v * Hp + bob, 0.97, Hp, h + 40);
+      if (cy > H + h + 40) { spring(p, 0, 0, dt, 60); return; }
       for (var r = 0; r < R.length; r++) {
-        var rx = cx - R[r].x, ry = cy - R[r].y, rd = Math.sqrt(rx * rx + ry * ry) + 1e-3;
+        var rx = cx + p.dx - R[r].x, ry = cy + p.dy - R[r].y, rd = Math.sqrt(rx * rx + ry * ry) + 1e-3;
         var wv = (rd - R[r].r) / 120, ww = Math.exp(-wv * wv) * R[r].e;
-        p.kx += rx / rd * ww * 500 * dt; p.ky += ry / rd * ww * 500 * dt;
+        p.vx += rx / rd * ww * 500 * dt; p.vy += ry / rd * ww * 500 * dt;
       }
-      p.ox += p.kx * dt; p.oy += p.ky * dt;
-      var dk = Math.exp(-dt * 2.4); p.kx *= dk; p.ky *= dk;
-      p.ox += (-p.ox) * (1 - Math.exp(-dt * 1.5)); p.oy += (-p.oy) * (1 - Math.exp(-dt * 1.5));
-      cx += p.ox; cy += p.oy;
+      spring(p, 0, 0, dt, 60);
+      cx += p.dx; cy += p.dy;
       var A = 0.62 * readMask(cx, cy, W, H) * L.fade * themeGain() * sstep(0, 0.8, t) *
               occlusion(p, cx, cy, W, H, time);
       // курсор над панелью: точка графика следует за ним, панель ярче
@@ -1034,68 +1109,79 @@
      ФОРУМ — граф связей: узлы, рёбра, сообщения-сигналы, идеи-символы
      ===================================================================== */
   function sceneForum(L) {
-    var W = L.W, H = L.H, us = unitScale(W, H);
-    var n = W >= 1200 ? 30 : W >= 900 ? 24 : W >= 600 ? 17 : 12;
-    if (LITE) n = Math.round(n * 0.7);
-    var pts = placeAll(n, W), N = [], M = [], S = [], sinceMsg = 0;
-    for (var i = 0; i < n; i++) {
-      N.push({ u: pts[i][0], v: pts[i][1], vu: 0, vv: 0, r: rnd(1.6, 3.2) * (Math.random() < 0.18 ? 1.7 : 1),
-               z: rnd(0.55, 1), glow: 0, ph: rnd(0, 6.28), x: 0, y: 0, nb: [] });
+    var W = L.W, H = L.H, us = unitScale(W, H), Hp = periodOf(L), PFn = 0.95;
+    var nps = W >= 1200 ? 30 : W >= 900 ? 24 : W >= 600 ? 17 : 12;
+    if (LITE) nps = Math.round(nps * 0.7);
+    var cols = W >= 1200 ? 7 : W >= 900 ? 6 : W >= 600 ? 5 : 4;
+    // узлы — на jittered-сетке по всей полосе страницы; у каждого свой якорь
+    var pts = gridAnchors(cols, Math.max(2, Math.round(nps / cols)) * SCREENS, 0.6);
+    var N = [], M = [], S = [], sinceMsg = 0, vis = [];
+    for (var i = 0; i < pts.length; i++) {
+      N.push({ u: pts[i][0], v: pts[i][1], r: rnd(1.6, 3.2) * (Math.random() < 0.18 ? 1.7 : 1),
+               z: rnd(0.55, 1), glow: 0, amp: rnd(8, 16), w1: rnd(0.12, 0.24), w2: rnd(0.09, 0.19),
+               p1: rnd(0, 6.28), p2: rnd(0, 6.28), dx: 0, dy: 0, vx: 0, vy: 0, ax: null, bx: 0, by: 0 });
     }
     var link = (W < 700 ? 140 : 215) * Math.max(0.85, us);
     var IDEAS = ['?', '!', 'π', '∑', '√', '∞', '≈', '∫', 'Δ', '∂'];
+    // экземпляр узла = узел + номер копии k (раскладка повторяется с периодом Hp)
+    function posY(n, k) { return n.by + n.dy + k * Hp - PFn * scrollY(); }
+    function posX(n) { return n.bx + n.dx; }
+    function findInst(n, k) {
+      for (var i = 0; i < vis.length; i++) if (vis[i].n === n && vis[i].k === k) return vis[i];
+      return null;
+    }
     function send(a, hops) {
-      if (!a.nb.length || M.length > (MOBILE ? 10 : 18)) return;
+      if (!a || !a.nb.length || M.length > (MOBILE ? 10 : 18)) return;
       var b = pick(a.nb);
-      M.push({ a: a, b: b, t: 0, d: rnd(0.9, 1.6), hops: hops });
+      M.push({ a: a.n, ka: a.k, b: b.n, kb: b.k, t: 0, d: rnd(0.9, 1.6), hops: hops });
     }
     function nearest(x, y) {
       var best = null, bd = 1e12;
-      for (var i = 0; i < N.length; i++) { var dx = N[i].x - x, dy = N[i].y - y, d = dx * dx + dy * dy; if (d < bd) { bd = d; best = N[i]; } }
+      for (var i = 0; i < vis.length; i++) { var dx = vis[i].x - x, dy = vis[i].y - y, d = dx * dx + dy * dy; if (d < bd) { bd = d; best = vis[i]; } }
       return best;
     }
     var lastPulseCount = 0;
-    return function (time, dt) {
-      var W = L.W, H = L.H, c = L.ctx, sy = window.scrollY || 0, on = cursorOn();
-      var R = rings(W, H);
-      // движение: медленное броуновское блуждание + притяжение к курсору + волна
+    var draw = function (time, dt) {
+      var W = L.W, H = L.H, c = L.ctx, sy = scrollY(), on = cursorOn();
+      var R = rings(W, H), ke = 1 - Math.exp(-dt * 3), mY = 40;
+      vis.length = 0;
+      // движение: покачивание у якоря + пружина (курсор притягивает, волна толкает)
       for (var i = 0; i < N.length; i++) {
-        var a = N[i];
-        // шаги в px/с, храним в долях экрана
-        a.vu += (Math.random() - 0.5) * 2.4 * dt * 60 / W;
-        a.vv += (Math.random() - 0.5) * 2.4 * dt * 60 / H;
-        var damp = Math.exp(-dt * 0.9);
-        a.vu *= damp; a.vv *= damp;
-        var x = a.u * W, y = a.v * H - sy * 0.05 * a.z;
-        if (on) {
-          var dx = I.sx - x, dy = I.sy - y, d = Math.sqrt(dx * dx + dy * dy) + 1e-3;
-          if (d < link * 1.4 && d > 40) { a.vu += dx / d * 26 * I.pres * dt / W; a.vv += dy / d * 26 * I.pres * dt / H; }
+        var a = N[i], mg = 14 + a.amp;
+        var txa = clamp(a.u * W, mg, W - mg);
+        a.ax = a.ax == null ? txa : a.ax + (txa - a.ax) * ke;
+        a.bx = a.ax + a.amp * Math.sin(time * a.w1 + a.p1);
+        a.by = a.v * Hp + a.amp * Math.cos(time * a.w2 + a.p2);
+        var y0 = firstCopy(a.by, PFn, Hp, mY), tx = 0, ty = 0;
+        if (y0 < H + mY) {
+          if (on) {
+            var dx = I.sx - a.bx, dy = I.sy - y0, d = Math.sqrt(dx * dx + dy * dy) + 1e-3;
+            if (d < link * 1.4 && d > 40) { var q = (1 - d / (link * 1.4)) * 34 * I.pres; tx = dx / d * q; ty = dy / d * q; }
+          }
+          for (var r = 0; r < R.length; r++) {
+            var rx = a.bx + a.dx - R[r].x, ry = y0 + a.dy - R[r].y, rd = Math.sqrt(rx * rx + ry * ry) + 1e-3;
+            var wv = (rd - R[r].r) / 60, w = Math.exp(-wv * wv) * R[r].e;
+            if (w > 0.01) { a.vx += rx / rd * w * 700 * dt; a.vy += ry / rd * w * 700 * dt; a.glow = Math.max(a.glow, w); }
+          }
         }
-        for (var r = 0; r < R.length; r++) {
-          var rx = x - R[r].x, ry = y - R[r].y, rd = Math.sqrt(rx * rx + ry * ry) + 1e-3;
-          var wv = (rd - R[r].r) / 60, w = Math.exp(-wv * wv) * R[r].e;
-          if (w > 0.01) { a.vu += rx / rd * w * 520 * dt / W; a.vv += ry / rd * w * 520 * dt / H; a.glow = Math.max(a.glow, w); }
-        }
-        a.u += a.vu * dt; a.v += a.vv * dt;
-        // мягкие стенки вместо телепорта: узлы не рвут связи на краю
-        if (a.u < 0.02) a.vu += 0.6 * dt; if (a.u > 0.98) a.vu -= 0.6 * dt;
-        if (a.v < 0.03) a.vv += 0.6 * dt; if (a.v > 0.97) a.vv -= 0.6 * dt;
-        var hh = H + 40;
-        a.x = a.u * W; a.y = ((a.v * H - sy * 0.05 * a.z) % hh + hh) % hh - 20;
+        spring(a, tx, ty, dt, 70);
         a.glow *= Math.exp(-dt * 1.6);
-        a.nb.length = 0;
+        var k0 = Math.round((y0 - (a.by - PFn * sy)) / Hp);
+        for (var yy = y0, k = k0; yy < H + mY; yy += Hp, k++) {
+          vis.push({ n: a, k: k, x: a.bx + a.dx, y: yy + a.dy, nb: [] });
+        }
       }
-      // рёбра
+      // рёбра — между видимыми экземплярами
       var base = 0.42 * L.fade * themeGain(), l2 = link * link;
       c.lineWidth = 1;
-      for (var p = 0; p < N.length; p++) {
-        var A = N[p];
-        for (var q = p + 1; q < N.length; q++) {
-          var B = N[q], ex = A.x - B.x, ey = A.y - B.y, dd = ex * ex + ey * ey;
+      for (var p = 0; p < vis.length; p++) {
+        var A = vis[p];
+        for (var q2 = p + 1; q2 < vis.length; q2++) {
+          var B = vis[q2], ex = A.x - B.x, ey = A.y - B.y, dd = ex * ex + ey * ey;
           if (dd > l2) continue;
           A.nb.push(B); B.nb.push(A);
-          var k = 1 - Math.sqrt(dd) / link;
-          var al = base * k * (0.35 + 0.65 * k) * readMask((A.x + B.x) / 2, (A.y + B.y) / 2, W, H) * (1 + A.glow + B.glow);
+          var kk = 1 - Math.sqrt(dd) / link;
+          var al = base * kk * (0.35 + 0.65 * kk) * readMask((A.x + B.x) / 2, (A.y + B.y) / 2, W, H) * (1 + A.n.glow + B.n.glow);
           if (al < 0.004) continue;
           c.strokeStyle = rgba('ink', al);
           c.beginPath(); c.moveTo(A.x, A.y); c.lineTo(B.x, B.y); c.stroke();
@@ -1103,35 +1189,36 @@
       }
       // курсор — ещё один участник: связи к ближайшим узлам
       if (on) {
-        for (var m2 = 0; m2 < N.length; m2++) {
-          var Cn = N[m2], cx = Cn.x - I.sx, cy = Cn.y - I.sy, cd = Math.sqrt(cx * cx + cy * cy);
+        for (var m2 = 0; m2 < vis.length; m2++) {
+          var Cn = vis[m2], cx = Cn.x - I.sx, cy = Cn.y - I.sy, cd = Math.sqrt(cx * cx + cy * cy);
           if (cd > link * 1.2) continue;
           var ck = 1 - cd / (link * 1.2);
           c.strokeStyle = rgba('b', base * ck * I.pres * 0.9);
           c.beginPath(); c.moveTo(I.sx, I.sy); c.lineTo(Cn.x, Cn.y); c.stroke();
-          Cn.glow = Math.max(Cn.glow, ck * I.pres * 0.5);
+          Cn.n.glow = Math.max(Cn.n.glow, ck * I.pres * 0.5);
         }
       }
       // сообщения: спокойный фон + всплеск от клика
       sinceMsg += dt;
-      if (sinceMsg > (MOBILE ? 1.1 : 0.6)) { sinceMsg = 0; send(pick(N), 2 + ((Math.random() * 3) | 0)); }
-      var pc = 0; for (var r2 = 0; r2 < R.length; r2++) pc++;
-      if (pc > lastPulseCount && R.length) {
+      if (sinceMsg > (MOBILE ? 1.1 : 0.6) && vis.length) { sinceMsg = 0; send(pick(vis), 2 + ((Math.random() * 3) | 0)); }
+      if (R.length > lastPulseCount) {
         var rn = R[R.length - 1], nn = nearest(rn.x, rn.y);
-        if (nn) { nn.glow = 1; for (var z = 0; z < 3; z++) send(nn, 3); }
+        if (nn) { nn.n.glow = 1; for (var z = 0; z < 3; z++) send(nn, 3); }
       }
-      lastPulseCount = pc;
+      lastPulseCount = R.length;
       for (var mi = M.length - 1; mi >= 0; mi--) {
         var ms = M[mi];
         ms.t += dt / ms.d;
+        var ax = posX(ms.a), ay = posY(ms.a, ms.ka), bx = posX(ms.b), by = posY(ms.b, ms.kb);
         if (ms.t >= 1) {
           ms.b.glow = Math.max(ms.b.glow, 0.9);
-          if (Math.random() < 0.35 && S.length < 12) S.push({ x: ms.b.x, y: ms.b.y, t: 0, ch: pick(IDEAS) });
-          if (ms.hops > 0) send(ms.b, ms.hops - 1);
+          // идея всплывает над узлом: хранится в координатах страницы
+          if (Math.random() < 0.35 && S.length < 12) S.push({ x: bx, yl: by + PFn * sy, t: 0, ch: pick(IDEAS) });
+          if (ms.hops > 0) send(findInst(ms.b, ms.kb), ms.hops - 1);
           M.splice(mi, 1); continue;
         }
-        var e = easeIO(ms.t), mxp = ms.a.x + (ms.b.x - ms.a.x) * e, myp = ms.a.y + (ms.b.y - ms.a.y) * e;
-        var tb = Math.max(0, e - 0.12), txp = ms.a.x + (ms.b.x - ms.a.x) * tb, typ = ms.a.y + (ms.b.y - ms.a.y) * tb;
+        var e = easeIO(ms.t), mxp = ax + (bx - ax) * e, myp = ay + (by - ay) * e;
+        var tb = Math.max(0, e - 0.12), txp = ax + (bx - ax) * tb, typ = ay + (by - ay) * tb;
         var am = base * 1.6 * readMask(mxp, myp, W, H) * Math.sin(ms.t * Math.PI);
         c.strokeStyle = rgba('c', am * 0.8); c.lineWidth = 1.6;
         c.beginPath(); c.moveTo(txp, typ); c.lineTo(mxp, myp); c.stroke();
@@ -1140,13 +1227,13 @@
       }
       c.lineWidth = 1;
       // узлы
-      for (var ni = 0; ni < N.length; ni++) {
-        var nd = N[ni], an = base * (0.9 + 0.3 * nd.z) * readMask(nd.x, nd.y, W, H) * (1 + 1.3 * nd.glow);
+      for (var ni = 0; ni < vis.length; ni++) {
+        var vi = vis[ni], nd = vi.n, an = base * (0.9 + 0.3 * nd.z) * readMask(vi.x, vi.y, W, H) * (1 + 1.3 * nd.glow);
         c.fillStyle = rgba(nd.r > 3.5 ? 'a' : 'b', an);
-        c.beginPath(); c.arc(nd.x, nd.y, nd.r * (1 + 0.35 * nd.glow), 0, 6.2832); c.fill();
+        c.beginPath(); c.arc(vi.x, vi.y, nd.r * (1 + 0.35 * nd.glow), 0, 6.2832); c.fill();
         if (nd.glow > 0.05) {
           c.strokeStyle = rgba('a', an * nd.glow * 0.6);
-          c.beginPath(); c.arc(nd.x, nd.y, nd.r + 4 + (1 - nd.glow) * 14, 0, 6.2832); c.stroke();
+          c.beginPath(); c.arc(vi.x, vi.y, nd.r + 4 + (1 - nd.glow) * 14, 0, 6.2832); c.stroke();
         }
       }
       // идеи-символы всплывают над узлом и тают
@@ -1155,11 +1242,13 @@
       for (var si = S.length - 1; si >= 0; si--) {
         var sb = S[si]; sb.t += dt / 2.6;
         if (sb.t >= 1) { S.splice(si, 1); continue; }
-        c.fillStyle = rgba('a', base * 1.5 * readMask(sb.x, sb.y, W, H) * Math.sin(sb.t * Math.PI));
-        c.fillText(sb.ch, sb.x + 6, sb.y - 10 - sb.t * 26);
+        var sx = clamp(sb.x + 6, 12, W - 12), syy = sb.yl - PFn * sy - 10 - sb.t * 26;
+        c.fillStyle = rgba('a', base * 1.5 * readMask(sx, syy, W, H) * Math.sin(sb.t * Math.PI));
+        c.fillText(sb.ch, sx, syy);
       }
       c.textAlign = 'start';
     };
+    return { draw: draw, dbg: { nodes: N, period: Hp, vis: vis } };
   }
 
   /* =====================================================================

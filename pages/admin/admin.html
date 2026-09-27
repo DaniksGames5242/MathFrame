@@ -14,6 +14,7 @@
                font-weight:700; font-display:swap; }
 </style>
 <link rel="stylesheet" href="/assets/css/common.css" />
+<link rel="stylesheet" href="/assets/css/admin.css" />
 
 <style>
   /* Статусные цвета — только из токенов; красный для «плохо» тот же, что у .btn.danger */
@@ -207,75 +208,471 @@
 
 <main id="admin-root">
   <header class="admin-head">
-    <span class="mf-label">Управление · MathFrame</span>
+    <div class="admin-head-row">
+      <span class="mf-label">Управление · MathFrame</span>
+      <span class="adm-who" id="admWho"></span>
+    </div>
     <h1 class="mf-axis-title">Админ‑панель</h1>
-    <p>Пользователи, статистика сайта и содержимое справочника</p>
+    <p>Пользователи, форум, AI‑агент, настройки сайта и содержимое справочника</p>
   </header>
 
-  <div class="cards-grid" id="cardsGrid"></div>
+  <nav class="adm-tabs" id="admTabs" role="tablist" aria-label="Разделы админ-панели">
+    <button type="button" role="tab" class="adm-tab active" data-tab="overview" aria-controls="tab-overview" aria-selected="true">Обзор</button>
+    <button type="button" role="tab" class="adm-tab" data-tab="users" aria-controls="tab-users" aria-selected="false" tabindex="-1">Пользователи</button>
+    <button type="button" role="tab" class="adm-tab" data-tab="forum" aria-controls="tab-forum" aria-selected="false" tabindex="-1">Форум</button>
+    <button type="button" role="tab" class="adm-tab" data-tab="ai" aria-controls="tab-ai" aria-selected="false" tabindex="-1">AI</button>
+    <button type="button" role="tab" class="adm-tab" data-tab="topics" aria-controls="tab-topics" aria-selected="false" tabindex="-1">Справочник</button>
+    <button type="button" role="tab" class="adm-tab" data-tab="site" aria-controls="tab-site" aria-selected="false" tabindex="-1">Сайт</button>
+    <button type="button" role="tab" class="adm-tab" data-tab="tools" aria-controls="tab-tools" aria-selected="false" tabindex="-1">Инструменты</button>
+  </nav>
 
-  <section class="admin-panel mf-card mf-ticks" data-mf-reveal>
-    <div class="panel-head">
-      <div>
-        <span class="mf-label">§ 01 · Трафик</span>
-        <h2>Статистика <small id="visitsRangeLabel"></small></h2>
-      </div>
-    </div>
-    <div class="charts-grid">
-      <div class="chart-cell"><div class="cap">Посещения по дням</div><div class="chart-box"><canvas id="visitsChart"></canvas></div></div>
-      <div class="chart-cell"><div class="cap">Описания тем</div><div class="chart-box"><canvas id="descChart"></canvas></div></div>
-      <div class="chart-cell"><div class="cap">Интерактивные примеры</div><div class="chart-box"><canvas id="exampleChart"></canvas></div></div>
-    </div>
-  </section>
+  <!-- ================= ОБЗОР ================= -->
+  <div data-tabpanel="overview" id="tab-overview" role="tabpanel">
+    <div class="cards-grid" id="cardsGrid"></div>
 
-  <section class="admin-panel mf-card mf-ticks" data-mf-reveal>
-    <div class="panel-head">
-      <div>
-        <span class="mf-label">§ 02 · Справочник</span>
-        <h2>Темы справочника</h2>
+    <section class="admin-panel mf-card mf-ticks">
+      <div class="panel-head">
+        <div>
+          <span class="mf-label">§ 01 · Трафик</span>
+          <h2>Статистика <small id="visitsRangeLabel"></small></h2>
+        </div>
       </div>
-      <div class="actions-row">
-        <button class="btn primary small" id="goEditorBtn">Перейти в редактор тем</button>
+      <div class="charts-grid">
+        <div class="chart-cell"><div class="cap">Посещения по дням</div><div class="chart-box"><canvas id="visitsChart" role="img" aria-label="Посещения сайта за 14 дней"></canvas></div></div>
+        <div class="chart-cell"><div class="cap">Описания тем</div><div class="chart-box"><canvas id="descChart" role="img" aria-label="Доля тем с описанием"></canvas></div></div>
+        <div class="chart-cell"><div class="cap">Интерактивные примеры</div><div class="chart-box"><canvas id="exampleChart" role="img" aria-label="Доля тем с интерактивным примером"></canvas></div></div>
       </div>
-    </div>
-    <div class="toolbar">
-      <label class="search">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-        <input type="text" id="topicSearch" placeholder="Поиск по названию…" aria-label="Поиск по названию темы" />
-      </label>
-      <button class="chip active" data-filter="all">Все</button>
-      <button class="chip" data-filter="no-desc">Без описания</button>
-      <button class="chip" data-filter="no-example">Без примера</button>
-      <button class="chip" data-filter="folder">Только папки</button>
-    </div>
-    <div class="table-wrap">
-      <table class="admin-table">
-        <thead><tr><th>Название</th><th>Тип</th><th>Описание</th><th>Пример</th></tr></thead>
-        <tbody id="topicsTbody"></tbody>
-      </table>
-    </div>
-    <div class="empty-hint" id="topicsEmpty" style="display:none;">Ничего не найдено</div>
-  </section>
+    </section>
 
-  <section class="admin-panel mf-card mf-ticks" data-mf-reveal>
-    <div class="panel-head">
-      <div>
-        <span class="mf-label">§ 03 · Доступ</span>
-        <h2>Пользователи <span class="count" id="usersCount">0</span></h2>
+    <section class="admin-panel mf-card mf-ticks">
+      <div class="panel-head">
+        <div>
+          <span class="mf-label">§ 02 · Активность</span>
+          <h2>Активность <small id="actRangeLabel"></small></h2>
+        </div>
+        <div class="actions-row">
+          <div class="seg" id="ovPeriod" role="group" aria-label="Период">
+            <button type="button" class="chip" data-days="7" aria-pressed="false">7 дней</button>
+            <button type="button" class="chip active" data-days="30" aria-pressed="true">30 дней</button>
+            <button type="button" class="chip" data-days="90" aria-pressed="false">90 дней</button>
+          </div>
+          <button type="button" class="btn small" id="ovRefresh">Обновить</button>
+        </div>
       </div>
-      <div class="actions-row">
-        <button class="btn small" id="exportUsersBtn">Экспорт CSV</button>
-        <button class="btn small" id="exportStatsBtn">Экспорт статистики JSON</button>
+      <div class="charts-grid act-grid">
+        <div class="chart-cell"><div class="cap">Регистрации <b class="cap-total" id="regsTotal">…</b></div><div class="chart-box"><canvas id="regsChart" role="img" aria-label="Регистрации по дням"></canvas></div></div>
+        <div class="chart-cell"><div class="cap">Форум: статьи / ответы <b class="cap-total" id="forumActTotal">…</b></div><div class="chart-box"><canvas id="forumActChart" role="img" aria-label="Статьи и ответы форума по дням"></canvas></div></div>
+        <div class="chart-cell"><div class="cap">Новые чаты с AI <b class="cap-total" id="aiActTotal">…</b></div><div class="chart-box"><canvas id="aiActChart" role="img" aria-label="Новые чаты с AI-агентом по дням"></canvas></div></div>
       </div>
+    </section>
+
+    <section class="admin-panel mf-card mf-ticks">
+      <div class="panel-head">
+        <div>
+          <span class="mf-label">§ 03 · Лента</span>
+          <h2>Последние события</h2>
+        </div>
+      </div>
+      <ul class="events" id="eventsList"><li class="empty-hint">Загрузка…</li></ul>
+    </section>
+  </div>
+
+  <!-- ================= ПОЛЬЗОВАТЕЛИ ================= -->
+  <div data-tabpanel="users" id="tab-users" role="tabpanel" hidden>
+    <section class="admin-panel mf-card mf-ticks">
+      <div class="panel-head">
+        <div>
+          <span class="mf-label">Доступ</span>
+          <h2>Пользователи <span class="count" id="usersCount">…</span></h2>
+        </div>
+        <div class="actions-row">
+          <button class="btn small" id="usersRefresh">Обновить</button>
+          <button class="btn small" id="exportUsersBtn">Экспорт CSV</button>
+        </div>
+      </div>
+      <div class="toolbar">
+        <label class="search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+          <input type="text" id="userSearch" placeholder="Имя, email или UID…" aria-label="Поиск пользователя" />
+        </label>
+        <div class="chip-row" id="userChips" role="group" aria-label="Фильтр пользователей">
+          <button type="button" class="chip active" data-ufilter="all" aria-pressed="true">Все</button>
+          <button type="button" class="chip" data-ufilter="admins" aria-pressed="false">Админы</button>
+          <button type="button" class="chip" data-ufilter="banned" aria-pressed="false">Заблокированные</button>
+          <button type="button" class="chip" data-ufilter="new" aria-pressed="false">Новые · 7 дн</button>
+          <button type="button" class="chip" data-ufilter="inactive" aria-pressed="false">Не заходили 30 дн</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table class="admin-table users-table">
+          <thead><tr><th>Пользователь</th><th>Email</th><th>Регистрация</th><th>Последний вход</th><th title="статьи / ответы">Форум</th><th>Роль</th><th>Статус</th><th>Действия</th></tr></thead>
+          <tbody id="usersTbody"></tbody>
+        </table>
+      </div>
+      <div class="empty-hint" id="usersEmpty" style="display:none;">Пользователи не найдены</div>
+      <p class="adm-note">Выдавать права, блокировать и удалять могут только владельцы сайта. «Удалить» стирает профиль в Firestore, но не аккаунт входа Firebase Auth — чтобы не пускать человека, используйте блокировку.</p>
+    </section>
+  </div>
+
+  <!-- ================= ФОРУМ ================= -->
+  <div data-tabpanel="forum" id="tab-forum" role="tabpanel" hidden>
+    <section class="admin-panel mf-card mf-ticks">
+      <div class="panel-head">
+        <div>
+          <span class="mf-label">Модерация</span>
+          <h2>Форум <small id="forumState"></small></h2>
+        </div>
+        <div class="actions-row">
+          <button class="btn small" id="forumRefresh">Обновить</button>
+          <a class="btn small" href="/forum/" target="_blank" rel="noopener">Открыть форум</a>
+        </div>
+      </div>
+      <div class="seg seg-views" id="forumViews" role="group" aria-label="Что модерировать">
+        <button type="button" class="chip active" data-fview="articles" aria-pressed="true">Статьи <b id="fvArticles">…</b></button>
+        <button type="button" class="chip" data-fview="replies" aria-pressed="false">Ответы <b id="fvReplies">…</b></button>
+        <button type="button" class="chip" data-fview="tags" aria-pressed="false">Теги <b id="fvTags">…</b></button>
+      </div>
+
+      <div data-fpanel="articles">
+        <div class="toolbar">
+          <label class="search">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+            <input type="text" id="artSearch" placeholder="Заголовок, автор, тег…" aria-label="Поиск статьи" />
+          </label>
+          <div class="chip-row" id="artChips" role="group" aria-label="Фильтр статей">
+            <button type="button" class="chip active" data-afilter="all" aria-pressed="true">Все</button>
+            <button type="button" class="chip" data-afilter="pinned" aria-pressed="false">Закреплённые</button>
+            <button type="button" class="chip" data-afilter="featured" aria-pressed="false">Популярное</button>
+            <button type="button" class="chip" data-afilter="hidden" aria-pressed="false">Скрытые</button>
+            <button type="button" class="chip" data-afilter="noreplies" aria-pressed="false">Без ответов</button>
+          </div>
+          <select class="adm-select" id="artSort" aria-label="Сортировка статей">
+            <option value="new">Сначала новые</option>
+            <option value="old">Сначала старые</option>
+            <option value="views">По просмотрам</option>
+            <option value="replies">По ответам</option>
+          </select>
+        </div>
+        <div class="table-wrap">
+          <table class="admin-table forum-table">
+            <thead><tr><th>Статья</th><th>Автор</th><th>Создана</th><th>Просм.</th><th>Отв.</th><th>Теги</th><th>Действия</th></tr></thead>
+            <tbody id="artTbody"></tbody>
+          </table>
+        </div>
+        <div class="empty-hint" id="artEmpty" style="display:none;">Статей не найдено</div>
+      </div>
+
+      <div data-fpanel="replies" hidden>
+        <div class="toolbar">
+          <label class="search">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+            <input type="text" id="repSearch" placeholder="Текст, автор, статья…" aria-label="Поиск ответа" />
+          </label>
+          <div class="chip-row" id="repChips" role="group" aria-label="Фильтр ответов">
+            <button type="button" class="chip active" data-rfilter="all" aria-pressed="true">Все</button>
+            <button type="button" class="chip" data-rfilter="today" aria-pressed="false">За сутки</button>
+            <button type="button" class="chip" data-rfilter="disliked" aria-pressed="false">Много дизлайков</button>
+            <button type="button" class="chip" data-rfilter="deleted" aria-pressed="false">Удалённые</button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table class="admin-table replies-table">
+            <thead><tr><th>Ответ</th><th>Автор</th><th>Статья</th><th>Дата</th><th>Лайки</th><th></th></tr></thead>
+            <tbody id="repTbody"></tbody>
+          </table>
+        </div>
+        <div class="empty-hint" id="repEmpty" style="display:none;">Ответов не найдено</div>
+      </div>
+
+      <div data-fpanel="tags" hidden>
+        <p class="adm-note">Нажмите на тег, чтобы переименовать его (или слить с другим) во всех статьях либо удалить.</p>
+        <div class="tags-list" id="tagsList"></div>
+      </div>
+
+      <div class="panel-foot">
+        <button class="btn small" id="exportForumCsv">Статьи · CSV</button>
+        <button class="btn small" id="exportRepliesCsv">Ответы · CSV</button>
+        <button class="btn small" id="exportForumJson">Форум целиком · JSON</button>
+      </div>
+      <p class="adm-note">Отметки «закреплена», «популярное» и «скрыта» сохраняются в статье (поля <code>pinned</code>, <code>featured</code>, <code>hidden</code>); лента форума начнёт их учитывать после соответствующей правки страницы форума.</p>
+    </section>
+  </div>
+
+  <!-- ================= AI ================= -->
+  <div data-tabpanel="ai" id="tab-ai" role="tabpanel" hidden>
+    <div class="two-col">
+      <section class="admin-panel mf-card mf-ticks">
+        <div class="panel-head">
+          <div>
+            <span class="mf-label">Сервер</span>
+            <h2>Состояние сервисов</h2>
+          </div>
+          <div class="actions-row"><button class="btn small" id="aiRefresh">Обновить</button></div>
+        </div>
+        <div id="aiStatus"></div>
+      </section>
+
+      <section class="admin-panel mf-card mf-ticks">
+        <div class="panel-head">
+          <div>
+            <span class="mf-label">Лимиты</span>
+            <h2>Доступ и лимиты</h2>
+          </div>
+        </div>
+        <form id="aiLimitsForm" class="adm-form" novalidate>
+          <label class="adm-check"><input type="checkbox" name="chatEnabled"> <span>AI‑агент включён для пользователей</span></label>
+          <label class="adm-check"><input type="checkbox" name="simplifyEnabled"> <span>«Упростить» в справочнике включено</span></label>
+          <div class="form-row">
+            <label class="adm-field"><span>Агент: запросов в час</span><input type="number" name="chatRateLimit" min="1" max="10000" inputmode="numeric" placeholder="по умолч."></label>
+            <label class="adm-field"><span>«Упростить»: в час (гость)</span><input type="number" name="simplifyRateLimit" min="1" max="10000" inputmode="numeric" placeholder="по умолч."></label>
+          </div>
+          <label class="adm-field"><span>Сообщение, когда сервис выключен</span><input type="text" name="disabledMessage" maxlength="300" placeholder="AI‑агент временно недоступен"></label>
+          <p id="aiLimitsNote" class="adm-note"></p>
+          <div class="form-foot"><small class="muted" id="aiLimitsMeta"></small><button type="submit" class="btn small primary">Сохранить</button></div>
+        </form>
+      </section>
     </div>
-    <div class="table-wrap">
-      <table class="admin-table users-table">
-        <thead><tr><th>Пользователь</th><th>Email</th><th>Регистрация</th><th>Последний вход</th><th>Доступ к панели</th><th>Статус</th><th>Действия</th></tr></thead>
-        <tbody id="usersTbody"></tbody>
-      </table>
+
+    <section class="admin-panel mf-card mf-ticks">
+      <div class="panel-head">
+        <div>
+          <span class="mf-label">Использование</span>
+          <h2>AI‑агент</h2>
+        </div>
+        <div class="actions-row">
+          <div class="seg" id="aiPeriod" role="group" aria-label="Период">
+            <button type="button" class="chip" data-days="7" aria-pressed="false">7 дней</button>
+            <button type="button" class="chip active" data-days="30" aria-pressed="true">30 дней</button>
+            <button type="button" class="chip" data-days="90" aria-pressed="false">90 дней</button>
+          </div>
+          <button class="btn small" id="exportAiCsv">Экспорт CSV</button>
+        </div>
+      </div>
+      <p class="adm-note warn" id="aiUsageNote" hidden></p>
+      <div class="mini-stats" id="aiCards"></div>
+      <div class="chart-cell"><div class="cap">Чаты по дням</div><div class="chart-box"><canvas id="aiChart" role="img" aria-label="Чаты с AI-агентом по дням"></canvas></div></div>
+      <h3 class="sub-h">Самые активные пользователи</h3>
+      <div class="table-wrap">
+        <table class="admin-table">
+          <thead><tr><th>Пользователь</th><th>Чатов</th><th>Вопросов</th><th>Последняя активность</th></tr></thead>
+          <tbody id="aiTopTbody"></tbody>
+        </table>
+      </div>
+      <p class="adm-note">Считаются только чаты, сохранённые в аккаунтах (у вошедших пользователей). Запросы «Упростить» не сохраняются, поэтому их число здесь не видно. Содержимое переписки панель не показывает.</p>
+    </section>
+  </div>
+
+  <!-- ================= СПРАВОЧНИК ================= -->
+  <div data-tabpanel="topics" id="tab-topics" role="tabpanel" hidden>
+    <section class="admin-panel mf-card mf-ticks">
+      <div class="panel-head">
+        <div>
+          <span class="mf-label">Справочник</span>
+          <h2>Темы справочника <span class="count" id="topicsCount">…</span></h2>
+        </div>
+        <div class="actions-row">
+          <button class="btn small" id="exportTopicsBtn">Экспорт CSV</button>
+          <button class="btn primary small" id="goEditorBtn">Перейти в редактор тем</button>
+        </div>
+      </div>
+      <div class="toolbar">
+        <label class="search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+          <input type="text" id="topicSearch" placeholder="Поиск по названию…" aria-label="Поиск по названию темы" />
+        </label>
+        <div class="chip-row" id="topicChips" role="group" aria-label="Фильтр тем">
+          <button type="button" class="chip active" data-filter="all" aria-pressed="true">Все</button>
+          <button type="button" class="chip" data-filter="no-desc" aria-pressed="false">Без описания</button>
+          <button type="button" class="chip" data-filter="no-example" aria-pressed="false">Без примера</button>
+          <button type="button" class="chip" data-filter="folder" aria-pressed="false">Только папки</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table class="admin-table">
+          <thead><tr><th>Название</th><th>Тип</th><th>Описание</th><th>Пример</th></tr></thead>
+          <tbody id="topicsTbody"></tbody>
+        </table>
+      </div>
+      <div class="empty-hint" id="topicsEmpty" style="display:none;">Ничего не найдено</div>
+    </section>
+  </div>
+
+  <!-- ================= САЙТ ================= -->
+  <div data-tabpanel="site" id="tab-site" role="tabpanel" hidden>
+    <p class="adm-note site-meta"><span id="siteMeta">…</span></p>
+    <div class="two-col">
+      <section class="admin-panel mf-card mf-ticks">
+        <div class="panel-head">
+          <div>
+            <span class="mf-label">Объявление</span>
+            <h2>Баннер на всех страницах <span id="bannerStatus"></span></h2>
+          </div>
+        </div>
+        <form id="bannerForm" class="adm-form" novalidate>
+          <label class="adm-check"><input type="checkbox" name="enabled"> <span>Показывать баннер</span></label>
+          <label class="adm-field"><span>Текст <small id="bannerLen">0/300</small></span><textarea name="text" rows="3" maxlength="300" placeholder="Например: 1 октября с 02:00 до 03:00 — плановые работы"></textarea></label>
+          <div class="form-row">
+            <label class="adm-field"><span>Вид</span>
+              <select name="kind" class="adm-select">
+                <option value="info">Информация</option>
+                <option value="warn">Предупреждение</option>
+                <option value="success">Новость</option>
+              </select></label>
+            <label class="adm-field"><span>Показывать до (необяз.)</span><input type="datetime-local" name="expiresAt"></label>
+          </div>
+          <div class="form-row">
+            <label class="adm-field"><span>Ссылка (https://… или /страница/)</span><input type="text" name="linkUrl" maxlength="500" placeholder="/forum/"></label>
+            <label class="adm-field"><span>Текст ссылки</span><input type="text" name="linkText" maxlength="40" placeholder="Подробнее"></label>
+          </div>
+          <label class="adm-check"><input type="checkbox" name="dismissible"> <span>Посетитель может закрыть баннер</span></label>
+          <div class="cap">Предпросмотр</div>
+          <div id="bannerPreview" class="banner-preview"></div>
+          <div class="form-foot">
+            <button type="button" class="btn small danger" id="bannerOffBtn">Скрыть сейчас</button>
+            <button type="submit" class="btn small primary">Сохранить баннер</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="admin-panel mf-card mf-ticks">
+        <div class="panel-head">
+          <div>
+            <span class="mf-label">Доступность</span>
+            <h2>Режим техработ <span id="maintStatus"></span></h2>
+          </div>
+        </div>
+        <form id="maintForm" class="adm-form" novalidate>
+          <label class="adm-check"><input type="checkbox" name="enabled"> <span>Закрыть сайт на техработы</span></label>
+          <label class="adm-field"><span>Сообщение посетителям</span><textarea name="message" rows="3" maxlength="500" placeholder="Мы обновляем сайт. Загляните через полчаса."></textarea></label>
+          <label class="adm-field"><span>Ориентировочно до (необяз.)</span><input type="datetime-local" name="until"></label>
+          <p class="adm-note">Заглушку видят все, кроме администраторов; админ-панель остаётся доступной. Если указано время «до», по его наступлении заглушка снимается сама.</p>
+          <p class="adm-note warn" id="maintOwnerNote" hidden>Режим техработ может менять только владелец сайта.</p>
+          <div class="form-foot"><span></span><button type="submit" class="btn small primary">Сохранить</button></div>
+        </form>
+      </section>
     </div>
-    <div class="empty-hint" id="usersEmpty" style="display:none;">Пользователи не найдены</div>
-  </section>
+  </div>
+
+  <!-- ================= ИНСТРУМЕНТЫ ================= -->
+  <div data-tabpanel="tools" id="tab-tools" role="tabpanel" hidden>
+    <section class="admin-panel mf-card mf-ticks">
+      <div class="panel-head">
+        <div>
+          <span class="mf-label">Быстрые ссылки</span>
+          <h2>Инструменты</h2>
+        </div>
+      </div>
+      <div class="links-grid">
+        <a class="quick-link" href="/admin/hierarchy-editor/"><b>Редактор тем</b><span>Иерархия и описания справочника</span></a>
+        <a class="quick-link" href="/admin/gms-ide/"><b>GMS IDE</b><span>Интерактивные примеры</span></a>
+        <a class="quick-link" href="/forum/" target="_blank" rel="noopener"><b>Форум</b><span>Открыть в новой вкладке</span></a>
+        <a class="quick-link" href="/ai-agent/" target="_blank" rel="noopener"><b>AI‑агент</b><span>Проверить ответы</span></a>
+        <a class="quick-link" href="/spravochnik/" target="_blank" rel="noopener"><b>Справочник</b><span>Как видят посетители</span></a>
+        <a class="quick-link ext" href="https://console.firebase.google.com/project/mathframe-ff436/firestore/databases/-default-/data" target="_blank" rel="noopener"><b>Firestore</b><span>Консоль Firebase · данные</span></a>
+        <a class="quick-link ext" href="https://console.firebase.google.com/project/mathframe-ff436/firestore/databases/-default-/rules" target="_blank" rel="noopener"><b>Правила Firestore</b><span>Консоль Firebase · правила</span></a>
+        <a class="quick-link ext" href="https://console.firebase.google.com/project/mathframe-ff436/authentication/users" target="_blank" rel="noopener"><b>Authentication</b><span>Аккаунты входа</span></a>
+        <a class="quick-link ext" href="https://vercel.com/dashboard" target="_blank" rel="noopener"><b>Vercel</b><span>Деплой и переменные окружения</span></a>
+      </div>
+    </section>
+
+    <section class="admin-panel mf-card mf-ticks">
+      <div class="panel-head">
+        <div>
+          <span class="mf-label">Данные</span>
+          <h2>Экспорт</h2>
+        </div>
+      </div>
+      <div class="export-grid">
+        <div><b>Статистика</b><p>Сводные числа: пользователи, посещения по дням, темы, форум, AI.</p><button class="btn small" id="exportStatsBtn">Статистика · JSON</button></div>
+        <div><b>Резервная копия</b><p>Пользователи, права, блокировки, весь форум с ответами, настройки, посещения. Без переписки с AI.</p><button class="btn small primary" id="exportBackupBtn">Скачать копию · JSON</button></div>
+        <div><b>Таблицы</b><p>CSV пользователей, статей, ответов, тем и использования AI — кнопки на соответствующих вкладках.</p>
+          <span class="link-row"><a href="#users" data-goto-tab="users">Пользователи</a> · <a href="#forum" data-goto-tab="forum">Форум</a> · <a href="#ai" data-goto-tab="ai">AI</a> · <a href="#topics" data-goto-tab="topics">Темы</a></span></div>
+      </div>
+    </section>
+
+    <section class="admin-panel mf-card mf-ticks">
+      <div class="panel-head">
+        <div>
+          <span class="mf-label">Безопасность</span>
+          <h2>Правила Firestore</h2>
+        </div>
+        <div class="actions-row"><button class="btn small" id="copyRulesBtn">Скопировать</button></div>
+      </div>
+      <p class="adm-note">Проверки в панели — только интерфейс; данные защищают правила Firestore. Ниже — фрагмент, который нужен функциям панели. Сверьте с текущими правилами в консоли и перенесите недостающее (правила других коллекций, например <code>aiSync</code>, оставьте как есть).</p>
+      <pre class="rules" id="rulesText">rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function isSuper() {
+      return signedIn() && request.auth.token.email_verified == true
+        &amp;&amp; request.auth.token.email.lower() in ['iagniukovd@gmail.com', 'daniksgames5242@gmail.com',
+                                               'mathframe.ru@gmail.com', 'danil.iagniukov@gmail.com'];
+    }
+    function isAdmin() {
+      return isSuper() || (signedIn()
+        &amp;&amp; exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+        &amp;&amp; get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.granted == true);
+    }
+    function onlyChanged(keys) { return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys); }
+
+    // Профили: свой — сам пользователь (common.js › syncUserProfile), все — администраторы
+    match /users/{uid} {
+      allow read: if request.auth.uid == uid || isAdmin();
+      allow create, update: if request.auth.uid == uid;
+      allow delete: if request.auth.uid == uid || isSuper();
+    }
+    // Права: свой документ читает сам пользователь (так api/chat.js проверяет роль)
+    match /admins/{uid} {
+      allow read: if request.auth.uid == uid || isAdmin();
+      allow write: if isSuper();
+    }
+    match /bannedUsers/{uid} {
+      allow read: if request.auth.uid == uid || isAdmin();
+      allow write: if isSuper();
+    }
+    match /stats/visits {
+      allow read: if isAdmin();
+      allow write: if true;   // счётчик посещений пишет каждый посетитель (increment)
+    }
+    // Настройки: баннер и техработы читают все; баннер меняет любой админ, остальное — владелец
+    match /settings/{doc} {
+      allow read: if true;
+      allow write: if isSuper();
+      allow update: if isAdmin() &amp;&amp; doc == 'site' &amp;&amp; !request.resource.data.diff(resource.data).affectedKeys().hasAny(['maintenance']);
+    }
+    match /forumArticles/{id} {
+      allow read: if true;
+      allow create: if signedIn() &amp;&amp; request.resource.data.authorUid == request.auth.uid;
+      // автор правит свою статью (но не отметки модерации), любой — только +1 к просмотрам
+      allow update: if isAdmin()
+        || (signedIn() &amp;&amp; resource.data.authorUid == request.auth.uid
+            &amp;&amp; !request.resource.data.diff(resource.data).affectedKeys()
+                 .hasAny(['authorUid', 'views', 'pinned', 'featured', 'hidden', 'moderatedBy', 'moderatedAt']))
+        || (onlyChanged(['views']) &amp;&amp; request.resource.data.views == resource.data.views + 1);
+      allow delete: if isAdmin() || (signedIn() &amp;&amp; resource.data.authorUid == request.auth.uid);
+
+      match /replies/{rid} {
+        allow read: if true;
+        allow create: if signedIn() &amp;&amp; request.resource.data.authorUid == request.auth.uid;
+        allow update: if isAdmin()
+          || (signedIn() &amp;&amp; onlyChanged(['likes', 'dislikes', 'voters']))
+          || (signedIn() &amp;&amp; onlyChanged(['deleted', 'bodyHTML']) &amp;&amp; request.resource.data.deleted == true
+              &amp;&amp; (resource.data.authorUid == request.auth.uid
+                  || get(/databases/$(database)/documents/forumArticles/$(id)).data.authorUid == request.auth.uid));
+        allow delete: if isAdmin();
+      }
+    }
+    // AI-чаты: владелец — полностью; администраторы — только чтение (статистика в панели)
+    match /aiChats/{uid}/chats/{chatId} {
+      allow read, write: if request.auth.uid == uid;
+    }
+    match /{path=**}/chats/{chatId} {
+      allow read: if isAdmin();
+    }
+  }
+}</pre>
+    </section>
+  </div>
 </main>
 
 <div id="app-footer"></div>
@@ -291,528 +688,11 @@
 <script src="/assets/js/auth.js"></script>
 <script src="/assets/js/common.js"></script>
 
-<script>
-(function () {
-  // Владельцы сайта — те, кто может назначать администраторов. Тот же список, что в правилах Firestore (isSuper()) и в api/chat.js.
-  const SUPER_ADMIN_EMAILS = ['iagniukovd@gmail.com', 'daniksgames5242@gmail.com', 'mathframe.ru@gmail.com', 'danil.iagniukov@gmail.com'];
-  const isSuperEmail = e => SUPER_ADMIN_EMAILS.includes(String(e || '').toLowerCase());
-  const db = firebase.firestore();
-  let isSuperAdmin = false;
-  let allTopics = [];
-  let allUsers = [];
-
-  // Токены читаем с body: акцент раздела задаётся на <body data-page="admin">, а не на <html>
-  function css(varName) {
-    return getComputedStyle(document.body).getPropertyValue(varName).trim();
-  }
-  function motionOff() {
-    return window.MathFrameUI ? window.MathFrameUI.motionOff() : false;
-  }
-
-  // ===== ИНИЦИАЛИЗАЦИЯ АУТЕНТИФИКАЦИИ =====
-  function initAuthCheck() {
-    if (window.Auth) {
-      window.Auth.onAuthChange(user => checkAccess(user));
-    } else {
-      document.addEventListener('authReady', () => {
-        window.Auth.onAuthChange(user => checkAccess(user));
-      });
-    }
-  }
-  initAuthCheck();
-
-  function checkAccess(user) {
-    if (!user) return denyAccess();
-    if (isSuperEmail(user.email)) {
-      isSuperAdmin = true;
-      return grantAccess(user);
-    }
-    db.collection('admins').doc(user.uid).get().then(doc => {
-      if (doc.exists && doc.data().granted) grantAccess(user);
-      else denyAccess();
-    }).catch(() => denyAccess());
-  }
-
-  function denyAccess() {
-    window.location.replace(PAGE_ROOT);
-  }
-
-  function grantAccess(user) {
-    document.getElementById('admin-gate').style.display = 'none';
-    document.getElementById('admin-root').style.display = 'block';
-    initPanel(user);
-  }
-
-  // ===== ЗАГРУЗКА ДАННЫХ =====
-  async function loadTopics() {
-    try {
-      const res = await fetch(PAGE_ROOT + 'data/topics/config.json', { cache: 'no-cache' });
-      const data = await res.json();
-      return Array.isArray(data) ? data : [];
-    } catch (e) {
-      console.error('Не удалось загрузить config.json', e);
-      return [];
-    }
-  }
-
-  async function loadVisits() {
-    try {
-      const doc = await db.collection('stats').doc('visits').get();
-      if (!doc.exists) return { total: 0, days: {} };
-      const d = doc.data();
-      return { total: d.total || 0, days: d.days || {} };
-    } catch (e) {
-      console.error('Не удалось загрузить статистику посещений', e);
-      return { total: 0, days: {} };
-    }
-  }
-
-  async function loadUsers(currentUser) {
-    try {
-      const [usersSnap, adminsSnap, bannedSnap] = await Promise.all([
-        db.collection('users').get(),
-        db.collection('admins').get(),
-        db.collection('bannedUsers').get()
-      ]);
-      const adminMap = new Map();
-      adminsSnap.forEach(d => adminMap.set(d.id, d.data().granted === true));
-      const bannedSet = new Set();
-      bannedSnap.forEach(d => bannedSet.add(d.id));
-
-      allUsers = usersSnap.docs.map(d => {
-        const data = d.data();
-        return {
-          uid: d.id,
-          email: data.email || '—',
-          displayName: data.displayName || '',
-          createdAt: data.createdAt && data.createdAt.toDate ? data.createdAt.toDate() : null,
-          lastLogin: data.lastLogin && data.lastLogin.toDate ? data.lastLogin.toDate() : null,
-          isAdmin: isSuperEmail(data.email) ? true : !!adminMap.get(d.id),
-          isBanned: bannedSet.has(d.id)
-        };
-      });
-      return allUsers;
-    } catch (e) {
-      console.error('Не удалось загрузить пользователей', e);
-      return [];
-    }
-  }
-
-  // ===== ИНИЦИАЛИЗАЦИЯ ПАНЕЛИ =====
-  async function initPanel(user) {
-    // Абсолютные «чистые» пути (а не относительные): admin.html открывается
-    // по адресу /admin/ (редирект из /pages/admin/admin.html — см.
-    // vercel.json), поэтому относительная ссылка отсюда резолвилась бы
-    // как /admin/hierarchy-editor.html, а не /pages/admin/hierarchy-editor.html.
-    document.getElementById('goEditorBtn').onclick = () => { window.location.href = '/admin/hierarchy-editor/'; };
-
-    const [topics, visits, users] = await Promise.all([loadTopics(), loadVisits(), loadUsers(user)]);
-    allTopics = topics;
-
-    renderCards(topics, visits, users.length);
-    renderVisitsChart(visits);
-    renderTopicsCharts(topics);
-    renderTopicsTable(topics);
-    renderUsersTable(users, user);
-
-    document.getElementById('topicSearch').addEventListener('input', () => renderTopicsTable(allTopics));
-    document.querySelectorAll('.chip').forEach(chip => {
-      chip.addEventListener('click', () => {
-        document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
-        chip.classList.add('active');
-        renderTopicsTable(allTopics);
-      });
-    });
-
-    document.getElementById('exportUsersBtn').onclick = () => exportUsersCsv(users);
-    document.getElementById('exportStatsBtn').onclick = () => exportStatsJson(topics, visits, users.length);
-  }
-
-  // ===== КАРТОЧКИ =====
-  let cardsShown = false;
-  function renderCards(topics, visits, usersCount) {
-    const nonFolder = topics.filter(t => t.type !== 'folder');
-    const folders = topics.filter(t => t.type === 'folder');
-    const withDesc = nonFolder.filter(t => t.description && String(t.description).trim().length > 0);
-    const withExample = nonFolder.filter(t => !!t.example);
-    const today = new Date().toISOString().slice(0, 10);
-    const fmt = n => Number(n).toLocaleString('ru-RU');
-
-    const cards = [
-      { num: usersCount, label: 'Пользователей' },
-      { num: visits.total || 0, label: 'Посещений всего' },
-      { num: visits.days[today] || 0, label: 'Посещений сегодня' },
-      { num: nonFolder.length, label: 'Тем' },
-      { num: folders.length, label: 'Папок' },
-      { num: withDesc.length, of: nonFolder.length, label: 'С описанием' },
-      { num: withExample.length, of: nonFolder.length, label: 'С интерактивным примером' },
-    ];
-    // Повторная отрисовка (после бана/удаления) не должна заново «въезжать»
-    const cls = cardsShown ? ' mf-reveal mf-in' : '';
-    document.getElementById('cardsGrid').innerHTML = cards.map((c, i) => {
-      const ratio = c.of != null;
-      const pct = ratio && c.of ? Math.round(c.num / c.of * 100) : 0;
-      return `<div class="stat-card mf-card mf-ticks${cls}" data-mf-reveal>
-        <span class="idx">${String(i + 1).padStart(2, '0')}</span>
-        <b class="num">${fmt(c.num)}${ratio ? `<small>/${fmt(c.of)}</small>` : ''}</b>
-        <span class="label">${c.label}</span>
-        ${ratio ? `<i class="meter" title="${pct}%"><i style="width:${pct}%"></i></i>` : ''}
-      </div>`;
-    }).join('');
-    if (!cardsShown && window.MathFrameUI) window.MathFrameUI.reveal();
-    cardsShown = true;
-  }
-
-  // ===== ГРАФИКИ =====
-  // Цвета и шрифты — из токенов «Плоскости», перечитываются при смене темы
-  const charts = {};
-  function withAlpha(color, a) {
-    const c = String(color).trim();
-    let m = c.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
-    if (m) {
-      let h = m[1];
-      if (h.length === 3) h = h.split('').map(x => x + x).join('');
-      const n = parseInt(h, 16);
-      return `rgba(${n >> 16 & 255},${n >> 8 & 255},${n & 255},${a})`;
-    }
-    m = c.match(/rgba?\(([^)]+)\)/);
-    if (m) { const p = m[1].split(',').map(s => s.trim()); return `rgba(${p[0]},${p[1]},${p[2]},${a})`; }
-    return c;
-  }
-  function theme() {
-    return {
-      accent: css('--accent'), accent2: css('--accent-2'),
-      text1: css('--text-primary'), text2: css('--text-secondary'), text3: css('--text-tertiary'),
-      border: css('--border'), borderStrong: css('--border-strong'), raised: css('--bg-raised'),
-      sans: css('--font-sans'), mono: css('--font-mono'), display: css('--font-display')
-    };
-  }
-  function tooltipOpts(T) {
-    return {
-      backgroundColor: T.raised, borderColor: T.borderStrong, borderWidth: 1,
-      titleColor: T.text1, bodyColor: T.text2, cornerRadius: 6, padding: 10,
-      titleFont: { family: T.mono, size: 11 }, bodyFont: { family: T.sans, size: 12 },
-      displayColors: false
-    };
-  }
-  function anim() {
-    return motionOff() ? false : { duration: 700, easing: 'easeOutQuart' };
-  }
-
-  // Процент в центре «бублика»: крупно display-шрифтом, подпись моно
-  const centerLabel = {
-    id: 'mfCenter',
-    afterDraw(chart, _args, o) {
-      if (!o || o.text == null) return;
-      const a = chart.chartArea, ctx = chart.ctx;
-      const x = (a.left + a.right) / 2, y = (a.top + a.bottom) / 2;
-      ctx.save();
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillStyle = o.color; ctx.font = `700 26px ${o.display}`;
-      ctx.fillText(o.text, x, y - 5);
-      ctx.fillStyle = o.subColor; ctx.font = `10px ${o.mono}`;
-      ctx.fillText(o.sub, x, y + 17);
-      ctx.restore();
-    }
-  };
-
-  function visitsOptions(T) {
-    return {
-      maintainAspectRatio: false, animation: anim(),
-      interaction: { mode: 'index', intersect: false },
-      plugins: { legend: { display: false }, tooltip: tooltipOpts(T) },
-      scales: {
-        x: { ticks: { color: T.text3, font: { family: T.mono, size: 10 }, maxRotation: 0, autoSkipPadding: 10 },
-             grid: { display: false }, border: { color: T.borderStrong } },
-        y: { beginAtZero: true, ticks: { color: T.text3, font: { family: T.mono, size: 10 }, precision: 0, maxTicksLimit: 5 },
-             grid: { color: T.border }, border: { display: false } }
-      }
-    };
-  }
-  function styleVisitsDataset(ds, T) {
-    ds.borderColor = T.accent;
-    ds.pointBackgroundColor = T.accent;
-    ds.pointHoverBackgroundColor = T.accent;
-    ds.backgroundColor = ctx => {
-      const area = ctx.chart.chartArea;
-      if (!area) return withAlpha(T.accent, 0.15);
-      const g = ctx.chart.ctx.createLinearGradient(0, area.top, 0, area.bottom);
-      g.addColorStop(0, withAlpha(T.accent, 0.30));
-      g.addColorStop(1, withAlpha(T.accent, 0));
-      return g;
-    };
-  }
-
-  function donutOptions(T, pct, sub) {
-    return {
-      maintainAspectRatio: false, animation: anim(), cutout: '74%',
-      plugins: {
-        legend: { position: 'bottom', labels: { color: T.text2, font: { family: T.sans, size: 12 },
-                  usePointStyle: true, pointStyle: 'circle', boxWidth: 7, boxHeight: 7, padding: 12 } },
-        tooltip: Object.assign(tooltipOpts(T), { displayColors: true, usePointStyle: true }),
-        mfCenter: { text: pct + '%', sub, color: T.text1, subColor: T.text3, display: T.display, mono: T.mono }
-      }
-    };
-  }
-  function donutColors(T, main) {
-    return [main, withAlpha(T.text3, 0.28)];
-  }
-
-  function renderVisitsChart(visits) {
-    const days = [];
-    for (let i = 13; i >= 0; i--) {
-      const d = new Date();
-      d.setDate(d.getDate() - i);
-      days.push(d.toISOString().slice(0, 10));
-    }
-    document.getElementById('visitsRangeLabel').textContent = 'последние 14 дней';
-    const T = theme();
-    const ds = {
-      label: 'Посещения',
-      data: days.map(d => visits.days[d] || 0),
-      fill: true, tension: 0.35, borderWidth: 2,
-      pointRadius: 0, pointHoverRadius: 4, pointHitRadius: 12
-    };
-    styleVisitsDataset(ds, T);
-    charts.visits = new Chart(document.getElementById('visitsChart'), {
-      type: 'line',
-      data: { labels: days.map(d => d.slice(8) + '.' + d.slice(5, 7)), datasets: [ds] },
-      options: visitsOptions(T)
-    });
-  }
-
-  function renderTopicsCharts(topics) {
-    const nonFolder = topics.filter(t => t.type !== 'folder');
-    const withDesc = nonFolder.filter(t => t.description && String(t.description).trim().length > 0).length;
-    const withExample = nonFolder.filter(t => !!t.example).length;
-    const pct = n => nonFolder.length ? Math.round(n / nonFolder.length * 100) : 0;
-    const T = theme();
-    const donut = (id, labels, values, key, sub) => {
-      const ch = new Chart(document.getElementById(id), {
-        type: 'doughnut',
-        data: { labels, datasets: [{ data: values, backgroundColor: donutColors(T, T[key]), borderWidth: 0, spacing: 2, hoverOffset: 3 }] },
-        options: donutOptions(T, pct(values[0]), sub),
-        plugins: [centerLabel]
-      });
-      ch.$mfKey = key;
-      return ch;
-    };
-    charts.desc = donut('descChart', ['С описанием', 'Без описания'], [withDesc, nonFolder.length - withDesc], 'accent', 'С ОПИСАНИЕМ');
-    charts.example = donut('exampleChart', ['С примером', 'Без примера'], [withExample, nonFolder.length - withExample], 'accent2', 'С ПРИМЕРОМ');
-  }
-
-  // Смена темы (класс на <html>) и догрузка шрифтов: перекрашиваем без анимации
-  let lastThemeKey = null;
-  function restyleCharts(force) {
-    const key = document.documentElement.classList.contains('light') ? 'light' : 'dark';
-    if (!force && key === lastThemeKey) return;
-    lastThemeKey = key;
-    const T = theme();
-    if (charts.visits) {
-      styleVisitsDataset(charts.visits.data.datasets[0], T);
-      charts.visits.options = visitsOptions(T);
-      charts.visits.update('none');
-    }
-    [charts.desc, charts.example].forEach(ch => {
-      if (!ch) return;
-      const c = ch.options.plugins.mfCenter;
-      ch.data.datasets[0].backgroundColor = donutColors(T, T[ch.$mfKey]);
-      ch.options = donutOptions(T, parseInt(c.text, 10), c.sub);
-      ch.update('none');
-    });
-  }
-  new MutationObserver(() => restyleCharts(false))
-    .observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
-  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => restyleCharts(true));
-
-  // ===== ТАБЛИЦА ТЕМ =====
-  function renderTopicsTable(topics) {
-    const query = document.getElementById('topicSearch').value.trim().toLowerCase();
-    const filter = document.querySelector('.chip.active')?.dataset.filter || 'all';
-    const rows = topics.filter(t => {
-      if (query && !String(t.title || '').toLowerCase().includes(query)) return false;
-      if (filter === 'no-desc') return t.type !== 'folder' && !(t.description && String(t.description).trim());
-      if (filter === 'no-example') return t.type !== 'folder' && !t.example;
-      if (filter === 'folder') return t.type === 'folder';
-      return true;
-    });
-    const tbody = document.getElementById('topicsTbody');
-    document.getElementById('topicsEmpty').style.display = rows.length ? 'none' : 'block';
-    tbody.innerHTML = rows.slice(0, 300).map(t => {
-      const isFolder = t.type === 'folder';
-      const hasDesc = t.description && String(t.description).trim();
-      return `<tr>
-        <td>${escapeHtml(t.title || t.id || '—')}</td>
-        <td class="muted">${isFolder ? 'Папка' : 'Тема'}</td>
-        <td${isFolder ? ' class="muted"' : ''}>${isFolder ? '—' : `<span class="badge ${hasDesc ? 'yes' : 'no'}">${hasDesc ? 'есть' : 'нет'}</span>`}</td>
-        <td${isFolder ? ' class="muted"' : ''}>${isFolder ? '—' : `<span class="badge ${t.example ? 'yes' : 'no'}">${t.example ? 'есть' : 'нет'}</span>`}</td>
-      </tr>`;
-    }).join('');
-  }
-
-  // ===== ТАБЛИЦА ПОЛЬЗОВАТЕЛЕЙ (с блокировкой и удалением) =====
-  function renderUsersTable(users, currentUser) {
-    document.getElementById('usersCount').textContent = users.length;
-    const tbody = document.getElementById('usersTbody');
-    document.getElementById('usersEmpty').style.display = users.length ? 'none' : 'block';
-    users.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-    tbody.innerHTML = users.map(u => {
-      const isSelfSuper = isSuperEmail(u.email);
-      let accessCell = u.isAdmin
-        ? `<span class="badge admin">админ</span>`
-        : `<span class="badge no neutral">нет доступа</span>`;
-      if (isSuperAdmin && !isSelfSuper) {
-        accessCell += ` <button class="btn small" data-uid="${u.uid}" data-grant="${u.isAdmin ? '0' : '1'}" style="margin-left:0.5rem;">${u.isAdmin ? 'Отозвать' : 'Выдать'}</button>`;
-      }
-
-      const statusCell = u.isBanned ? `<span class="badge banned">Заблокирован</span>` : `<span class="badge yes">Активен</span>`;
-
-      // Действия: блокировка/разблокировка + удаление (только для суперадмина, не для себя)
-      let actionsCell = '';
-      if (isSuperAdmin && u.uid !== currentUser.uid) {
-        if (u.isBanned) {
-          actionsCell += `<button class="btn small" data-uid="${u.uid}" data-action="unban">Разблокировать</button> `;
-        } else {
-          actionsCell += `<button class="btn small danger" data-uid="${u.uid}" data-action="ban">Заблокировать</button> `;
-        }
-        // Кнопка удаления (не для суперадмина)
-        if (!isSelfSuper) {
-          actionsCell += `<button class="btn small danger" data-uid="${u.uid}" data-action="delete">Удалить</button>`;
-        }
-      }
-
-      return `<tr>
-        <td>${escapeHtml(u.displayName || '—')}</td>
-        <td class="muted">${escapeHtml(u.email)}</td>
-        <td class="date">${formatDate(u.createdAt)}</td>
-        <td class="date">${formatDate(u.lastLogin)}</td>
-        <td>${accessCell}</td>
-        <td>${statusCell}</td>
-        <td>${actionsCell}</td>
-      </tr>`;
-    }).join('');
-
-    // Обработчики для выдачи/отзыва админки
-    tbody.querySelectorAll('button[data-uid][data-grant]').forEach(btn => {
-      btn.addEventListener('click', () => toggleAdminAccess(btn, currentUser));
-    });
-
-    // Обработчики для блокировки/разблокировки
-    tbody.querySelectorAll('button[data-uid][data-action="ban"], button[data-uid][data-action="unban"]').forEach(btn => {
-      btn.addEventListener('click', () => handleBanAction(btn, currentUser));
-    });
-
-    // НОВОЕ: обработчики для удаления
-    tbody.querySelectorAll('button[data-uid][data-action="delete"]').forEach(btn => {
-      btn.addEventListener('click', () => deleteUser(btn.dataset.uid, currentUser));
-    });
-  }
-
-  // ===== БЛОКИРОВКА / РАЗБЛОКИРОВКА =====
-  async function handleBanAction(btn, currentUser) {
-    const uid = btn.dataset.uid;
-    const action = btn.dataset.action; // 'ban' или 'unban'
-    if (!uid) return;
-    const confirmMsg = action === 'ban' ? 'Заблокировать этого пользователя?' : 'Разблокировать этого пользователя?';
-    if (!confirm(confirmMsg)) return;
-
-    btn.disabled = true;
-    try {
-      if (action === 'ban') {
-        await db.collection('bannedUsers').doc(uid).set({
-          bannedAt: firebase.firestore.FieldValue.serverTimestamp(),
-          bannedBy: currentUser.email
-        });
-      } else { // unban
-        await db.collection('bannedUsers').doc(uid).delete();
-      }
-      const users = await loadUsers(currentUser);
-      renderUsersTable(users, currentUser);
-      // обновляем карточки (количество пользователей не меняется, но для актуальности)
-      const visits = await loadVisits();
-      renderCards(allTopics, visits, users.length);
-    } catch (err) {
-      alert('Ошибка: ' + err.message);
-      btn.disabled = false;
-    }
-  }
-
-  // ===== ВЫДАТЬ/ОТОЗВАТЬ АДМИНКУ =====
-  function toggleAdminAccess(btn, currentUser) {
-    const uid = btn.dataset.uid;
-    const grant = btn.dataset.grant === '1';
-    btn.disabled = true;
-    db.collection('admins').doc(uid).set({
-      granted: grant,
-      grantedBy: currentUser.email,
-      grantedAt: firebase.firestore.FieldValue.serverTimestamp()
-    }, { merge: true }).then(() => location.reload()).catch(err => {
-      alert('Ошибка: ' + err.message);
-      btn.disabled = false;
-    });
-  }
-
-  // ===== НОВОЕ: УДАЛЕНИЕ ПОЛЬЗОВАТЕЛЯ =====
-  async function deleteUser(uid, currentUser) {
-    if (!confirm('Вы действительно хотите удалить этого пользователя? Все его данные (включая записи на форуме) будут удалены.')) return;
-    try {
-      // Удаляем документы из всех коллекций, где может быть uid
-      await db.collection('users').doc(uid).delete();
-      await db.collection('admins').doc(uid).delete();
-      await db.collection('bannedUsers').doc(uid).delete();
-      // (опционально) можно также удалить статьи и ответы пользователя, но это потребует дополнительных запросов
-
-      // Перезагружаем список пользователей и обновляем таблицу и карточки
-      const users = await loadUsers(currentUser);
-      renderUsersTable(users, currentUser);
-      const visits = await loadVisits();
-      renderCards(allTopics, visits, users.length);
-    } catch (err) {
-      alert('Ошибка при удалении: ' + err.message);
-    }
-  }
-
-  // ===== ЭКСПОРТ =====
-  function exportUsersCsv(users) {
-    const header = 'Имя,Email,Регистрация,Последний вход,Админ,Заблокирован\n';
-    const rows = users.map(u => [u.displayName, u.email, formatDate(u.createdAt), formatDate(u.lastLogin), u.isAdmin ? 'да' : 'нет', u.isBanned ? 'да' : 'нет']
-      .map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
-    downloadFile('users.csv', header + rows, 'text/csv;charset=utf-8;');
-  }
-
-  function exportStatsJson(topics, visits, usersCount) {
-    const nonFolder = topics.filter(t => t.type !== 'folder');
-    const stats = {
-      exportedAt: new Date().toISOString(),
-      users: usersCount,
-      visitsTotal: visits.total || 0,
-      visitsByDay: visits.days || {},
-      topics: nonFolder.length,
-      folders: topics.length - nonFolder.length,
-      withDescription: nonFolder.filter(t => t.description && String(t.description).trim()).length,
-      withExample: nonFolder.filter(t => !!t.example).length
-    };
-    downloadFile('stats.json', JSON.stringify(stats, null, 2), 'application/json');
-  }
-
-  function downloadFile(name, content, mime) {
-    const blob = new Blob([content], { type: mime });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = name;
-    a.click();
-    URL.revokeObjectURL(a.href);
-  }
-
-  function formatDate(d) {
-    if (!d) return '—';
-    return d.toLocaleDateString('ru-RU') + ' ' + d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
-  }
-
-  function escapeHtml(s) {
-    return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  }
-})();
-</script>
+<!-- Админ-панель: ядро + вкладки (admin.js — доступ, обзор, пользователи, справочник, инструменты) -->
+<script src="/assets/js/admin-core.js"></script>
+<script src="/assets/js/admin-forum.js"></script>
+<script src="/assets/js/admin-ai.js"></script>
+<script src="/assets/js/admin-site.js"></script>
+<script src="/assets/js/admin.js"></script>
 </body>
 </html>

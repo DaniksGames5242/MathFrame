@@ -6,7 +6,7 @@
 //
 //   AI_AGENT_API_KEYS   the site's key(s) (comma / whitespace separated, rotated)
 //   AI_AGENT_PROVIDER   mistral (default) | groq | openrouter | gemini
-//   AI_AGENT_MODEL      optional, the model (mistral default: ministral-14b-latest)
+//   AI_AGENT_MODEL      optional, the model (mistral default: mistral-medium-latest)
 //   SIMPLIFY_MODEL      optional, overrides the model for this endpoint only
 //   SIMPLIFY_RATE_LIMIT optional, requests per visitor per hour (default 20;
 //                       signed-in users get twice as much, administrators have

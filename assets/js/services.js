@@ -29,7 +29,172 @@
     return String(Number(v.toPrecision(d || 10)));
   };
 
-  /* Поле формулы + клавиатура — общий блок для нескольких сервисов. */
+  /* ======================================================================
+     АНИМАЦИИ СТРАНИЦЫ — маленькие помощники (стили — mini-services.css).
+     Всё движение выключается целиком при prefers-reduced-motion и при
+     настройке сайта «Анимации: выкл.» (html.mf-no-motion) — проверяем
+     каждый раз заново, т.к. пользователь может переключить её вживую.
+     ====================================================================== */
+  var mqReduce = null;
+  try { mqReduce = matchMedia('(prefers-reduced-motion: reduce)'); } catch (e) {}
+  function motionOK() {
+    return !(mqReduce && mqReduce.matches) && !document.documentElement.classList.contains('mf-no-motion');
+  }
+  // Перезапуск CSS-анимации: снять класс → reflow → поставить снова.
+  function replay(node, cls) {
+    if (!node) return;
+    node.classList.remove(cls);
+    if (!motionOK()) return;
+    void node.offsetWidth;
+    node.classList.add(cls);
+  }
+  function shake(node) { if (node) node.classList.remove('mf-field-glow', 'mf-field-submit'); replay(node, 'mf-shake'); }
+  var easeOut3 = function (t) { return 1 - Math.pow(1 - t, 3); };
+
+  // Плавный счётчик: число «набегает» к итоговому значению, в конце ставится
+  // ровно finalText (форматирование итога не меняется). prefix/suffix — для
+  // строк вида «2+3 = 5». Работает только для обычных конечных чисел.
+  function countUp(node, to, finalText, opts) {
+    opts = opts || {};
+    var prefix = opts.prefix || '', from = opts.from || 0, dur = opts.dur || 460;
+    if (!node || !motionOK() || !isFinite(to) || Math.abs(to) > 1e12 || to === from) { if (node) node.textContent = prefix + finalText; return; }
+    var dec = (/[.,](\d+)/.exec(finalText) || [0, ''])[1].length;
+    dec = Math.min(dec, 8);
+    var t0 = performance.now(), token = {};
+    node.__mfCount = token;
+    function frame(now) {
+      if (node.__mfCount !== token) return;
+      var k = Math.min(1, (now - t0) / dur);
+      if (k >= 1) { node.textContent = prefix + finalText; node.__mfCount = null; return; }
+      var v = from + (to - from) * easeOut3(k);
+      node.textContent = prefix + v.toFixed(dec).replace('-', '−');
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+  }
+
+  // «Барабан»: несколько кадров случайных значений, потом итог + приземление.
+  function rollText(node, randomText, finalText, dur) {
+    if (!node) return;
+    if (!motionOK()) { node.textContent = finalText; return; }
+    dur = dur || 520;
+    var t0 = performance.now(), last = 0, token = {};
+    node.__mfRoll = token;
+    node.classList.add('mf-rolling');
+    function frame(now) {
+      if (node.__mfRoll !== token) return;
+      if (now - t0 >= dur) {
+        node.classList.remove('mf-rolling');
+        node.textContent = finalText;
+        replay(node, 'mf-roll-land');
+        return;
+      }
+      // кадры реже к концу — «барабан» замедляется
+      var gap = 40 + 120 * easeOut3((now - t0) / dur);
+      if (now - last >= gap) { node.textContent = randomText(); last = now; }
+      requestAnimationFrame(frame);
+    }
+    node.textContent = randomText();
+    requestAnimationFrame(frame);
+  }
+
+  // TeX → читаемый текст (для копирования ответа в буфер).
+  function plainTex(str) {
+    return latexToPlainText(String(str))
+      .replace(/\\left|\\right/g, '')
+      .replace(/\\cdot/g, '·').replace(/\\times/g, '×')
+      .replace(/\\le(?![a-z])/g, '≤').replace(/\\ge(?![a-z])/g, '≥').replace(/\\ne(?![a-z])/g, '≠')
+      .replace(/\\pm/g, '±').replace(/\\infty/g, '∞').replace(/\\in(?![a-z])/g, '∈')
+      .replace(/\\mathbb\{R\}/g, 'ℝ').replace(/\\mathbb\{Z\}/g, 'ℤ').replace(/\\pi/g, 'π')
+      .replace(/\\text\{([^{}]*)\}/g, '$1')
+      .replace(/\\Rightarrow/g, '⇒').replace(/\\cup/g, '∪').replace(/\\varnothing|\\emptyset/g, '∅')
+      .replace(/\\quad/g, '   ').replace(/\\,|\\;|\\ /g, ' ')
+      .replace(/\\([a-zA-Z]+)/g, '$1')
+      .replace(/[{}]/g, '').replace(/\s+/g, ' ').trim();
+  }
+  // Текст узла с формулами KaTeX: берём исходный TeX из аннотации MathML.
+  function nodePlainText(node) {
+    var clone = node.cloneNode(true);
+    Array.prototype.forEach.call(clone.querySelectorAll('.katex'), function (k) {
+      var ann = k.querySelector('annotation[encoding="application/x-tex"]');
+      k.replaceWith(document.createTextNode(ann ? plainTex(ann.textContent) : k.textContent));
+    });
+    Array.prototype.forEach.call(clone.querySelectorAll('.mf-copy'), function (b) { b.remove(); });
+    return clone.textContent.replace(/\s+/g, ' ').trim();
+  }
+  function writeClipboard(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      return navigator.clipboard.writeText(text).then(function () { return true; }, fallback);
+    }
+    return Promise.resolve(fallback());
+    function fallback() {
+      try {
+        var ta = document.createElement('textarea');
+        ta.value = text; ta.setAttribute('readonly', '');
+        ta.style.cssText = 'position:fixed;left:-9999px;top:0;opacity:0';
+        document.body.appendChild(ta); ta.select();
+        var ok = document.execCommand('copy');
+        ta.remove();
+        return ok;
+      } catch (e) { return false; }
+    }
+  }
+  var ICO_COPY = '<svg class="ic-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2.5"/><path d="M5 15H4.5A1.5 1.5 0 0 1 3 13.5v-9A1.5 1.5 0 0 1 4.5 3h9A1.5 1.5 0 0 1 15 4.5V5"/></svg>' +
+                 '<svg class="ic-ok" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 12.5l5 5 10-11"/></svg>';
+  // Кнопка «Копировать» с микро-анимацией подтверждения (галочка рисуется,
+  // всплывает подпись «Скопировано»). getText вызывается в момент нажатия.
+  function copyButton(host, getText, title) {
+    var b = el('button', 'mf-copy', host, ICO_COPY + '<span class="mf-copy-tip">Скопировано</span>');
+    b.type = 'button';
+    b.title = title || 'Копировать ответ';
+    b.setAttribute('aria-label', b.title);
+    b.addEventListener('click', function (e) {
+      e.stopPropagation();
+      var text = getText();
+      if (!text) { shake(b); return; }
+      writeClipboard(text).then(function (ok) {
+        if (!ok) { shake(b); return; }
+        b.classList.remove('done'); void b.offsetWidth; b.classList.add('done');
+        clearTimeout(b.__t);
+        b.__t = setTimeout(function () { b.classList.remove('done'); }, 1500);
+        if (window.MathFrameUI && motionOK()) window.MathFrameUI.burst(b, { count: 8, spread: 22 });
+      });
+    });
+    return b;
+  }
+
+  // Каскад шагов решения: элементы получают --i и появляются лесенкой,
+  // соединительная линия «прорастает» сверху вниз.
+  function cascadeSteps(wrap) {
+    if (!wrap) return 0;
+    wrap.classList.remove('mf-steps-cascade');
+    var items = wrap.querySelectorAll('.alg-step, .alg-group-h, .alg-brief > *');
+    if (!motionOK() || !items.length) return 0;
+    var n = Math.min(items.length, 14);
+    Array.prototype.forEach.call(items, function (it, i) {
+      it.classList.add('mf-step-in');
+      it.style.setProperty('--i', Math.min(i, 14));
+    });
+    wrap.style.setProperty('--mf-steps', n);
+    void wrap.offsetWidth;
+    wrap.classList.add('mf-steps-cascade');
+    return n;
+  }
+  // «Вывод» ответа: формула проявляется слева направо, по блику — после шагов.
+  function revealAnswer(wrap, delayMs) {
+    if (!wrap) return;
+    wrap.classList.remove('mf-answer-reveal');
+    if (!motionOK() || !wrap.querySelector('.alg-answer-big')) return;
+    Array.prototype.forEach.call(wrap.querySelectorAll('.alg-answer-big'), function (b, j) { b.style.setProperty('--j', Math.min(j, 8)); });
+    wrap.style.setProperty('--mf-ans-delay', (delayMs || 0) + 'ms');
+    void wrap.offsetWidth;
+    wrap.classList.add('mf-answer-reveal');
+  }
+
+  /* Поле формулы + клавиатура — общий блок для нескольких сервисов.
+     onChange(field, isEnter): второй аргумент true, когда пользователь явно
+     нажал Enter (физически или на экранной клавиатуре) — по нему сервисы
+     проигрывают «решающие» анимации, а обычный ввод остаётся спокойным. */
   function makeField(host, opts) {
     opts = opts || {};
     var wrap = el('div', null, host);
@@ -39,10 +204,31 @@
     var f = new MathField(fieldEl, { label: opts.label || 'Формула', onChange: opts.onChange });
     var touch = false;
     try { touch = matchMedia('(pointer: coarse)').matches; } catch (e) {}
-    var kb = new MFKeyboard(kbEl, f, { collapsed: !touch, onEnter: opts.onChange, allowComplex: !!opts.allowComplex });
+    var kb = new MFKeyboard(kbEl, f, {
+      collapsed: !touch, allowComplex: !!opts.allowComplex,
+      onEnter: opts.onChange ? function (fld) { opts.onChange(fld, true); } : null
+    });
     if (opts.initial) f.setExpr(opts.initial);
     fieldEl.__mfField = f;   // доступ к инстансу из DOM — для отладки и тестов
+    // Фокус — одна мягкая волна свечения; Enter — короткий «вдох» поля.
+    fieldEl.addEventListener('focus', function () { replay(fieldEl, 'mf-field-glow'); });
+    fieldEl.addEventListener('animationend', function (e) {
+      if (e.target === fieldEl) fieldEl.classList.remove('mf-field-glow', 'mf-field-submit', 'mf-shake');
+    });
     return { field: f, kb: kb };
+  }
+  // Общая реакция поля на результат: подсветка ошибки, тряска по Enter.
+  function fieldFeedback(field, hasErr, isEnter, errNode) {
+    var host = field && field.host;
+    if (!host) return;
+    var was = host.classList.contains('mf-field-err');
+    host.classList.toggle('mf-field-err', !!hasErr);
+    if (isEnter) {
+      if (hasErr) { shake(host); if (errNode) shake(errNode); }
+      else { host.classList.remove('mf-shake', 'mf-field-glow'); replay(host, 'mf-field-submit'); }
+    } else if (hasErr && !was && errNode) {
+      replay(errNode, 'mf-err-in');
+    }
   }
 
   /* ======================================================================
@@ -194,6 +380,14 @@
       var disp = el('div', 'calc-display', p);
       var traceEl = el('div', 'calc-trace', disp);   // маленькая серая строка
       var mainEl = el('div', 'calc-main', disp);      // крупная строка
+      disp.addEventListener('animationend', function (e) { if (e.target === disp) disp.classList.remove('mf-disp-err'); });
+      // Копировать: готовый ответ, а пока он не посчитан — живой предпросмотр.
+      copyButton(disp, function () {
+        if (state.computed) return String(state.resultDisp || '');
+        var pv = safeEval(state.raw);
+        if (pv === null) return '';
+        return isComplexVal(pv) ? fmtComplex(pv) : fmtNum(pv);
+      }, 'Копировать результат');
 
       // --- сетка кнопок ---
       var padWrap = el('div', 'calc-pad-wrap', p);
@@ -410,7 +604,12 @@
         // результат и так уже показан, второй нажатием ничего не меняется.
         if (state.computed) return;
         var v = safeEval(state.raw);
-        if (v === null) return;
+        if (v === null) {
+          // Нечего/нельзя посчитать — дисплей коротко «мотает головой».
+          if (state.raw) { replay(disp, 'mf-disp-err'); }
+          return;
+        }
+        if (srcEvt && srcEvt.currentTarget) replay(srcEvt.currentTarget, 'mf-eq-fire');
         state.resultRaw = isComplexVal(v) ? complexRawStr(v) : String(v);
         state.resultDisp = isComplexVal(v) ? fmtComplex(v) : fmtNum(v);
         state.computed = true;
@@ -426,6 +625,10 @@
         mainEl.classList.remove('calc-result-pop');
         void mainEl.offsetWidth;
         mainEl.classList.add('calc-result-pop');
+        // Числовой ответ «набегает» плавным счётчиком к итоговому значению.
+        if (typeof v === 'number' && /^−?[0-9]+(\.[0-9]+)?$/.test(state.resultDisp)) {
+          countUp(mainEl, v, state.resultDisp, { prefix: mode === 'inline' ? pretty(state.raw) + ' = ' : '', dur: 480 });
+        }
       }
 
       /* ------------------------------------------------------------ кнопки */
@@ -865,8 +1068,34 @@
       }
 
 
-      /* ---------------------------------------------------------- анализ входа */
-      function recompute() {
+      /* ---------------------------------------------------------- анализ входа
+         recompute(field, isEnter) — обёртка: сам расчёт (recomputeCore) +
+         анимации. Обычный набор символов остаётся «тихим» (только мягкий поп
+         контейнеров из общего механизма в boot()); лесенка шагов и «вывод»
+         ответа — на явные действия: Enter, смена настроек/способа решения и
+         первое открытие сервиса (вызов без аргументов). */
+      function recompute(fld, isEnter) {
+        var explicit = isEnter === true || !fld;
+        recomputeCore();
+        var hasErr = !errWrap.hidden;
+        fieldFeedback(mf.field, hasErr, isEnter === true, errWrap);
+        if (!hasErr && answerWrap.querySelector('.alg-answer-big')) {
+          copyButton(answerWrap, function () {
+            var parts = [];
+            Array.prototype.forEach.call(answerWrap.querySelectorAll('.alg-answer-root, :scope > .alg-answer-big, :scope > .alg-answer-approx'), function (n) {
+              var t = nodePlainText(n); if (t) parts.push(t);
+            });
+            return parts.join('; ');
+          });
+        }
+        if (!explicit || hasErr) return;
+        var n = cascadeSteps(stepsWrap);
+        revealAnswer(answerWrap, n ? Math.min(n, 8) * 55 + 120 : 0);
+        if (isEnter === true && window.MathFrameUI && motionOK() && answerWrap.querySelector('.alg-answer-big')) {
+          setTimeout(function () { window.MathFrameUI.burst(answerWrap.querySelector('.alg-answer-big') || answerWrap, { count: 12, spread: 36 }); }, n ? Math.min(n, 8) * 55 + 320 : 200);
+        }
+      }
+      function recomputeCore() {
         clearError();
         var sysRows = mf.field.systemRows();
         // «i» где-либо в поле — считаем комплексным движком целиком, а не
@@ -1201,20 +1430,97 @@
       var wrap = el('div', 'plot-wrap', p);
       wrap.style.marginTop = '.6rem';
       var cv = el('canvas', null, wrap); cv.id = 'plot';
+      replay(wrap, 'mf-plot-in');
 
       var bar = el('div', 'plot-bar', p);
       [['−', zoomOut], ['+', zoomIn], ['сброс', reset]].forEach(function (b) {
         var btn = el('button', 'mini', bar, b[0]);
         btn.type = 'button';
-        btn.addEventListener('click', b[1]);
+        btn.addEventListener('click', function () { replay(btn, 'mf-zoom-tap'); b[1](); });
       });
       var info = el('div', 'out', p);
 
       // видимая область в математических координатах
       var view = { cx: 0, cy: 0, scale: 60 };  // пикселей на единицу
-      function reset() { view = { cx: 0, cy: 0, scale: 60 }; redraw(); }
-      function zoomIn() { view.scale *= 1.35; redraw(); }
-      function zoomOut() { view.scale /= 1.35; redraw(); }
+      function reset() { animateView({ cx: 0, cy: 0, scale: 60 }); }
+      function zoomIn() { animateView({ cx: view.cx, cy: view.cy, scale: Math.min(4000, view.scale * 1.35) }); }
+      function zoomOut() { animateView({ cx: view.cx, cy: view.cy, scale: Math.max(2, view.scale / 1.35) }); }
+
+      /* ---------------------------------------------------------- анимация
+         Всё движение графика — внутри canvas, одним rAF-циклом, который
+         крутится только пока есть что анимировать:
+           • intro   — при открытии оси «вырастают» из начала координат,
+                       сетка проявляется;
+           • sweep   — кривые прорисовываются слева направо (клип по x) с
+                       мягким «сканером» на фронте; точки (корни, экстремумы,
+                       пересечения) «выпрыгивают» и пульсируют кольцом в тот
+                       момент, когда фронт до них доходит;
+           • viewAnim — плавный зум/сброс кнопками (масштаб — в лог-шкале).
+         Перетаскивание/колесо — мгновенные, как и раньше. */
+      var mountT = performance.now();
+      var introOn = motionOK();
+      var sweep = { start: 0, dur: 0 };
+      var viewAnim = null;
+      var rafId = 0;
+      function kick() {
+        if (rafId) return;
+        rafId = requestAnimationFrame(function tick(now) {
+          rafId = 0;
+          if (!cv.isConnected) return;
+          if (viewAnim) {
+            var k = Math.min(1, (now - viewAnim.t0) / viewAnim.dur), e = easeOut3(k);
+            view.cx = viewAnim.a.cx + (viewAnim.b.cx - viewAnim.a.cx) * e;
+            view.cy = viewAnim.a.cy + (viewAnim.b.cy - viewAnim.a.cy) * e;
+            view.scale = Math.exp(Math.log(viewAnim.a.scale) + (Math.log(viewAnim.b.scale) - Math.log(viewAnim.a.scale)) * e);
+            if (k >= 1) viewAnim = null;
+          }
+          redraw(now);
+          var busy = viewAnim || (introOn && now - mountT < 700) || (sweep.dur && now < sweep.start + sweep.dur + 1000);
+          if (busy) rafId = requestAnimationFrame(tick);
+        });
+      }
+      function animateView(target) {
+        if (!motionOK()) { view = { cx: target.cx, cy: target.cy, scale: target.scale }; redraw(); return; }
+        viewAnim = { t0: performance.now(), dur: 360, a: { cx: view.cx, cy: view.cy, scale: view.scale }, b: target };
+        kick();
+      }
+      // Прорисовка кривых слева направо за dur мс (0 — только «пульс» точек).
+      function startSweep(dur) {
+        if (!motionOK()) { sweep.dur = 0; introOn = false; requestAnimationFrame(function () { redraw(); }); return; }
+        sweep.start = performance.now(); sweep.dur = Math.max(1, dur);
+        kick();
+      }
+      function sweepFrac(now) {
+        if (!sweep.dur) return 1;
+        return Math.max(0, Math.min(1, (now - sweep.start) / sweep.dur));
+      }
+      // Эффект точки по её экранному x: масштаб «выпрыгивания» и кольцо-пульс.
+      function markFx(px, now) {
+        if (!sweep.dur) return { s: 1, ring: 0 };
+        var cross = sweep.start + sweep.dur * Math.max(0, Math.min(1, px / Math.max(1, cv.width)));
+        var age = now - cross;
+        if (age < 0) return { s: 0, ring: 0 };
+        var k = Math.min(1, age / 340);
+        var back = 1 + 2.4 * Math.pow(k - 1, 3) + 1.4 * Math.pow(k - 1, 2);   // easeOutBack
+        return { s: back, ring: age < 900 ? age / 900 : 0 };
+      }
+      function drawMark(ctx, x, y, r, color, now, hollow) {
+        var fx = markFx(x, now);
+        if (fx.s <= 0) return;
+        var rr = r * fx.s;
+        ctx.beginPath(); ctx.arc(x, y, Math.max(0.1, rr), 0, 6.2832);
+        if (hollow) {
+          ctx.fillStyle = css('--bg-sunken', '#111'); ctx.fill();
+          ctx.lineWidth = 2 * dpr; ctx.strokeStyle = color; ctx.stroke();
+        } else { ctx.fillStyle = color; ctx.fill(); }
+        if (fx.ring > 0) {
+          ctx.save();
+          ctx.globalAlpha = (1 - fx.ring) * 0.85;
+          ctx.strokeStyle = color; ctx.lineWidth = 1.6 * dpr;
+          ctx.beginPath(); ctx.arc(x, y, r + fx.ring * 14 * dpr, 0, 6.2832); ctx.stroke();
+          ctx.restore();
+        }
+      }
 
       var dpr = Math.min(window.devicePixelRatio || 1, 2);
       function sizeCanvas() {
@@ -1227,8 +1533,10 @@
       function invX(px) { return view.cx + (px - cv.width / 2) / (view.scale * dpr); }
       function invY(py) { return view.cy - (py - cv.height / 2) / (view.scale * dpr); }
 
+      // Токены читаем с самого canvas, а не с <html>: --accent страницы
+      // (цвет раздела --page-color-services) задан на body[data-page].
       function css(name, fb) {
-        try { return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fb; }
+        try { return getComputedStyle(cv).getPropertyValue(name).trim() || fb; }
         catch (e) { return fb; }
       }
 
@@ -1397,11 +1705,15 @@
         }
       }
 
-      function redraw() {
+      function redraw(now) {
+        if (typeof now !== 'number') now = performance.now();
         sizeCanvas();
         var ctx = cv.getContext('2d');
         var W = cv.width, H = cv.height;
         ctx.clearRect(0, 0, W, H);
+        // intro: сетка проявляется, оси «вырастают» из начала координат
+        var intro = introOn ? easeOut3(Math.min(1, (now - mountT) / 650)) : 1;
+        if (introOn && intro >= 1) introOn = false;
 
         var cGrid = css('--mf-grid-minor', 'rgba(120,150,210,.06)');
         var cAxis = css('--border-strong', '#888');
@@ -1417,55 +1729,85 @@
 
         ctx.lineWidth = 1;
         ctx.strokeStyle = cGrid;
+        ctx.globalAlpha = intro;
         ctx.beginPath();
         for (var gx = Math.ceil(x0 / step) * step; gx <= x1; gx += step) { ctx.moveTo(X(gx), 0); ctx.lineTo(X(gx), H); }
         for (var gy = Math.ceil(yBot / step) * step; gy <= yTop; gy += step) { ctx.moveTo(0, Y(gy)); ctx.lineTo(W, Y(gy)); }
         ctx.stroke();
+        ctx.globalAlpha = 1;
 
         ctx.strokeStyle = cAxis; ctx.lineWidth = 1.4 * dpr;
         ctx.beginPath();
-        ctx.moveTo(0, Y(0)); ctx.lineTo(W, Y(0));
-        ctx.moveTo(X(0), 0); ctx.lineTo(X(0), H);
+        var ox = X(0), oy = Y(0), ax = Math.max(W, H) * intro;
+        ctx.moveTo(Math.max(0, ox - ax), oy); ctx.lineTo(Math.min(W, ox + ax), oy);
+        ctx.moveTo(ox, Math.max(0, oy - ax)); ctx.lineTo(ox, Math.min(H, oy + ax));
         ctx.stroke();
 
         ctx.fillStyle = cTxt;
+        ctx.globalAlpha = intro;
         ctx.font = (11 * dpr) + 'px ui-monospace, monospace';
         ctx.textAlign = 'center'; ctx.textBaseline = 'top';
         for (var tx = Math.ceil(x0 / step) * step; tx <= x1; tx += step) {
           if (Math.abs(tx) < step / 2) continue;
           ctx.fillText(fmt(tx, 4), X(tx), Y(0) + 4 * dpr);
         }
+        ctx.globalAlpha = 1;
 
         if (!spec || spec.mode === 'error') return;
 
-        if (spec.mode === 'function') { drawFunctionCurve(ctx, spec.expr, CURVE1(), x0, x1, W, H); return; }
+        // Прорисовка слева направо: кривые клипуются по фронту sweepPx,
+        // точки появляются в момент, когда фронт до них доходит (markFx).
+        var sf = sweepFrac(now), sweepPx = W * sf;
+        ctx.save();
+        if (sf < 1) { ctx.beginPath(); ctx.rect(0, 0, sweepPx, H); ctx.clip(); }
 
-        if (spec.mode === 'equation1d') {
-          var lhsExpr = MFAlgebra.polyOf ? null : null; // (не нужен — рисуем напрямую по AST через compile строки)
+        if (spec.mode === 'function') { drawFunctionCurve(ctx, spec.expr, CURVE1(), x0, x1, W, H, now); }
+        else if (spec.mode === 'equation1d') {
           drawAstCurve(ctx, spec.lhsAst, spec.v, CURVE1(), x0, x1, W, H);
           drawAstCurve(ctx, spec.rhsAst, spec.v, CURVE2(), x0, x1, W, H);
-          drawEq1DMarks(ctx, spec, x0, x1);
-          return;
+          drawEq1DMarks(ctx, spec, x0, x1, now);
         }
-
-        if (spec.mode === 'implicit') {
+        else if (spec.mode === 'implicit') {
           var F = makeF(spec.lhsAst, spec.rhsAst, spec.hVar, spec.vVar);
           drawImplicitCurve(ctx, F, CURVE1(), x0, x1, yBot, yTop);
-          return;
         }
-
-        if (spec.mode === 'system') {
+        else if (spec.mode === 'system') {
           var G1 = makeF(spec.eq1.lhsAst, spec.eq1.rhsAst, spec.hVar, spec.vVar);
           var G2 = makeF(spec.eq2.lhsAst, spec.eq2.rhsAst, spec.hVar, spec.vVar);
           drawImplicitCurve(ctx, G1, CURVE1(), x0, x1, yBot, yTop);
           drawImplicitCurve(ctx, G2, CURVE2(), x0, x1, yBot, yTop);
-          drawSystemMarks(ctx, G1, G2, x0, x1, yBot, yTop);
-          return;
+          drawSystemMarks(ctx, G1, G2, x0, x1, yBot, yTop, now);
+        }
+        ctx.restore();
+
+        // «сканер» на фронте прорисовки — мягкая вертикальная полоса цвета раздела
+        if (sf > 0 && sf < 1) {
+          var bw = 36 * dpr, g = ctx.createLinearGradient(sweepPx - bw, 0, sweepPx, 0);
+          g.addColorStop(0, 'rgba(0,0,0,0)');
+          g.addColorStop(1, CURVE1());
+          ctx.save();
+          ctx.globalAlpha = 0.16 * Math.sin(sf * Math.PI);
+          ctx.fillStyle = g; ctx.fillRect(sweepPx - bw, 0, bw, H);
+          ctx.globalAlpha = 0.55 * Math.sin(sf * Math.PI);
+          ctx.fillStyle = CURVE1(); ctx.fillRect(sweepPx - dpr, 0, 1.5 * dpr, H);
+          ctx.restore();
         }
       }
 
-      function drawFunctionCurve(ctx, exprStr, color, x0, x1, W, H) {
-        var c = MFMath.compile(exprStr, 'x');
+      // Кэш компиляции функции и её производной: redraw зовётся на каждый
+      // кадр анимации/перетаскивания — не пересобираем AST каждый раз.
+      var fnCache = { expr: null, c: null, d: null };
+      function compiledFn(exprStr) {
+        if (fnCache.expr !== exprStr) {
+          var c = MFMath.compile(exprStr, 'x'), dAst = null;
+          try { dAst = c ? MFMath.d(c.ast, 'x') : null; } catch (e) { dAst = null; }
+          fnCache = { expr: exprStr, c: c, d: dAst };
+        }
+        return fnCache;
+      }
+
+      function drawFunctionCurve(ctx, exprStr, color, x0, x1, W, H, now) {
+        var cc = compiledFn(exprStr), c = cc.c;
         if (!c) return;
         ctx.strokeStyle = color; ctx.lineWidth = 2.2 * dpr; ctx.beginPath();
         var pen = false, prevY = null;
@@ -1479,8 +1821,16 @@
         }
         ctx.stroke();
         var rsVisible = MFMath.roots(function (x) { return c.at(x); }, x0, x1, 1200);
-        ctx.fillStyle = color;
-        rsVisible.slice(0, 40).forEach(function (r) { ctx.beginPath(); ctx.arc(X(r), Y(0), 3.5 * dpr, 0, 6.2832); ctx.fill(); });
+        rsVisible.slice(0, 40).forEach(function (r) { drawMark(ctx, X(r), Y(0), 3.5 * dpr, color, now); });
+        // Экстремумы — полые точки акцентного цвета (те же, что в списке ниже).
+        if (cc.d) {
+          var dAst = cc.d, dv = { x: 0 };
+          var ex = MFMath.roots(function (x) { dv.x = x; try { return MFMath.evalAst(dAst, dv); } catch (e) { return NaN; } }, x0, x1, 600);
+          ex.slice(0, 30).forEach(function (r) {
+            var yv = c.at(r);
+            if (isFinite(yv)) drawMark(ctx, X(r), Y(yv), 4 * dpr, MARK(), now, true);
+          });
+        }
       }
 
       function drawAstCurve(ctx, ast, varName, color, x0, x1, W, H) {
@@ -1499,16 +1849,16 @@
         ctx.stroke();
       }
 
-      function drawEq1DMarks(ctx, spec, x0, x1) {
+      function drawEq1DMarks(ctx, spec, x0, x1, now) {
         var vars = {};
         var f = function (t) { vars[spec.v] = t; try { return MFMath.evalAst(spec.lhsAst, vars) - MFMath.evalAst(spec.rhsAst, vars); } catch (e) { return NaN; } };
         var rs = MFMath.roots(f, x0, x1, 1200);
-        ctx.fillStyle = MARK();
+        var mc = MARK();
         rs.forEach(function (r) {
           vars[spec.v] = r;
           var yv; try { yv = MFMath.evalAst(spec.lhsAst, vars); } catch (e) { yv = NaN; }
           if (!isFinite(yv)) return;
-          ctx.beginPath(); ctx.arc(X(r), Y(yv), 4 * dpr, 0, 6.2832); ctx.fill();
+          drawMark(ctx, X(r), Y(yv), 4 * dpr, mc, now);
         });
       }
 
@@ -1524,20 +1874,33 @@
         });
       }
 
-      function drawSystemMarks(ctx, F1, F2, x0, x1, y0, y1) {
+      function drawSystemMarks(ctx, F1, F2, x0, x1, y0, y1, now) {
         var pts = findIntersections2D(F1, F2, x0, x1, y0, y1, 70);
-        ctx.fillStyle = MARK();
+        var mc = MARK();
         pts.forEach(function (pt) {
-          ctx.beginPath(); ctx.arc(X(pt.x), Y(pt.y), 4.5 * dpr, 0, 6.2832); ctx.fill();
+          drawMark(ctx, X(pt.x), Y(pt.y), 4.5 * dpr, mc, now);
         });
       }
 
-      function onFunctionChange() { updateInfo(); redraw(); }
+      // Набор символов — кривая перерисовывается сразу (без «сканера», чтобы
+      // не мигать на каждый символ), только точки коротко пульсируют. Enter —
+      // полная прорисовка слева направо + проявление ответа.
+      function onFunctionChange(fld, isEnter) {
+        updateInfo();
+        var errNode = info.querySelector('.err');
+        fieldFeedback(mf.field, !!errNode, isEnter === true, errNode);
+        if (isEnter === true) {
+          startSweep(900);
+          revealAnswer(info, 250);
+        } else {
+          startSweep(1);
+        }
+      }
 
       /* --- жесты: одним пальцем тянем, двумя щипаем, колесом масштабируем --- */
       var drag = null, pts = {}, pinch = null;
       cv.addEventListener('pointerdown', function (e) {
-        cv.setPointerCapture(e.pointerId);
+        cv.setPointerCapture(e.pointerId); viewAnim = null;
         pts[e.pointerId] = { x: e.clientX, y: e.clientY };
         var ids = Object.keys(pts);
         if (ids.length === 1) drag = { x: e.clientX, y: e.clientY, cx: view.cx, cy: view.cy };
@@ -1570,7 +1933,7 @@
       cv.addEventListener('pointerup', up);
       cv.addEventListener('pointercancel', up);
       cv.addEventListener('wheel', function (e) {
-        e.preventDefault();
+        e.preventDefault(); viewAnim = null;
         view.scale = Math.max(2, Math.min(4000, view.scale * (e.deltaY < 0 ? 1.12 : 1 / 1.12)));
         redraw();
       }, { passive: false });
@@ -1578,7 +1941,7 @@
       window.addEventListener('resize', redraw);
       new MutationObserver(redraw).observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
       updateInfo();
-      requestAnimationFrame(redraw);
+      startSweep(1000);
     }
   };
 
@@ -2032,7 +2395,7 @@
     inp.addEventListener('input', recalc);
     fromSel.addEventListener('change', recalc);
     toSel.addEventListener('change', recalc);
-    swapBtn.addEventListener('click', function () {
+    swapBtn.addEventListener('click', function () { replay(swapBtn, 'mf-swap-spin');
       var t = fromSel.value; fromSel.value = toSel.value; toSel.value = t; recalc();
     });
     recalc();
@@ -2064,7 +2427,7 @@
     inp.addEventListener('input', recalc);
     fromSel.addEventListener('change', recalc);
     toSel.addEventListener('change', recalc);
-    swapBtn.addEventListener('click', function () { var t = fromSel.value; fromSel.value = toSel.value; toSel.value = t; recalc(); });
+    swapBtn.addEventListener('click', function () { replay(swapBtn, 'mf-swap-spin'); var t = fromSel.value; fromSel.value = toSel.value; toSel.value = t; recalc(); });
     recalc();
   }
 
@@ -2165,7 +2528,7 @@
     inp.addEventListener('input', recalc);
     fromSel.addEventListener('change', recalc);
     toSel.addEventListener('change', recalc);
-    swapBtn.addEventListener('click', function () { var t = fromSel.value; fromSel.value = toSel.value; toSel.value = t; recalc(); });
+    swapBtn.addEventListener('click', function () { replay(swapBtn, 'mf-swap-spin'); var t = fromSel.value; fromSel.value = toSel.value; toSel.value = t; recalc(); });
 
     renderStatus();
     recalc();
@@ -3092,7 +3455,17 @@
     }
     [iA, iB].forEach(function (i) { i.addEventListener('input', gen); });
     typeSel.addEventListener('change', gen);
-    genBtn.addEventListener('click', gen);
+    // «Ещё раз» — число прокручивается «барабаном» и приземляется на итог.
+    genBtn.addEventListener('click', function () {
+      gen();
+      var big = out.querySelector('.big'), a = moreNum(iA), b = moreNum(iB);
+      if (!big || a === null || b === null) return;
+      var lo = Math.min(a, b), hi = Math.max(a, b), isInt = typeSel.value === 'int';
+      rollText(big, function () {
+        var v = isInt ? Math.floor(Math.random() * (Math.floor(hi) - Math.ceil(lo) + 1)) + Math.ceil(lo) : lo + Math.random() * (hi - lo);
+        return isInt ? String(v) : moreFmt(v);
+      }, big.textContent, 560);
+    });
     gen();
   }
   function buildDiceUI(c) {
@@ -3111,7 +3484,17 @@
       el('div', 'big', out, rolls.join('  +  ') + (rolls.length > 1 ? '  =  ' + sum : ''));
     }
     [iN, iSides].forEach(function (i) { i.addEventListener('input', gen); });
-    genBtn.addEventListener('click', gen);
+    // «Бросить снова» — кубики «катятся»: грани мелькают и замирают на итоге.
+    genBtn.addEventListener('click', function () {
+      gen();
+      var big = out.querySelector('.big');
+      var n = Math.round(moreNum(iN)), sides = Math.round(moreNum(iSides));
+      if (!big || !n || !sides) return;
+      rollText(big, function () {
+        var r = []; for (var i = 0; i < n; i++) r.push(1 + Math.floor(Math.random() * sides));
+        return r.join('  +  ') + (n > 1 ? '  =  ' + r.reduce(function (a, b) { return a + b; }, 0) : '');
+      }, big.textContent, 620);
+    });
     gen();
   }
   function buildCoinUI(c) {
@@ -3130,7 +3513,12 @@
       else { moreResults(out, [['орёл', heads], ['решка', n - heads]]); }
     }
     iN.addEventListener('input', gen);
-    genBtn.addEventListener('click', gen);
+    // Одна монетка — честно «подбрасывается» (3D-вращение по оси X).
+    genBtn.addEventListener('click', function () {
+      gen();
+      var big = out.querySelector('.big');
+      if (big) replay(big, 'mf-coin-flip');
+    });
     gen();
   }
   function buildShuffleUI(c) {
@@ -3161,7 +3549,14 @@
     }
     iList.addEventListener('input', gen);
     iK.addEventListener('input', gen);
-    genBtn.addEventListener('click', gen);
+    genBtn.addEventListener('click', function () {
+      gen();
+      var big = out.querySelector('.big');
+      var items = iList.value.split(',').map(function (s) { return s.trim(); }).filter(Boolean);
+      if (!big || !items.length) return;
+      var k = big.textContent.split(', ').length;
+      rollText(big, function () { return shuffle(items).slice(0, k).join(', '); }, big.textContent, 520);
+    });
     gen();
   }
 
@@ -3288,13 +3683,38 @@
       el('span', 'gl', t, s.glyph);
       el('span', null, t, s.title);
       el('div', 'svc-sub', b, s.sub);
-      b.addEventListener('click', function () { open(s.id, true); });
+      el('span', 'svc-bar', b).setAttribute('aria-hidden', 'true');   // полоска активной карточки
+      b.addEventListener('click', function () { open(s.id, true, b); });
     });
 
-    function open(id, push) {
+    // Морф «карточка → рабочая панель»: полупрозрачный «призрак» карточки
+    // перелетает (translate+scale, только transform/opacity) на место новой
+    // панели и растворяется, пока сама панель въезжает.
+    function morphCardToPanel(card, target) {
+      if (!card || !target || !motionOK() || !card.animate) return;
+      var a = card.getBoundingClientRect(), bRect = target.getBoundingClientRect();
+      if (!a.width || !bRect.width) return;
+      // панель далеко за пределами экрана — лететь некуда, не мешаем
+      if (bRect.top > window.innerHeight + 40) return;
+      var ghost = el('div', 'mf-svc-morph', document.body);
+      ghost.style.width = a.width + 'px';
+      ghost.style.height = a.height + 'px';
+      var sx = bRect.width / a.width, sy = Math.min(bRect.height, window.innerHeight * 0.8) / a.height;
+      var anim = ghost.animate([
+        { transform: 'translate(' + a.left + 'px,' + a.top + 'px) scale(1,1)', opacity: 0.95 },
+        { transform: 'translate(' + bRect.left + 'px,' + bRect.top + 'px) scale(' + sx + ',' + sy + ')', opacity: 0 }
+      ], { duration: 520, easing: 'cubic-bezier(0.22, 1, 0.36, 1)', fill: 'forwards' });
+      anim.onfinish = anim.oncancel = function () { ghost.remove(); };
+      setTimeout(function () { if (ghost.parentNode) ghost.remove(); }, 900);
+    }
+
+    function open(id, push, srcCard) {
       var s = SERVICES.filter(function (x) { return x.id === id; })[0];
       if (!s) s = SERVICES[0];
       if (current === s.id) return;
+      var prevIdx = SERVICES.map(function (x) { return x.id; }).indexOf(current);
+      var nextIdx = SERVICES.indexOf(s);
+      work.style.setProperty('--mf-dir', prevIdx < 0 ? 0 : (nextIdx > prevIdx ? 1 : -1));
       current = s.id;
       grid.querySelectorAll('.svc').forEach(function (b) {
         b.classList.toggle('on', b.dataset.id === s.id);
@@ -3312,6 +3732,21 @@
       }
       void work.offsetWidth;   // форсируем reflow, чтобы анимация запустилась заново
       work.classList.add('mf-panel-enter');
+      // Содержимое панели собирается лесенкой (CSS: .mf-svc-stagger). Класс
+      // снимаем после въезда — дальше работают обычные попы результатов.
+      clearTimeout(work.__mfStaggerT);
+      work.classList.remove('mf-svc-stagger');
+      if (motionOK()) {
+        work.classList.add('mf-svc-stagger');
+        work.__mfStaggerT = setTimeout(function () { work.classList.remove('mf-svc-stagger'); }, 1000);
+        var activeCard = grid.querySelector('.svc.on');
+        if (activeCard) {
+          replay(activeCard, 'mf-svc-activate');
+          clearTimeout(activeCard.__mfT);
+          activeCard.__mfT = setTimeout(function () { activeCard.classList.remove('mf-svc-activate'); }, 700);
+        }
+        if (srcCard) morphCardToPanel(srcCard, work.querySelector('.panel') || work);
+      }
       // history.replaceState может кинуть SecurityError, если страница открыта
       // внутри iframe с несовпадающим origin/about:srcdoc (например, просмотр
       // standalone-файла в песочнице предпросмотра) — синхронизация адресной
@@ -3340,6 +3775,7 @@
       var popScheduled = false;
       function flushPop() {
         popScheduled = false;
+        if (!motionOK()) { popQueue.clear(); return; }
         popQueue.forEach(function (node) {
           var cls = node.classList.contains('alg-badge') ? 'mf-badge-pop' : 'mf-pop';
           node.classList.remove(cls);
@@ -3352,6 +3788,8 @@
         for (var i = 0; i < mutations.length; i++) {
           var node = mutations[i].target;
           while (node && node !== work) {
+            // «живые» узлы (счётчик/барабан) меняются каждый кадр — их не попаем
+            if (node.nodeType === 1 && (node.__mfCount || node.__mfRoll && node.classList.contains('mf-rolling'))) break;
             if (node.nodeType === 1 && node.matches && node.matches(POP_SELECTOR)) { popQueue.add(node); break; }
             node = node.parentNode;
           }

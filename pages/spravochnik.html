@@ -1054,6 +1054,7 @@
         margin-bottom: 1.5rem;
       }
       .spr-description { order: 0; width: 100%; }
+      .spr-desc-col { order: 0; width: 100%; }
     }
     @media (max-width: 480px) {
       .spr-title { font-size: 1.6rem; }
@@ -1211,181 +1212,124 @@
     .spr-task-feedback-warn { color: #eab308; }
     .spr-task-explanation { margin-top: 0.5rem; font-weight: 400; color: var(--text-primary); }
 
-    /* ===== «УПРОСТИТЬ» (пересказ темы нейросетью) ===== */
+    /* ===== «ПРОСТЫМИ СЛОВАМИ» (пересказ темы нейросетью) =====
+       Намеренно скромно: вторичная контурная кнопка под текстом темы,
+       без градиентов/свечения — это вспомогательная функция, не «фича». */
+    .spr-desc-col {
+      flex: 1 1 50%;
+      min-width: 0;
+      order: 1;
+    }
     .spr-simplify-bar {
       display: flex;
       align-items: center;
       flex-wrap: wrap;
-      gap: 0.55rem 0.7rem;
-      margin: -0.6rem 0 1.3rem;
-      animation: fadeIn 0.3s ease;
+      gap: 0.4rem 0.8rem;
+      margin: 0.4rem 0 0.5rem;
+      padding-top: 0.9rem;
+      border-top: 1px solid var(--border);
     }
     .spr-simplify-bar[hidden] { display: none; }
-    .spr-simplify-btn,
-    .spr-simplify-orig {
-      position: relative;
+    .spr-simplify-btn {
       display: inline-flex;
       align-items: center;
-      justify-content: center;
-      gap: 0.5rem;
-      min-height: 2.35rem;
-      padding: 0.45rem 1.05rem 0.45rem 0.85rem;
-      border-radius: 999px;
+      gap: 0.45rem;
+      min-height: 2.1rem;
+      padding: 0.35rem 0.85rem 0.35rem 0.7rem;
+      border-radius: 0.55rem;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text-secondary);
       font: inherit;
-      font-size: 0.9rem;
-      font-weight: 600;
+      font-size: 0.86rem;
+      font-weight: 500;
       line-height: 1.1;
       cursor: pointer;
       -webkit-tap-highlight-color: transparent;
-      transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease,
-                  background 0.3s ease, color 0.3s ease, border-color 0.3s ease, opacity 0.3s ease;
+      transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease;
     }
-    .spr-simplify-btn {
-      overflow: hidden;
-      isolation: isolate;
-      color: #fff;
-      border: 1px solid transparent;
-      background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%);
-      box-shadow: 0 4px 16px -4px var(--accent-glow);
-      /* Без перехода color/background: градиент ↔ «нажатая» подложка
-         (.is-active) меняется мгновенно (градиенты не анимируются), и плавный
-         цвет текста давал ~0.3 с белого текста на бледной подложке —
-         «белое на белом» в светлой теме. */
-      transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease,
-                  border-color 0.3s ease, opacity 0.3s ease;
-    }
-    /* мягкий «блик», пробегающий по кнопке при наведении и во время загрузки */
-    .spr-simplify-btn::before {
-      content: '';
-      position: absolute;
-      inset: 0;
-      z-index: -1;
-      background: linear-gradient(110deg, transparent 20%, rgba(255,255,255,0.35) 45%, transparent 70%);
-      transform: translateX(-120%);
-      transition: transform 0.7s ease;
-    }
-    .spr-simplify-btn:hover::before { transform: translateX(120%); }
-    .spr-simplify-btn:hover { transform: translateY(-1px); box-shadow: 0 8px 22px -6px var(--accent-glow); }
-    .spr-simplify-btn:active { transform: translateY(0) scale(0.96); }
-    .spr-simplify-btn:focus-visible,
-    .spr-simplify-orig:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
-    .spr-simplify-btn svg { width: 17px; height: 17px; flex: 0 0 auto; }
-    .spr-simplify-btn .spr-simplify-icon { display: inline-flex; transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); }
-    .spr-simplify-btn:hover .spr-simplify-icon { transform: rotate(-12deg) scale(1.12); }
+    .spr-simplify-btn:hover { color: var(--text-primary); border-color: var(--text-secondary); }
+    .spr-simplify-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .spr-simplify-btn svg { width: 15px; height: 15px; flex: 0 0 auto; display: block; }
+    .spr-simplify-icon { display: inline-flex; }
+    .spr-simplify-btn .spr-si-back,
+    .spr-simplify-btn.is-active .spr-si-bulb { display: none; }
+    .spr-simplify-btn.is-active .spr-si-back { display: block; }
     .spr-simplify-spinner {
       display: none;
-      width: 16px;
-      height: 16px;
+      width: 13px;
+      height: 13px;
       flex: 0 0 auto;
       border-radius: 50%;
-      border: 2px solid rgba(255,255,255,0.35);
-      border-top-color: #fff;
-      animation: sprSimplifySpin 0.8s linear infinite;
+      border: 1.5px solid currentColor;
+      border-right-color: transparent;
+      opacity: 0.7;
+      animation: sprSimplifySpin 0.9s linear infinite;
     }
     .spr-simplify-btn.is-loading { cursor: progress; }
     .spr-simplify-btn.is-loading .spr-simplify-icon { display: none; }
     .spr-simplify-btn.is-loading .spr-simplify-spinner { display: inline-block; }
-    .spr-simplify-btn.is-loading::before { animation: sprSimplifySheen 1.3s ease-in-out infinite; transition: none; }
-    /* включённое упрощение — «нажатая» кнопка */
-    .spr-simplify-btn.is-active {
-      color: var(--accent);
-      background: var(--accent-soft);
-      border-color: var(--accent);
-      box-shadow: none;
-    }
-    .spr-simplify-btn.is-active::before { display: none; }
-    .spr-simplify-orig {
-      color: var(--text-primary);
-      background: transparent;
-      border: 1px solid var(--border);
-      padding: 0.45rem 1rem;
-      animation: sprSimplifyPop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
-    }
-    .spr-simplify-orig[hidden] { display: none; }
-    .spr-simplify-orig:hover { border-color: var(--accent); color: var(--accent); transform: translateY(-1px); }
-    .spr-simplify-orig:active { transform: scale(0.96); }
-    .spr-simplify-orig svg { width: 15px; height: 15px; }
     .spr-simplify-note {
-      font-size: 0.78rem;
+      flex: 1 1 14rem;
+      min-width: 0;
+      font-size: 0.76rem;
+      line-height: 1.35;
       color: var(--text-secondary);
-      animation: fadeIn 0.3s ease;
+      opacity: 0.85;
     }
-    .spr-simplify-note[hidden] { display: none; }
+    .spr-simplify-note:empty { display: none; }
 
     .spr-simplify-error {
       display: flex;
-      align-items: flex-start;
-      gap: 0.7rem;
+      align-items: center;
+      gap: 0.4rem 0.7rem;
       flex-wrap: wrap;
-      margin: -0.6rem 0 1.2rem;
-      padding: 0.7rem 0.9rem;
-      border-radius: 0.8rem;
-      border: 1px solid rgba(239, 68, 68, 0.45);
-      background: rgba(239, 68, 68, 0.08);
-      color: var(--text-primary);
-      font-size: 0.88rem;
-      animation: sprSimplifyPop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+      margin: 0.3rem 0 0.8rem;
+      font-size: 0.84rem;
+      color: #f87171;
     }
+    html.light .spr-simplify-error { color: #c73a3a; }
     .spr-simplify-error[hidden] { display: none; }
     .spr-simplify-error-text { flex: 1 1 14rem; min-width: 0; }
     .spr-simplify-error button {
       flex: 0 0 auto;
-      padding: 0.3rem 0.8rem;
-      border-radius: 999px;
-      border: 1px solid rgba(239, 68, 68, 0.55);
+      padding: 0.25rem 0.7rem;
+      border-radius: 0.5rem;
+      border: 1px solid var(--border);
       background: transparent;
-      color: inherit;
+      color: var(--text-primary);
       font: inherit;
       font-size: 0.82rem;
       cursor: pointer;
-      transition: background 0.2s;
+      transition: border-color 0.2s;
     }
-    .spr-simplify-error button:hover { background: rgba(239, 68, 68, 0.12); }
+    .spr-simplify-error button:hover { border-color: var(--text-secondary); }
 
     /* Описание во время запроса и во время подмены текста */
     .spr-description { position: relative; }
     .spr-description.is-simplifying > * {
-      opacity: 0.45;
-      filter: saturate(0.6);
-      transition: opacity 0.4s ease, filter 0.4s ease;
-    }
-    .spr-description.is-simplifying::after {
-      content: '';
-      position: absolute;
-      inset: -0.4rem -0.6rem;
-      border-radius: 0.9rem;
-      pointer-events: none;
-      background: linear-gradient(100deg, transparent 25%, var(--accent-soft) 45%, rgba(86, 220, 200, 0.14) 55%, transparent 75%);
-      background-size: 250% 100%;
-      animation: sprSimplifyShimmer 1.6s ease-in-out infinite;
+      opacity: 0.6;
+      transition: opacity 0.4s ease;
     }
     .spr-description.spr-desc-out {
       opacity: 0;
-      filter: blur(6px);
-      transform: translateY(6px) scale(0.995);
-      transition: opacity 0.22s ease, filter 0.22s ease, transform 0.22s ease;
+      transform: translateY(4px);
+      transition: opacity 0.22s ease, transform 0.22s ease;
     }
-    .spr-description.spr-desc-in { animation: sprDescIn 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+    .spr-description.spr-desc-in { animation: sprDescIn 0.4s ease both; }
 
     /* Упрощённый текст */
     .spr-simplified-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.4rem;
-      margin-bottom: 0.9rem;
-      padding: 0.25rem 0.7rem;
-      border-radius: 999px;
+      display: block;
+      margin-bottom: 0.7rem;
       font-size: 0.78rem;
-      font-weight: 600;
+      font-weight: 500;
       letter-spacing: 0.02em;
-      color: var(--accent);
-      background: var(--accent-soft);
+      color: var(--text-secondary);
     }
-    .spr-simplified-badge svg { width: 14px; height: 14px; }
     .spr-simplified-body {
-      padding-left: 1rem;
-      border-left: 3px solid transparent;
-      border-image: linear-gradient(to bottom, var(--accent), var(--accent-2)) 1;
+      padding-left: 0.9rem;
+      border-left: 2px solid var(--border);
     }
     .spr-simplified-body > :last-child { margin-bottom: 0; }
     .spr-simplified-body h3, .spr-simplified-body h4, .spr-simplified-body h5 { margin: 1.1rem 0 0.5rem; line-height: 1.3; }
@@ -1397,7 +1341,7 @@
       margin: 0 0 0.9rem;
       padding: 0.5rem 0.8rem;
       border-radius: 0.6rem;
-      background: var(--accent-soft);
+      background: rgba(127, 127, 127, 0.1);
     }
     .spr-simplified-body code {
       font-family: var(--font-mono, ui-monospace, monospace);
@@ -1411,21 +1355,13 @@
     .spr-md-math .katex-display { margin: 0.3em 0; }
 
     @keyframes sprSimplifySpin { to { transform: rotate(360deg); } }
-    @keyframes sprSimplifySheen { from { transform: translateX(-120%); } to { transform: translateX(120%); } }
-    @keyframes sprSimplifyShimmer { from { background-position: 100% 0; } to { background-position: -150% 0; } }
-    @keyframes sprSimplifyPop {
-      from { opacity: 0; transform: translateY(4px) scale(0.94); }
-      to { opacity: 1; transform: none; }
-    }
     @keyframes sprDescIn {
-      from { opacity: 0; filter: blur(6px); transform: translateY(-4px); }
-      to { opacity: 1; filter: blur(0); transform: none; }
+      from { opacity: 0; transform: translateY(-3px); }
+      to { opacity: 1; transform: none; }
     }
 
     @media (max-width: 480px) {
-      .spr-simplify-bar { gap: 0.5rem; }
-      .spr-simplify-btn, .spr-simplify-orig { flex: 1 1 auto; min-height: 2.6rem; }
-      .spr-simplify-note { flex-basis: 100%; text-align: center; }
+      .spr-simplify-btn { min-height: 2.5rem; }
       .spr-simplified-body { padding-left: 0.75rem; }
     }
   </style>
@@ -5471,24 +5407,23 @@
                     </div>
                   </div>
                   <h1 class="spr-title" id="sprTitle"></h1>
-                  <div class="spr-simplify-bar" id="sprSimplifyBar" hidden>
-                    <button type="button" class="spr-simplify-btn" id="sprSimplifyBtn" aria-pressed="false">
-                      <span class="spr-simplify-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 4.9L18.7 9.7 13.8 11.5 12 16.4 10.2 11.5 5.3 9.7 10.2 7.9Z"/><path d="M18.5 15.5l.8 2.1 2.2.8-2.2.8-.8 2.2-.8-2.2-2.1-.8 2.1-.8Z"/><path d="M5.5 15.8l.5 1.3 1.3.5-1.3.5-.5 1.3-.5-1.3-1.3-.5 1.3-.5Z"/></svg></span>
-                      <span class="spr-simplify-spinner" aria-hidden="true"></span>
-                      <span class="spr-simplify-label" id="sprSimplifyLabel">Упростить</span>
-                    </button>
-                    <button type="button" class="spr-simplify-orig" id="sprShowOriginalBtn" hidden>
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>
-                      Показать оригинал
-                    </button>
-                    <span class="spr-simplify-note" id="sprSimplifyNote" aria-live="polite"></span>
-                  </div>
-                  <div class="spr-simplify-error" id="sprSimplifyError" role="alert" hidden>
-                    <span class="spr-simplify-error-text" id="sprSimplifyErrorText"></span>
-                    <button type="button" id="sprSimplifyRetry">Повторить</button>
-                  </div>
                   <div class="spr-body" id="sprBody">
-                    <div class="spr-description" id="sprDescription"></div>
+                    <div class="spr-desc-col">
+                      <div class="spr-description" id="sprDescription"></div>
+                      <!-- «Простыми словами»: скромная вторичная кнопка под текстом темы (не для папок) -->
+                      <div class="spr-simplify-bar" id="sprSimplifyBar" hidden>
+                        <button type="button" class="spr-simplify-btn" id="sprSimplifyBtn" aria-pressed="false">
+                          <span class="spr-simplify-icon" aria-hidden="true"><svg class="spr-si-bulb" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.6 10.8c.6.46.9 1.04.9 1.7V16h5.4v-.5c0-.66.3-1.24.9-1.7A6 6 0 0 0 12 3Z"/></svg><svg class="spr-si-back" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg></span>
+                          <span class="spr-simplify-spinner" aria-hidden="true"></span>
+                          <span class="spr-simplify-label" id="sprSimplifyLabel">Простыми словами</span>
+                        </button>
+                        <span class="spr-simplify-note" id="sprSimplifyNote" aria-live="polite"></span>
+                      </div>
+                      <div class="spr-simplify-error" id="sprSimplifyError" role="alert" hidden>
+                        <span class="spr-simplify-error-text" id="sprSimplifyErrorText"></span>
+                        <button type="button" id="sprSimplifyRetry">Повторить</button>
+                      </div>
+                    </div>
                     <div class="spr-example" id="sprExample"></div>
                     <div class="spr-task" id="sprTask" hidden></div>
                   </div>
@@ -5556,7 +5491,6 @@
           simplifyBar: document.getElementById('sprSimplifyBar'),
           simplifyBtn: document.getElementById('sprSimplifyBtn'),
           simplifyLabel: document.getElementById('sprSimplifyLabel'),
-          showOriginalBtn: document.getElementById('sprShowOriginalBtn'),
           simplifyNote: document.getElementById('sprSimplifyNote'),
           simplifyError: document.getElementById('sprSimplifyError'),
           simplifyErrorText: document.getElementById('sprSimplifyErrorText'),
@@ -5839,19 +5773,22 @@
           const commonAttrs = 'viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"';
           return `<svg ${commonAttrs}><path d="M6.6 3h7.2l4.2 4.2v13.2a.6.6 0 0 1-.6.6H6.6a.6.6 0 0 1-.6-.6V3.6a.6.6 0 0 1 .6-.6Z"/><path d="M13.8 3v3.6c0 .66.54 1.2 1.2 1.2H18.6"/><path d="M9 13h6M9 16.5h6"/></svg>`;
         }
-        // Для новых типов используем PNG
-        const iconMap = {
-          'theorem': 'theorem-icon.png',
-          'proof': 'proof-icon.png',
-          'example': 'example-icon.png'
-        };
-        const fileName = iconMap[type];
-        if (fileName) {
-          const src = PAGE_ROOT + 'assets/img/' + fileName;
-          return `<img src="${src}" alt="${type}" style="width:16px;height:16px;object-fit:contain;" />`;
+        // Остальные типы — тоже inline SVG с currentColor (раньше были чёрные PNG,
+        // которые сливались с тёмным фоном): цвет берётся из .spr-node-icon и
+        // одинаково читается в светлой и тёмной теме, а у активной строки — акцентный.
+        const svgAttrs = 'viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"';
+        const docPath = '<path d="M6.6 3h7.2l4.2 4.2v13.2a.6.6 0 0 1-.6.6H6.6a.6.6 0 0 1-.6-.6V3.6a.6.6 0 0 1 .6-.6Z"/><path d="M13.8 3v3.6c0 .66.54 1.2 1.2 1.2H18.6"/>';
+        if (type === 'theorem') {
+          return `<svg ${svgAttrs}>${docPath}<path d="M9 10.5v6.5h6.5Z"/><path d="M9 14.8h2.2V17"/></svg>`;
+        }
+        if (type === 'proof') {
+          return `<svg ${svgAttrs}>${docPath}<path d="M9 9.5h3"/><circle cx="12" cy="15.2" r="2.7"/><path d="M10.9 15.2l.8.8 1.5-1.6"/></svg>`;
+        }
+        if (type === 'example') {
+          return `<svg ${svgAttrs}><path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.6 10.8c.6.46.9 1.04.9 1.7V16h5.4v-.5c0-.66.3-1.24.9-1.7A6 6 0 0 0 12 3Z"/></svg>`;
         }
         // fallback
-        return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="10"/></svg>`;
+        return `<svg ${svgAttrs}><circle cx="12" cy="12" r="8"/></svg>`;
       }
 
       function folderIcon(id, topic) {
@@ -6577,7 +6514,6 @@
       const SIMPLIFY_INDEX_KEY = 'spr-simplify-index:v1';
       const SIMPLIFY_CACHE_MAX = 80;
       const SIMPLIFY_MIN_CHARS = 15;
-      const SPARKLE_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.8 4.9L18.7 9.7 13.8 11.5 12 16.4 10.2 11.5 5.3 9.7 10.2 7.9Z"/><path d="M18.5 15.5l.8 2.1 2.2.8-2.2.8-.8 2.2-.8-2.2-2.1-.8 2.1-.8Z"/></svg>';
       const simplifyRequests = new Map();   // topicId -> { key, promise }
       const simplifyMemCache = new Map();   // запасной кэш, если localStorage недоступен
       let simplifyShown = false;            // текущая тема сейчас показана упрощённой
@@ -6735,7 +6671,7 @@
 
       function renderSimplified(topic, md) {
         const el = els.description;
-        el.innerHTML = '<div class="spr-simplified-badge">' + SPARKLE_SVG + 'Простыми словами</div>' +
+        el.innerHTML = '<div class="spr-simplified-badge">Простыми словами</div>' +
           '<div class="spr-simplified-body">' + simplifiedMarkdownToHtml(md) + '</div>';
         renderMathInContainer(el);
         if (lastQuery && els.optHighlight.checked) highlightTextInElement(el, lastQuery);
@@ -6748,12 +6684,10 @@
         btn.classList.toggle('is-active', mode === 'simplified');
         btn.setAttribute('aria-pressed', mode === 'simplified' ? 'true' : 'false');
         btn.setAttribute('aria-busy', mode === 'loading' ? 'true' : 'false');
-        els.simplifyLabel.textContent = mode === 'loading' ? 'Упрощаю…' : mode === 'simplified' ? 'Упрощено' : 'Упростить';
-        btn.title = mode === 'simplified' ? 'Вернуть исходный текст' : 'Объяснить тему простыми словами';
-        els.showOriginalBtn.hidden = mode !== 'simplified';
-        els.simplifyNote.textContent = mode === 'loading'
-          ? 'Нейросеть пересказывает тему простыми словами…'
-          : mode === 'simplified' ? 'Пересказ нейросети — сверяйтесь с оригиналом' : '';
+        // Одна кнопка-переключатель: «Простыми словами» ⇄ «Показать оригинал».
+        els.simplifyLabel.textContent = mode === 'loading' ? 'Готовлю пересказ…' : mode === 'simplified' ? 'Показать оригинал' : 'Простыми словами';
+        btn.title = mode === 'simplified' ? 'Вернуть исходный текст темы' : 'Пересказать тему простыми словами';
+        els.simplifyNote.textContent = mode === 'simplified' ? 'Пересказ сделан нейросетью и может содержать неточности — сверяйтесь с оригиналом.' : '';
         els.description.classList.toggle('is-simplifying', mode === 'loading');
       }
 
@@ -6778,10 +6712,11 @@
         const token = ++simplifySwapToken;
         clearSwapStyles();
         if (!animate || motionReduced()) { renderFn(); return; }
-        // Если читатель уже пролистал начало описания — сначала мягко поднимаем к кнопке.
-        const barTop = els.simplifyBar.getBoundingClientRect().top;
+        // Кнопка стоит под текстом: если начало описания уже ушло за верх экрана —
+        // мягко поднимаем к началу, чтобы новый текст читался с первой строки.
+        const descTop = el.getBoundingClientRect().top;
         const headerH = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--header-height'), 10) || 64;
-        if (barTop < headerH) window.scrollTo({ top: Math.max(0, window.scrollY + barTop - headerH - 16), behavior: 'smooth' });
+        if (descTop < headerH) window.scrollTo({ top: Math.max(0, window.scrollY + descTop - headerH - 16), behavior: 'smooth' });
         const startH = el.offsetHeight;
         el.classList.add('spr-desc-out');
         wait(230).then(() => {
@@ -6806,6 +6741,12 @@
         clearSwapStyles();
         hideSimplifyError();
         simplifyShown = false;
+        // Папки (разделы дерева) не пересказываем — кнопка только у обычных тем.
+        if (topic.type === 'folder') {
+          els.simplifyBar.hidden = true;
+          setSimplifyUi('original');
+          return;
+        }
         const src = simplifySource(topic);
         if (src.text.length < SIMPLIFY_MIN_CHARS) {
           els.simplifyBar.hidden = true;
@@ -6886,7 +6827,7 @@
 
       function simplifyCurrent() {
         const topic = topicsById.get(currentId);
-        if (!topic || simplifyMode === 'loading') return;
+        if (!topic || topic.type === 'folder' || simplifyMode === 'loading') return;
         if (simplifyShown) { showOriginal(); return; }
         hideSimplifyError();
         const src = simplifySource(topic);
@@ -6914,7 +6855,6 @@
 
       function setupSimplifyHandlers() {
         els.simplifyBtn.addEventListener('click', simplifyCurrent);
-        els.showOriginalBtn.addEventListener('click', showOriginal);
         els.simplifyRetry.addEventListener('click', simplifyCurrent);
       }
 

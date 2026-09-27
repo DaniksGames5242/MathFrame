@@ -689,7 +689,14 @@
   MathField.prototype.render = function () {
     var frag = document.createDocumentFragment();
     this._gaps = [];   // для попадания пальцем: {el, row, i}
+    // Узлы, которых не было в прошлой отрисовке, получают класс .mfld-new —
+    // страница может анимировать «появление» символа (см. mini-services.css).
+    // На самой первой отрисовке ничего не помечаем. WeakSet — не держим
+    // удалённые узлы в памяти.
+    this._seenNext = typeof WeakSet === 'function' ? new WeakSet() : null;
+    this._newCount = 0;
     frag.appendChild(this._renderRow(this.root, true));
+    this._seenPrev = this._seenNext;
     this.host.innerHTML = '';
     this.host.appendChild(frag);
     this.host.classList.toggle('mfld-has-sel', !!(this.sel && this.sel.a !== this.sel.b));
@@ -746,6 +753,14 @@
     box.appendChild(gap(0));
     r.k.forEach(function (node, i) {
       var el = self._renderNode(node);
+      if (self._seenNext) {
+        if (self._seenPrev && !self._seenPrev.has(node)) {
+          el.classList.add('mfld-new');
+          if (self._newCount) el.style.setProperty('--mfn', self._newCount);
+          self._newCount++;
+        }
+        self._seenNext.add(node);
+      }
       if (selRange && i >= selRange.a && i < selRange.b) el.classList.add('mfld-sel');
       box.appendChild(el);
       box.appendChild(gap(i + 1));

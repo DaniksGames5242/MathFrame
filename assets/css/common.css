@@ -209,6 +209,11 @@ h1, h2, h3, h4, h5, h6 {
     var(--mf-grid-step) var(--mf-grid-step),
     calc(var(--mf-grid-step) * 5) calc(var(--mf-grid-step) * 5),
     calc(var(--mf-grid-step) * 5) calc(var(--mf-grid-step) * 5);
+  /* Сетка прокручивается вместе со страницей: JS сдвигает слой transform'ом на
+     прокрутку по модулю крупного шага (mathframe-ui.js › movePlane), поэтому
+     слой длиннее окна ровно на этот шаг */
+  bottom: calc(var(--mf-grid-step) * -5);
+  will-change: transform;
   /* Сетка «дышит»: очень медленный дрейф, почти незаметный, но живой */
   animation: mfGridDrift 90s linear infinite;
   transition: background-image var(--t-slow);
@@ -753,16 +758,53 @@ html.light .modal { background: rgba(255, 255, 255, .97); }
 }
 
 /* ===== 13. ПОДВАЛ ===== */
+/* 13.1 Sticky footer: body — колонка на всю высоту окна, <main> забирает
+   свободное место, подвал всегда в самом низу — на короткой странице у нижнего
+   края окна, на длинной — сразу после контента. svh — «малая» высота окна на
+   телефонах (без прыжков при скрытии адресной строки). Фиксированные элементы
+   (оверлеи, модалки, тосты, загрузчики) из потока выпадают и не мешают. */
+body { display: flex; flex-direction: column; min-height: 100vh; }
+@supports (min-height: 100svh) { body { min-height: 100svh; } }
+body > main { flex: 1 0 auto; width: 100%; }
+/* width: 100% — в колонке flex элемент с margin: 0 auto иначе сжимается до
+   ширины содержимого; с ним max-width + auto-поля центрируют как раньше. */
+body > #app-header, body > #app-footer { flex-shrink: 0; }
+/* AI-агент — полноэкранное приложение: высоту шелла считает сам (с учётом
+   клавиатуры через visualViewport), растягивать его нельзя; подвал там скрыт. */
+html.agent-page body > main { flex-grow: 0; }
+
 #app-footer {
   text-align: center;
-  padding: 2.6rem 1rem 2.2rem;
+  padding: 2.4rem 1rem 2rem;
   margin-top: 4rem;
   border-top: 1px solid var(--border);
   color: var(--text-tertiary);
   font-size: .87rem;
-  background: var(--bg-sunken);
-  backdrop-filter: blur(10px);
+  /* Стекло поверх процедурного фона: сверху почти прозрачное, книзу плотнее —
+     подвал «садится» на фон, а не лежит на нём отдельной плашкой */
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--bg-body) 35%, transparent) 0%,
+    color-mix(in srgb, var(--bg-body) 72%, transparent) 100%);
+  -webkit-backdrop-filter: blur(12px) saturate(125%);
+  backdrop-filter: blur(12px) saturate(125%);
   position: relative;
+}
+html.mf-lite #app-footer, html.mf-mobile #app-footer {
+  -webkit-backdrop-filter: none; backdrop-filter: none;
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--bg-body) 55%, transparent) 0%,
+    color-mix(in srgb, var(--bg-body) 86%, transparent) 100%);
+}
+/* 13.2 Справочник: слева фиксированный сайдбар на всю высоту окна. Подвал
+   живёт только в основной колонке (сдвинут на ширину сайдбара, ширина
+   меняется ресайзером через --spr-sidebar-width) — и поэтому никогда не
+   наезжает на фильтры и кнопки внизу сайдбара. <main> справочника поднят над
+   подвалом, чтобы мобильный выдвижной сайдбар и его затемнение перекрывали
+   подвал, а не наоборот. */
+body[data-page="reference"] > main { z-index: 3; }
+body[data-page="reference"] > #app-footer { margin-top: 0; }
+@media (min-width: 901px) {
+  body[data-page="reference"] > #app-footer { margin-left: var(--spr-sidebar-width, 320px); }
 }
 /* Подвал начинается «делениями линейки» */
 #app-footer::before {

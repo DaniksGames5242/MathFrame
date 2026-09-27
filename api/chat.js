@@ -13,7 +13,7 @@
 //                       rejected or rate-limited is skipped for that request.
 //   AI_AGENT_PROVIDER   mistral (default) | gemini | groq | openrouter
 //   AI_AGENT_MODEL      optional, overrides the provider's default model
-//                       (mistral: ministral-14b-latest)
+//                       (mistral: mistral-medium-latest)
 //   AI_AGENT_WEB_SEARCH optional; web search is ON by default for Mistral — set
 //                       to 0 / false / off to turn it off (Mistral bills it per
 //                       search call, and Mistral is the only provider here whose
@@ -76,7 +76,7 @@ const PROVIDERS = {
   mistral: {
     kind: 'openai',
     base: 'https://api.mistral.ai/v1/',
-    defaultModel: 'ministral-14b-latest',
+    defaultModel: 'mistral-medium-latest',
     search: true,   // Conversations API with the built-in web_search tool
   },
 };

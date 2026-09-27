@@ -237,9 +237,35 @@
     const flushQuote = () => { if (quote.length) { html += '<blockquote>' + inline(quote.join('\n')).replace(/\n/g, '<br>') + '</blockquote>'; quote = []; } };
     const flushAll = () => { flushPara(); flushList(); flushQuote(); };
 
-    for (const line of s.split('\n')) {
+    // Таблица GFM: строка с «|», за ней — строка-разделитель |---|:---:|.
+    const TABLE_SEP = /^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$/;
+    const cells = row => {
+      let r = row.trim();
+      if (r.startsWith('|')) r = r.slice(1);
+      if (r.endsWith('|')) r = r.slice(0, -1);
+      return r.split('|').map(x => x.trim());
+    };
+    const lines = s.split('\n');
+    for (let li = 0; li < lines.length; li++) {
+      const line = lines[li];
       let m;
       if (!line.trim()) { flushAll(); continue; }
+      if (line.indexOf('|') !== -1 && li + 1 < lines.length && lines[li + 1].indexOf('-') !== -1 && TABLE_SEP.test(lines[li + 1]) && lines[li + 1].indexOf('|') !== -1) {
+        flushAll();
+        const head = cells(line);
+        const align = cells(lines[li + 1]).map(c => (/^:-+:$/.test(c) ? 'center' : /-:$/.test(c) ? 'right' : ''));
+        const td = (tag, c, i) => '<' + tag + (align[i] ? ' style="text-align:' + align[i] + '"' : '') + '>' + inline(c) + '</' + tag + '>';
+        let t = '<div class="md-table"><table><thead><tr>' + head.map((c, i) => td('th', c, i)).join('') + '</tr></thead><tbody>';
+        li += 2;
+        while (li < lines.length && lines[li].trim() && lines[li].indexOf('|') !== -1) {
+          const row = cells(lines[li]);
+          t += '<tr>' + head.map((x, i) => td('td', row[i] || '', i)).join('') + '</tr>';
+          li++;
+        }
+        li--;
+        html += t + '</tbody></table></div>';
+        continue;
+      }
       if ((m = line.match(/^(#{1,6})\s+(.*)$/))) {
         flushAll();
         const tag = m[1].length <= 2 ? 'h3' : 'h4';
@@ -331,6 +357,20 @@
     return p2(d.getDate()) + '.' + p2(d.getMonth() + 1) + '.' + String(d.getFullYear()).slice(2);
   }
 
+  // Группа в списке чатов по дате последнего изменения (как в ChatGPT / Claude).
+  const DAY_GROUPS = ['Сегодня', 'Вчера', 'Последние 7 дней', 'Последние 30 дней', 'Ранее'];
+  function dayGroup(ts, now) {
+    if (!ts) return 0;
+    const d = new Date(ts), n = new Date(now || Date.now());
+    const day = x => Math.floor((x.getTime() - x.getTimezoneOffset() * 60000) / 86400000);
+    const diff = day(n) - day(d);
+    if (diff <= 0) return 0;
+    if (diff === 1) return 1;
+    if (diff < 7) return 2;
+    if (diff < 30) return 3;
+    return 4;
+  }
+
   // Что реально хранится: без пустых «ошибочных» ответов и служебных полей, не больше
   // 80 сообщений (документ Firestore ограничен 1 МБ), без undefined (Firestore их не принимает).
   const MAX_STORED_MESSAGES = 80;
@@ -359,6 +399,7 @@
       scroll: $('agentScroll'), log: $('agentLog'), banner: $('agentBanner'),
       form: $('agentForm'), input: $('agentInput'), send: $('agentSend'), stop: $('agentStop'),
       login: $('agentLogin'), loginBtn: $('agentLoginBtn'), badge: $('agentBadge'),
+      collapse: $('agentCollapse'), newTop: $('agentNewTop'),
     };
     let stuck = true;   // лента «прилипла» к низу — см. scrollBottom()
 
@@ -540,12 +581,28 @@
       copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></svg>',
       redo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg>',
       trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg>',
+      pen: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>',
+      check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
       // аватар агента: ось, кривая и точка касания — тот же мотив, что у эмблемы пустого чата
       agent: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 19h18"/><path d="M5 17C9 17 10 6 19 5"/><circle cx="11.2" cy="11.6" r="1.6" fill="currentColor" stroke="none"/></svg>',
     };
 
     // Кнопка «копировать» на блоках кода (только у готового ответа — во время потока
     // разметка перестраивается каждый кадр). В кнопке нет текста — подпись даёт CSS.
+    // Кнопка-иконка «копировать» под сообщением: после копирования на секунду — галочка.
+    function copyBtn(getText, label) {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'act'; b.title = label; b.setAttribute('aria-label', label);
+      b.innerHTML = ICON.copy;
+      b.addEventListener('click', () => {
+        (navigator.clipboard ? navigator.clipboard.writeText(getText()) : Promise.reject()).then(() => {
+          b.classList.add('done'); b.innerHTML = ICON.check; b.setAttribute('aria-label', 'Скопировано'); b.title = 'Скопировано';
+          setTimeout(() => { b.classList.remove('done'); b.innerHTML = ICON.copy; b.setAttribute('aria-label', label); b.title = label; }, 1500);
+        }).catch(() => {});
+      });
+      return b;
+    }
+
     function decorateCode(md) {
       md.querySelectorAll('pre').forEach(pre => {
         const b = document.createElement('button');
@@ -837,6 +894,44 @@
       setTimeout(go, 450);
     }
 
+    // Название чата: пустое — берётся из первого вопроса. Общая логика для шапки и списка.
+    function commitTitle(c, value) {
+      c.title = String(value || '').trim().slice(0, 80) || (c.messages.length ? deriveTitle((c.messages.find(m => m.role === 'user') || {}).content) : '');
+      if (c.messages.length) { c.updatedAt = Date.now(); pushChat(c); }
+    }
+
+    // Переименование прямо в списке (карандаш, двойной щелчок или F2). Если список
+    // перерисуется во время ввода (снимок из аккаунта), поле восстановится с тем же текстом.
+    let renaming = null;
+    function startRename(li, c, titleEl, value) {
+      const inp = document.createElement('input');
+      inp.type = 'text'; inp.className = 'ci-input'; inp.maxLength = 80;
+      inp.setAttribute('aria-label', 'Новое название чата');
+      inp.value = value != null ? value : (c.title || titleEl.textContent || '');
+      renaming = { id: c.id, value: inp.value };
+      titleEl.replaceWith(inp);
+      li.classList.add('renaming');
+      let done = false;
+      const finish = save => {
+        if (done) return;
+        done = true; renaming = null;
+        if (save && chats.has(c.id)) { commitTitle(c, inp.value); renderTop(); }
+        renderSidebar();
+        const again = el.chatList.querySelector('.chat-item[data-id="' + c.id + '"]');
+        if (again && document.activeElement === document.body) again.focus();
+      };
+      inp.addEventListener('input', () => { if (renaming) renaming.value = inp.value; });
+      inp.addEventListener('click', e => e.stopPropagation());
+      inp.addEventListener('dblclick', e => e.stopPropagation());
+      inp.addEventListener('keydown', e => {
+        e.stopPropagation();
+        if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+        else if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+      });
+      inp.addEventListener('blur', () => { if (inp.isConnected) finish(true); });
+      requestAnimationFrame(() => { inp.focus(); if (value == null) inp.select(); });
+    }
+
     function renderSidebar() {
       el.chatList.innerHTML = '';
       if (!uid) {
@@ -847,10 +942,22 @@
         return;
       }
       const list = [...chats.values()].sort((a, b) => ((a.messages.length ? 1 : 0) - (b.messages.length ? 1 : 0)) || byUpdated(a, b));
+      const nowTs = Date.now();
+      let group = -1;
       list.forEach(c => {
+        // заголовки групп по датам; пустой черновик — всегда в «Сегодня»
+        const g = c.messages.length ? dayGroup(c.updatedAt, nowTs) : 0;
+        if (g !== group) {
+          group = g;
+          const gh = document.createElement('li'); gh.className = 'chats-group'; gh.setAttribute('role', 'presentation');
+          gh.textContent = DAY_GROUPS[g];
+          el.chatList.appendChild(gh);
+        }
         const li = document.createElement('li');
         li.className = 'chat-item' + (c.id === activeId ? ' on' : '');
         li.tabIndex = 0; li.setAttribute('role', 'button'); li.dataset.id = c.id;
+        if (c.id === activeId) li.setAttribute('aria-current', 'true');
+        if (c.messages.length) li.title = (c.title || '') + ' · ' + fmtWhen(c.updatedAt);
         if (!chatSeen.has(c.id)) chatSeen.set(c.id, now() < primeUntil ? -Infinity : now());
         const age = now() - chatSeen.get(c.id);
         if (age < 400 && !motionOff()) { li.classList.add('mfa-ci-in'); li.style.setProperty('--mfa-age', Math.round(age) + 'ms'); }
@@ -860,19 +967,33 @@
         t.textContent = c.title || (c.messages.length ? deriveTitle((c.messages.find(m => m.role === 'user') || {}).content) : 'Новый чат');
         const meta = document.createElement('div'); meta.className = 'ci-meta';
         if (c.busy) { const dot = document.createElement('span'); dot.className = 'ci-dot'; meta.appendChild(dot); meta.appendChild(document.createTextNode('отвечает…')); }
-        else if (c.messages.length) meta.textContent = fmtWhen(c.updatedAt);
-        main.append(t, meta);
+        main.append(t);
+        if (c.busy) main.append(meta);
         li.appendChild(main);
-        const del = document.createElement('button'); del.type = 'button'; del.className = 'ci-del'; del.title = 'Удалить чат'; del.setAttribute('aria-label', 'Удалить чат');
+        const tools = document.createElement('div'); tools.className = 'ci-tools';
+        if (c.messages.length) {
+          const ren = document.createElement('button'); ren.type = 'button'; ren.className = 'ci-btn ci-ren'; ren.title = 'Переименовать'; ren.setAttribute('aria-label', 'Переименовать чат');
+          ren.innerHTML = ICON.pen;
+          ren.addEventListener('click', e => { e.stopPropagation(); startRename(li, c, t); });
+          tools.appendChild(ren);
+        }
+        const del = document.createElement('button'); del.type = 'button'; del.className = 'ci-btn ci-del'; del.title = 'Удалить чат'; del.setAttribute('aria-label', 'Удалить чат');
         del.innerHTML = ICON.trash;
         del.addEventListener('click', e => {
           e.stopPropagation();
           if (!c.messages.length || confirm('Удалить чат «' + (t.textContent || 'Новый чат') + '»?')) collapseThen(li, () => removeChat(c.id));
         });
-        li.appendChild(del);
+        tools.appendChild(del);
+        li.appendChild(tools);
         li.addEventListener('click', () => openChat(c.id));
-        li.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target === li) { e.preventDefault(); openChat(c.id); } });
+        li.addEventListener('dblclick', e => { if (c.messages.length && !e.target.closest('button,input')) startRename(li, c, t); });
+        li.addEventListener('keydown', e => {
+          if (e.target !== li) return;
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openChat(c.id); }
+          else if (e.key === 'F2' && c.messages.length) { e.preventDefault(); startRename(li, c, t); }
+        });
         el.chatList.appendChild(li);
+        if (renaming && renaming.id === c.id) startRename(li, c, t, renaming.value);
       });
       sideActive = activeId;
       renderSyncNote();
@@ -915,20 +1036,31 @@
       body.className = 'msg-body';
       if (m.role === 'user') {
         body.textContent = m.content;
+        wrap.appendChild(body);
+        // под вопросом — «копировать» (появляется при наведении)
+        const ua = document.createElement('div'); ua.className = 'msg-acts msg-acts-user';
+        ua.appendChild(copyBtn(() => m.content, 'Копировать вопрос'));
+        wrap.appendChild(ua);
+        return wrap;
       } else {
         const md = document.createElement('div');
         md.className = 'md';
         md.innerHTML = m.content ? mdToHtml(m.content) : '';
         body.appendChild(md);
-        const ava = document.createElement('span');
-        ava.className = 'msg-ava'; ava.setAttribute('aria-hidden', 'true'); ava.innerHTML = ICON.agent;
-        wrap.appendChild(ava);
         const streaming = c.busy && isLast;
         if (streaming && m.content) appendCaret(md);
         if (streaming && !m.content) { body.appendChild(typingEl(m)); wrap.classList.add('is-thinking'); }
         if (!streaming && m.content) decorateCode(md);
         if (m.error) {
-          const err = document.createElement('div'); err.className = 'msg-err'; err.textContent = m.error;
+          const err = document.createElement('div'); err.className = 'msg-err'; err.setAttribute('role', 'alert');
+          const et = document.createElement('span'); et.className = 'msg-err-t'; et.textContent = m.error;
+          err.appendChild(et);
+          if (isLast && !c.busy && uid) {
+            const rb = document.createElement('button'); rb.type = 'button'; rb.className = 'msg-retry';
+            rb.innerHTML = ICON.redo + '<span>Повторить</span>';
+            rb.addEventListener('click', regenerate);
+            err.appendChild(rb);
+          }
           fresh(err, m, 'err', 'mfa-fresh', 500);
           body.appendChild(err);
         }
@@ -948,18 +1080,11 @@
         }
         if (!c.busy || !isLast) {
           const acts = document.createElement('div'); acts.className = 'msg-acts';
-          if (m.content) {
-            const cp = document.createElement('button'); cp.type = 'button'; cp.className = 'act'; cp.innerHTML = ICON.copy + '<span>Копировать</span>';
-            cp.addEventListener('click', () => {
-              (navigator.clipboard ? navigator.clipboard.writeText(m.content) : Promise.reject()).then(() => {
-                cp.querySelector('span').textContent = 'Скопировано';
-                setTimeout(() => { cp.querySelector('span').textContent = 'Копировать'; }, 1500);
-              }).catch(() => {});
-            });
-            acts.appendChild(cp);
-          }
-          if (isLast) {
-            const r = document.createElement('button'); r.type = 'button'; r.className = 'act'; r.innerHTML = ICON.redo + '<span>Ещё раз</span>';
+          if (m.content) acts.appendChild(copyBtn(() => m.content, 'Копировать ответ'));
+          if (isLast && !m.error) {
+            const r = document.createElement('button'); r.type = 'button'; r.className = 'act';
+            r.title = 'Ответить заново'; r.setAttribute('aria-label', 'Ответить заново');
+            r.innerHTML = ICON.redo;
             r.addEventListener('click', regenerate);
             acts.appendChild(r);
           }
@@ -999,9 +1124,12 @@
         const age = c ? ageOf(c, 'empty') : Infinity;
         if (age > 2600 || motionOff()) empty.classList.add('mfa-static');
         else empty.style.setProperty('--mfa-age', Math.round(age) + 'ms');
-        empty.innerHTML = EMBLEM + '<h2 class="ae-in" style="--d:.2s">AI‑агент MathFrame</h2><p class="ae-in" style="--d:.3s">Помощник по математике, который знает справочник: подбирает нужные темы и опирается на их описания, ' +
-          'при необходимости ищет сведения в интернете и записывает формулы. Выберите тему вверху, чтобы задать вопрос в её контексте, ' +
-          'или просто спросите.</p>';
+        const h = new Date().getHours();
+        const hello = h < 5 ? 'Доброй ночи' : h < 12 ? 'Доброе утро' : h < 18 ? 'Добрый день' : 'Добрый вечер';
+        const name = user && user.displayName ? String(user.displayName).trim().split(/\s+/)[0] : '';
+        empty.innerHTML = EMBLEM + '<h2 class="ae-in" style="--d:.2s"></h2><p class="ae-in" style="--d:.3s">Спросите о любой теме — агент опирается на справочник MathFrame, ' +
+          'записывает формулы и разбирает решения по шагам. Тему можно закрепить кнопкой «Выбрать тему».</p>';
+        empty.querySelector('h2').textContent = uid ? hello + (name ? ', ' + name : '') : 'Чем помочь с математикой?';
         const chips = document.createElement('div'); chips.className = 'suggest';
         SUGGESTIONS.forEach(t => {
           const b = document.createElement('button'); b.type = 'button'; b.className = 'suggest-chip ae-in';
@@ -1057,6 +1185,7 @@
       el.stop.hidden = !busy;
       el.login.hidden = !!uid || !configured;
       el.newBtn.disabled = !uid;
+      if (el.newTop) el.newTop.disabled = !uid;
       el.input.placeholder = !configured ? 'AI‑агент пока недоступен'
         : (!uid ? 'Войдите, чтобы задать вопрос' : 'Спросите что угодно о математике…');
     }
@@ -1296,8 +1425,8 @@
       el.picker.classList.add('mfa-closing');
       pickerTimer = setTimeout(() => { el.picker.hidden = true; el.picker.classList.remove('mfa-closing'); }, 170);
     }
-    function openDrawer() { el.card.classList.add('drawer-open'); el.scrim.hidden = false; }
-    function closeDrawer() { el.card.classList.remove('drawer-open'); el.scrim.hidden = true; }
+    function openDrawer() { el.card.classList.add('drawer-open'); el.scrim.hidden = false; el.menu.setAttribute('aria-expanded', 'true'); }
+    function closeDrawer() { el.card.classList.remove('drawer-open'); el.scrim.hidden = true; el.menu.setAttribute('aria-expanded', 'false'); }
 
     const countEl = $('agentCount'), downBtn = $('agentDown'), composeRow = el.input.closest('.compose-row');
     function autosize() {
@@ -1352,7 +1481,23 @@
     });
     el.stop.addEventListener('click', () => { const c = cur(); const ctl = c && runs.get(c.id); if (ctl) ctl.abort(); });
     el.newBtn.addEventListener('click', () => { newChat(); });
-    el.menu.addEventListener('click', () => (el.card.classList.contains('drawer-open') ? closeDrawer() : openDrawer()));
+    // Панель чатов: на широком экране её можно свернуть (запоминается), на узком — выезжает поверх.
+    const narrow = () => !!(window.matchMedia && matchMedia('(max-width:820px)').matches);
+    const LS_SIDE = 'mf-agent-side';
+    function setCollapsed(on, save) {
+      el.card.classList.toggle('side-collapsed', on);
+      if (save) { try { localStorage.setItem(LS_SIDE, on ? 'collapsed' : 'open'); } catch (e) {} }
+    }
+    try { if (localStorage.getItem(LS_SIDE) === 'collapsed') setCollapsed(true, false); } catch (e) {}
+    el.menu.addEventListener('click', () => {
+      if (narrow()) (el.card.classList.contains('drawer-open') ? closeDrawer() : openDrawer());
+      else { setCollapsed(false, true); el.newBtn.focus(); }
+    });
+    if (el.collapse) el.collapse.addEventListener('click', () => {
+      if (narrow()) closeDrawer();
+      else { setCollapsed(true, true); el.menu.focus(); }
+    });
+    if (el.newTop) el.newTop.addEventListener('click', () => { newChat(); });
     el.scrim.addEventListener('click', closeDrawer);
     el.pick.addEventListener('click', () => (pickerOpen ? closePicker() : openPicker()));
     el.pickInput.addEventListener('input', renderPicker);
@@ -1360,9 +1505,8 @@
     el.title.addEventListener('change', () => {
       const c = cur();
       if (!c || !uid) return;
-      c.title = el.title.value.trim().slice(0, 80) || (c.messages.length ? deriveTitle((c.messages.find(m => m.role === 'user') || {}).content) : '');
+      commitTitle(c, el.title.value);
       el.title.value = c.title;
-      if (c.messages.length) { c.updatedAt = Date.now(); pushChat(c); }
       renderSidebar();
     });
     document.addEventListener('keydown', e => {
@@ -1439,6 +1583,6 @@
   }
 
   if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { stems, htmlToText, buildIndex, retrieve, searchTitles, mdToHtml, buildPayloadMessages, friendlyError, escapeHtml, deriveTitle, fmtWhen, cleanMessages, applyResetMark, RESET_MARK };
+    module.exports = { stems, htmlToText, buildIndex, retrieve, searchTitles, mdToHtml, buildPayloadMessages, friendlyError, escapeHtml, deriveTitle, fmtWhen, dayGroup, DAY_GROUPS, cleanMessages, applyResetMark, RESET_MARK };
   }
 })();
