@@ -15,20 +15,20 @@ new Point { name = "P4"; pos = (-2.00, -2.60); pauseOnDrag = false; size = 0.8; 
 new Point { name = "P5"; pos = (-0.16, -1.84); pauseOnDrag = false; size = 0.8; layer = 60 }
 new Point { name = "P6"; pos = (0.60, -0.00); pauseOnDrag = false; size = 0.8; layer = 60 }
 new Point { name = "P7"; pos = (-0.16, 1.84); pauseOnDrag = false; size = 0.8; layer = 60 }
-new Line { name = "e0"; pos = (P0, P1); color = #3b82f6; thickness = 3; interact = false }
-new Line { name = "e1"; pos = (P1, P2); color = #3b82f6; thickness = 3; interact = false }
-new Line { name = "e2"; pos = (P2, P3); color = #3b82f6; thickness = 3; interact = false }
-new Line { name = "e3"; pos = (P3, P4); color = #3b82f6; thickness = 3; interact = false }
-new Line { name = "e4"; pos = (P4, P5); color = #3b82f6; thickness = 3; interact = false }
-new Line { name = "e5"; pos = (P5, P6); color = #3b82f6; thickness = 3; interact = false }
-new Line { name = "e6"; pos = (P6, P7); color = #3b82f6; thickness = 3; interact = false }
-new Line { name = "e7"; pos = (P7, P0); color = #3b82f6; thickness = 3; interact = false }
-new Figure { name = "poly"; elements = (e0, e1, e2, e3, e4, e5, e6, e7); interact = false }
+new Line { name = "e0"; pos = (P0, P1); color = #3b82f6; thickness = 3 }
+new Line { name = "e1"; pos = (P1, P2); color = #3b82f6; thickness = 3 }
+new Line { name = "e2"; pos = (P2, P3); color = #3b82f6; thickness = 3 }
+new Line { name = "e3"; pos = (P3, P4); color = #3b82f6; thickness = 3 }
+new Line { name = "e4"; pos = (P4, P5); color = #3b82f6; thickness = 3 }
+new Line { name = "e5"; pos = (P5, P6); color = #3b82f6; thickness = 3 }
+new Line { name = "e6"; pos = (P6, P7); color = #3b82f6; thickness = 3 }
+new Line { name = "e7"; pos = (P7, P0); color = #3b82f6; thickness = 3 }
+new Figure { name = "poly"; elements = (e0, e1, e2, e3, e4, e5, e6, e7) }
 draw Filling { name = "pf"; figure = "poly"; color = #3b82f6; opacity = 0.25 }
 new Point { name = "G"; pos = (-2, 0); dynamic = false; collision = false; size = 0.5 }
 new Point { name = "GR"; pos = (0, 0); dynamic = false; collision = false; active = false }
 new Circle { name = "cc"; center = G; radius = GR; color = #f59e0b; thickness = 2 }
-draw Graph { name = "gBar"; graph = "gb"; edgeWidth = 22; nodeRadius = 0; labels = false; interactive = false; showWeights = false; layer = 10 }
+draw Graph { name = "gBar"; graph = "gb"; edgeWidth = 22; edgeCap = butt; nodeRadius = 0; labels = false; interactive = false; showWeights = false; layer = 10 }
 new Point { name = "M1"; pos = (5.6, 3.3); dynamic = false; collision = false; active = false }
 new Point { name = "M2"; pos = (6.8, 3.3); dynamic = false; collision = false; active = false }
 new Line { name = "mk"; pos = (M1, M2); color = #f59e0b; thickness = 3; interact = false; layer = 12 }
@@ -71,6 +71,6 @@ Update {
   float Ac = Lp * Lp / (4 * pi);
   info = "**Изопериметрическое неравенство:** для любой плоской фигуры с периметром L и площадью S выполняется 4πS ≤ L², причём равенство — только для круга. Иначе: из всех фигур данного периметра наибольшую площадь ограничивает круг. Отношение Q = 4πS/L² показывает, насколько фигура «кругла»: Q = 1 у круга, у остальных меньше.\n\nL = " + format(Lp, 2) + ", S = " + format(A, 2) + ";  у круга того же периметра (оранжевый) S = L²/4π = " + format(Ac, 2) + ".  Q = " + format(Q, 3) + ".";
   if (shape == "reg") { info = info + " У правильного n-угольника Q = π/(n·tg(π/n)) — для n = 8 это 0.948; с ростом n он приближается к кругу."; }
-  info = info + "\n\nВершины многоугольника перетаскиваются: как ни старайтесь, Q не превысит 1.";
+  info = info + "\n\nВершины и стороны многоугольника перетаскиваются, фигура целиком — за внутренность: как ни старайтесь, Q не превысит 1.";
 }
 ]
