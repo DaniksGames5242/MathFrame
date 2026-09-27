@@ -6374,7 +6374,11 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '\n',
             '    function initFigures() {\n',
             '      figures = figuresData.map(f => {\n',
-            '        const pts = f.elements.map(name => points.find(p => p.name === name)).filter(p => p !== undefined);\n',
+            // Вершины фигуры — из pointNames (их парсер собирает и из точек, и из концов
+            // отрезков). Раньше здесь брались только элементы-ТОЧКИ, и фигура, заданная
+            // сторонами (elements = (ab, bc, cd, da)), молча отбрасывалась целиком.
+            '        const names = (f.pointNames && f.pointNames.length) ? f.pointNames : f.elements;\n',
+            '        const pts = names.map(name => points.find(p => p.name === name)).filter(p => p !== undefined);\n',
             '        const filtered = pts.filter(p => !p.lineName && !p.circleName && !p.ellipseName && !p.curveName && !p.arcName && !p.graphName && !p.construct && !p.transform);\n',
             '        if (filtered.length === 0) return null;\n',
             '        let cx = 0, cy = 0;\n',
@@ -10988,7 +10992,20 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '            const right = Math.max(p1.x, p2.x) + FIGURE_HIT_PADDING;\n',
             '            const top = Math.min(p1.y, p2.y) - FIGURE_HIT_PADDING;\n',
             '            const bottom = Math.max(p1.y, p2.y) + FIGURE_HIT_PADDING;\n',
-            '            if (pos.x >= left && pos.x <= right && pos.y >= top && pos.y <= bottom) {\n',
+            // Многоугольник (3+ вершины) ловится по самому контуру, а не по описанному
+            // прямоугольнику: раньше у наклонной фигуры (параллелограмм, треугольник)
+            // перетаскивание целиком срабатывало и на пустом месте СНАРУЖИ неё.
+            '            let insideFig;\n',
+            '            if (fig.points.length >= 3) {\n',
+            '                insideFig = false;\n',
+            '                const poly = fig.points.map(fp => fieldToPixel(fp.pos.x, fp.pos.y));\n',
+            '                for (let a = 0, b = poly.length - 1; a < poly.length; b = a++) {\n',
+            '                    if (((poly[a].y > pos.y) !== (poly[b].y > pos.y)) && (pos.x < (poly[b].x - poly[a].x) * (pos.y - poly[a].y) / (poly[b].y - poly[a].y) + poly[a].x)) insideFig = !insideFig;\n',
+            '                }\n',
+            '            } else {\n',
+            '                insideFig = pos.x >= left && pos.x <= right && pos.y >= top && pos.y <= bottom;\n',
+            '            }\n',
+            '            if (insideFig) {\n',
             '                let hitElement = false;\n',
             '                for (let p of fig.points) {\n',
             '                    if (!isObjectActive(p)) { hitElement = true; break; }\n',

@@ -18,7 +18,7 @@ new Line { name = "bc"; pos = (B, C) }
 new Line { name = "cd"; pos = (C, D) }
 new Line { name = "da"; pos = (D, A) }
 
-new Figure { name = "abcd"; elements = (ab, bc, cd, da); interact = false }
+new Figure { name = "abcd"; elements = (ab, bc, cd, da) }
 
 // ---- Вкладка 1: стороны и углы ----
 draw EquallySing { name = "eqAbCd"; edges = (ab, cd); type = 1 }
@@ -72,22 +72,58 @@ float tab = 1;
 string info = "";
 float pax = 0; float pay = 0; float pbx = 0; float pby = 0;
 float pcx = 0; float pcy = 0; float pdx = 0; float pdy = 0;
-float lim = 0.4;
+float sx = 0; float sy = 0;
 
-// Лежит ли точка (x, y) внутри поля с отступом lim от границы
+// Лежит ли точка (x, y) внутри поля
 Function inField(x, y) {
-  return abs(x) <= 10 - lim && abs(y) <= 6 - lim;
+  return abs(x) <= 10 && abs(y) <= 6;
 }
 
-// Невырожденный ли параллелограмм с вершиной (px, py) и соседями (ax, ay), (bx, by):
-// обе стороны не короче 1.5, угол при вершине от 15° до 165° (sin ≥ 0.26).
-Function okShape(px, py, ax, ay, bx, by) {
-  float ux = ax - px; float uy = ay - py;
-  float vx = bx - px; float vy = by - py;
+// Допустимо ли положение (x, y) перетаскиваемой вершины при соседях (ax, ay), (bx, by):
+// противоположная вершина остаётся в поле, стороны не короче 1.5,
+// угол при вершине от 15° до 165° (sin ≥ 0.26).
+Function ok(x, y, ax, ay, bx, by) {
+  if (!inField(x, y) || !inField(ax + bx - x, ay + by - y)) { return false; }
+  float ux = ax - x; float uy = ay - y;
+  float vx = bx - x; float vy = by - y;
   float lu = sqrt(ux * ux + uy * uy);
   float lv = sqrt(vx * vx + vy * vy);
   if (lu < 1.5 || lv < 1.5) { return false; }
   return abs(ux * vy - uy * vx) / (lu * lv) >= 0.26;
+}
+
+// Наибольшая доля t ∈ [0, 1] хода из (x0, y0) на вектор (dx, dy), до которой весь путь
+// допустим. Путь проверяется по 16 промежуточным точкам (иначе быстрый ход «перепрыгнул»
+// бы узкую запрещённую зону и фигура вывернулась бы через вырожденное положение), затем
+// граница уточняется делением пополам.
+Function reach(x0, y0, dx, dy, ax, ay, bx, by) {
+  float good = 0; float bad = 2;
+  repeat (16) {
+    if (bad > 1) {
+      if (ok(x0 + dx * (i + 1) / 16, y0 + dy * (i + 1) / 16, ax, ay, bx, by)) { good = (i + 1) / 16; } else { bad = (i + 1) / 16; }
+    }
+  }
+  if (bad > 1) { return 1; }
+  repeat (12) {
+    float mid = (good + bad) / 2;
+    if (ok(x0 + dx * mid, y0 + dy * mid, ax, ay, bx, by)) { good = mid; } else { bad = mid; }
+  }
+  return good;
+}
+
+// Плавное ограничение хода вершины из (px, py) в (nx, ny): проходим допустимую часть
+// хода, а остаток движения — отдельно по x и по y. Так вершина скользит вдоль границы
+// поля и вдоль ограничений формы, а не застревает. Результат — в (sx, sy).
+Function slide(px, py, nx, ny, ax, ay, bx, by) {
+  float t = reach(px, py, nx - px, ny - py, ax, ay, bx, by);
+  float cx = px + (nx - px) * t; float cy = py + (ny - py) * t;
+  float rx = nx - cx; float ry = ny - cy;
+  if (t < 1) {
+    cx = cx + rx * reach(cx, cy, rx, 0, ax, ay, bx, by);
+    cy = cy + ry * reach(cx, cy, 0, ry, ax, ay, bx, by);
+  }
+  sx = cx; sy = cy;
+  return 0;
 }
 
 Start {
@@ -96,31 +132,37 @@ Start {
 }
 
 Update {
-  // Какая вершина сдвинулась — у той пересчитываем противоположную.
-  // Если противоположная вышла бы за поле или фигура выродилась бы (слишком короткая
-  // сторона, слишком острый угол), ход отменяется.
-  if (A.pos.x != pax || A.pos.y != pay) {
-    if (inField(B.pos.x + D.pos.x - A.pos.x, B.pos.y + D.pos.y - A.pos.y) && okShape(A.pos.x, A.pos.y, B.pos.x, B.pos.y, D.pos.x, D.pos.y)) {
-      C.pos.x = B.pos.x + D.pos.x - A.pos.x; C.pos.y = B.pos.y + D.pos.y - A.pos.y;
-    } else { A.pos.x = pax; A.pos.y = pay; }
-  } else if (B.pos.x != pbx || B.pos.y != pby) {
-    if (inField(A.pos.x + C.pos.x - B.pos.x, A.pos.y + C.pos.y - B.pos.y) && okShape(B.pos.x, B.pos.y, A.pos.x, A.pos.y, C.pos.x, C.pos.y)) {
-      D.pos.x = A.pos.x + C.pos.x - B.pos.x; D.pos.y = A.pos.y + C.pos.y - B.pos.y;
-    } else { B.pos.x = pbx; B.pos.y = pby; }
-  } else if (C.pos.x != pcx || C.pos.y != pcy) {
-    if (inField(B.pos.x + D.pos.x - C.pos.x, B.pos.y + D.pos.y - C.pos.y) && okShape(C.pos.x, C.pos.y, B.pos.x, B.pos.y, D.pos.x, D.pos.y)) {
-      A.pos.x = B.pos.x + D.pos.x - C.pos.x; A.pos.y = B.pos.y + D.pos.y - C.pos.y;
-    } else { C.pos.x = pcx; C.pos.y = pcy; }
-  } else if (D.pos.x != pdx || D.pos.y != pdy) {
-    if (inField(A.pos.x + C.pos.x - D.pos.x, A.pos.y + C.pos.y - D.pos.y) && okShape(D.pos.x, D.pos.y, A.pos.x, A.pos.y, C.pos.x, C.pos.y)) {
-      B.pos.x = A.pos.x + C.pos.x - D.pos.x; B.pos.y = A.pos.y + C.pos.y - D.pos.y;
-    } else { D.pos.x = pdx; D.pos.y = pdy; }
+  // Сдвинувшуюся вершину (с наибольшим смещением — пересчёты дают погрешность ~1e-15
+  // у остальных) ограничиваем (slide) и пересчитываем противоположную, соседние стоят. При перетаскивании фигуры целиком сдвигаются все
+  // вершины на один вектор — это тоже корректно обрабатывается первой ветвью.
+  float mA = abs(A.pos.x - pax) + abs(A.pos.y - pay);
+  float mB = abs(B.pos.x - pbx) + abs(B.pos.y - pby);
+  float mC = abs(C.pos.x - pcx) + abs(C.pos.y - pcy);
+  float mD = abs(D.pos.x - pdx) + abs(D.pos.y - pdy);
+  float m = max(mA, mB, mC, mD);
+  if (m < 0.000001) {
+  } else if (mA == m) {
+    slide(pax, pay, A.pos.x, A.pos.y, B.pos.x, B.pos.y, D.pos.x, D.pos.y);
+    A.pos.x = sx; A.pos.y = sy;
+    C.pos.x = B.pos.x + D.pos.x - sx; C.pos.y = B.pos.y + D.pos.y - sy;
+  } else if (mB == m) {
+    slide(pbx, pby, B.pos.x, B.pos.y, A.pos.x, A.pos.y, C.pos.x, C.pos.y);
+    B.pos.x = sx; B.pos.y = sy;
+    D.pos.x = A.pos.x + C.pos.x - sx; D.pos.y = A.pos.y + C.pos.y - sy;
+  } else if (mC == m) {
+    slide(pcx, pcy, C.pos.x, C.pos.y, B.pos.x, B.pos.y, D.pos.x, D.pos.y);
+    C.pos.x = sx; C.pos.y = sy;
+    A.pos.x = B.pos.x + D.pos.x - sx; A.pos.y = B.pos.y + D.pos.y - sy;
+  } else {
+    slide(pdx, pdy, D.pos.x, D.pos.y, A.pos.x, A.pos.y, C.pos.x, C.pos.y);
+    D.pos.x = sx; D.pos.y = sy;
+    B.pos.x = A.pos.x + C.pos.x - sx; B.pos.y = A.pos.y + C.pos.y - sy;
   }
   pax = A.pos.x; pay = A.pos.y; pbx = B.pos.x; pby = B.pos.y;
   pcx = C.pos.x; pcy = C.pos.y; pdx = D.pos.x; pdy = D.pos.y;
 
   if (tab == 1) {
-    info = "Перетаскивайте любую вершину — фигура всегда остаётся параллелограммом.\n\n**Противоположные стороны равны:** AB = CD = " + format(ab.length, 2) + ", BC = DA = " + format(bc.length, 2) + ".\n\n**Противоположные углы равны, соседние в сумме дают 180°:** ∠A = ∠C = " + format(angA.measure, 0) + "°, ∠B = ∠D = " + format(angB.measure, 0) + "°, ∠A + ∠B = " + format(angA.measure + angB.measure, 0) + "°.";
+    info = "**Противоположные стороны равны:** AB = CD = " + format(ab.length, 2) + ", BC = DA = " + format(bc.length, 2) + ".\n\n**Противоположные углы равны, соседние в сумме дают 180°:** ∠A = ∠C = " + format(angA.measure, 0) + "°, ∠B = ∠D = " + format(angB.measure, 0) + "°, ∠A + ∠B = " + format(angA.measure + angB.measure, 0) + "°.";
   } else if (tab == 2) {
     info = "**Диагонали точкой пересечения делятся пополам:** AO = OC = " + format(ao.length, 2) + ", BO = OD = " + format(bo.length, 2) + ".";
   } else {
