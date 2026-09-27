@@ -4020,10 +4020,31 @@ function parseDrawTextBlock(block, vars) {
 
     // Сохраняем ВСЕ поля как сырые строки выражений
     let posXExpr = null, posYExpr = null, posZExpr = null, zGiven = false;
-    const posMatch = block.match(/pos\s*=\s*\(([^)]*)\)/);
+    // pos = (x, y[, z]) — координаты могут быть выражениями со своими скобками и
+    // запятыми внутри вызовов: ((A.pos.x + B.pos.x) / 2, 0.8), (max(a, b), 1).
+    // Раньше регулярка брала текст до первой ")" и делила его по всем запятым —
+    // такие выражения ломали блок целиком («пропущены обязательные поля»).
+    let posMatch = null;
+    {
+        const pm = matchField(block, /(?:^|[^A-Za-z0-9_])pos\s*=\s*\(/);
+        if (pm) {
+            let i = pm.index + pm[0].length, depth = 0, inStr = null, cur = '';
+            const parts = [];
+            for (; i < block.length; i++) {
+                const ch = block[i];
+                if (inStr) { cur += ch; if (ch === '\\') { cur += block[++i] || ''; } else if (ch === inStr) inStr = null; continue; }
+                if (ch === '"' || ch === "'") { inStr = ch; cur += ch; continue; }
+                if (ch === '(' || ch === '[') { depth++; cur += ch; continue; }
+                if (ch === ')' || ch === ']') { if (depth === 0) break; depth--; cur += ch; continue; }
+                if (ch === ',' && depth === 0) { parts.push(cur); cur = ''; continue; }
+                cur += ch;
+            }
+            parts.push(cur);
+            posMatch = parts.map(t => t.trim());
+        }
+    }
     if (posMatch) {
-        const coordsStr = posMatch[1].trim();
-        const parts = coordsStr.split(',').map(s => s.trim());
+        const parts = posMatch;
         if (parts.length === 2) {
             posXExpr = parts[0];
             posYExpr = parts[1];
