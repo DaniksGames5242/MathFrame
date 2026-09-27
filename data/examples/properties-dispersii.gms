@@ -6,9 +6,9 @@ field height = 10;
 camera type = fixed;
 
 // ---- Три распределения на общей оси: X, Y = aX + b и X₁ + X₂ (две независимые копии X).
-// Столбики — вероятности, оранжевая черта — математическое ожидание, зелёный отрезок — [E − σ; E + σ]. ----
-draw Graph { name = "gBars"; graph = "gb"; edgeColor = #3b82f6; edgeWidth = 7; nodeRadius = 0; labels = false; interactive = false; showWeights = false; layer = 10 }
-draw Graph { name = "gMarks"; graph = "gm"; edgeWidth = 4; nodeRadius = 0; labels = false; interactive = false; showWeights = false; layer = 12 }
+// Столбики — вероятности, оранжевая черта — математическое ожидание, зелёный отрезок с засечками — [E − σ; E + σ]. ----
+draw Graph { name = "gBars"; graph = "gb"; edgeColor = #3b82f6; edgeWidth = 14; edgeCap = butt; nodeRadius = 0; labels = false; interactive = false; showWeights = false; layer = 10 }
+draw Graph { name = "gMarks"; graph = "gm"; edgeWidth = 2.5; edgeCap = butt; nodeRadius = 0; labels = false; interactive = false; showWeights = false; layer = 12 }
 draw Graph { name = "gAx"; graph = "gx"; edgeColor = #6b7280; edgeWidth = 1; nodeRadius = 0; labels = false; interactive = false; showWeights = false; layer = 5 }
 draw Text { name = "t1"; pos = (-7.7, 3.7); text = "X:  E = " + format(ex, 2) + ",  D = " + format(dx, 2) + ",  σ = " + format(sqrt(dx), 2); size = 0.95; align = left }
 draw Text { name = "t2"; pos = (-7.7, 0.5); text = "aX + b:  E = " + format(a * ex + b, 2) + ",  D = " + format(a * a * dx, 2) + ",  σ = " + format(abs(a) * sqrt(dx), 2); size = 0.95; align = left }
@@ -32,8 +32,11 @@ string info = "";
 Function vx(t) { return -7.5 + 15 * (t + 13) / 36; }
 Function bar(k, x, y0, h) { addNode(gb, "a" + k, [vx(x), y0]); addNode(gb, "b" + k, [vx(x), y0 + h]); addEdge(gb, "a" + k, "b" + k); return 0; }
 Function mark(k, y0, e, s) {
-  addNode(gm, "e1" + k, [vx(e), y0 - 0.15]); addNode(gm, "e2" + k, [vx(e), y0 + 2.3]); addEdge(gm, "e1" + k, "e2" + k, 1, "#f59e0b");
-  addNode(gm, "s1" + k, [vx(e - s), y0 - 0.25]); addNode(gm, "s2" + k, [vx(e + s), y0 - 0.25]); addEdge(gm, "s1" + k, "s2" + k, 1, "#22c55e");
+  addNode(gm, "e1" + k, [vx(e), y0]); addNode(gm, "e2" + k, [vx(e), y0 + 2.3]); addEdge(gm, "e1" + k, "e2" + k, 1, "#f59e0b");
+  float ys = y0 - 0.3;
+  addNode(gm, "s1" + k, [vx(e - s), ys]); addNode(gm, "s2" + k, [vx(e + s), ys]); addEdge(gm, "s1" + k, "s2" + k, 1, "#22c55e");
+  addNode(gm, "p1" + k, [vx(e - s), ys - 0.15]); addNode(gm, "q1" + k, [vx(e - s), ys + 0.15]); addEdge(gm, "p1" + k, "q1" + k, 1, "#22c55e");
+  addNode(gm, "p2" + k, [vx(e + s), ys - 0.15]); addNode(gm, "q2" + k, [vx(e + s), ys + 0.15]); addEdge(gm, "p2" + k, "q2" + k, 1, "#22c55e");
   addNode(gx, "x1" + k, [-7.5, y0]); addNode(gx, "x2" + k, [7.5, y0]); addEdge(gx, "x1" + k, "x2" + k);
   return 0;
 }
@@ -55,7 +58,6 @@ Update {
     float mz = 0; repeat (13) { float t = i; float q = 0; repeat (6) { float i1 = i; repeat (6) { if (v[i1] + v[i] == t || (dist == "coin" && v[i1] + v[i] == t)) { q = q + pr[i1] * pr[i]; } } } mz = max(mz, q); }
     if (dist == "coin") { mz = 0.5; }
     repeat (6) { if (pr[i] > 0) { bar("x" + format(i, 0), v[i], 1.6, H * pr[i]); bar("y" + format(i, 0), a * v[i] + b, -1.6, H * pr[i]); } }
-    // X₁ + X₂: свёртка
     // X₁ + X₂: вероятности сумм (свёртка), по одному столбику на каждое значение суммы
     repeat (13) { float t = i; float q = 0;
       repeat (6) { float i1 = i; repeat (6) { if (pr[i1] > 0 && pr[i] > 0 && v[i1] + v[i] == t) { q = q + pr[i1] * pr[i]; } } }
