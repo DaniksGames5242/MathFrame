@@ -35,14 +35,19 @@ draw Text { name = "lblAB"; pos = ((Pa.pos.x + Pb.pos.x) / 2, 0.8); text = "|a �
 
 new Claster { name = "tabDist"; elements = (Pa, Pb, ab, lblAB); active = false }
 
-// ---- Вкладка 3: график y = |x − a| + b ----
+// ---- Вкладка 3: график y = k·|x − a| + b ----
 // Вершина V лежит на графике: перетаскивая её, сдвигаем «галочку» (a, b — координаты V).
-// Точка M скользит по графику и показывает значение модуля.
+// Точка K на правой ветви задаёт наклон ветвей k (угол, под которым график «отражается»
+// от вершины). Точка M скользит по графику и показывает значение.
 float ga = 0;
 float gb = 0;
-func fabs(x) = abs(x - ga) + gb;
-draw Function { name = "grAbs"; f = "fabs"; xmin = -9.5; xmax = 9.5; segments = 400; grid = true; color = #3b82f6; thickness = 3 }
+float gk = 1;
+float kdx = 3;
+float pVx = 0; float pVy = 0; float pKx = 3; float pKy = 3;
+func fabs(x) = gk * abs(x - ga) + gb;
+draw Function { name = "grAbs"; f = "fabs"; xmin = -10; xmax = 10; segments = 400; grid = true; color = #3b82f6; thickness = 3 }
 new Point { name = "V"; pos = (0, 0); text = true("V"); pauseOnDrag = false }
+new Point { name = "K"; pos = (3, 3); text = true("K"); pauseOnDrag = false }
 new Point { name = "P"; graph = "grAbs"; t = 0.3; text = true("M"); pauseOnDrag = false; collideWithPoints = false }
 new Point { name = "Px"; pos = (0, 0); dynamic = false; size = 0.6; collision = false }
 new Point { name = "Py"; pos = (0, 0); dynamic = false; size = 0.6; collision = false }
@@ -54,7 +59,7 @@ new Point { name = "Y1"; pos = (0, -4.8); dynamic = false; active = false }
 new Point { name = "Y2"; pos = (0, 4.8); dynamic = false; active = false }
 new Line { name = "yAxis"; pos = (Y1, Y2); interact = false; thickness = 1 }
 
-new Claster { name = "tabGraph"; elements = (grAbs, V, P, Px, Py, prX, prY, yAxis); active = false }
+new Claster { name = "tabGraph"; elements = (grAbs, V, K, P, Px, Py, prX, prY, yAxis); active = false }
 
 // ---- Кнопки вкладок ----
 new UI { name = "btnAbs"; type = button; label = "Модуль числа"; action = "tab = 1; tabAbs.active = true; tabDist.active = false; tabGraph.active = false" }
@@ -85,7 +90,10 @@ Function graphFormula() {
   string inner = "x";
   if (a > 0) { inner = "x − " + num(a); }
   if (a < 0) { inner = "x + " + num(-a); }
+  float k = round(gk * 10) / 10;
   string f = "|" + inner + "|";
+  if (k == -1) { f = "−" + f; }
+  if (k != 1 && k != -1) { f = num(k) + "·" + f; }
   if (b > 0) { f = f + " + " + num(b); }
   if (b < 0) { f = f + " − " + num(-b); }
   return f;
@@ -101,12 +109,32 @@ Update {
   if (abs(X.t - ptX) >= abs(NX.t - ptNX)) { NX.t = 1 - X.t; } else { X.t = 1 - NX.t; }
   ptX = X.t; ptNX = NX.t;
 
-  // Сдвиг графика вершиной V. M остаётся на графике; если после сдвига она оказалась
-  // бы за полем, она перемещается по графику к ближайшему допустимому месту.
-  // Вершина не поднимается выше 2.5 — иначе «галочка» почти целиком уходит за верх поля.
-  if (V.pos.y > 2.5) { V.pos.y = 2.5; }
-  ga = V.pos.x; gb = V.pos.y;
-  float half = max(0, fieldMaxY - gb);
+  // V сдвигает график (K едет вместе с ним), K меняет наклон k. Обе точки и M
+  // остаются в поле: V не заходит туда, где K не поместилась бы, K и M при
+  // необходимости сдвигаются по графику к ближайшему допустимому месту.
+  if (abs(K.pos.x - pKx) + abs(K.pos.y - pKy) > abs(V.pos.x - pVx) + abs(V.pos.y - pVy)) {
+    // Двигают K: новый наклон; K не ближе 0.5 к вершине по горизонтали, 0.2 ≤ |k| ≤ 6
+    kdx = K.pos.x - ga;
+    if (abs(kdx) < 0.5) { if (kdx < 0) { kdx = -0.5; } else { kdx = 0.5; } }
+    gk = min(max((K.pos.y - gb) / abs(kdx), -6), 6);
+    // Не вырождаемся в горизонтальную прямую: |k| ≥ 0.2 (знак — со стороны, куда тянут K)
+    if (abs(gk) < 0.2) { if (K.pos.y < gb) { gk = -0.2; } else { gk = 0.2; } }
+  } else {
+    // Двигают V: вершина не выше/ниже, чем позволяет уместить K
+    if (gk > 0) { V.pos.y = min(V.pos.y, fieldMaxY - 0.5 * gk); } else { V.pos.y = max(V.pos.y, -fieldMaxY - 0.5 * gk); }
+    ga = V.pos.x; gb = V.pos.y;
+  }
+  // Сколько места по горизонтали от вершины до выхода графика за поле
+  float half = 20;
+  if (gk > 0) { half = (fieldMaxY - gb) / gk; }
+  if (gk < 0) { half = (fieldMaxY + gb) / -gk; }
+  float kx = min(max(kdx, -half), half);
+  kx = min(max(ga + kx, -fieldMaxX), fieldMaxX);
+  if (abs(kx - ga) < 0.5) { if (kx < fieldMaxX - 0.5) { kx = ga + 0.5; } else { kx = ga - 0.5; } }
+  kdx = kx - ga;
+  K.pos.x = kx; K.pos.y = fabs(kx);
+  pVx = V.pos.x; pVy = V.pos.y; pKx = K.pos.x; pKy = K.pos.y;
+
   float mx = min(max(P.pos.x, ga - half), ga + half);
   mx = min(max(mx, -fieldMaxX), fieldMaxX);
   P.t = (mx - grAbs.xmin) / (grAbs.xmax - grAbs.xmin);
@@ -121,7 +149,7 @@ Update {
   } else if (tab == 2) {
     info = "**Модуль разности |a − b|** — расстояние между точками a и b на числовой прямой; порядок не важен: |a − b| = |b − a|.\n\n|a − b| = |" + num(Pa.pos.x) + " − " + numP(Pb.pos.x) + "| = " + num(abs(Pa.pos.x - Pb.pos.x)) + ".";
   } else {
-    info = "**График y = |x|** — «галочка»: при x ≥ 0 он совпадает с прямой y = x, при x < 0 — с прямой y = −x. Сдвиг вершины в точку (a; b) даёт график y = |x − a| + b.\n\ny = " + graphFormula() + ";   M(" + num(P.pos.x) + "; " + num(P.pos.y) + ").";
+    info = "**График y = |x|** — «галочка»: при x ≥ 0 он совпадает с прямой y = x, при x < 0 — с прямой y = −x. Сдвиг вершины в точку (a; b) и растяжение ветвей в k раз дают график y = k·|x − a| + b; при k < 0 «галочка» перевёрнута.\n\ny = " + graphFormula() + ";   M(" + num(P.pos.x) + "; " + num(P.pos.y) + ").";
   }
 }
 ]
