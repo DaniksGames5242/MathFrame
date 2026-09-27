@@ -1569,7 +1569,10 @@ function parsePunctirBlock(block, vars) {
             const colorExpr = captureExprField(block, 'color');
             let textEnabled = false;
             let textValue = null;
-            const textMatch = block.match(/text\s*=\s*(true\s*\(([^)]*)\)|false|[a-zA-Z_][a-zA-Z0-9_]*)/);
+            // true("...") — строка может содержать ")" (например, "ζ(s)"): сначала пробуем
+            // строковый литерал целиком, иначе прежний разбор до первой ")".
+            const quotedText = matchField(block, /(?:^|[^A-Za-z0-9_])text\s*=\s*true\s*\(\s*"((?:[^"\\]|\\.)*)"\s*\)/);
+            const textMatch = quotedText ? [quotedText[0], 'true("' + quotedText[1] + '")', '"' + quotedText[1] + '"'] : block.match(/text\s*=\s*(true\s*\(([^)]*)\)|false|[a-zA-Z_][a-zA-Z0-9_]*)/);
             if (textMatch) {
                 let full = textMatch[1];
                 if (full === 'false') textEnabled = false;
@@ -5159,12 +5162,12 @@ function parseCommands(codeBlock, vars) {
                 '                    const t = next();\n',
                 '                    if (t.type !== \'op\' || ![\'=\', \'+=\', \'-=\', \'*=\', \'/=\'].includes(t.value)) throw new Error(\'Ожидался оператор присваивания\');\n',
                 '                    const expr = parseExpr();\n',
-                '                    assigns.push({ path, op: t.value, expr });\n',
+                '                    assigns.push({ path, op: t.value, expr, decl: true });\n',
                 '                    if (atOp(\',\')) { next(); continue; }\n',
                 '                    break;\n',
                 '                }\n',
                 '                if (atOp(\';\')) next();\n',
-                '                if (assigns.length === 1) return { type: \'assign\', path: assigns[0].path, op: assigns[0].op, expr: assigns[0].expr };\n',
+                '                if (assigns.length === 1) return { type: \'assign\', path: assigns[0].path, op: assigns[0].op, expr: assigns[0].expr, decl: true };\n',
                 '                return { type: \'multiAssign\', assigns };\n',
                 '            }\n',
                 '            const startPos = pos;\n',
@@ -16196,7 +16199,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
     function glCallUserFunc(name, args) {
         const fn = GL_USER_FUNCS[name];
         if (!fn) throw new Error('Неизвестная функция: ' + name);
-        const localCtx = { time: elapsedTime };
+        const localCtx = { time: elapsedTime, __gcFnScope: true };
         fn.params.forEach((p, i) => { localCtx[p] = args[i]; });
         if (fn.bodyStmts) {
             // Function/Void: многострочное тело со statements; возврат значения — через
@@ -16414,9 +16417,19 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
         const val = glEvalExpr(a.expr, ctx);
         if (a.path.length === 1) {
             const name = a.path[0].name;
-            if (ctx && name in ctx) {
-                ctx[name] = a.op === '=' ? val : glApplyCompound(ctx[name], val, a.op);
-                if (ctx[name] && typeof ctx[name] === 'object' && 'dirty' in ctx[name]) ctx[name].dirty = true;
+            // Тело цикла (repeat/while/for) исполняется в дочерней области (Object.create(ctx)),
+            // поэтому присваивание пишется туда, где переменная объявлена: раньше тело шло в
+            // КОПИИ контекста, и, например, a = b в цикле внутри Function(a, b) терялось.
+            let owner = ctx;
+            // Объявление (float x = …) внутри Function/Void или тела цикла создаёт ЛОКАЛЬНУЮ
+            // переменную этой области. Раньше оно писало в глобальную область: локальная
+            // string s в одной функции затирала переменную s вызывающего кода. Объявления на
+            // верхнем уровне Start/Update по-прежнему глобальные (как и раньше).
+            if (a.decl && ctx && (ctx.__gcFnScope || Object.getPrototypeOf(ctx) !== Object.prototype)) owner = ctx;
+            else while (owner && owner !== Object.prototype && !Object.prototype.hasOwnProperty.call(owner, name)) owner = Object.getPrototypeOf(owner);
+            if (owner && owner !== Object.prototype) {
+                owner[name] = a.op === '=' ? val : glApplyCompound(owner[name], val, a.op);
+                if (owner[name] && typeof owner[name] === 'object' && 'dirty' in owner[name]) owner[name].dirty = true;
             } else {
                 window[name] = a.op === '=' ? val : glApplyCompound(window[name], val, a.op);
                 if (window[name] && typeof window[name] === 'object' && 'dirty' in window[name]) window[name].dirty = true;
@@ -16444,21 +16457,21 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
                 break;
             case 'repeat': {
                 const cnt = Math.max(0, Math.floor(glEvalExpr(s.count, ctx)));
-                for (let i = 0; i < cnt; i++) await glExecStatements(s.body, Object.assign({}, ctx, { i }));
+                for (let i = 0; i < cnt; i++) await glExecStatements(s.body, Object.assign(Object.create(ctx), { i }));
                 break;
             }
             case 'while': {
               let guard = 0;
               while (glEvalExpr(s.cond, ctx)) {
                 if (++guard > 1000000) throw new Error('Цикл while превысил 1000000 итераций — похоже, условие никогда не станет ложным');
-                await glExecStatements(s.body, Object.assign({}, ctx, { i: guard - 1 }));
+                await glExecStatements(s.body, Object.assign(Object.create(ctx), { i: guard - 1 }));
               }
               break;
             }
             case 'forEach': {
                 const coll = glEvalExpr(s.coll, ctx);
                 if (Array.isArray(coll)) {
-                    for (const item of coll) await glExecStatements(s.body, Object.assign({}, ctx, { [s.varName]: item }));
+                    for (const item of coll) await glExecStatements(s.body, Object.assign(Object.create(ctx), { [s.varName]: item }));
                 }
                 break;
             }
@@ -16488,21 +16501,21 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
                 break;
             case 'repeat': {
                 const cnt = Math.max(0, Math.floor(glEvalExpr(s.count, ctx)));
-                for (let i = 0; i < cnt; i++) glExecStatementsSync(s.body, Object.assign({}, ctx, { i }));
+                for (let i = 0; i < cnt; i++) glExecStatementsSync(s.body, Object.assign(Object.create(ctx), { i }));
                 break;
             }
             case 'while': {
               let guard = 0;
               while (glEvalExpr(s.cond, ctx)) {
                 if (++guard > 1000000) throw new Error('Цикл while превысил 1000000 итераций — похоже, условие никогда не станет ложным');
-                glExecStatementsSync(s.body, Object.assign({}, ctx, { i: guard - 1 }));
+                glExecStatementsSync(s.body, Object.assign(Object.create(ctx), { i: guard - 1 }));
               }
               break;
             }
             case 'forEach': {
                 const coll = glEvalExpr(s.coll, ctx);
                 if (Array.isArray(coll)) {
-                    for (const item of coll) glExecStatementsSync(s.body, Object.assign({}, ctx, { [s.varName]: item }));
+                    for (const item of coll) glExecStatementsSync(s.body, Object.assign(Object.create(ctx), { [s.varName]: item }));
                 }
                 break;
             }
@@ -19045,9 +19058,15 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '    if (op === \'/=\') return c / val;\n',
             '    return val;\n',
             '  }\n',
+            // Область, где объявлена переменная (тело цикла — дочерняя область, см. 2D).
+            '  function g3Owner(ctx, name) {\n',
+            '    let o = ctx;\n',
+            '    while (o && o !== Object.prototype && !Object.prototype.hasOwnProperty.call(o, name)) o = Object.getPrototypeOf(o);\n',
+            '    return (o && o !== Object.prototype) ? o : null;\n',
+            '  }\n',
             '  function g3ResolvePath(segs, ctx) {\n',
             '    const rootName = segs[0].name;\n',
-            '    const hasLocal = ctx && Object.prototype.hasOwnProperty.call(ctx, rootName);\n',
+            '    const hasLocal = !!g3Owner(ctx, rootName);\n',
             '    let obj = hasLocal ? ctx[rootName] : userVars[rootName];\n',
             '    for (let idx = 1; idx < segs.length - 1; idx++) {\n',
             '      if (obj === undefined || obj === null) throw new Error(\'Некорректный путь при обращении к \' + rootName);\n',
@@ -19062,12 +19081,13 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '    const val = g3Eval(a.expr, ctx);\n',
             '    if (a.path.length === 1) {\n',
             '      const name = a.path[0].name;\n',
-            '      const hasLocal = ctx && Object.prototype.hasOwnProperty.call(ctx, name);\n',
-            '      if (a.op === \'=\') { if (hasLocal) ctx[name] = val; else userVars[name] = val; }\n',
+            // Объявление внутри Function/Void или тела цикла — локальная переменная (см. 2D).
+            '      const own = (a.decl && ctx && (ctx.__gcFnScope || Object.getPrototypeOf(ctx) !== Object.prototype)) ? ctx : g3Owner(ctx, name); const hasLocal = !!own;\n',
+            '      if (a.op === \'=\') { if (hasLocal) own[name] = val; else userVars[name] = val; }\n',
             '      else {\n',
-            '        const cur = hasLocal ? ctx[name] : ((typeof userVars[name] === \'number\') ? userVars[name] : 0);\n',
+            '        const cur = hasLocal ? own[name] : ((typeof userVars[name] === \'number\') ? userVars[name] : 0);\n',
             '        const nv = g3ApplyCompound(cur, val, a.op);\n',
-            '        if (hasLocal) ctx[name] = nv; else userVars[name] = nv;\n',
+            '        if (hasLocal) own[name] = nv; else userVars[name] = nv;\n',
             '      }\n',
             '    } else {\n',
             '      const resolved = g3ResolvePath(a.path, ctx);\n',
@@ -19086,20 +19106,20 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '        break;\n',
             '      case \'repeat\': {\n',
             '        const cnt = Math.max(0, Math.floor(g3Eval(s.count, ctx)));\n',
-            '        for (let i = 0; i < cnt; i++) g3ExecStatementsSync(s.body, Object.assign({}, ctx, { i: i }));\n',
+            '        for (let i = 0; i < cnt; i++) g3ExecStatementsSync(s.body, Object.assign(Object.create(ctx), { i: i }));\n',
             '        break;\n',
             '      }\n',
             '      case \'while\': {\n',
             '        let guard = 0;\n',
             '        while (g3Eval(s.cond, ctx)) {\n',
             '          if (++guard > 1000000) throw new Error(\'Цикл while превысил 1000000 итераций — похоже, условие никогда не станет ложным\');\n',
-            '          g3ExecStatementsSync(s.body, Object.assign({}, ctx, { i: guard - 1 }));\n',
+            '          g3ExecStatementsSync(s.body, Object.assign(Object.create(ctx), { i: guard - 1 }));\n',
             '        }\n',
             '        break;\n',
             '      }\n',
             '      case \'forEach\': {\n',
             '        const coll = g3Eval(s.coll, ctx);\n',
-            '        if (Array.isArray(coll)) { for (const item of coll) g3ExecStatementsSync(s.body, Object.assign({}, ctx, { [s.varName]: item })); }\n',
+            '        if (Array.isArray(coll)) { for (const item of coll) g3ExecStatementsSync(s.body, Object.assign(Object.create(ctx), { [s.varName]: item })); }\n',
             '        break;\n',
             '      }\n',
             '      case \'wait\':\n',
@@ -19123,20 +19143,20 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '        break;\n',
             '      case \'repeat\': {\n',
             '        const cnt = Math.max(0, Math.floor(g3Eval(s.count, ctx)));\n',
-            '        for (let i = 0; i < cnt; i++) await g3ExecStatementsAsync(s.body, Object.assign({}, ctx, { i: i }));\n',
+            '        for (let i = 0; i < cnt; i++) await g3ExecStatementsAsync(s.body, Object.assign(Object.create(ctx), { i: i }));\n',
             '        break;\n',
             '      }\n',
             '      case \'while\': {\n',
             '        let guard = 0;\n',
             '        while (g3Eval(s.cond, ctx)) {\n',
             '          if (++guard > 1000000) throw new Error(\'Цикл while превысил 1000000 итераций — похоже, условие никогда не станет ложным\');\n',
-            '          await g3ExecStatementsAsync(s.body, Object.assign({}, ctx, { i: guard - 1 }));\n',
+            '          await g3ExecStatementsAsync(s.body, Object.assign(Object.create(ctx), { i: guard - 1 }));\n',
             '        }\n',
             '        break;\n',
             '      }\n',
             '      case \'forEach\': {\n',
             '        const coll = g3Eval(s.coll, ctx);\n',
-            '        if (Array.isArray(coll)) { for (const item of coll) await g3ExecStatementsAsync(s.body, Object.assign({}, ctx, { [s.varName]: item })); }\n',
+            '        if (Array.isArray(coll)) { for (const item of coll) await g3ExecStatementsAsync(s.body, Object.assign(Object.create(ctx), { [s.varName]: item })); }\n',
             '        break;\n',
             '      }\n',
             '      case \'wait\':\n',
@@ -19259,7 +19279,7 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '        if (G3_BUILTINS[node.name]) return G3_BUILTINS[node.name].apply(null, args);\n',
             '        const fn = G3_FUNCS[node.name];\n',
             '        if (fn) {\n',
-            '          const localCtx = {};\n',
+            '          const localCtx = { __gcFnScope: true };\n',
             '          fn.params.forEach(function(p, idx) { localCtx[p] = args[idx]; });\n',
             '          if (fn.stmts) {\n',
             '            try { g3ExecStatementsSync(fn.stmts, localCtx); }\n',
