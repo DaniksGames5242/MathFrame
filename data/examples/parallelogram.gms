@@ -74,9 +74,11 @@ float pax = 0; float pay = 0; float pbx = 0; float pby = 0;
 float pcx = 0; float pcy = 0; float pdx = 0; float pdy = 0;
 float sx = 0; float sy = 0;
 
-// Лежит ли точка (x, y) внутри поля
+// Лежит ли точка (x, y) внутри поля. fieldMaxX / fieldMaxY — граница для центров точек
+// с отступом в радиус точки (та же, что у движка), чтобы вершина у стенки была видна
+// целиком и её можно было схватить.
 Function inField(x, y) {
-  return abs(x) <= 10 && abs(y) <= 6;
+  return abs(x) <= fieldMaxX + 0.000001 && abs(y) <= fieldMaxY + 0.000001;
 }
 
 // Допустимо ли положение (x, y) перетаскиваемой вершины при соседях (ax, ay), (bx, by):
@@ -132,31 +134,44 @@ Start {
 }
 
 Update {
-  // Сдвинувшуюся вершину (с наибольшим смещением — пересчёты дают погрешность ~1e-15
-  // у остальных) ограничиваем (slide) и пересчитываем противоположную, соседние стоят. При перетаскивании фигуры целиком сдвигаются все
-  // вершины на один вектор — это тоже корректно обрабатывается первой ветвью.
+  // Смещения вершин за кадр.
   float mA = abs(A.pos.x - pax) + abs(A.pos.y - pay);
   float mB = abs(B.pos.x - pbx) + abs(B.pos.y - pby);
   float mC = abs(C.pos.x - pcx) + abs(C.pos.y - pcy);
   float mD = abs(D.pos.x - pdx) + abs(D.pos.y - pdy);
   float m = max(mA, mB, mC, mD);
-  if (m < 0.000001) {
+  // Перетаскивание фигуры целиком: все вершины сдвинуты на один и тот же вектор —
+  // форма не меняется, границу поля уже соблюдает сам движок.
+  float shift = abs((B.pos.x - pbx) - (A.pos.x - pax)) + abs((B.pos.y - pby) - (A.pos.y - pay))
+              + abs((C.pos.x - pcx) - (A.pos.x - pax)) + abs((C.pos.y - pcy) - (A.pos.y - pay))
+              + abs((D.pos.x - pdx) - (A.pos.x - pax)) + abs((D.pos.y - pdy) - (A.pos.y - pay));
+  if (m < 0.000001 || shift < 0.000001) {
   } else if (mA == m) {
-    slide(pax, pay, A.pos.x, A.pos.y, B.pos.x, B.pos.y, D.pos.x, D.pos.y);
-    A.pos.x = sx; A.pos.y = sy;
-    C.pos.x = B.pos.x + D.pos.x - sx; C.pos.y = B.pos.y + D.pos.y - sy;
+    // Двигают одну вершину (с наибольшим смещением — у остальных пересчёты дают
+    // погрешность ~1e-15): ограничиваем её ход (slide) и пересчитываем противоположную,
+    // соседние стоят на месте.
+    slide(pax, pay, A.pos.x, A.pos.y, pbx, pby, pdx, pdy);
+    A.pos.x = sx; A.pos.y = sy; B.pos.x = pbx; B.pos.y = pby; D.pos.x = pdx; D.pos.y = pdy;
+    C.pos.x = pbx + pdx - sx; C.pos.y = pby + pdy - sy;
   } else if (mB == m) {
-    slide(pbx, pby, B.pos.x, B.pos.y, A.pos.x, A.pos.y, C.pos.x, C.pos.y);
-    B.pos.x = sx; B.pos.y = sy;
-    D.pos.x = A.pos.x + C.pos.x - sx; D.pos.y = A.pos.y + C.pos.y - sy;
+    slide(pbx, pby, B.pos.x, B.pos.y, pax, pay, pcx, pcy);
+    B.pos.x = sx; B.pos.y = sy; A.pos.x = pax; A.pos.y = pay; C.pos.x = pcx; C.pos.y = pcy;
+    D.pos.x = pax + pcx - sx; D.pos.y = pay + pcy - sy;
   } else if (mC == m) {
-    slide(pcx, pcy, C.pos.x, C.pos.y, B.pos.x, B.pos.y, D.pos.x, D.pos.y);
-    C.pos.x = sx; C.pos.y = sy;
-    A.pos.x = B.pos.x + D.pos.x - sx; A.pos.y = B.pos.y + D.pos.y - sy;
+    slide(pcx, pcy, C.pos.x, C.pos.y, pbx, pby, pdx, pdy);
+    C.pos.x = sx; C.pos.y = sy; B.pos.x = pbx; B.pos.y = pby; D.pos.x = pdx; D.pos.y = pdy;
+    A.pos.x = pbx + pdx - sx; A.pos.y = pby + pdy - sy;
   } else {
-    slide(pdx, pdy, D.pos.x, D.pos.y, A.pos.x, A.pos.y, C.pos.x, C.pos.y);
-    D.pos.x = sx; D.pos.y = sy;
-    B.pos.x = A.pos.x + C.pos.x - sx; B.pos.y = A.pos.y + C.pos.y - sy;
+    slide(pdx, pdy, D.pos.x, D.pos.y, pax, pay, pcx, pcy);
+    D.pos.x = sx; D.pos.y = sy; A.pos.x = pax; A.pos.y = pay; C.pos.x = pcx; C.pos.y = pcy;
+    B.pos.x = pax + pcx - sx; B.pos.y = pay + pcy - sy;
+  }
+  // Страховка: если по какой-то причине кадр дал не параллелограмм или вершину вне поля,
+  // возвращаем последнее корректное положение целиком.
+  if (abs(A.pos.x + C.pos.x - B.pos.x - D.pos.x) + abs(A.pos.y + C.pos.y - B.pos.y - D.pos.y) > 0.0001
+      || !inField(A.pos.x, A.pos.y) || !inField(B.pos.x, B.pos.y) || !inField(C.pos.x, C.pos.y) || !inField(D.pos.x, D.pos.y)) {
+    A.pos.x = pax; A.pos.y = pay; B.pos.x = pbx; B.pos.y = pby;
+    C.pos.x = pcx; C.pos.y = pcy; D.pos.x = pdx; D.pos.y = pdy;
   }
   pax = A.pos.x; pay = A.pos.y; pbx = B.pos.x; pby = B.pos.y;
   pcx = C.pos.x; pcy = C.pos.y; pdx = D.pos.x; pdy = D.pos.y;
