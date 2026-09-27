@@ -768,6 +768,10 @@ function removeObjectBlocks(code) {
         // возможность пересчитывать видимость каждый кадр (например, когда переменную
         // меняет переключатель new UI), поэтому здесь сохраняется исходный токен.
         function parseActiveExpr(block) {
+            // active = nA > 1 — любое выражение, не только имя переменной: раньше из него
+            // бралось одно имя (nA), и условие молча превращалось в «nA не ноль».
+            const full = captureExprField(block, 'active');
+            if (full && !/^[a-zA-Z_][a-zA-Z0-9_.]*$/.test(full.trim())) return full.trim();
             const m = matchField(block, /(?:^|[^A-Za-z0-9_])active\s*=\s*(true|false|[a-zA-Z_][a-zA-Z0-9_.]*)/);
             return m ? m[1] : null;
         }
@@ -3191,6 +3195,10 @@ function parseBifurcationBlock(block, vars) {
     return {
         anchor: parseAnchorField(block, 'world'),
         name, funcName: fM[1],
+        // box = (x1, y1, x2, y2) — прямоугольник поля, в который вписывается диаграмма
+        // (без него — на весь холст, как раньше). Нужен, чтобы рядом поместить, например,
+        // паутинную диаграмму для выбранного r.
+        box: (() => { const m = block.match(/(?:^|[^A-Za-z0-9_])box\s*=\s*\(([^)]*)\)/); if (!m) return null; const v = m[1].split(',').map(x => evaluateNumericExpression(x.trim(), vars)); return v.length === 4 && v.every(isFinite) ? v : null; })(),
         rmin: parseNumberField(block, vars, 'rmin', 2.4, false),
         rmax: parseNumberField(block, vars, 'rmax', 4, false),
         ymin: parseNumberField(block, vars, 'ymin', 0, false),
@@ -4018,6 +4026,7 @@ function parseGraphDrawBlock(block, vars) {
         anchor: parseAnchorField(block, 'world'),
         name, graphVar: graphMatch[1], color, colorExpr, nodeColor, nodeColorExpr, edgeColor, edgeColorExpr, labelColor, nodeRadius,
         directed, showWeights, labels, highlightExpr, highlightEdgesExpr, highlightColor, active,
+        edgeWidth: parseNumberField(block, vars, 'edgeWidth', 2, false),
         activeExpr: parseActiveExpr(block), layer, dim, pos3D, rotate3D, billboard,
         panelWidth: parseNumberField(block, vars, 'panelWidth', 8, false),
         panelHeight: parseNumberField(block, vars, 'panelHeight', 6, false),
@@ -5817,6 +5826,10 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '      // объявлен с буквальным active = true/false. fallback уже содержит ТЕКУЩЕЕ (в т.ч.\n',
             '      // изменённое в рантайме) значение obj.active — используем его.\n',
             '      if (activeExpr === \'true\' || activeExpr === \'false\') return fallback !== false;\n',
+            '      if (!/^[a-zA-Z_][a-zA-Z0-9_.]*$/.test(activeExpr)) {\n',
+            '        let v; try { v = evaluate(activeExpr); } catch (e) { return fallback !== false; }\n',
+            '        return !(v === false || v === 0 || v === \'\' || v === undefined || v === null);\n',
+            '      }\n',
             '      const raw = (activeExpr.indexOf(\'.\') >= 0) ? glResolveDotted(activeExpr) : userVars[activeExpr];\n',
             '      if (raw === undefined || raw === null) return fallback !== false;\n',
             '      return !(raw === false || raw === 0 || raw === \'\');\n',
@@ -6318,7 +6331,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '          segments: cv.segments || 50,\n',
             '          color: cv.color || null, colorExpr: cv.colorExpr, thickness: cv.thickness || 2, thicknessExpr: cv.thicknessExpr,\n',
             '          updateMode: cv.updateMode || \'always\', updateInterval: cv.updateInterval,\n',
-            '          active: cv.active !== false,\n',
+            '          active: cv.active !== false, activeExpr: cv.activeExpr,\n',
             '          layer: (cv.layer !== undefined && cv.layer !== null) ? cv.layer : 20,\n',
             '          collision: cv.collision || false, collisionGroup: cv.collisionGroup || 0, collisionMask: cv.collisionMask || null, collisionMargin: cv.collisionMargin || 0,\n',
             '          collideWithPoints: cv.collideWithPoints || false, collideWithLines: cv.collideWithLines || false, collideWithCurves: cv.collideWithCurves || false,\n',
@@ -9148,7 +9161,9 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '        if (!GL_USER_FUNCS[d.funcName]) return;\n',
             '        if (gcShouldUpdate(d)) { d.__liveColor = d.colorExpr ? evaluate(d.colorExpr) : d.color; }\n',
             '        const q = Math.max(1, Math.floor(d.quality || 2));\n',
-            '        const w = Math.max(2, Math.floor(width / q)), h = Math.max(2, Math.floor(height / q));\n',
+            '        let bx = 0, by = 0, bw = width, bh = height;\n',
+            '        if (d.box) { const a = fieldToPixel(d.box[0], d.box[3]), b = fieldToPixel(d.box[2], d.box[1]); bx = a.x; by = a.y; bw = b.x - a.x; bh = b.y - a.y; }\n',
+            '        const w = Math.max(2, Math.floor(bw / q)), h = Math.max(2, Math.floor(bh / q));\n',
             '        const key = [d.funcName, d.rmin, d.rmax, d.ymin, d.ymax, d.x0, d.skip, d.keep, w, h, d.__liveColor, glUserFuncVersion].join(\'|\');\n',
             '        if (!d._cache || d._cacheKey !== key) {\n',
             '            const off = document.createElement(\'canvas\');\n',
@@ -9182,7 +9197,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '        }\n',
             '        ctx.save();\n',
             '        ctx.imageSmoothingEnabled = false;\n',
-            '        ctx.drawImage(d._cache, 0, 0, width, height);\n',
+            '        ctx.drawImage(d._cache, bx, by, bw, bh);\n',
             '        ctx.restore();\n',
             '    }\n',
             '\n',
@@ -9701,7 +9716,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '            const total = pairCount[pk], ord = pairSeen[pk];\n',
             '            const isHl = !!hlEdgeSet[edgeKey(e.a, e.b)];\n',
             '            ctx.strokeStyle = isHl ? (d.highlightColor || \'#e8590c\') : eCol;\n',
-            '            ctx.lineWidth = isHl ? 3.5 : 2;\n',
+            '            ctx.lineWidth = isHl ? Math.max(3.5, (d.edgeWidth || 2) + 1.5) : (d.edgeWidth || 2);\n',
             '            let mx, my, cxE = null, cyE = null;\n',
             '            if (e.a === e.b) {\n',
             '                // петля\n',
@@ -9754,7 +9769,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '        for (const key in g.nodes) {\n',
             '            const n = g.nodes[key];\n',
             '            const p = gcAnchorToPixel(d)(n.pos[0], n.pos[1]);\n',
-            '            const isHl = !!hlSet[String(n.label)];\n',
+            '            const isHl = !!(hlSet[String(key)] || hlSet[String(n.label)]);\n',
             '            ctx.fillStyle = isHl ? (d.highlightColor || \'#e8590c\') : (n.color || nCol);\n',
             '            ctx.beginPath();\n',
             '            ctx.arc(p.x, p.y, R, 0, 2 * Math.PI);\n',
@@ -10270,7 +10285,9 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '      }\n',
             '\n',
             '      for (let cv of curves) {\n',
-            '        if (!cv.active) continue;\n',
+            // кривые — как и остальные объекты: учитываем кластер и active = выражение
+
+            '        if (!isObjectActive(cv)) continue;\n',
             '        push(cv.layer, () => drawCurve(cv));\n',
             '      }\n',
             '\n',
@@ -13393,7 +13410,9 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
         },
         // Задача 5: графы
         newGraph: () => ({ __type: 'graph', nodes: {}, edges: [] }),
-        addNode: (g, label, pos) => { g.nodes[label] = { label, pos: pos || [0, 0] }; return g; },
+        // addNode(g, имя, pos, подпись): необязательная подпись — когда в графе одинаковые
+        // по смыслу узлы (остаток 1 на разных уровнях дерева) должны различаться по имени.
+        addNode: (g, label, pos, text) => { g.nodes[label] = { label: text === undefined ? label : text, pos: pos || [0, 0] }; return g; },
         addEdge: (g, a, b, weight) => { g.edges.push({ a, b, weight: weight === undefined ? 1 : weight }); return g; },
         // === ВЫЧИСЛИТЕЛЬНАЯ ГЕОМЕТРИЯ ===
         delaunay: (pts) => glDelaunay(glReadPoints(pts)),
@@ -19006,7 +19025,7 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '    stddev: function(arr) { return Math.sqrt(G3_BUILTINS.variance(arr)); },\n',
             '    // === Графы ===\n',
             '    newGraph: function() { return { __type: \'graph\', nodes: {}, edges: [] }; },\n',
-            '    addNode: function(g, label, pos) { g.nodes[label] = { label: label, pos: pos || [0, 0] }; return g; },\n',
+            '    addNode: function(g, label, pos, text) { g.nodes[label] = { label: text === undefined ? label : text, pos: pos || [0, 0] }; return g; },\n',
             '    addEdge: function(g, a, b, weight) { g.edges.push({ a: a, b: b, weight: weight === undefined ? 1 : weight }); return g; },\n',
             '    graphLayoutForce: function(g, iters, spread) { return g3GraphLayoutForce(g, iters, spread); },\n',
             '    graphMST: function(g) { return g3GraphMST(g); },\n',
