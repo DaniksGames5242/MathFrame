@@ -1109,10 +1109,22 @@ function removeObjectBlocks(code) {
                 // отличаться от самих значений.
                 let options = null, optionLabels = null;
                 if (type === 'select') {
+                    // Скобки и запятые внутри строк ("(y/2, 0) — сдвиг") не должны обрывать список:
+                    // раньше список заканчивался на первой «)» и подписи молча пропадали.
                     const parseListLiteral = (field) => {
-                        const m = block.match(new RegExp('(?:^|[^A-Za-z0-9_])' + field + '\\s*=\\s*\\(([^)]*)\\)'));
+                        const m = block.match(new RegExp('(?:^|[^A-Za-z0-9_])' + field + '\\s*=\\s*\\('));
                         if (!m) return null;
-                        const parts = m[1].split(',').map(s => s.trim()).filter(s => s !== '');
+                        const parts = []; let cur = '', depth = 0, q = null, i = m.index + m[0].length;
+                        for (; i < block.length; i++) {
+                            const ch = block[i];
+                            if (q) { cur += ch; if (ch === q) q = null; continue; }
+                            if (ch === '"' || ch === "'") { q = ch; cur += ch; continue; }
+                            if (ch === '(') { depth++; cur += ch; continue; }
+                            if (ch === ')') { if (depth === 0) break; depth--; cur += ch; continue; }
+                            if (ch === ',' && depth === 0) { parts.push(cur.trim()); cur = ''; continue; }
+                            cur += ch;
+                        }
+                        if (cur.trim() !== '') parts.push(cur.trim());
                         if (!parts.length) return null;
                         return parts.map(p => {
                             if ((p.startsWith('"') && p.endsWith('"')) || (p.startsWith("'") && p.endsWith("'"))) return p.slice(1, -1);
@@ -20321,9 +20333,19 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '    }\n',
             '    const mesh = new THREE.Line(geo, mat);\n',
             '    scene.add(mesh);\n',
+            // WebGL рисует THREE.Line всегда в 1 пиксель — thickness у 3D-кривых раньше ни на
+            // что не влиял. Толстая кривая рисуется трубкой (радиус — как у Line3D той же
+            // толщины), а сама линия остаётся невидимой: её буфер нужен для bounding sphere.
+            '    let tube = null;\n',
+            '    if (colorBy === \'none\' && (cv.thickness || 2) > 1.5) {\n',
+            '      mat.transparent = true; mat.opacity = 0;\n',
+            '      tube = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshStandardMaterial({ color: color, roughness: 0.5 }));\n',
+            '      tube.userData.radius = Math.max(0.035 * cv.thickness / 2.5 * worldScale, 0.008);\n',
+            '      scene.add(tube);\n',
+            '    }\n',
             '    const frenetGroup = cv.showFrenet ? new THREE.Group() : null;\n',
             '    if (frenetGroup) scene.add(frenetGroup);\n',
-            '    const obj = { name: cv.name, type: cv.type, n: n, mesh: mesh, colorBy: colorBy, isDefaultColor: !cv.color, showFrenet: !!cv.showFrenet, frenetCount: Math.max(1, Math.min(60, Math.round(cv.frenetCount || 8))), frenetScale: cv.frenetScale, frenetGroup: frenetGroup, frenetArrows: [], activeExpr: cv.activeExpr, active: cv.active !== false };\n',
+            '    const obj = { name: cv.name, type: cv.type, n: n, mesh: mesh, tube: tube, colorBy: colorBy, isDefaultColor: !cv.color, showFrenet: !!cv.showFrenet, frenetCount: Math.max(1, Math.min(60, Math.round(cv.frenetCount || 8))), frenetScale: cv.frenetScale, frenetGroup: frenetGroup, frenetArrows: [], activeExpr: cv.activeExpr, active: cv.active !== false };\n',
             '    if (cv.type === \'bezier\') {\n',
             '      obj.controlPoints = (cv.controlPoints || []).map(findPoint).filter(function(x) { return x; });\n',
             '      if (obj.controlPoints.length < 2) return null;\n',
@@ -20422,6 +20444,13 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '    }\n',
             '    co.mesh.geometry.attributes.position.needsUpdate = true;\n',
             '    co.mesh.geometry.computeBoundingSphere();\n',
+            '    if (co.tube) {\n',
+            '      const vs = [];\n',
+            '      for (let i = 0; i <= co.n; i++) { const v = new THREE.Vector3(pos[i * 3], pos[i * 3 + 1], pos[i * 3 + 2]); if (!vs.length || v.distanceTo(vs[vs.length - 1]) > 1e-6) vs.push(v); }\n',
+            '      co.tube.geometry.dispose();\n',
+            '      co.tube.geometry = vs.length >= 2 ? new THREE.TubeGeometry(new THREE.CatmullRomCurve3(vs), Math.min(co.n, 400), co.tube.userData.radius, 6, false) : new THREE.BufferGeometry();\n',
+            '      co.tube.visible = co.mesh.visible;\n',
+            '    }\n',
             '    if (values) {\n',
             '      let vmax = 0;\n',
             '      for (let i = 0; i <= co.n; i++) if (values[i] > vmax) vmax = values[i];\n',
