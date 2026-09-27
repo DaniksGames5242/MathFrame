@@ -703,10 +703,28 @@ function removeObjectBlocks(code) {
 
         // ---- Общие хелперы разбора полей блока (устраняют дублирование across parseXBlock) ----
         // Строка: "значение" в кавычках, либо имя переменной типа string
+        // Поиск поля блока (field = ...) — только на «верхнем уровне» блока. Раньше обычный
+        // block.match находил имя поля где угодно: внутри строкового значения другого поля
+        // (action = "tabA.active = false" у кнопки давал самой кнопке active = false, и она
+        // пропадала) и после точки (obj.active). Теперь совпадения внутри строк и после "."
+        // пропускаются. Регулярка должна начинаться с префикса (?:^|[^A-Za-z0-9_]) — как у
+        // всех полевых регулярок ниже.
+        function matchField(block, re) {
+            const g = new RegExp(re.source, re.flags.includes('g') ? re.flags : re.flags + 'g');
+            let m;
+            while ((m = g.exec(block))) {
+                const fieldPos = /^[A-Za-z_]/.test(m[0]) ? m.index : m.index + 1;
+                const prev = fieldPos > 0 ? block[fieldPos - 1] : '';
+                if (prev !== '.' && !isInsideStringOrComment(block, fieldPos)) return m;
+                if (m[0].length === 0) g.lastIndex++;
+                else g.lastIndex = fieldPos + 1;
+            }
+            return null;
+        }
         function parseStringField(block, vars, field) {
-            const quoted = block.match(new RegExp('(?:^|[^A-Za-z0-9_])' + field + '\\s*=\\s*"([^"]*)"'));
+            const quoted = matchField(block, new RegExp('(?:^|[^A-Za-z0-9_])' + field + '\\s*=\\s*"([^"]*)"'));
             if (quoted) return quoted[1];
-            const ref = block.match(new RegExp('(?:^|[^A-Za-z0-9_])' + field + '\\s*=\\s*([a-zA-Z_][a-zA-Z0-9_]*)'));
+            const ref = matchField(block, new RegExp('(?:^|[^A-Za-z0-9_])' + field + '\\s*=\\s*([a-zA-Z_][a-zA-Z0-9_]*)'));
             if (ref && vars[ref[1]] !== undefined && typeof vars[ref[1]] === 'string') return vars[ref[1]];
             if (field === 'name') return '_auto' + (++autoNameCounter);
             return null;
@@ -724,7 +742,7 @@ function removeObjectBlocks(code) {
         }
         // Цвет: #hex, ключевое слово default (-> def), либо имя переменной-строки с #hex
         function parseColorField(block, vars, field, def) {
-            const m = block.match(new RegExp('(?:^|[^A-Za-z0-9_])' + field + '\\s*=\\s*(?:"([^"]*)"|\'([^\']*)\'|(#[0-9A-Fa-f]+|default|[a-zA-Z_][a-zA-Z0-9_]*))', 'i'));
+            const m = matchField(block, new RegExp('(?:^|[^A-Za-z0-9_])' + field + '\\s*=\\s*(?:"([^"]*)"|\'([^\']*)\'|(#[0-9A-Fa-f]+|default|[a-zA-Z_][a-zA-Z0-9_]*))', 'i'));
             if (!m) return def;
             const c = m[1] !== undefined ? m[1] : (m[2] !== undefined ? m[2] : m[3]);
             if (!c) return def;
@@ -737,7 +755,7 @@ function removeObjectBlocks(code) {
         }
         // Булево: true/false, либо имя переменной типа boolean
         function parseBoolField(block, vars, field, def) {
-            const m = block.match(new RegExp('(?:^|[^A-Za-z0-9_])' + field + '\\s*=\\s*(?:"([^"]*)"|\'([^\']*)\'|(true|false|[a-zA-Z_][a-zA-Z0-9_]*))', 'i'));
+            const m = matchField(block, new RegExp('(?:^|[^A-Za-z0-9_])' + field + '\\s*=\\s*(?:"([^"]*)"|\'([^\']*)\'|(true|false|[a-zA-Z_][a-zA-Z0-9_]*))', 'i'));
             if (!m) return def;
             const v = (m[1] !== undefined ? m[1] : (m[2] !== undefined ? m[2] : m[3])).toLowerCase();
             if (v === 'true') return true;
@@ -750,7 +768,7 @@ function removeObjectBlocks(code) {
         // возможность пересчитывать видимость каждый кадр (например, когда переменную
         // меняет переключатель new UI), поэтому здесь сохраняется исходный токен.
         function parseActiveExpr(block) {
-            const m = block.match(/(?:^|[^A-Za-z0-9_])active\s*=\s*(true|false|[a-zA-Z_][a-zA-Z0-9_.]*)/);
+            const m = matchField(block, /(?:^|[^A-Za-z0-9_])active\s*=\s*(true|false|[a-zA-Z_][a-zA-Z0-9_.]*)/);
             return m ? m[1] : null;
         }
         // new Publish { name = "..." value = <любое выражение движка> } — чистый способ
@@ -770,7 +788,7 @@ function removeObjectBlocks(code) {
         function parseNumberField(block, vars, field, def, allowDefaultKeyword) {
             const num = '-?[\\d.]+(?:[eE][+-]?\\d+)?';
             const alt = allowDefaultKeyword ? num + '|default|[a-zA-Z_][a-zA-Z0-9_]*' : num + '|[a-zA-Z_][a-zA-Z0-9_]*';
-            const m = block.match(new RegExp('(?:^|[^A-Za-z0-9_])' + field + '\\s*=\\s*(' + alt + ')'));
+            const m = matchField(block, new RegExp('(?:^|[^A-Za-z0-9_])' + field + '\\s*=\\s*(' + alt + ')'));
             if (!m) return def;
             const v = m[1];
             if (allowDefaultKeyword && v === 'default') return def;
@@ -860,8 +878,7 @@ function removeObjectBlocks(code) {
         // ВЕРХНЕГО уровня (учитывает вложенные (), [] и строки): angle = min(a, b) -> "min(a, b)".
         // Раньше такие выражения обрезались regex'ом [^,;\n]+ на первой же запятой.
         function captureExprField(block, field) {
-            const re = new RegExp('(?:^|[^A-Za-z0-9_])' + field + '\\s*=\\s*');
-            const m = re.exec(block);
+            const m = matchField(block, new RegExp('(?:^|[^A-Za-z0-9_])' + field + '\\s*=\\s*'));
             if (!m) return null;
             let i = m.index + m[0].length;
             let depth = 0, out = '', inStr = false, strCh = '';
@@ -1008,7 +1025,7 @@ function removeObjectBlocks(code) {
         // Исправленный парсер UI: поддерживает вложенные переменные (через точку)
         function parseUIBlock(block, vars) {
             try {
-                const typeMatch = block.match(/type\s*=\s*(button|toggle|input|slider|select)/);
+                const typeMatch = matchField(block, /(?:^|[^A-Za-z0-9_])type\s*=\s*(button|toggle|input|slider|select)/);
                 if (!typeMatch) return null;
                 const type = typeMatch[1];
 
@@ -1017,7 +1034,7 @@ function removeObjectBlocks(code) {
                 // new Claster { elements = (...) } — кластеры ищут элементы по имени.
                 const name = parseStringField(block, vars, 'name');
 
-                const labelMatch = block.match(/label\s*=\s*"([^"]*)"/);
+                const labelMatch = matchField(block, /(?:^|[^A-Za-z0-9_])label\s*=\s*"([^"]*)"/);
                 const label = labelMatch ? labelMatch[1] : '';
 
                 const color = parseColorField(block, vars, 'color', null);
@@ -1030,15 +1047,15 @@ function removeObjectBlocks(code) {
                 // Имя переменной допускается как без кавычек (variable = amplitude),
                 // так и в кавычках (variable = "amplitude") — раньше вариант с кавычками
                 // молча не распознавался, и контрол оказывался ни с чем не связан.
-                const varMatch = block.match(/variable\s*=\s*"?([a-zA-Z_][a-zA-Z0-9_.]*)"?/);
+                const varMatch = matchField(block, /(?:^|[^A-Za-z0-9_])variable\s*=\s*"?([a-zA-Z_][a-zA-Z0-9_.]*)"?/);
                 if (varMatch) variable = varMatch[1]; // может содержать точки
 
                 let funcName = null;
-                const funcNameMatch = block.match(/funcName\s*=\s*"?([a-zA-Z_][a-zA-Z0-9_]*)"?/);
+                const funcNameMatch = matchField(block, /(?:^|[^A-Za-z0-9_])funcName\s*=\s*"?([a-zA-Z_][a-zA-Z0-9_]*)"?/);
                 if (funcNameMatch) funcName = funcNameMatch[1];
 
                 let defaultValue = null;
-                const defaultMatch = block.match(/default\s*=\s*([^,;\n]+)/);
+                const defaultMatch = matchField(block, /(?:^|[^A-Za-z0-9_])default\s*=\s*([^,;\n]+)/);
                 if (defaultMatch) {
                     const raw = defaultMatch[1].trim();
                     if (raw === 'true') defaultValue = true;
@@ -1050,22 +1067,22 @@ function removeObjectBlocks(code) {
                 }
 
                 let action = '';
-                const actionMatch = block.match(/action\s*=\s*"([^"]*)"/);
+                const actionMatch = matchField(block, /(?:^|[^A-Za-z0-9_])action\s*=\s*"([^"]*)"/);
                 if (actionMatch) action = actionMatch[1];
 
                 let inputtype = 'text';
                 if (type === 'input') {
-                    const itMatch = block.match(/inputtype\s*=\s*(number|text|formula)/);
+                    const itMatch = matchField(block, /(?:^|[^A-Za-z0-9_])inputtype\s*=\s*(number|text|formula)/);
                     if (itMatch) inputtype = itMatch[1];
                 }
 
                 let min = null, max = null, step = null;
                 if ((type === 'input' && inputtype === 'number') || type === 'slider') {
-                    const minMatch = block.match(/min\s*=\s*([\d.-]+)/);
+                    const minMatch = matchField(block, /(?:^|[^A-Za-z0-9_])min\s*=\s*([\d.-]+)/);
                     if (minMatch) min = parseFloat(minMatch[1]);
-                    const maxMatch = block.match(/max\s*=\s*([\d.-]+)/);
+                    const maxMatch = matchField(block, /(?:^|[^A-Za-z0-9_])max\s*=\s*([\d.-]+)/);
                     if (maxMatch) max = parseFloat(maxMatch[1]);
-                    const stepMatch = block.match(/step\s*=\s*([\d.]+)/);
+                    const stepMatch = matchField(block, /(?:^|[^A-Za-z0-9_])step\s*=\s*([\d.]+)/);
                     if (stepMatch) step = parseFloat(stepMatch[1]);
                 }
                 if (type === 'slider') {
@@ -4043,20 +4060,22 @@ function parseDrawTextBlock(block, vars) {
         if (textMatch) textExpr = '"' + textMatch[1] + '"';
     }
 
-    let colorExpr = '#000000';
-    const colorMatch = block.match(/(?:^|[^A-Za-z0-9_])color\s*=\s*(#[0-9A-Fa-f]+|default|[a-zA-Z_][a-zA-Z0-9_.]*)/);
+    // Без явного color текст идёт за темой страницы (как и все остальные объекты) —
+    // раньше дефолтом был жёсткий '#000000', и на тёмной теме подпись была не видна.
+    let colorExpr = 'default';
+    const colorMatch = matchField(block, /(?:^|[^A-Za-z0-9_])color\s*=\s*(#[0-9A-Fa-f]+|default|[a-zA-Z_][a-zA-Z0-9_.]*)/);
     if (colorMatch) {
         colorExpr = colorMatch[1];
     }
 
     let sizeExpr = '1';
-    const sizeMatch = block.match(/(?:^|[^A-Za-z0-9_])size\s*=\s*(-?[\d.]+|default|[a-zA-Z_][a-zA-Z0-9_.]*)/);
+    const sizeMatch = matchField(block, /(?:^|[^A-Za-z0-9_])size\s*=\s*(-?[\d.]+|default|[a-zA-Z_][a-zA-Z0-9_.]*)/);
     if (sizeMatch) {
         sizeExpr = sizeMatch[1];
     }
 
     let activeExpr = 'true';
-    const activeMatch = block.match(/active\s*=\s*(true|false|[a-zA-Z_][a-zA-Z0-9_.]*)/);
+    const activeMatch = matchField(block, /(?:^|[^A-Za-z0-9_])active\s*=\s*(true|false|[a-zA-Z_][a-zA-Z0-9_.]*)/);
     if (activeMatch) {
         activeExpr = activeMatch[1];
     }
@@ -4820,6 +4839,11 @@ function parseCommands(codeBlock, vars) {
         // Чтобы объединение не превратилось в костыль поверх костыля, вся общая разметка/логика вынесена
         // в gcBuildUI(uiData, hooks), а все перечисленные различия каждый слой передаёт через свой
         // объект hooks — сама генерируемая логика при этом не изменилась ни на строчку.
+        // Цвета контролов без явного color/textcolor берутся из CSS-переменных темы
+        // (--gc-control-bg, --gc-button-text, --gc-control-text, --gc-accent, --gc-input-bg).
+        // Раньше сюда подставлялся defaultColor темы, вычисленный один раз при создании:
+        // на тёмной теме фон кнопки был почти белым при белом тексте, а при переключении
+        // темы на лету inline-цвета не обновлялись. CSS-переменные меняет __gcApplyThemeVars.
         function gcSharedUIBuilderLines(indent) {
             return [
                 indent + 'function gcBuildUI(uiData, hooks) {\n',
@@ -4841,8 +4865,8 @@ function parseCommands(codeBlock, vars) {
                 indent + '    if (ui.type === \'button\') {\n',
                 indent + '      const btn = document.createElement(\'button\');\n',
                 indent + '      btn.textContent = ui.label || \'Button\';\n',
-                indent + '      btn.style.backgroundColor = ui.color || hooks.defaultColor();\n',
-                indent + '      btn.style.color = ui.textcolor || hooks.buttonTextColor();\n',
+                indent + '      btn.style.backgroundColor = ui.color || \'var(--gc-control-bg)\';\n',
+                indent + '      btn.style.color = ui.textcolor || \'var(--gc-button-text)\';\n',
                 indent + '      btn.style.borderRadius = (ui.radius !== null && ui.radius !== undefined ? ui.radius : 4) + \'px\';\n',
                 indent + '      if (positioned) { btn.style.width = \'100%\'; btn.style.height = \'100%\'; }\n',
                 indent + '      btn.addEventListener(\'click\', async function() { await hooks.runButtonAction(ui.action || \'\'); });\n',
@@ -4856,7 +4880,7 @@ function parseCommands(codeBlock, vars) {
                 indent + '        if (hooks.getVar(ui.variable) === undefined) hooks.setVar(ui.variable, initialChecked);\n',
                 indent + '        checkbox.addEventListener(\'change\', function() { hooks.setVar(ui.variable, this.checked); hooks.onInteract(); });\n',
                 indent + '      }\n',
-                indent + '      const label = document.createElement(\'label\'); label.textContent = ui.label || \'\'; label.style.color = ui.textcolor || hooks.defaultColor();\n',
+                indent + '      const label = document.createElement(\'label\'); label.textContent = ui.label || \'\'; label.style.color = ui.textcolor || \'var(--gc-control-text)\';\n',
                 indent + '      wrapper.appendChild(checkbox); wrapper.appendChild(label);\n',
                 indent + '    } else if (ui.type === \'input\') {\n',
                 indent + '      const input = document.createElement(\'input\'); input.type = ui.inputtype === \'formula\' ? \'text\' : (ui.inputtype || \'text\');\n',
@@ -4887,7 +4911,7 @@ function parseCommands(codeBlock, vars) {
                 indent + '        }\n',
                 indent + '        registerFormula();\n',
                 indent + '        input.addEventListener(\'input\', registerFormula); input.addEventListener(\'change\', registerFormula);\n',
-                indent + '        const label = document.createElement(\'label\'); label.textContent = ui.label || \'\'; label.style.color = ui.textcolor || hooks.defaultColor();\n',
+                indent + '        const label = document.createElement(\'label\'); label.textContent = ui.label || \'\'; label.style.color = ui.textcolor || \'var(--gc-control-text)\';\n',
                 indent + '        wrapper.appendChild(label); wrapper.appendChild(input); wrapper.appendChild(errLabel);\n',
                 indent + '        if (positioned) uiOverlay.appendChild(wrapper); else uiContainer.appendChild(wrapper);\n',
                 indent + '        continue;\n',
@@ -4917,7 +4941,7 @@ function parseCommands(codeBlock, vars) {
                 indent + '        input.addEventListener(\'input\', clampAndUpdate); input.addEventListener(\'change\', clampAndUpdate);\n',
                 indent + '        if (hooks.numberInputBlur) input.addEventListener(\'blur\', clampAndUpdate);\n',
                 indent + '      }\n',
-                indent + '      const label = document.createElement(\'label\'); label.textContent = ui.label || \'\'; label.style.color = ui.textcolor || hooks.defaultColor();\n',
+                indent + '      const label = document.createElement(\'label\'); label.textContent = ui.label || \'\'; label.style.color = ui.textcolor || \'var(--gc-control-text)\';\n',
                 indent + '      wrapper.appendChild(label); wrapper.appendChild(input);\n',
                 indent + '    } else if (ui.type === \'slider\') {\n',
                 indent + '      const input = document.createElement(\'input\'); input.type = \'range\';\n',
@@ -4925,9 +4949,9 @@ function parseCommands(codeBlock, vars) {
                 indent + '      let defaultVal = (ui.default !== undefined && ui.default !== null) ? ui.default : ui.min;\n',
                 indent + '      if (ui.variable) { const val = hooks.getVar(ui.variable); if (val !== undefined) defaultVal = val; }\n',
                 indent + '      input.value = defaultVal;\n',
-                indent + '      input.style.accentColor = ui.color || hooks.defaultColor();\n',
+                indent + '      input.style.accentColor = ui.color || \'var(--gc-accent)\';\n',
                 indent + '      if (positioned) { input.style.width = \'100%\'; }\n',
-                indent + '      const valueLabel = document.createElement(\'span\'); valueLabel.textContent = String(defaultVal); valueLabel.style.color = ui.textcolor || hooks.defaultColor(); valueLabel.style.marginLeft = \'6px\';\n',
+                indent + '      const valueLabel = document.createElement(\'span\'); valueLabel.textContent = String(defaultVal); valueLabel.style.color = ui.textcolor || \'var(--gc-control-text)\'; valueLabel.style.marginLeft = \'6px\';\n',
                 indent + '      if (ui.variable) {\n',
                 indent + '        if (hooks.getVar(ui.variable) === undefined) hooks.setVar(ui.variable, defaultVal);\n',
                 indent + '        input.addEventListener(\'input\', function() {\n',
@@ -4937,7 +4961,7 @@ function parseCommands(codeBlock, vars) {
                 indent + '          hooks.onInteract();\n',
                 indent + '        });\n',
                 indent + '      }\n',
-                indent + '      const label2 = document.createElement(\'label\'); label2.textContent = ui.label || \'\'; label2.style.color = ui.textcolor || hooks.defaultColor();\n',
+                indent + '      const label2 = document.createElement(\'label\'); label2.textContent = ui.label || \'\'; label2.style.color = ui.textcolor || \'var(--gc-control-text)\';\n',
                 indent + '      wrapper.appendChild(label2); wrapper.appendChild(input); wrapper.appendChild(valueLabel);\n',
                 // type = select — выпадающий список. В переменную кладётся само значение
                 // варианта (строка или число), а не индекс: его одинаково удобно сравнивать
@@ -4955,8 +4979,8 @@ function parseCommands(codeBlock, vars) {
                 indent + '        if (String(opts[oi]) === String(defaultVal)) opt.selected = true;\n',
                 indent + '        sel.appendChild(opt);\n',
                 indent + '      }\n',
-                indent + '      if (ui.color) sel.style.background = ui.color;\n',
-                indent + '      sel.style.color = ui.textcolor || hooks.defaultColor();\n',
+                indent + '      sel.style.background = ui.color || \'var(--gc-input-bg)\';\n',
+                indent + '      sel.style.color = ui.textcolor || \'var(--gc-control-text)\';\n',
                 indent + '      if (positioned) { sel.style.width = \'100%\'; }\n',
                 indent + '      if (ui.variable) {\n',
                 indent + '        if (hooks.getVar(ui.variable) === undefined) hooks.setVar(ui.variable, defaultVal);\n',
@@ -4965,7 +4989,7 @@ function parseCommands(codeBlock, vars) {
                 indent + '          hooks.onInteract();\n',
                 indent + '        });\n',
                 indent + '      }\n',
-                indent + '      const label3 = document.createElement(\'label\'); label3.textContent = ui.label || \'\'; label3.style.color = ui.textcolor || hooks.defaultColor();\n',
+                indent + '      const label3 = document.createElement(\'label\'); label3.textContent = ui.label || \'\'; label3.style.color = ui.textcolor || \'var(--gc-control-text)\';\n',
                 indent + '      wrapper.appendChild(label3); wrapper.appendChild(sel);\n',
                 indent + '    }\n',
                 indent + '    if (positioned) uiOverlay.appendChild(wrapper); else uiContainer.appendChild(wrapper);\n',
@@ -6107,7 +6131,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '            name: a.name, type: \'ThreePoints\',\n',
             '            fromPoint: pts[0], midPoint: pts[1], toPoint: pts[2],\n',
             '            centerPoint: { pos: { x: 0, y: 0 } }, radius: 0,\n',
-            '            color: a.color || __gcDefaultColor(), colorExpr: a.colorExpr, thickness: a.thickness || 2, thicknessExpr: a.thicknessExpr,\n',
+            '            color: a.color || null, colorExpr: a.colorExpr, thickness: a.thickness || 2, thicknessExpr: a.thicknessExpr,\n',
             '            updateMode: a.updateMode || \'always\', updateInterval: a.updateInterval,\n',
             '            active: a.active !== false,\n',
             '            layer: (a.layer !== undefined && a.layer !== null) ? a.layer : 20,\n',
@@ -6126,7 +6150,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '        else radiusPoint = points.find(p => p.name === a.radius);\n',
             '        return {\n',
             '          name: a.name, type: \'CenterRadius\', centerPoint, fromPoint, toPoint, radiusNum, radiusPoint, radiusExpr: a.radiusExpr,\n',
-            '          color: a.color || __gcDefaultColor(), colorExpr: a.colorExpr, thickness: a.thickness || 2, thicknessExpr: a.thicknessExpr,\n',
+            '          color: a.color || null, colorExpr: a.colorExpr, thickness: a.thickness || 2, thicknessExpr: a.thicknessExpr,\n',
             '          updateMode: a.updateMode || \'always\', updateInterval: a.updateInterval,\n',
             '          active: a.active !== false,\n',
             '          layer: (a.layer !== undefined && a.layer !== null) ? a.layer : 20,\n',
@@ -6152,7 +6176,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '      ellipses = ellipsesData.map(e => {\n',
             '        const common = {\n',
             '          name: e.name, type: e.type,\n',
-            '          color: e.color || __gcDefaultColor(), colorExpr: e.colorExpr, thickness: e.thickness || 2, thicknessExpr: e.thicknessExpr,\n',
+            '          color: e.color || null, colorExpr: e.colorExpr, thickness: e.thickness || 2, thicknessExpr: e.thicknessExpr,\n',
             '          updateMode: e.updateMode || \'always\', updateInterval: e.updateInterval,\n',
             '          active: e.active !== false, dynamic: e.dynamic || false,\n',
             '          layer: (e.layer !== undefined && e.layer !== null) ? e.layer : 20,\n',
@@ -6229,7 +6253,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '          a: cv.a, aExpr: cv.aExpr, b: cv.b, bExpr: cv.bExpr, radius: cv.radius, radiusExpr: cv.radiusExpr,\n',
             '          turns: (cv.turns === undefined || cv.turns === null) ? 3 : cv.turns, turnsExpr: cv.turnsExpr,\n',
             '          segments: cv.segments || 50,\n',
-            '          color: cv.color || __gcDefaultColor(), colorExpr: cv.colorExpr, thickness: cv.thickness || 2, thicknessExpr: cv.thicknessExpr,\n',
+            '          color: cv.color || null, colorExpr: cv.colorExpr, thickness: cv.thickness || 2, thicknessExpr: cv.thicknessExpr,\n',
             '          updateMode: cv.updateMode || \'always\', updateInterval: cv.updateInterval,\n',
             '          active: cv.active !== false,\n',
             '          layer: (cv.layer !== undefined && cv.layer !== null) ? cv.layer : 20,\n',
@@ -6245,7 +6269,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '      drawFunctions = drawFunctionsData.map(d => ({\n',
             '        name: d.name, funcName: d.funcName,\n',
             '        xmin: d.xmin, xmax: d.xmax, segments: Math.max(2, d.segments || 100),\n',
-            '        color: d.color || __gcDefaultColor(), colorExpr: d.colorExpr, thickness: d.thickness || 2,\n',
+            '        color: d.color || null, colorExpr: d.colorExpr, thickness: d.thickness || 2,\n',
             '        grid: d.grid || false, gridStep: d.gridStep || 1,\n',
             '        active: d.active !== false,\n',
             '        layer: (d.layer !== undefined && d.layer !== null) ? d.layer : 20,\n',
@@ -6258,7 +6282,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '      drawSurfaces = drawSurfacesData.map(d => ({\n',
             '        name: d.name, funcName: d.funcName,\n',
             '        xmin: d.xmin, xmax: d.xmax, ymin: d.ymin, ymax: d.ymax, grid: Math.max(2, d.grid || 20),\n',
-            '        mode: d.mode || \'contour\', color: d.color || __gcDefaultColor(), colorExpr: d.colorExpr, angle: (d.angle === undefined || d.angle === null) ? 30 : d.angle,\n',
+            '        mode: d.mode || \'contour\', color: d.color || null, colorExpr: d.colorExpr, angle: (d.angle === undefined || d.angle === null) ? 30 : d.angle,\n',
             '        updateMode: d.updateMode || \'always\', updateInterval: d.updateInterval,\n',
             '        active: d.active !== false,\n',
             '        layer: (d.layer !== undefined && d.layer !== null) ? d.layer : 20,\n',
@@ -6546,9 +6570,9 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '          angle: angle,\n',
             '          arc: d.arc !== undefined ? d.arc : true,\n',
             '          measure: d.measure !== undefined ? d.measure : true,\n',
-            '          arccolor: d.arccolor || __gcDefaultColor(),\n',
+            '          arccolor: d.arccolor || null,\n',
             '          arccolorExpr: d.arccolorExpr,\n',
-            '          measurecolor: d.measurecolor || __gcDefaultColor(),\n',
+            '          measurecolor: d.measurecolor || null,\n',
             '          measurecolorExpr: d.measurecolorExpr,\n',
             '          radius: d.radius || 1,\n',
             '          radiusExpr: d.radiusExpr,\n',
@@ -6570,7 +6594,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '          name: d.name,\n',
             '          edges: edges,\n',
             '          type: d.type || 1,\n',
-            '          color: d.color || __gcDefaultColor(),\n',
+            '          color: d.color || null,\n',
             '          colorExpr: d.colorExpr,\n',
             '          updateMode: d.updateMode || \'always\', updateInterval: d.updateInterval,\n',
             '          layer: (d.layer !== undefined && d.layer !== null) ? d.layer : 80,\n',
@@ -6588,7 +6612,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '          line: line,\n',
             '          pos: d.pos || 0,\n',
             '          direct: d.direct || 1,\n',
-            '          color: d.color || __gcDefaultColor(),\n',
+            '          color: d.color || null,\n',
             '          colorExpr: d.colorExpr,\n',
             '          length: d.length || 12,\n',
             '          lengthExpr: d.lengthExpr,\n',
@@ -6631,7 +6655,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '          const ln = lines.find(l => l.name === d.line);\n',
             '          const sidePt = points.find(p => p.name === d.side);\n',
             '          if (!ln || !sidePt) return null;\n',
-            '          return { name: d.name, kind: \'halfplane\', line: ln, sidePoint: sidePt, color: d.color || __gcDefaultColor(), colorExpr: d.colorExpr, mode: d.mode || \'full\', layer: (d.layer !== undefined && d.layer !== null) ? d.layer : 30, opacity: (d.opacity === undefined || d.opacity === null) ? 0.5 : d.opacity, opacityExpr: d.opacityExpr, updateMode: d.updateMode || \'always\', updateInterval: d.updateInterval, active: true };\n',
+            '          return { name: d.name, kind: \'halfplane\', line: ln, sidePoint: sidePt, color: d.color || null, colorExpr: d.colorExpr, mode: d.mode || \'full\', layer: (d.layer !== undefined && d.layer !== null) ? d.layer : 30, opacity: (d.opacity === undefined || d.opacity === null) ? 0.5 : d.opacity, opacityExpr: d.opacityExpr, updateMode: d.updateMode || \'always\', updateInterval: d.updateInterval, active: true };\n',
             '        }\n',
             '        if (d.arc) {\n',
             '          const arcObj = arcs.find(a => a.name === d.arc);\n',
@@ -6640,14 +6664,14 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '            get center() { return { x: arcObj.centerPoint.pos.x, y: arcObj.centerPoint.pos.y }; },\n',
             '            get radius() { return arcObj.radiusNum !== null ? arcObj.radiusNum : (arcObj.radiusPoint ? Math.hypot(arcObj.radiusPoint.pos.x - arcObj.centerPoint.pos.x, arcObj.radiusPoint.pos.y - arcObj.centerPoint.pos.y) : 0); },\n',
             '          };\n',
-            '          return { name: d.name, kind: \'circleSector\', circle: pseudoCircle, fromPoint: arcObj.fromPoint, toPoint: arcObj.toPoint, shape: d.shape || \'sector\', color: d.color || __gcDefaultColor(), colorExpr: d.colorExpr, layer: (d.layer !== undefined && d.layer !== null) ? d.layer : 30, opacity: (d.opacity === undefined || d.opacity === null) ? 0.5 : d.opacity, opacityExpr: d.opacityExpr, updateMode: d.updateMode || \'always\', updateInterval: d.updateInterval, active: true };\n',
+            '          return { name: d.name, kind: \'circleSector\', circle: pseudoCircle, fromPoint: arcObj.fromPoint, toPoint: arcObj.toPoint, shape: d.shape || \'sector\', color: d.color || null, colorExpr: d.colorExpr, layer: (d.layer !== undefined && d.layer !== null) ? d.layer : 30, opacity: (d.opacity === undefined || d.opacity === null) ? 0.5 : d.opacity, opacityExpr: d.opacityExpr, updateMode: d.updateMode || \'always\', updateInterval: d.updateInterval, active: true };\n',
             '        }\n',
             '        if (d.circle) {\n',
             '          const c = circles.find(cc => cc.name === d.circle);\n',
             '          const fromPt = points.find(p => p.name === d.from);\n',
             '          const toPt = points.find(p => p.name === d.to);\n',
             '          if (!c || !fromPt || !toPt) return null;\n',
-            '          return { name: d.name, kind: \'circleSector\', circle: c, fromPoint: fromPt, toPoint: toPt, shape: d.shape || \'sector\', color: d.color || __gcDefaultColor(), colorExpr: d.colorExpr, layer: (d.layer !== undefined && d.layer !== null) ? d.layer : 30, opacity: (d.opacity === undefined || d.opacity === null) ? 0.5 : d.opacity, opacityExpr: d.opacityExpr, updateMode: d.updateMode || \'always\', updateInterval: d.updateInterval, active: true };\n',
+            '          return { name: d.name, kind: \'circleSector\', circle: c, fromPoint: fromPt, toPoint: toPt, shape: d.shape || \'sector\', color: d.color || null, colorExpr: d.colorExpr, layer: (d.layer !== undefined && d.layer !== null) ? d.layer : 30, opacity: (d.opacity === undefined || d.opacity === null) ? 0.5 : d.opacity, opacityExpr: d.opacityExpr, updateMode: d.updateMode || \'always\', updateInterval: d.updateInterval, active: true };\n',
             '        }\n',
             '        if (d.func) {\n',
             '          // Площадь под графиком (func2 не задан — нижняя граница это ось X, y=0)\n',
@@ -6659,7 +6683,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '          const xmin = (d.funcXmin !== undefined && d.funcXmin !== null) ? d.funcXmin : g1.xmin;\n',
             '          const xmax = (d.funcXmax !== undefined && d.funcXmax !== null) ? d.funcXmax : g1.xmax;\n',
             '          const segments = Math.max(2, (d.funcSegments !== undefined && d.funcSegments !== null) ? d.funcSegments : (g1.segments || 100));\n',
-            '          return { name: d.name, kind: \'funcArea\', graph: g1, graph2: g2, xmin: xmin, xmax: xmax, segments: segments, color: d.color || __gcDefaultColor(), colorExpr: d.colorExpr, layer: (d.layer !== undefined && d.layer !== null) ? d.layer : 30, opacity: (d.opacity === undefined || d.opacity === null) ? 0.5 : d.opacity, opacityExpr: d.opacityExpr, updateMode: d.updateMode || \'always\', updateInterval: d.updateInterval, active: true };\n',
+            '          return { name: d.name, kind: \'funcArea\', graph: g1, graph2: g2, xmin: xmin, xmax: xmax, segments: segments, color: d.color || null, colorExpr: d.colorExpr, layer: (d.layer !== undefined && d.layer !== null) ? d.layer : 30, opacity: (d.opacity === undefined || d.opacity === null) ? 0.5 : d.opacity, opacityExpr: d.opacityExpr, updateMode: d.updateMode || \'always\', updateInterval: d.updateInterval, active: true };\n',
             '        }\n',
             '        const fig = figures.find(f => f.name === d.figure);\n',
             '        if (!fig) return null;\n',
@@ -6667,7 +6691,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '          name: d.name,\n',
             '          kind: \'polygon\',\n',
             '          figure: fig,\n',
-            '          color: d.color || __gcDefaultColor(),\n',
+            '          color: d.color || null,\n',
             '          colorExpr: d.colorExpr,\n',
             '          mode: d.mode || \'full\',\n',
             '          layer: (d.layer !== undefined && d.layer !== null) ? d.layer : 30,\n',
@@ -7728,7 +7752,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '          y: (x + y) * Math.sin(isoAngle) - (zz - zmin) * heightScale * 0.6,\n',
             '        };\n',
             '      };\n',
-            '      const rgb = hexToRgbSurface(d.color);\n',
+            '      const rgb = hexToRgbSurface(d.color || __gcDefaultColor());\n',
             '      const quads = [];\n',
             '      for (let j = 0; j < ys.length - 1; j++) {\n',
             '        for (let i = 0; i < xs.length - 1; i++) {\n',
@@ -9750,7 +9774,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '        const tipX = x + Math.cos(angle) * tipOff;\n',
             '        const tipY = y + Math.sin(angle) * tipOff;\n',
             '        const tip = fieldToPixel(tipX, tipY);\n',
-            '        ctx.strokeStyle = d.__liveColor || d.color;\n',
+            '        ctx.strokeStyle = d.__liveColor || d.color || __gcDefaultColor();\n',
             '        ctx.lineWidth = d.__liveThickness || d.thickness || line.thickness || 2;\n',
             '        ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(tip.x, tip.y); ctx.stroke();\n',
             '        const ang = Math.atan2(tip.y - p.y, tip.x - p.x);\n',
@@ -9772,7 +9796,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '        }\n',
             '        ctx.save();\n',
             '        ctx.globalAlpha = (d.__liveOpacity === undefined || d.__liveOpacity === null) ? 0.5 : d.__liveOpacity;\n',
-            '        ctx.fillStyle = d.__liveColor || d.color;\n',
+            '        ctx.fillStyle = d.__liveColor || d.color || __gcDefaultColor();\n',
             '        if (d.kind === \'halfplane\') {\n',
             '            const poly = computeHalfPlanePolygon(d.line, d.sidePoint);\n',
             '            if (poly.length >= 3) {\n',
@@ -9835,7 +9859,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '            fillingOffCtx.clearRect(0, 0, width, height);\n',
             '            fillingOffCtx.globalCompositeOperation = \'source-over\';\n',
             '            fillingOffCtx.globalAlpha = 1;\n',
-            '            fillingOffCtx.fillStyle = d.__liveColor || d.color;\n',
+            '            fillingOffCtx.fillStyle = d.__liveColor || d.color || __gcDefaultColor();\n',
             '            fillingOffCtx.fill(path, \'nonzero\');\n',
             '            fillingOffCtx.globalCompositeOperation = \'destination-out\';\n',
             '            fillingOffCtx.fill(path, \'evenodd\');\n',
@@ -10348,7 +10372,9 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '          d.__active = evaluate(d.activeExpr);\n',
             '        }\n',
             '        const posX = d.__posX, posY = d.__posY, text = d.__text, color = d.__color, size = d.__size, active = d.__active;\n',
-            '        if (!active) continue;\n',
+            '        // Скрытый кластер (например, неактивная вкладка) прячет и свой текст — раньше\n',
+            '        // draw Text смотрел только на собственный active и оставался виден всегда.\n',
+            '        if (!active || !isObjectActive(d)) continue;\n',
             '        if (posX === undefined || posY === undefined || text === undefined) continue;\n',
             '        const isFormula = typeof katex !== \'undefined\' && typeof text === \'string\' && (text.includes(\'\\\\(\') || text.includes(\'\\\\[\'));\n',
             '        if (isFormula) {\n',
@@ -16497,7 +16523,6 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '    for (let coll of [drawFractals]) {\n',
             '      for (let o of coll) { if (o && o.dirty === undefined) o.dirty = true; }\n',
             '    }\n',
-            '    updateScene();\n',
             '    for (let p of points) { if (window[p.name] !== undefined) glLog(\'warn\', "Точка "+p.name+" уже существует в window"); window[p.name] = p; }\n',
             '    for (let l of lines) { if (window[l.name] !== undefined) glLog(\'warn\', "Линия "+l.name+" уже существует в window"); window[l.name] = l; }\n',
             '    for (let c of circles) { if (window[c.name] !== undefined) glLog(\'warn\', "Окружность "+c.name+" уже существует в window"); window[c.name] = c; }\n',
@@ -16536,8 +16561,13 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '    if (window.circles === undefined) window.circles = circles;\n',
             '    if (window.ellipses === undefined) window.ellipses = ellipses;\n',
             '    if (window.curves === undefined) window.curves = curves;\n',
+            '    // Первый пересчёт сцены — только ПОСЛЕ регистрации объектов в window: выражения\n',
+            '    // точек (translate dx = D.pos.x - A.pos.x, rotate angle = ..., и т.п.) ссылаются на\n',
+            '    // другие объекты по имени. Раньше updateScene() стоял до регистрации, и первый\n',
+            '    // кадр сыпал предупреждениями «Неизвестный идентификатор» и строил точки неверно.\n',
+            '    updateScene();\n',
             '\n',
-            '    // Первый вызов updateScene() (чуть выше по файлу) случился ДО этой\n',
+            '    // Первый вызов updateScene() (чуть выше) раньше случался ДО этой\n',
             '    // регистрации — на тот момент window.A и т.п. ещё не существовали. Для\n',
             '    // прежних обязанностей updateScene() (пересчёт кругов/эллипсов/дуг) это было не важно —\n',
             '    // они работают с массивами напрямую, а не по window[имя]. Но new Publish{} резолвит\n',
