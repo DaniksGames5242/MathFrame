@@ -1357,3 +1357,141 @@ html.mf-veil-on::after {
 /* Пока идёт уход со страницы — клики не проходят, курсор «занят» */
 html.mf-veil-leaving, html.mf-veil-leaving * { cursor: progress !important; }
 html.mf-veil-leaving .mf-veil { pointer-events: auto; }
+
+/* ============================================================================
+   22. ОБЪЯВЛЕНИЕ САЙТА И РЕЖИМ ТЕХРАБОТ
+   Данные — Firestore settings/site (задаются в админ-панели, вкладка «Сайт»),
+   вставляет common.js › SITE NOTICES. Баннер идёт в потоке сразу после
+   #app-header: body — flex-колонка (раздел 13), поэтому баннер — обычный
+   нерастягиваемый элемент, <main> по-прежнему забирает свободное место, а
+   подвал остаётся внизу. Те же классы использует предпросмотр в админ-панели.
+   Заглушка техработ и плашка для админов — position: fixed, из потока выпадают;
+   z-index ниже модалок (200) — окно входа открывается поверх заглушки — и
+   намного ниже маски перехода (.mf-veil).
+   ========================================================================== */
+.mf-site-banner {
+  --c: var(--accent);
+  display: flex; align-items: center; gap: .6rem .9rem; flex-wrap: wrap;
+  padding: .7rem 2.6rem .7rem 1rem; position: relative;
+  border: 1px solid color-mix(in srgb, var(--c) 40%, transparent);
+  background: color-mix(in srgb, var(--c) 12%, var(--bg-raised));
+  border-radius: var(--r); color: var(--text-primary); font-size: .92rem; line-height: 1.45;
+}
+.mf-site-banner.kind-warn { --c: var(--accent-3); }
+.mf-site-banner.kind-success { --c: var(--accent-2); }
+.mf-site-banner .msb-text { flex: 1 1 16rem; min-width: 0; overflow-wrap: anywhere; }
+.mf-site-banner .msb-link { color: var(--c); font-weight: 600; text-decoration: none; white-space: nowrap; }
+html.light .mf-site-banner .msb-link { color: color-mix(in srgb, var(--c) 70%, var(--text-primary)); }
+.mf-site-banner .msb-link:hover { text-decoration: underline; }
+.mf-site-banner .msb-link:focus-visible { outline: 2px solid var(--c); outline-offset: 2px; border-radius: 3px; }
+.mf-site-banner .msb-close {
+  position: absolute; top: 50%; right: .5rem; transform: translateY(-50%);
+  width: 28px; height: 28px; border-radius: 50%; border: 0; background: transparent;
+  color: var(--text-secondary); font-size: 1.2rem; line-height: 1; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: background var(--t), color var(--t);
+}
+.mf-site-banner .msb-close:hover { background: color-mix(in srgb, var(--c) 18%, transparent); color: var(--text-primary); }
+.mf-site-banner .msb-close:focus-visible { outline: 2px solid var(--c); outline-offset: 1px; }
+
+/* На страницах сайта: карточка под шапкой по ширине контента */
+body > .mf-site-banner {
+  flex-shrink: 0; z-index: 2;
+  width: min(1120px, calc(100% - 2rem)); margin: .75rem auto 0;
+  -webkit-backdrop-filter: blur(12px) saturate(130%); backdrop-filter: blur(12px) saturate(130%);
+  animation: mfBannerIn 420ms var(--e-out) both;
+}
+body > .mf-site-banner.is-leaving { animation: mfBannerOut 220ms ease-in both; }
+@keyframes mfBannerIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+@keyframes mfBannerOut { to { opacity: 0; transform: translateY(-6px); } }
+html.mf-lite body > .mf-site-banner, html.mf-mobile body > .mf-site-banner {
+  -webkit-backdrop-filter: none; backdrop-filter: none;
+  background: color-mix(in srgb, var(--c) 12%, var(--bg-body));
+}
+/* Справочник: слева фиксированный сайдбар — баннер, как и подвал, только в
+   основной колонке */
+@media (min-width: 901px) {
+  body[data-page="reference"] > .mf-site-banner {
+    width: auto; margin-left: calc(var(--spr-sidebar-width, 320px) + 1rem); margin-right: 1rem;
+  }
+}
+/* AI-агент — полноэкранное приложение, высоту считает сам: баннер там не в
+   потоке, а плавает под шапкой */
+html.agent-page body > .mf-site-banner {
+  position: fixed; left: 50%; top: calc(var(--header-height) + var(--safe-t, 0px) + .5rem);
+  width: min(720px, calc(100% - 2rem)); margin: 0; transform: translateX(-50%); z-index: 90;
+  box-shadow: var(--shadow, 0 10px 30px rgba(0,0,0,.25));
+  background: color-mix(in srgb, var(--c) 14%, var(--bg-body));
+  animation-name: mfBannerInFixed;
+}
+html.agent-page body > .mf-site-banner.is-leaving { animation-name: mfBannerOutFixed; }
+@keyframes mfBannerInFixed { from { opacity: 0; transform: translate(-50%, -8px); } to { opacity: 1; transform: translateX(-50%); } }
+@keyframes mfBannerOutFixed { from { transform: translateX(-50%); } to { opacity: 0; transform: translate(-50%, -6px); } }
+@media (max-width: 768px) {
+  body > .mf-site-banner { width: calc(100% - 1.5rem); margin-top: .6rem; font-size: .88rem; padding: .6rem 2.5rem .6rem .85rem; }
+  .mf-site-banner .msb-text { flex-basis: 100%; }
+  html.agent-page body > .mf-site-banner { width: calc(100% - 1.5rem); }
+}
+
+/* Заглушка «Идут технические работы» */
+html.mf-maint-on, html.mf-maint-on body { overflow: hidden; }
+.mf-maint {
+  position: fixed; inset: 0; z-index: 190;
+  display: flex; align-items: center; justify-content: center;
+  padding: calc(1.5rem + var(--safe-t, 0px)) 1rem calc(1.5rem + var(--safe-b, 0px));
+  background: color-mix(in srgb, var(--bg-body) 96%, transparent);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  overflow-y: auto;
+  animation: mfMaintIn 360ms var(--e-out) both;
+}
+@keyframes mfMaintIn { from { opacity: 0; } to { opacity: 1; } }
+.mf-maint-card {
+  width: min(520px, 100%); text-align: center;
+  padding: 2.4rem 2rem 2rem; border-radius: var(--r-lg, 16px);
+  border: 1px solid var(--border); background: var(--bg-raised);
+  box-shadow: var(--shadow, 0 20px 50px rgba(0,0,0,.3));
+  color: var(--text-primary);
+}
+.mf-maint-icon {
+  width: 64px; height: 64px; margin: 0 auto 1.1rem; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--accent-3); background: color-mix(in srgb, var(--accent-3) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-3) 35%, transparent);
+}
+.mf-maint-icon svg { width: 30px; height: 30px; animation: mfMaintSpin 9s linear infinite; }
+@keyframes mfMaintSpin { to { transform: rotate(360deg); } }
+.mf-maint-card h1 { font-size: 1.5rem; line-height: 1.25; margin: 0 0 .7rem; }
+.mf-maint-msg { color: var(--text-secondary); margin: 0; line-height: 1.55; white-space: pre-line; overflow-wrap: anywhere; }
+.mf-maint-until {
+  margin: 1rem 0 0; font-family: var(--font-mono, monospace); font-size: .78rem;
+  letter-spacing: .06em; color: var(--text-tertiary);
+}
+.mf-maint-login { margin-top: 1.4rem; }
+@media (max-width: 480px) {
+  .mf-maint-card { padding: 1.8rem 1.2rem 1.4rem; }
+  .mf-maint-card h1 { font-size: 1.28rem; }
+}
+
+/* Плашка для администраторов: сайт закрыт для посетителей */
+.mf-maint-badge {
+  position: fixed; z-index: 150;
+  left: calc(1rem + var(--safe-l, 0px)); bottom: calc(1rem + var(--safe-b, 0px));
+  display: inline-flex; align-items: center; gap: .5rem;
+  padding: .45rem .8rem .45rem .65rem; border-radius: 999px;
+  font-size: .8rem; font-weight: 600; line-height: 1.2; text-decoration: none;
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--accent-3) 16%, var(--bg-body));
+  border: 1px solid color-mix(in srgb, var(--accent-3) 45%, transparent);
+  box-shadow: 0 6px 18px rgba(0,0,0,.22);
+  animation: mfBannerIn 420ms var(--e-out) both;
+}
+.mf-maint-badge::before {
+  content: ''; width: 8px; height: 8px; border-radius: 50%; flex: none;
+  background: var(--accent-3); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-3) 25%, transparent);
+}
+a.mf-maint-badge:hover { border-color: var(--accent-3); }
+html.agent-page .mf-maint-badge { bottom: auto; top: calc(var(--header-height) + var(--safe-t, 0px) + .5rem); left: auto; right: calc(1rem + var(--safe-r, 0px)); }
+/* Несворачиваемый баннер на странице AI-агента всё равно можно убрать — до
+   перезагрузки (плавающая карточка иначе навсегда закрывала бы верх чата) */
+.mf-site-banner .msb-close.is-temp { display: none; }
+html.agent-page .mf-site-banner .msb-close.is-temp { display: flex; }

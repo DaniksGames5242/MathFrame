@@ -37,7 +37,9 @@ module.exports = async function handler(req, res) {
   }
 
   const cfg = getConfig();
-  const simplifyRate = Math.max(1, parseInt(process.env.SIMPLIFY_RATE_LIMIT, 10) || 20);
+  // Действующие значения: лимиты из панели (settings/ai), иначе — переменные окружения
+  const ai = typeof chat._internal.loadAiSettings === 'function' ? await chat._internal.loadAiSettings().catch(() => null) : null;
+  const simplifyRate = (ai && ai.simplifyRateLimit) || Math.max(1, parseInt(process.env.SIMPLIFY_RATE_LIMIT, 10) || 20);
   res.status(200).json({
     role: who.role,
     configured: !!(cfg.provider && cfg.keys.length),
@@ -47,7 +49,8 @@ module.exports = async function handler(req, res) {
     simplifyModel: process.env.SIMPLIFY_MODEL || cfg.model,
     keys: cfg.keys.length,
     webSearch: cfg.webSearch,
-    chatRateLimit: cfg.rateLimit,               // запросов в час на пользователя (админы без лимита)
+    chatRateLimit: (ai && ai.chatRateLimit) || cfg.rateLimit, // запросов в час на пользователя (админы без лимита)
+    aiSettings: ai,                             // как сервер прочитал settings/ai (source: firestore|missing|cache|env)
     simplifyRateLimit: { anonymous: simplifyRate, signedIn: simplifyRate * 2 },
     jarvis: { configured: !!cfg.jarvis.token, customUrl: !!String(process.env.JARVIS_URL || '').trim() },
     github: { configured: !!process.env.GITHUB_TOKEN, repo: (process.env.GITHUB_OWNER || 'DaniksGames5242') + '/' + (process.env.GITHUB_REPO || 'MathFrame'), branch: process.env.GITHUB_BRANCH || 'main' },

@@ -60,6 +60,8 @@ const ICONS = {
   close:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>',
   search:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="16" y1="16" x2="22" y2="22"/></svg>',
   send:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4Z"/></svg>',
+  pin:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/></svg>',
+  eyeOff:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.53 13.53 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" y1="2" x2="22" y2="22"/></svg>',
   reply:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 17 4 12l5-5"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg>',
 };
 function ic(name, cls=''){ return `<span class="ic ${cls}">${ICONS[name]||''}</span>`; }
@@ -102,7 +104,22 @@ function plural(n, one, few, many){ const a=Math.abs(n)%100, b=a%10; return a>10
 let fUser = null, topicsCache = null, viewedSet = new Set(JSON.parse(sessionStorage.getItem('forumViewed')||'[]'));
 let unsubList=null, unsubDetail=null;
 
-function initForumAuth(){ window.Auth.onAuthChange(user=>{ fUser = user; route(); }); }
+/* Модерация из админ-панели (admin-forum.js): a.hidden — скрыта из ленты (админы видят её
+   с пометкой), a.pinned — закреплена первой, a.featured — в подборке «Популярное».
+   Роль админа — тот же mfIsAdmin(), что и у ссылки на панель в шапке (common.js). */
+let fIsAdmin = false;
+function forumAdminCheck(user){ return (user && typeof mfIsAdmin==='function') ? mfIsAdmin(user).catch(()=>false) : Promise.resolve(false); }
+function canSeeArticle(a){ return !a.hidden || fIsAdmin; }
+function visibleArticles(){ return (window._articlesCache||[]).filter(canSeeArticle); }
+function initForumAuth(){ window.Auth.onAuthChange(user=>{
+  fUser = user; fIsAdmin = false; route();
+  forumAdminCheck(user).then(ok=>{
+    if(fUser!==user || !ok) return;
+    fIsAdmin = true;
+    // админу показать скрытые статьи (страница статьи сама дожидается проверки в renderDetail)
+    if(!location.hash.startsWith('#article/')){ fillTagSelect(); renderArticleCards(); }
+  });
+}); }
 if (window.Auth) initForumAuth(); else document.addEventListener('authReady', initForumAuth);
 function requireAuth(){ if(!fUser){ toast('Войдите, чтобы продолжить'); window.openAuthModal(); return false; } return true; }
 
@@ -277,12 +294,16 @@ function route(){
 function computeRecoOrder(list){
   if(!list.length) return {order:[], reasons:{}};
   const counts = window._replyCounts || {};
-  const byViews = [...list].sort((x,y)=>(y.views||0)-(x.views||0))[0];
+  // «Популярное»: статьи, отмеченные админом (a.featured, до трёх — самые просматриваемые);
+  // если таких нет — самая просматриваемая статья
+  const byViewsAll = [...list].sort((x,y)=>(y.views||0)-(x.views||0));
+  const featured = byViewsAll.filter(a=>a.featured).slice(0,3);
+  const popular = featured.length ? featured : byViewsAll.slice(0,1);
   const byNew = [...list].sort((x,y)=>(y.createdAt?.toMillis?.()||0)-(x.createdAt?.toMillis?.()||0))[0];
   const discussedSorted = [...list].sort((x,y)=>(counts[y.id]||0)-(counts[x.id]||0));
   const byDiscussed = (counts[discussedSorted[0]?.id]||0) > 0 ? discussedSorted[0] : null;
   const picks = [
-    byViews && {a:byViews, icon:'flame', label:'Популярное'},
+    ...popular.map(a=>({a, icon:'flame', label:'Популярное'})),
     byNew && {a:byNew, icon:'sparkle', label:'Новое'},
     byDiscussed && {a:byDiscussed, icon:'chat', label:'Обсуждаемое'},
   ].filter(Boolean);
@@ -389,13 +410,13 @@ function renderList(){
   });
 }
 function fillTagSelect(){
-  const tags = new Set(); (window._articlesCache||[]).forEach(a=>(a.tags||[]).forEach(t=>tags.add(t)));
+  const tags = new Set(); visibleArticles().forEach(a=>(a.tags||[]).forEach(t=>tags.add(t)));
   const tagSel = document.getElementById('tagSelect');
   if(!tagSel) return;
   tagSel.innerHTML = '<option value="">Все теги</option>' + [...tags].map(t=>`<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
   if(listFilter.tag && tags.has(listFilter.tag)) tagSel.value = listFilter.tag;
   else if(listFilter.tag){ listFilter.tag=''; }
-  const all = window._articlesCache||[];
+  const all = (window._articlesCache||[]).filter(a=>!a.hidden); // в счётчике — только опубликованные
   const sa = document.getElementById('statArticles'), su = document.getElementById('statAuthors');
   if(sa) sa.textContent = all.length;
   if(su) su.textContent = new Set(all.map(a=>a.authorUid).filter(Boolean)).size;
@@ -424,7 +445,7 @@ function readingTime(html){
 }
 async function renderArticleCards(){
   const grid = document.getElementById('cardsGrid'); if(!grid) return;
-  let list = [...(window._articlesCache||[])];
+  let list = visibleArticles();
   const bm = getBookmarks();
   if(listFilter.mine) list = list.filter(a=>fUser && a.authorUid===fUser.uid);
   if(listFilter.bookmarks) list = list.filter(a=>bm.includes(a.id));
@@ -436,7 +457,13 @@ async function renderArticleCards(){
   if(listFilter.sort==='views') list.sort((a,b)=>(b.views||0)-(a.views||0));
   else if(listFilter.sort==='replies') list.sort((a,b)=>(counts[b.id]||0)-(counts[a.id]||0));
   else if(listFilter.sort==='new') list.sort((a,b)=>(b.createdAt?.toMillis?.()||0)-(a.createdAt?.toMillis?.()||0));
-  else { const reco = computeRecoOrder(list); list = reco.order; reasons = reco.reasons; }
+  else {
+    const reco = computeRecoOrder(list.filter(a=>!a.pinned));
+    const pins = list.filter(a=>a.pinned).sort((a,b)=>(b.createdAt?.toMillis?.()||0)-(a.createdAt?.toMillis?.()||0));
+    list = [...pins, ...reco.order]; reasons = reco.reasons;
+  }
+  // Закреплённые — первыми при любой сортировке (между собой — в порядке сортировки)
+  list = [...list.filter(a=>a.pinned), ...list.filter(a=>!a.pinned)];
 
   grid.removeAttribute('aria-busy');
   const animateAll = listAnimNext; listAnimNext = false;
@@ -444,7 +471,7 @@ async function renderArticleCards(){
   const note = document.getElementById('resultNote');
   if(note) note.textContent = filtered && list.length ? `Найдено: ${list.length} ${plural(list.length,'статья','статьи','статей')}` : '';
   if(!list.length){
-    const total = (window._articlesCache||[]).length;
+    const total = visibleArticles().length;
     let es;
     if(listFilter.search || listFilter.tag) es = {title:'Ничего не нашлось', text:'Попробуйте другой запрос или уберите фильтр по тегу.', action:'reset', label:'Сбросить фильтры'};
     else if(listFilter.bookmarks) es = {title:'Закладок пока нет', text:'Откройте статью и нажмите «В закладки» — она появится здесь.', action:'reset', label:'Показать все статьи'};
@@ -461,7 +488,8 @@ async function renderArticleCards(){
     const name = a.authorName||'Аноним';
     const rc = counts[a.id];
     return `
-    <article class="card${anim?' fx-in':''}" style="--i:${i}" data-id="${escapeHtml(a.id)}" tabindex="0" role="link" aria-label="${escapeHtml(a.title)}">
+    <article class="card${anim?' fx-in':''}${a.pinned?' is-pinned':''}${a.hidden?' is-hidden':''}" style="--i:${i}" data-id="${escapeHtml(a.id)}" tabindex="0" role="link" aria-label="${escapeHtml(a.title)}${a.pinned?' (закреплено)':''}${a.hidden?' (скрыта)':''}">
+      ${a.pinned || a.hidden ? `<div class="card-flags">${a.pinned ? `<span class="card-flag flag-pin">${ic('pin')} Закреплено</span>` : ''}${a.hidden ? `<span class="card-flag flag-hidden" title="Скрыта из ленты — видят только администраторы">${ic('eyeOff')} скрыта</span>` : ''}</div>` : ''}
       <div class="card-head">
         ${avatarHTML(name, a.authorPhoto)}
         <div class="card-author"><b>${escapeHtml(name)}</b><span>${timeAgo(a.createdAt)} · ${readingTime(a.bodyHTML)} мин чтения</span></div>
@@ -615,6 +643,12 @@ async function renderDetail(id){
   if(seq!==detailSeq || !location.hash.startsWith('#article/')) return;
   if(!doc.exists){ app.innerHTML = `<a class="back-link" href="#"><span class="arr">←</span> Ко всем статьям</a>${emptyState({title:'Статья не найдена', text:'Возможно, автор её удалил или ссылка устарела.'})}`; return; }
   const a = { id, ...doc.data() };
+  if(a.hidden){
+    // Скрытая модератором статья: по прямой ссылке — только администраторам
+    const admin = fIsAdmin || await forumAdminCheck(fUser);
+    if(seq!==detailSeq || !location.hash.startsWith('#article/')) return;
+    if(!admin){ app.innerHTML = `<a class="back-link" href="#"><span class="arr">←</span> Ко всем статьям</a>${emptyState({title:'Статья недоступна', text:'Модераторы скрыли эту статью с форума.'})}`; return; }
+  }
   if(!viewedSet.has(id)){ viewedSet.add(id); sessionStorage.setItem('forumViewed', JSON.stringify([...viewedSet]));
     db.collection('forumArticles').doc(id).update({views: firebase.firestore.FieldValue.increment(1)}); a.views=(a.views||0)+1; }
   const isOwner = fUser && fUser.uid === a.authorUid;
@@ -626,6 +660,8 @@ async function renderDetail(id){
     <a class="back-link" href="#"><span class="arr">←</span> Ко всем статьям</a>
     <article class="fx-article">
       <header class="article-head">
+        ${a.hidden ? `<div class="article-mod-note" role="note">${ic('eyeOff')} Статья скрыта из ленты — её видят только администраторы. Вернуть — в админ-панели, раздел «Форум».</div>` : ''}
+        ${a.pinned ? `<div class="card-flags"><span class="card-flag flag-pin">${ic('pin')} Закреплено</span></div>` : ''}
         <div class="foot">
           ${(a.tags||[]).map(t=>`<span class="tag-chip">#${escapeHtml(t)}</span>`).join('')}
           ${a.topicRef ? `<a class="topic-badge" href="/spravochnik/#${encodeURIComponent(a.topicRef.id)}">${ic('book')} ${escapeHtml(a.topicRef.title)}</a>` : ''}

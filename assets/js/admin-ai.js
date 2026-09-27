@@ -8,7 +8,7 @@
 //     вопросов. Нужно правило чтения для администраторов, иначе блок покажет подсказку.
 //     Содержимое переписки панель не показывает;
 //   • Firestore settings/ai — лимиты, которые задаёт владелец из панели
-//     (сервер применяет их, когда в api/chat.js подключено чтение settings/ai).
+//     (api/chat.js и api/simplify.js читают settings/ai, кэш 2 мин; при ошибке — env).
 
 (function () {
   'use strict';
@@ -28,6 +28,7 @@
       document.getElementById('aiLimitsForm').addEventListener('submit', saveLimits);
       document.getElementById('exportAiCsv').onclick = exportCsv;
       if (!A.isSuper) document.querySelectorAll('#aiLimitsForm input, #aiLimitsForm select, #aiLimitsForm button, #aiLimitsForm textarea').forEach(x => { x.disabled = true; });
+      addClearCacheButton();
       loadAll();
     },
   });
@@ -178,6 +179,39 @@
       n.innerHTML = 'Значения сохраняются в Firestore <code>settings/ai</code>. Сервер начнёт их учитывать после подключения чтения этого документа в <code>api/chat.js</code> и <code>api/simplify.js</code>; до тех пор действуют переменные окружения <code>AI_AGENT_RATE_LIMIT</code> / <code>SIMPLIFY_RATE_LIMIT</code>. Кэш «Упростить» хранится в памяти функции и очищается при каждом деплое.';
     }
   }
+  // Очистка кэша ответов «Упростить» (POST /api/simplify {action:'clearCache'}, только админы).
+  // Кэш живёт в памяти одного экземпляра функции — очищается тот, что ответил.
+  function addClearCacheButton() {
+    const foot = document.querySelector('#aiLimitsForm .form-foot');
+    if (!foot || document.getElementById('aiClearCacheBtn')) return;
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.id = 'aiClearCacheBtn';
+    b.className = 'btn small';
+    b.textContent = 'Очистить кэш «Упростить»';
+    b.title = 'Сбросить сохранённые пересказы тем — следующие запросы уйдут в нейросеть заново';
+    b.onclick = async () => {
+      const ok = await A.confirm({
+        title: 'Очистить кэш «Упростить»',
+        text: 'Сохранённые пересказы тем будут удалены, следующие нажатия «Упростить» снова обратятся к нейросети (и расходуют лимит ключа).<br><br>Кэш хранится в памяти функции: очищается экземпляр, который обработает запрос.',
+        confirmLabel: 'Очистить',
+      });
+      if (!ok) return;
+      const r = await A.run(b, async () => {
+        const res = await A.api('/api/simplify', { method: 'POST', body: JSON.stringify({ action: 'clearCache' }) });
+        if (!res.ok) throw new Error((res.body && res.body.error) || 'ошибка ' + res.status);
+        return res.body;
+      });
+      if (r) A.toast(`Кэш очищен: ${r.cleared || 0} ${r.cleared === 1 ? 'запись' : 'записей'}`, 'ok');
+    };
+    const submit = foot.querySelector('button[type="submit"]');
+    const wrap = document.createElement('span');
+    wrap.style.cssText = 'display:inline-flex;gap:.5rem;flex-wrap:wrap;margin-left:auto';
+    foot.insertBefore(wrap, submit);
+    wrap.append(b);
+    if (submit) wrap.append(submit);
+  }
+
   async function saveLimits(e) {
     e.preventDefault();
     if (!A.isSuper) return;

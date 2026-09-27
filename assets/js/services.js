@@ -1786,7 +1786,7 @@
           g.addColorStop(0, 'rgba(0,0,0,0)');
           g.addColorStop(1, CURVE1());
           ctx.save();
-          ctx.globalAlpha = 0.16 * Math.sin(sf * Math.PI);
+          ctx.globalAlpha = 0.1 * Math.sin(sf * Math.PI);
           ctx.fillStyle = g; ctx.fillRect(sweepPx - bw, 0, bw, H);
           ctx.globalAlpha = 0.55 * Math.sin(sf * Math.PI);
           ctx.fillStyle = CURVE1(); ctx.fillRect(sweepPx - dpr, 0, 1.5 * dpr, H);

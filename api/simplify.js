@@ -20,10 +20,21 @@
 //           Authorization: Bearer <Firebase ID token>   (optional)
 // Response: 200 { text, cached }   — Markdown with $…$ / $$…$$ LaTeX
 //           4xx/5xx { error, code } — code: bad | config | rate | busy | upstream | empty | timeout
-// GET /api/simplify → { configured }
+// GET /api/simplify → { configured, enabled?, disabledMessage? }
+//
+// Admin panel settings (Firestore settings/ai, read via chat._internal.loadAiSettings,
+// cached for 2 minutes, env fallback): simplifyEnabled === false → 503 { code:'disabled' }
+// with disabledMessage (administrators are not affected); simplifyRateLimit replaces
+// SIMPLIFY_RATE_LIMIT (signed-in users still get twice as much).
+//
+// Clearing the answer cache (administrators only, role via the same identify()):
+//   POST /api/simplify { action: 'clearCache' }  Authorization: Bearer <ID token>
+//   → 200 { cleared: <entries removed> } · 401 / 403 otherwise.
+// The cache lives in the memory of one function instance, so this clears the instance
+// that served the request (others expire on their own / on the next deploy).
 
 const chat = require('./chat');
-const { getConfig, identify, checkRateLimit } = chat._internal;
+const { getConfig, identify, checkRateLimit, loadAiSettings, DEFAULT_DISABLED_MESSAGE } = chat._internal;
 
 const MAX_TEXT = 12000;
 const MAX_TITLE = 200;
@@ -185,20 +196,43 @@ async function handler(req, res) {
   res.setHeader('cache-control', 'no-store');
 
   if (req.method === 'GET') {
-    res.status(200).json({ configured });
+    const ai = await loadAiSettings();
+    const out = { configured };
+    if (ai.simplifyEnabled === false) { out.enabled = false; out.disabledMessage = ai.disabledMessage || DEFAULT_DISABLED_MESSAGE; }
+    res.status(200).json(out);
     return;
   }
   if (req.method !== 'POST') {
     res.status(405).json({ error: 'Метод не поддерживается', code: 'method' });
     return;
   }
+
+  let body = req.body;
+  if (typeof body === 'string') { try { body = JSON.parse(body); } catch (e) { body = null; } }
+
+  // Admin action: clear the answer cache.
+  if (body && body.action === 'clearCache') {
+    const t = bearerToken(req);
+    const admin = t ? await identify(t).catch(() => null) : null;
+    if (!admin) { res.status(401).json({ error: 'Нужен вход администратора.', code: 'auth' }); return; }
+    if (admin.role !== 'owner' && admin.role !== 'admin') { res.status(403).json({ error: 'Только для администраторов.', code: 'forbidden' }); return; }
+    const cleared = cache.size;
+    cache.clear();
+    res.status(200).json({ cleared });
+    return;
+  }
+
   if (!configured) {
     res.status(503).json({ error: 'Упрощение тем ещё не настроено администратором сайта.', code: 'config' });
     return;
   }
-
-  let body = req.body;
-  if (typeof body === 'string') { try { body = JSON.parse(body); } catch (e) { body = null; } }
+  const token = bearerToken(req);
+  const [who, ai] = await Promise.all([token ? identify(token).catch(() => null) : null, loadAiSettings()]);
+  const isAdmin = !!who && who.role !== 'user';
+  if (!isAdmin && ai.simplifyEnabled === false) {
+    res.status(503).json({ error: ai.disabledMessage || DEFAULT_DISABLED_MESSAGE, code: 'disabled' });
+    return;
+  }
   const text = cleanText(body && body.text, MAX_TEXT);
   const title = cleanText(body && body.title, MAX_TITLE).replace(/\s+/g, ' ');
   if (!text || text.length < 15) {
@@ -215,10 +249,8 @@ async function handler(req, res) {
   }
 
   // Rate limit: administrators — none; signed-in users — by account; others — by IP.
-  const token = bearerToken(req);
-  const who = token ? await identify(token).catch(() => null) : null;
-  if (!who || who.role === 'user') {
-    const base = Math.max(1, parseInt(process.env.SIMPLIFY_RATE_LIMIT, 10) || 20);
+  if (!isAdmin) {
+    const base = ai.simplifyRateLimit || Math.max(1, parseInt(process.env.SIMPLIFY_RATE_LIMIT, 10) || 20);
     const rl = checkRateLimit(who ? 'simplify:' + who.uid : 'simplify-ip:' + clientIp(req), who ? base * 2 : base);
     if (!rl.ok) {
       res.setHeader('retry-after', String(rl.retryAfterSec));
@@ -249,4 +281,4 @@ async function handler(req, res) {
 }
 
 module.exports = handler;
-module.exports._internal = { hashText, tidyAnswer, cleanText, SYSTEM_PROMPT };
+module.exports._internal = { hashText, tidyAnswer, cleanText, SYSTEM_PROMPT, cache };

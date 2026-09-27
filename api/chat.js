@@ -128,6 +128,75 @@ function getConfig() {
 }
 function limitsFor(role) { return role === 'user' ? USER_LIMITS : ADMIN_LIMITS; }
 
+/* ---------------- settings/ai: switches and limits from the admin panel ----------------
+   The owner sets them in /admin/#ai (assets/js/admin-ai.js) — Firestore document
+   settings/ai: { chatEnabled, simplifyEnabled, chatRateLimit, simplifyRateLimit,
+   disabledMessage }. The document is publicly readable (it holds no secrets), so
+   it is fetched through the REST API with just the public web key, no token.
+   Remembered in memory for AI_SETTINGS_TTL_MS; if Firestore can't be reached the
+   last good copy is used, and with none — the environment variables (= {}). Also
+   used by api/simplify.js; api/admin-ai.js checks that this function exists to tell
+   the panel that the server applies these settings. */
+const AI_SETTINGS_TTL_MS = 2 * 60 * 1000;
+const AI_SETTINGS_ERROR_TTL_MS = 30 * 1000;   // after a failure, retry sooner
+let aiSettingsCache = null;  // { value, until, pending }
+
+function fsValue(v) {
+  if (!v || typeof v !== 'object') return undefined;
+  if ('booleanValue' in v) return v.booleanValue === true;
+  if ('integerValue' in v) return parseInt(v.integerValue, 10);
+  if ('doubleValue' in v) return Number(v.doubleValue);
+  if ('stringValue' in v) return String(v.stringValue);
+  if ('nullValue' in v) return null;
+  return undefined;
+}
+
+function parseAiSettings(doc) {
+  const f = (doc && doc.fields) || {};
+  const rate = v => (typeof v === 'number' && Number.isFinite(v) && v >= 1) ? Math.min(10000, Math.floor(v)) : null;
+  const flag = v => (v === false ? false : true);   // only an explicit false switches a service off
+  const msg = fsValue(f.disabledMessage);
+  return {
+    chatEnabled: flag(fsValue(f.chatEnabled)),
+    simplifyEnabled: flag(fsValue(f.simplifyEnabled)),
+    chatRateLimit: rate(fsValue(f.chatRateLimit)),
+    simplifyRateLimit: rate(fsValue(f.simplifyRateLimit)),
+    disabledMessage: typeof msg === 'string' && msg.trim() ? msg.trim().slice(0, 300) : null,
+  };
+}
+
+// → { chatEnabled, simplifyEnabled, chatRateLimit|null, simplifyRateLimit|null,
+//     disabledMessage|null, source: 'firestore' | 'missing' | 'cache' | 'env' }
+async function loadAiSettings() {
+  const now = Date.now();
+  if (aiSettingsCache && aiSettingsCache.until > now) return aiSettingsCache.value;
+  if (aiSettingsCache && aiSettingsCache.pending) return aiSettingsCache.pending;
+  const project = process.env.FIREBASE_PROJECT_ID || 'mathframe-ff436';
+  const url = 'https://firestore.googleapis.com/v1/projects/' + encodeURIComponent(project) +
+    '/databases/(default)/documents/settings/ai?key=' + encodeURIComponent(FIREBASE_API_KEY);
+  const prev = aiSettingsCache && aiSettingsCache.value;
+  const pending = (async () => {
+    let value, ttl = AI_SETTINGS_TTL_MS;
+    try {
+      const r = await fetch(url, { signal: AbortSignal.timeout(3000) });
+      if (r.status === 404) value = Object.assign(parseAiSettings(null), { source: 'missing' });
+      else if (!r.ok) throw new Error('HTTP ' + r.status);
+      else value = Object.assign(parseAiSettings(await r.json()), { source: 'firestore' });
+    } catch (e) {
+      ttl = AI_SETTINGS_ERROR_TTL_MS;
+      value = prev && prev.source !== 'env'
+        ? Object.assign({}, prev, { source: 'cache' })
+        : Object.assign(parseAiSettings(null), { source: 'env' });
+    }
+    aiSettingsCache = { value, until: Date.now() + ttl, pending: null };
+    return value;
+  })();
+  aiSettingsCache = { value: prev, until: 0, pending };
+  return pending;
+}
+function resetAiSettingsCache() { aiSettingsCache = null; }
+const DEFAULT_DISABLED_MESSAGE = 'Сервис временно отключён администратором сайта. Попробуйте позже.';
+
 /* ---------------- auth: Firebase ID token + role ----------------
    No firebase-admin dependency: Identity Toolkit's accounts:lookup accepts the
    ID token together with the project's public web key and returns the account
@@ -543,7 +612,11 @@ async function handler(req, res) {
     res.setHeader('cache-control', 'no-store');
     const out = { configured: !!(cfg.provider && cfg.keys.length), provider: cfg.providerId, webSearch: cfg.webSearch };
     const t = bearerToken(req);
-    const who = t ? await identify(t) : null;
+    const [who, ai] = await Promise.all([t ? identify(t) : null, loadAiSettings()]);
+    if (ai.chatEnabled === false) {
+      out.enabled = false;
+      out.disabledMessage = ai.disabledMessage || DEFAULT_DISABLED_MESSAGE;
+    }
     if (who) {
       out.role = who.role;
       out.unlimited = who.role !== 'user';
@@ -565,6 +638,13 @@ async function handler(req, res) {
   }
   const role = who.role;
   const limits = limitsFor(role);
+  // Switch and limit from the admin panel (settings/ai); administrators are not affected.
+  const ai = await loadAiSettings();
+  if (role === 'user' && ai.chatEnabled === false) {
+    res.status(503).json({ error: ai.disabledMessage || DEFAULT_DISABLED_MESSAGE, code: 'disabled' });
+    return;
+  }
+  const rateLimit = ai.chatRateLimit || cfg.rateLimit;
   const viaJarvis = role === 'owner' && !!cfg.jarvis.token;
   if (!viaJarvis && (!cfg.provider || !cfg.keys.length)) {
     res.status(503).json({ error: 'AI-агент ещё не настроен администратором сайта.', code: 'config' });
@@ -583,7 +663,7 @@ async function handler(req, res) {
 
   // Administrators (owner included) are not rate-limited.
   if (role === 'user') {
-    const rl = checkRateLimit(who.uid, cfg.rateLimit);
+    const rl = checkRateLimit(who.uid, rateLimit);
     if (!rl.ok) {
       res.setHeader('retry-after', String(rl.retryAfterSec));
       res.status(429).json({
@@ -693,4 +773,4 @@ async function handler(req, res) {
 
 module.exports = handler;
 // Exposed for tests only — Vercel ignores extra properties on the handler.
-module.exports._internal = { sanitizeMessages, sanitizeContext, buildSystemPrompt, checkRateLimit, extractDelta, getConfig, formatSources, identify, composeJarvisMessage, superEmails, RESET_MARK };
+module.exports._internal = { sanitizeMessages, sanitizeContext, buildSystemPrompt, checkRateLimit, extractDelta, getConfig, formatSources, identify, composeJarvisMessage, superEmails, RESET_MARK, loadAiSettings, parseAiSettings, resetAiSettingsCache, DEFAULT_DISABLED_MESSAGE };

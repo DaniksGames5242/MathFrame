@@ -48,16 +48,270 @@ function syncUserProfile(user) {
     }).catch(() => {});
 }
 
+// Администратор ли пользователь: владелец (MF_SUPER_ADMIN_EMAILS) или admins/{uid}.granted.
+// Результат запоминается на время жизни страницы (ошибку — нет, чтобы повторить позже).
+const _mfAdminChecks = new Map(); // uid -> Promise<boolean>
+function mfIsAdmin(user) {
+    if (!user) return Promise.resolve(false);
+    if (MF_SUPER_ADMIN_EMAILS.includes(String(user.email || '').toLowerCase())) return Promise.resolve(true);
+    if (!_mfAdminChecks.has(user.uid)) {
+        _mfAdminChecks.set(user.uid, ensureFirestore().then(() => {
+            return firebase.firestore().collection('admins').doc(user.uid).get();
+        }).then(doc => !!(doc.exists && doc.data().granted)).catch(() => {
+            _mfAdminChecks.delete(user.uid);
+            return false;
+        }));
+    }
+    return _mfAdminChecks.get(user.uid);
+}
+
+let _mfAdminNavSeq = 0;
 function updateAdminNavLink(user) {
     const link = document.getElementById('admin-nav-link');
-    if (!link) return;
-    if (!user) { link.style.display = 'none'; return; }
-    if (MF_SUPER_ADMIN_EMAILS.includes(String(user.email || '').toLowerCase())) { link.style.display = ''; return; }
-    ensureFirestore().then(() => {
-        return firebase.firestore().collection('admins').doc(user.uid).get();
-    }).then(doc => {
-        link.style.display = (doc.exists && doc.data().granted) ? '' : 'none';
-    }).catch(() => { link.style.display = 'none'; });
+    const seq = ++_mfAdminNavSeq;
+    if (link && !user) link.style.display = 'none';
+    mfIsAdmin(user).then(ok => {
+        if (seq !== _mfAdminNavSeq) return; // пока проверяли, пользователь сменился
+        if (link) link.style.display = ok ? '' : 'none';
+        mfSiteNoticesOnAuth(user, ok);
+    });
+}
+
+// ===== SITE NOTICES: баннер-объявление и режим техработ =====
+// Источник — Firestore settings/site (пишет админ-панель, вкладка «Сайт»,
+// assets/js/admin-site.js):
+//   banner:      { enabled, text, kind:'info'|'warn'|'success', linkUrl, linkText,
+//                  dismissible, version, expiresAt: Timestamp|null }
+//   maintenance: { enabled, message, until: Timestamp|null }
+// Чтение не блокирует рендер: страница рисуется как обычно, баннер/заглушка
+// появляются, когда придёт ответ. Документ кэшируется в sessionStorage на
+// MF_SITE_CACHE_TTL, чтобы не читать Firestore на каждом переходе. Весь текст
+// из документа выводится только через textContent. Заглушка техработ — это
+// удобство, а не защита: данные закрывают правила Firestore, а не этот код.
+const MF_SITE_CACHE_KEY = 'mf-site-settings';
+const MF_SITE_CACHE_TTL = 90 * 1000;
+const MF_BANNER_CLOSED_KEY = 'mf-banner-closed';
+const MF_ADMIN_HINT_KEY = 'mf-admin-hint';      // uid последнего подтверждённого админа (только чтобы не мигать заглушкой)
+const _mfSite = { data: null, authKnown: false, user: null, isAdmin: false, timer: 0 };
+
+function mfTimeMs(v) { // Firestore Timestamp | {seconds} | Date | число | строка → мс или null
+    if (v === null || v === undefined || v === '') return null;
+    if (typeof v.toMillis === 'function') return v.toMillis();
+    if (typeof v.seconds === 'number') return v.seconds * 1000 + Math.floor((v.nanoseconds || 0) / 1e6);
+    if (v instanceof Date) return v.getTime();
+    const n = typeof v === 'number' ? v : Date.parse(v);
+    return Number.isFinite(n) ? n : null;
+}
+
+function mfNormalizeSiteSettings(raw) {
+    const b = (raw && raw.banner) || {};
+    const m = (raw && raw.maintenance) || {};
+    const kind = ['info', 'warn', 'success'].includes(b.kind) ? b.kind : 'info';
+    return {
+        banner: {
+            enabled: b.enabled === true,
+            text: typeof b.text === 'string' ? b.text.trim().slice(0, 300) : '',
+            kind,
+            linkUrl: typeof b.linkUrl === 'string' ? b.linkUrl.trim() : '',
+            linkText: typeof b.linkText === 'string' ? b.linkText.trim().slice(0, 60) : '',
+            dismissible: b.dismissible === true || b.closable === true,
+            version: String(b.version === undefined || b.version === null ? 0 : b.version),
+            expiresAt: mfTimeMs(b.expiresAt),
+        },
+        maintenance: {
+            enabled: m.enabled === true,
+            message: typeof m.message === 'string' ? m.message.trim().slice(0, 500) : '',
+            until: mfTimeMs(m.until),
+        },
+    };
+}
+
+// Только внутренние ссылки ('/…', но не '//…') и https://
+function mfSafeBannerUrl(u) {
+    u = String(u || '').trim();
+    if (/^\/(?!\/)/.test(u)) return u;
+    if (/^https:\/\/[^\s"<>]+$/i.test(u)) return u;
+    return '';
+}
+
+function mfLoadSiteSettings() {
+    try {
+        const c = JSON.parse(sessionStorage.getItem(MF_SITE_CACHE_KEY) || 'null');
+        if (c && c.data && Date.now() - c.t < MF_SITE_CACHE_TTL && Date.now() >= c.t) return Promise.resolve(c.data);
+    } catch (e) {}
+    if (!window.firebase || !firebase.apps || !firebase.apps.length) return Promise.resolve(null);
+    return ensureFirestore()
+        .then(() => firebase.firestore().collection('settings').doc('site').get())
+        .then(doc => {
+            const data = mfNormalizeSiteSettings(doc.exists ? doc.data() : {});
+            try { sessionStorage.setItem(MF_SITE_CACHE_KEY, JSON.stringify({ t: Date.now(), data })); } catch (e) {}
+            return data;
+        })
+        .catch(() => null); // нет доступа/сети — сайт работает как обычно
+}
+
+function mfIsAdminPage() {
+    const b = document.body;
+    if (b && b.dataset && b.dataset.page === 'admin') return true;
+    return /^\/(pages\/)?admin(\/|\.html|$)/.test(location.pathname);
+}
+
+function mfRenderSiteBanner(b) {
+    const old = document.getElementById('mf-site-banner');
+    const now = Date.now();
+    let closed = null;
+    try { closed = localStorage.getItem(MF_BANNER_CLOSED_KEY); } catch (e) {}
+    const live = b && b.enabled && b.text && !(b.expiresAt && b.expiresAt <= now) && closed !== b.version;
+    if (!live) { if (old) old.remove(); return; }
+    const url = mfSafeBannerUrl(b.linkUrl);
+    const sig = JSON.stringify([b.text, b.kind, url, b.linkText, b.dismissible, b.version]);
+    if (old && old.dataset.sig === sig) return;
+
+    const el = document.createElement('div');
+    el.id = 'mf-site-banner';
+    el.className = 'mf-site-banner kind-' + b.kind;
+    el.setAttribute('role', 'region');
+    el.setAttribute('aria-label', 'Объявление');
+    el.dataset.sig = sig;
+    const text = document.createElement('span');
+    text.className = 'msb-text';
+    text.textContent = b.text;
+    el.appendChild(text);
+    if (url) {
+        const a = document.createElement('a');
+        a.className = 'msb-link';
+        a.href = url;
+        a.textContent = b.linkText || 'Подробнее';
+        if (/^https:/i.test(url)) { a.target = '_blank'; a.rel = 'noopener noreferrer'; }
+        el.appendChild(a);
+    }
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.className = 'msb-close' + (b.dismissible ? '' : ' is-temp');
+    close.setAttribute('aria-label', 'Закрыть объявление');
+    close.textContent = '×';
+    close.addEventListener('click', () => {
+        if (b.dismissible) { try { localStorage.setItem(MF_BANNER_CLOSED_KEY, b.version); } catch (e) {} }
+        el.classList.add('is-leaving');
+        let gone = false;
+        const rm = () => { if (!gone) { gone = true; el.remove(); } };
+        el.addEventListener('animationend', rm, { once: true });
+        setTimeout(rm, 400);
+    });
+    el.appendChild(close);
+
+    if (old) { old.replaceWith(el); return; }
+    const header = document.getElementById('app-header');
+    if (header && header.parentNode) header.insertAdjacentElement('afterend', el);
+    else document.body.insertBefore(el, document.body.firstChild);
+}
+
+function mfRemoveMaintenance() {
+    const o = document.getElementById('mf-maint');
+    if (o) o.remove();
+    document.documentElement.classList.remove('mf-maint-on');
+}
+
+function mfShowMaintenance(m) {
+    const sig = JSON.stringify([m.message, m.until, !!_mfSite.user]);
+    const old = document.getElementById('mf-maint');
+    if (old && old.dataset.sig === sig) return;
+    const wrap = document.createElement('div');
+    wrap.id = 'mf-maint';
+    wrap.className = 'mf-maint';
+    wrap.dataset.sig = sig;
+    wrap.setAttribute('role', 'alertdialog');
+    wrap.setAttribute('aria-modal', 'true');
+    wrap.setAttribute('aria-labelledby', 'mf-maint-title');
+    const card = document.createElement('div');
+    card.className = 'mf-maint-card';
+    // Статичная иконка-шестерёнка (без пользовательских данных)
+    card.innerHTML = '<div class="mf-maint-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div>';
+    const h = document.createElement('h1');
+    h.id = 'mf-maint-title';
+    h.textContent = 'Идут технические работы';
+    const p = document.createElement('p');
+    p.className = 'mf-maint-msg';
+    p.textContent = m.message || 'Сайт временно недоступен — мы скоро вернёмся. Загляните чуть позже.';
+    card.append(h, p);
+    if (m.until) {
+        const u = document.createElement('p');
+        u.className = 'mf-maint-until';
+        let when = '';
+        try { when = new Date(m.until).toLocaleString('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }); } catch (e) {}
+        if (when) { u.textContent = 'Планируем закончить: ' + when; card.appendChild(u); }
+    }
+    if (!_mfSite.user && typeof window.openAuthModal === 'function') {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn btn-outline mf-maint-login';
+        btn.textContent = 'Вход для администраторов';
+        btn.addEventListener('click', () => window.openAuthModal());
+        card.appendChild(btn);
+    }
+    wrap.appendChild(card);
+    if (old) old.replaceWith(wrap); else document.body.appendChild(wrap);
+    document.documentElement.classList.add('mf-maint-on');
+}
+
+function mfShowMaintenanceBadge(show) {
+    let el = document.getElementById('mf-maint-badge');
+    if (!show) { if (el) el.remove(); return; }
+    if (el) return;
+    el = document.createElement(mfIsAdminPage() ? 'div' : 'a');
+    el.id = 'mf-maint-badge';
+    el.className = 'mf-maint-badge';
+    el.setAttribute('role', 'status');
+    el.textContent = 'Включён режим техработ';
+    if (el.tagName === 'A') { el.href = '/admin/#site'; el.title = 'Посетители видят заглушку. Выключить — в админ-панели, вкладка «Сайт»'; }
+    document.body.appendChild(el);
+}
+
+function mfApplySiteNotices() {
+    const d = _mfSite.data;
+    if (!d || !document.body) return;
+    const now = Date.now();
+    mfRenderSiteBanner(d.banner);
+
+    const m = d.maintenance;
+    const active = m.enabled && !(m.until && m.until <= now);
+    if (!active) { mfRemoveMaintenance(); mfShowMaintenanceBadge(false); }
+    else if (_mfSite.authKnown && _mfSite.isAdmin) { mfRemoveMaintenance(); mfShowMaintenanceBadge(true); }
+    else if (mfIsAdminPage()) { mfRemoveMaintenance(); mfShowMaintenanceBadge(false); } // у панели свой вход и своя проверка
+    else {
+        mfShowMaintenanceBadge(false);
+        let hint = false;
+        try { hint = !!sessionStorage.getItem(MF_ADMIN_HINT_KEY); } catch (e) {}
+        // Пока вход не определён, а в этой вкладке уже подтверждался админ — не мигаем заглушкой
+        if (_mfSite.authKnown || !hint) mfShowMaintenance(m);
+    }
+
+    // Когда истечёт срок баннера или техработ — перерисовать без перезагрузки
+    clearTimeout(_mfSite.timer);
+    const next = [d.banner.enabled ? d.banner.expiresAt : null, m.enabled ? m.until : null]
+        .filter(t => t && t > now).sort((a, b) => a - b)[0];
+    if (next && next - now < 864e5) _mfSite.timer = setTimeout(mfApplySiteNotices, next - now + 500);
+}
+
+function mfSiteNoticesOnAuth(user, isAdmin) {
+    _mfSite.authKnown = true;
+    _mfSite.user = user || null;
+    _mfSite.isAdmin = !!isAdmin;
+    try {
+        if (isAdmin && user) sessionStorage.setItem(MF_ADMIN_HINT_KEY, user.uid);
+        else sessionStorage.removeItem(MF_ADMIN_HINT_KEY);
+    } catch (e) {}
+    mfApplySiteNotices();
+}
+
+function mfInitSiteNotices() {
+    // Если вход так и не определился (ошибка, нет auth.js) — решаем как для гостя
+    setTimeout(() => { if (!_mfSite.authKnown) { _mfSite.authKnown = true; mfApplySiteNotices(); } }, 5000);
+    mfLoadSiteSettings().then(data => {
+        if (!data) return;
+        _mfSite.data = data;
+        mfApplySiteNotices();
+    });
 }
 
 // ===== КОНФИГУРАЦИЯ АНИМАЦИИ ТЕМЫ =====
@@ -163,6 +417,7 @@ document.addEventListener('DOMContentLoaded', () => {
     injectAuthModal();
     injectSettingsModal();
     trackVisit();
+    try { mfInitSiteNotices(); } catch (e) {} // баннер и техработы (SITE NOTICES), не блокирует рендер
 
     function initAuthWhenReady() {
         if (window.Auth) {

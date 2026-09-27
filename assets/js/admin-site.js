@@ -5,8 +5,8 @@
 //             dismissible, version, expiresAt:Timestamp|null }
 //   maintenance: { enabled, message, until:Timestamp|null }
 //   updatedAt, updatedBy
-// Показывает их на страницах общий код (common.js) — фрагмент для него описан в
-// отчёте к задаче; сама панель common.js не меняет. version растёт при каждом
+// Показывает их на страницах общий код (common.js › SITE NOTICES, стили —
+// common.css, раздел 22; кэш в sessionStorage ~1,5 мин). version растёт при каждом
 // сохранении баннера, чтобы закрытый посетителем баннер показался снова, если
 // текст изменился.
 
@@ -146,6 +146,9 @@
   async function save(patch, btn, msg) {
     const data = Object.assign({}, patch, { updatedAt: firebase.firestore.FieldValue.serverTimestamp(), updatedBy: A.user.email });
     const res = await A.run(btn, () => A.db.collection('settings').doc('site').set(data, { merge: true }).then(() => true), msg);
-    if (res) load();
+    if (res) {
+      try { sessionStorage.removeItem('mf-site-settings'); } catch (e) {} // кэш common.js — чтобы изменения сразу были видны в этой вкладке
+      load();
+    }
   }
 })();
