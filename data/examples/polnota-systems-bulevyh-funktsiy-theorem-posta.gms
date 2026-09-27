@@ -22,18 +22,18 @@ draw Text { name = "ch3"; pos = (cx(3), ry(-1) + 0.1); text = "M"; size = 1.3 }
 draw Text { name = "cv3"; pos = (cx(3), ry(nSel) - 0.05); text = verd(3); size = 1.2; layer = 20 }
 draw Text { name = "ch4"; pos = (cx(4), ry(-1) + 0.1); text = "L"; size = 1.3 }
 draw Text { name = "cv4"; pos = (cx(4), ry(nSel) - 0.05); text = verd(4); size = 1.2; layer = 20 }
-draw Text { name = "rn0"; pos = (-3.6, ry(0)); text = rname(0); size = 1.1; active = 0 < nSel }
-draw Text { name = "rn1"; pos = (-3.6, ry(1)); text = rname(1); size = 1.1; active = 1 < nSel }
-draw Text { name = "rn2"; pos = (-3.6, ry(2)); text = rname(2); size = 1.1; active = 2 < nSel }
-draw Text { name = "rn3"; pos = (-3.6, ry(3)); text = rname(3); size = 1.1; active = 3 < nSel }
-draw Text { name = "rn4"; pos = (-3.6, ry(4)); text = rname(4); size = 1.1; active = 4 < nSel }
-draw Text { name = "rn5"; pos = (-3.6, ry(5)); text = rname(5); size = 1.1; active = 5 < nSel }
-draw Text { name = "rn6"; pos = (-3.6, ry(6)); text = rname(6); size = 1.1; active = 6 < nSel }
-draw Text { name = "rn7"; pos = (-3.6, ry(7)); text = rname(7); size = 1.1; active = 7 < nSel }
-draw Text { name = "rn8"; pos = (-3.6, ry(8)); text = rname(8); size = 1.1; active = 8 < nSel }
-draw Text { name = "rn9"; pos = (-3.6, ry(9)); text = rname(9); size = 1.1; active = 9 < nSel }
-draw Text { name = "rn10"; pos = (-3.6, ry(10)); text = rname(10); size = 1.1; active = 10 < nSel }
-draw Text { name = "rsys"; pos = (-3.6, ry(nSel) - 0.05); text = "система"; size = 1.1; color = #6b7280 }
+draw Text { name = "rn0"; pos = (-5.2, ry(0)); text = rname(0); size = 1.1; active = 0 < nSel }
+draw Text { name = "rn1"; pos = (-5.2, ry(1)); text = rname(1); size = 1.1; active = 1 < nSel }
+draw Text { name = "rn2"; pos = (-5.2, ry(2)); text = rname(2); size = 1.1; active = 2 < nSel }
+draw Text { name = "rn3"; pos = (-5.2, ry(3)); text = rname(3); size = 1.1; active = 3 < nSel }
+draw Text { name = "rn4"; pos = (-5.2, ry(4)); text = rname(4); size = 1.1; active = 4 < nSel }
+draw Text { name = "rn5"; pos = (-5.2, ry(5)); text = rname(5); size = 1.1; active = 5 < nSel }
+draw Text { name = "rn6"; pos = (-5.2, ry(6)); text = rname(6); size = 1.1; active = 6 < nSel }
+draw Text { name = "rn7"; pos = (-5.2, ry(7)); text = rname(7); size = 1.1; active = 7 < nSel }
+draw Text { name = "rn8"; pos = (-5.2, ry(8)); text = rname(8); size = 1.1; active = 8 < nSel }
+draw Text { name = "rn9"; pos = (-5.2, ry(9)); text = rname(9); size = 1.1; active = 9 < nSel }
+draw Text { name = "rn10"; pos = (-5.2, ry(10)); text = rname(10); size = 1.1; active = 10 < nSel }
+draw Text { name = "rsys"; pos = (-5.2, ry(nSel) - 0.05); text = "система"; size = 1.1; color = #6b7280 }
 
 new UI { name = "t_neg"; type = toggle; label = "¬x"; variable = u_neg; default = false }
 new UI { name = "t_and"; type = toggle; label = "x ∧ y"; variable = u_and; default = true }
@@ -108,7 +108,7 @@ Function fname(f) {
   return "";
 }
 Function rname(k) { if (k >= nSel) { return ""; } return fname(sel[k]); }
-Function cx(c) { return -1.2 + 1.9 * c; }
+Function cx(c) { return -2.3 + 1.9 * c; }
 Function st() { return min(0.75, 7.6 / (nSel + 2)); }
 Function ry(k) { return st() * (nSel + 1) / 2 - 0.3 - st() * k; }
 Function verd(c) { if (bad[c] == 1) { return "✓"; } return "✗"; }

@@ -1406,10 +1406,12 @@ function parseInfPlaneBlock(block, vars) {
     const opacityExpr = captureExprField(block, 'opacity');
     const size = parseNumberField(block, vars, 'size', null, false);
     const grid = parseBoolField(block, vars, 'grid', false);
+    // fade = true — плоскость плавно растворяется от первой точки к краям (без резкого края)
+    const fade = parseBoolField(block, vars, 'fade', false);
     const active = parseBoolField(block, vars, 'active', true);
     const layer = parseNumberField(block, vars, 'layer', 25, false);
     const { updateMode, updateInterval } = parseUpdateFields(block, vars);
-    return { name, figure, points, color, colorExpr, opacity, opacityExpr, size, grid, active, activeExpr: parseActiveExpr(block), layer, updateMode, updateInterval };
+    return { name, figure, points, color, colorExpr, opacity, opacityExpr, size, grid, fade, active, activeExpr: parseActiveExpr(block), layer, updateMode, updateInterval };
 }
 
 // draw Filling
@@ -9728,7 +9730,8 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '            pairSeen[pk] = (pairSeen[pk] || 0) + 1;\n',
             '            const total = pairCount[pk], ord = pairSeen[pk];\n',
             '            const isHl = !!hlEdgeSet[edgeKey(e.a, e.b)];\n',
-            '            ctx.strokeStyle = isHl ? (d.highlightColor || \'#e8590c\') : eCol;\n',
+            '            const eC = isHl ? (d.highlightColor || \'#e8590c\') : (e.color || eCol);\n',
+            '            ctx.strokeStyle = eC;\n',
             '            ctx.lineWidth = isHl ? Math.max(3.5, (d.edgeWidth || 2) + 1.5) : (d.edgeWidth || 2);\n',
             '            let mx, my, cxE = null, cyE = null;\n',
             '            if (e.a === e.b) {\n',
@@ -9738,7 +9741,8 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '                ctx.stroke();\n',
             '                mx = p1.x; my = p1.y - R * 3;\n',
             '            } else if (total > 1) {\n',
-            '                const off = (ord - (total + 1) / 2) * 22;\n',
+            // расхождение дуг растёт с длиной ребра: на длинной хорде 22 px почти не видны
+            '                const off = (ord - (total + 1) / 2) * Math.max(22, 0.18 * Math.hypot(p2.x - p1.x, p2.y - p1.y));\n',
             '                const midX = (p1.x + p2.x) / 2, midY = (p1.y + p2.y) / 2;\n',
             // Нормаль берём по каноническому направлению пары (от меньшего имени к большему):
             // иначе у встречных рёбер a→b и b→a нормали противоположны и обе дуги ложатся на
@@ -9763,7 +9767,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '                const tipX = p2.x - Math.cos(ang) * R;\n',
             '                const tipY = p2.y - Math.sin(ang) * R;\n',
             '                const ah = 11;\n',
-            '                ctx.fillStyle = isHl ? (d.highlightColor || \'#e8590c\') : eCol;\n',
+            '                ctx.fillStyle = eC;\n',
             '                ctx.beginPath();\n',
             '                ctx.moveTo(tipX, tipY);\n',
             '                ctx.lineTo(tipX - ah * Math.cos(ang - 0.4), tipY - ah * Math.sin(ang - 0.4));\n',
@@ -9920,7 +9924,10 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '        ctx.strokeStyle = d.__liveColor || d.color || __gcDefaultColor();\n',
             '        ctx.lineWidth = d.__liveThickness || d.thickness || line.thickness || 2;\n',
             '        ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(tip.x, tip.y); ctx.stroke();\n',
-            '        const ang = Math.atan2(tip.y - p.y, tip.x - p.x);\n',
+            // направление острия — по самой прямой (в пикселях), а не от p к tip: при острие
+            // ровно в конце отрезка p и tip совпадают, и стрелка смотрела вправо
+            '        const back = fieldToPixel(tipX - Math.cos(angle) * 0.2, tipY - Math.sin(angle) * 0.2);\n',
+            '        const ang = Math.atan2(tip.y - back.y, tip.x - back.x);\n',
             '        const a1 = ang + angleOffset, a2 = ang - angleOffset;\n',
             '        const arrowLenPix = arrowLen;\n',
             '        ctx.beginPath();\n',
@@ -13426,7 +13433,8 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
         // addNode(g, имя, pos, подпись): необязательная подпись — когда в графе одинаковые
         // по смыслу узлы (остаток 1 на разных уровнях дерева) должны различаться по имени.
         addNode: (g, label, pos, text) => { g.nodes[label] = { label: text === undefined ? label : text, pos: pos || [0, 0] }; return g; },
-        addEdge: (g, a, b, weight) => { g.edges.push({ a, b, weight: weight === undefined ? 1 : weight }); return g; },
+        // addEdge(g, a, b, вес, цвет) — необязательный цвет отдельного ребра
+        addEdge: (g, a, b, weight, color) => { g.edges.push({ a, b, weight: weight === undefined ? 1 : weight, color: color }); return g; },
         // === ВЫЧИСЛИТЕЛЬНАЯ ГЕОМЕТРИЯ ===
         delaunay: (pts) => glDelaunay(glReadPoints(pts)),
         polygonCentroid: (pts) => {
@@ -17326,7 +17334,7 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '    const r = Math.max(0.16 * (p.size || 1) * worldScale, 0.03) * (IS_TOUCH_DEVICE_3D ? 1.6 : 1);\n',
             '    let geo;\n',
             '    if (p.shape === \'square\') geo = new THREE.BoxGeometry(r * 1.7, r * 1.7, r * 1.7);\n',
-            '    else geo = new THREE.SphereGeometry(r, 16, 12);\n',
+            '    else geo = new THREE.SphereGeometry(r, 24, 16);\n',
             '    const mat = new THREE.MeshStandardMaterial({ color: color, roughness: 0.4, metalness: 0.05 });\n',
             '    const mesh = new THREE.Mesh(geo, mat);\n',
             '    const pos = p.pos || { x: 0, y: 0, z: 0 };\n',
@@ -17508,7 +17516,7 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '    switch (pr.type) {\n',
             '      case \'cube\': return new THREE.BoxGeometry(pr.edge, pr.edge, pr.edge);\n',
             '      case \'box\': return new THREE.BoxGeometry(pr.width, pr.height, pr.depth);\n',
-            '      case \'sphere\': return new THREE.SphereGeometry(pr.radius, 24, 16);\n',
+            '      case \'sphere\': return new THREE.SphereGeometry(pr.radius, 64, 48);\n',
             '      case \'cylinder\': return new THREE.CylinderGeometry(pr.radius, pr.radius, pr.height, 24);\n',
             '      case \'cone\': return new THREE.ConeGeometry(pr.radius, pr.height, 24);\n',
             '      case \'pyramid\': return new THREE.ConeGeometry(pr.radius, pr.height, pr.sides);\n',
@@ -17528,6 +17536,19 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '    const digits = (a >= 100) ? 1 : (a >= 1 ? 2 : 4);\n',
             '    return v.toFixed(digits).replace(/\\.?0+$/, \'\');\n',
             '  }\n',
+            // Полупрозрачное тело рисуется в два прохода: сначала задние грани, потом передние.
+            // При одном двустороннем проходе треугольники смешивались в порядке их следования в
+            // буфере, и сквозь переднюю стенку полосами проступала задняя.
+            '  function g3TwoPass(mesh) {\n',
+            '    const mat = mesh.material;\n',
+            '    if (!mat || !mat.transparent) return;\n',
+            '    mat.side = THREE.FrontSide;\n',
+            '    const back = new THREE.Mesh(mesh.geometry, mat.clone());\n',
+            '    back.material.side = THREE.BackSide;\n',
+            '    back.renderOrder = -1;\n',
+            '    back.onBeforeRender = function() { back.material.color.copy(mat.color); back.material.opacity = mat.opacity; back.geometry = mesh.geometry; };\n',
+            '    mesh.add(back);\n',
+            '  }\n',
             '  const primitiveObjs = primitivesData.map(function(pr) {\n',
             '    const color = pr.color || \'', theme.accent, '\';\n',
             '    const geo = buildPrimitiveGeometry(pr);\n',
@@ -17539,6 +17560,7 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '      depthWrite: !(pr.opacity < 1),\n',
             '    });\n',
             '    const mesh = new THREE.Mesh(geo, mat);\n',
+            '    g3TwoPass(mesh);\n',
             '    const pos = pr.pos || { x: 0, y: 0, z: 0 };\n',
             '    mesh.position.set(pos.x, pos.y, pos.z || 0);\n',
             '    const rot = pr.rotateDeg || { x: 0, y: 0, z: 0 };\n',
@@ -19042,7 +19064,7 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '    // === Графы ===\n',
             '    newGraph: function() { return { __type: \'graph\', nodes: {}, edges: [] }; },\n',
             '    addNode: function(g, label, pos, text) { g.nodes[label] = { label: text === undefined ? label : text, pos: pos || [0, 0] }; return g; },\n',
-            '    addEdge: function(g, a, b, weight) { g.edges.push({ a: a, b: b, weight: weight === undefined ? 1 : weight }); return g; },\n',
+            '    addEdge: function(g, a, b, weight, color) { g.edges.push({ a: a, b: b, weight: weight === undefined ? 1 : weight, color: color }); return g; },\n',
             '    graphLayoutForce: function(g, iters, spread) { return g3GraphLayoutForce(g, iters, spread); },\n',
             '    graphMST: function(g) { return g3GraphMST(g); },\n',
             '    bfs: function(g, start) { return g3GraphBFS(g, start); },\n',
@@ -19439,7 +19461,7 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '      // поэтому геометрия у неё не фиксированная сетка, как у heightfield/parametric,\n',
             '      // а полностью пересобирается в updateImplicitSurfaceMesh — здесь только пустышка.\n',
             '      const geo0 = new THREE.BufferGeometry();\n',
-            '      const mat0 = new THREE.MeshStandardMaterial({ color: color, roughness: 0.6, transparent: opacity < 1, opacity: opacity, side: THREE.DoubleSide, depthWrite: opacity >= 1 });\n',
+            '      const mat0 = new THREE.MeshStandardMaterial({ color: color, roughness: 0.85, transparent: opacity < 1, opacity: opacity, side: THREE.DoubleSide, depthWrite: opacity >= 1 });\n',
             '      const mesh0 = new THREE.Mesh(geo0, mat0);\n',
             '      scene.add(mesh0);\n',
             '      const res = Math.max(3, Math.min(40, Math.round(d.grid || 24)));\n',
@@ -19452,15 +19474,16 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '        isolevel: (d.level === undefined || d.level === null) ? 0 : d.level,\n',
             '      };\n',
             '    }\n',
-            '    const n = Math.max(2, Math.min(80, Math.round(d.grid || 20)));\n',
+            '    const n = Math.max(2, Math.min(120, Math.round(d.grid || 20)));\n',
             '    const geo = new THREE.BufferGeometry();\n',
             '    const idx = [];\n',
             '    for (let j = 0; j < n; j++) { for (let i = 0; i < n; i++) { const a0 = j * (n + 1) + i, b0 = a0 + 1, c0 = a0 + (n + 1), d0 = c0 + 1; idx.push(a0, c0, b0, b0, c0, d0); } }\n',
             '    geo.setIndex(idx);\n',
             '    geo.setAttribute(\'position\', new THREE.BufferAttribute(new Float32Array((n + 1) * (n + 1) * 3), 3));\n',
-            '    const mat = new THREE.MeshStandardMaterial({ color: color, roughness: 0.6, transparent: opacity < 1, opacity: opacity, side: THREE.DoubleSide, depthWrite: opacity >= 1 });\n',
+            '    const mat = new THREE.MeshStandardMaterial({ color: color, roughness: 0.85, transparent: opacity < 1, opacity: opacity, side: THREE.DoubleSide, depthWrite: opacity >= 1 });\n',
             '    const mesh = new THREE.Mesh(geo, mat);\n',
             '    scene.add(mesh);\n',
+            '    g3TwoPass(mesh);\n',
             '    const obj = { name: d.name, n: n, mesh: mesh, type: d.type || \'heightfield\', activeExpr: d.activeExpr, active: d.active !== false };\n',
             '    if (obj.type === \'parametric\') {\n',
             '      obj.xAst = g3SafeParse(d.xExpr); obj.yAst = g3SafeParse(d.yExpr); obj.zAst = g3SafeParse(d.zExpr);\n',
@@ -20742,8 +20765,16 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '    const geo = new THREE.BufferGeometry();\n',
             '    geo.setAttribute(\'position\', new THREE.BufferAttribute(new Float32Array(4 * 3), 3));\n',
             '    geo.setIndex([0, 1, 2, 0, 2, 3]);\n',
-            '    const mat = new THREE.MeshStandardMaterial({ color: color, roughness: 0.6, transparent: opacity < 1, opacity: opacity, side: THREE.DoubleSide, depthWrite: opacity >= 1 });\n',
+            '    const mat = new THREE.MeshStandardMaterial({ color: color, roughness: 1, metalness: 0, transparent: opacity < 1, opacity: opacity, side: THREE.DoubleSide, depthWrite: opacity >= 1, polygonOffset: true, polygonOffsetFactor: 2, polygonOffsetUnits: 2 });\n',
             '    const mesh = new THREE.Mesh(geo, mat);\n',
+            '    geo.setAttribute(\'uv\', new THREE.BufferAttribute(new Float32Array([0, 0, 1, 0, 1, 1, 0, 1]), 2));\n',
+            '    if (d.fade) {\n',
+            '      const cv = document.createElement(\'canvas\'); cv.width = cv.height = 128;\n',
+            '      const cx2 = cv.getContext(\'2d\'); const gr = cx2.createRadialGradient(64, 64, 0, 64, 64, 64);\n',
+            '      gr.addColorStop(0, \'#fff\'); gr.addColorStop(0.55, \'#bbb\'); gr.addColorStop(1, \'#000\');\n',
+            '      cx2.fillStyle = gr; cx2.fillRect(0, 0, 128, 128);\n',
+            '      mat.alphaMap = new THREE.CanvasTexture(cv); mat.transparent = true; mat.depthWrite = false; mat.needsUpdate = true;\n',
+            '    }\n',
             '    scene.add(mesh);\n',
             '    let edges = null;\n',
             '    if (d.grid) {\n',
@@ -20752,7 +20783,7 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '      edges = new THREE.LineLoop(eGeo, new THREE.LineBasicMaterial({ color: color }));\n',
             '      scene.add(edges);\n',
             '    }\n',
-            '    return { name: d.name, pts: pts, mesh: mesh, edges: edges, size: size, activeExpr: d.activeExpr, active: d.active !== false };\n',
+            '    return { name: d.name, pts: pts, mesh: mesh, edges: edges, size: size, fade: !!d.fade, activeExpr: d.activeExpr, active: d.active !== false };\n',
             '  }).filter(function(x) { return x !== null; });\n',
             '\n',
             '  function updateInfPlane(po) {\n',
@@ -20764,7 +20795,7 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '    // Ортонормированный базис плоскости: e1 вдоль AB, e2 — перпендикуляр в той же плоскости.\n',
             '    const e1 = u.clone().normalize();\n',
             '    const e2 = new THREE.Vector3().crossVectors(nrm.clone().normalize(), e1).normalize();\n',
-            '    const center = A.clone().add(B).add(C).multiplyScalar(1 / 3);\n',
+            '    const center = po.fade ? A.clone() : A.clone().add(B).add(C).multiplyScalar(1 / 3);\n',
             '    const s = po.size;\n',
             '    const corners = [\n',
             '      center.clone().addScaledVector(e1, -s).addScaledVector(e2, -s),\n',

@@ -11,7 +11,7 @@ camera type = fixed;
 draw Graph { name = "gAll"; graph = "ga"; nodeColor = #6b7280; edgeColor = #4b5563; nodeRadius = 10; directed = true; interactive = false; showWeights = false; layer = 5 }
 draw Graph { name = "gEnc"; graph = "ge"; nodeColor = #f59e0b; edgeColor = #f59e0b; edgeWidth = 3.5; nodeRadius = 12; directed = true; interactive = false; showWeights = false; layer = 10 }
 draw Graph { name = "gC"; graph = "gcc"; nodeColor = #22c55e; nodeRadius = 12; labels = true; interactive = false; showWeights = false; layer = 11 }
-draw Graph { name = "gDec"; graph = "gd"; edgeColor = #22c55e; edgeWidth = 3.5; nodeRadius = 0; labels = false; directed = true; interactive = false; showWeights = false; layer = 9 }
+draw Graph { name = "gDec"; graph = "gd"; nodeColor = "transparent"; edgeColor = #22c55e; edgeWidth = 3.5; nodeRadius = 13; labels = false; directed = true; interactive = false; showWeights = false; layer = 12 }
 
 new UI { name = "sPQ"; type = select; label = "p, q"; variable = pq; options = (35, 37, 57, 311, 511, 711); labels = ("p = 3, q = 5", "p = 3, q = 7", "p = 5, q = 7", "p = 3, q = 11", "p = 5, q = 11", "p = 7, q = 11"); default = 511 }
 new UI { name = "sM"; type = slider; label = "сообщение m"; variable = m; min = 0; max = n - 1; step = 1; default = 12 }
@@ -49,10 +49,9 @@ Update {
     addNode(ge, format(m, 0), [R() * cos(ang(m)), R() * sin(ang(m))]);
     addNode(gcc, format(c, 0), [R() * cos(ang(c)), R() * sin(ang(c))]);
     if (c != m) {
-      // шифрование — по кругу узлов, расшифрование — по внутреннему кругу (чтобы стрелки не слились)
-      addNode(ge, "c", [R() * cos(ang(c)), R() * sin(ang(c))], ""); addEdge(ge, format(m, 0), "c");
-      float r2 = R() - 0.75;
-      addNode(gd, "c", [r2 * cos(ang(c)), r2 * sin(ang(c))]); addNode(gd, "m", [r2 * cos(ang(m)), r2 * sin(ang(m))]); addEdge(gd, "c", "m");
+      // встречные рёбра одного графа расходятся дугами: шифрование — оранжевая, расшифрование — зелёная
+      addNode(gd, "m", [R() * cos(ang(m)), R() * sin(ang(m))], ""); addNode(gd, "c", [R() * cos(ang(c)), R() * sin(ang(c))], "");
+      addEdge(gd, "m", "c", 1, "#f59e0b"); addEdge(gd, "c", "m", 1, "#22c55e");
     }
     lastM = m;
   }
