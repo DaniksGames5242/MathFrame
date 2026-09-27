@@ -7363,7 +7363,7 @@ id: <идентификатор> | title: <название темы> | type: <�
     return out;
   }
 
-  async function aiGenerateOne(ctx, node, topicIndex, stemIdx, doLinks, onStep, onLive){
+  async function aiGenerateOne(ctx, node, topicIndex, stemIdx, doLinks, onStep, onLive, partialCache){
     const sec = aiSection(ctx.section);
     onStep = onStep || function(){};
     // Only wired into the main creative-writing calls (the ones long/
@@ -7371,10 +7371,26 @@ id: <идентификатор> | title: <название темы> | type: <�
     // (check/format/candidates/links) — keeps the added complexity to
     // where it actually earns its keep instead of every single request.
     onLive = onLive || function(){};
+    // Falls back to a throwaway Map for any caller that doesn't pass one
+    // (e.g. ad-hoc/manual use) — just means checkpointing is a no-op there,
+    // never a crash.
+    partialCache = partialCache || new Map();
     const isFolder = node.type === 'folder';
     const isTheorem = node.type === 'theorem';
     const isProof = node.type === 'proof';
     let formatted;
+
+    // Checkpoint: if a *previous attempt* at this same topic (within this
+    // run) already got as far as producing `formatted` before failing at a
+    // later stage (links, a transient network error, ...), reuse it instead
+    // of redoing the expensive draft/check/format calls that already
+    // succeeded — this is what used to make one topic silently regenerate
+    // its draft several times over on retries.
+    const checkpoint = partialCache.get(node.topicId);
+    if (checkpoint && typeof checkpoint.formatted === 'string'){
+      formatted = checkpoint.formatted;
+      onStep('черновик уже был готов на предыдущей попытке — пропускаем генерацию заново', { label: 'Восстановлено после ошибки', text: formatted });
+    } else {
 
     // Fetched once per topic, reused by every search-requesting call below
     // (main text, proof, links) — see aiWikiGroundFor and the Mistral
@@ -7479,8 +7495,12 @@ id: <идентификатор> | title: <название темы> | type: <�
       formatted = await aiCompleteRetry(ctx, aiPromptFormat(sec), checked, { maxTokens: 4096, label: 'форматирование' });
       onStep('форматирование — готово', { label: 'После форматирования (HTML)', text: formatted });
     }
+    // Checkpoint reached: whatever happens from here (links), a retry of
+    // this topic can skip straight back to here instead of regenerating.
+    partialCache.set(node.topicId, { formatted });
+    }
 
-    if (!doLinks){ onStep('готово (без ссылок)'); return formatted; }
+    if (!doLinks){ partialCache.delete(node.topicId); onStep('готово (без ссылок)'); return formatted; }
 
     onStep('подбор кандидатов на ссылки (локально)…');
     const plain = htmlToPlainForMatching(formatted);
@@ -7506,7 +7526,7 @@ id: <идентификатор> | title: <название темы> | type: <�
     }
 
     const candidates = [...exact, ...loose].filter(t => t.id !== node.topicId);
-    if (!candidates.length){ onStep('готово (подходящих кандидатов на ссылки не найдено)'); return formatted; }
+    if (!candidates.length){ partialCache.delete(node.topicId); onStep('готово (подходящих кандидатов на ссылки не найдено)'); return formatted; }
 
     onStep('расстановка ссылок (кандидатов: ' + candidates.length + ')…');
     const linked = await aiCompleteRetry(ctx, AI_PROMPT_LINKS,
@@ -7518,6 +7538,7 @@ id: <идентификатор> | title: <название темы> | type: <�
     const linkCount = (sanitized.match(/<a href="topic:/g) || []).length;
     const extCount = (sanitized.match(/<a href="https:\/\//g) || []).length;
     onStep('готово — ссылок на темы: ' + linkCount + (extCount ? ', внешних: ' + extCount : ''), { label: 'Итог, со ссылками', text: sanitized });
+    partialCache.delete(node.topicId);
     return sanitized;
   }
 
@@ -7901,6 +7922,15 @@ theorem (Теорема) — узел, целиком посвящённый о�
     // into. Not persisted: a fresh start/resume always gets the full
     // configured thread count again, on the assumption that whatever caused
     // the rate limiting last time may no longer apply.
+    // A topic that fails late (links step, a transient network blip, etc.)
+    // used to restart aiGenerateOne completely on the next attempt — redoing
+    // the expensive draft/check/format calls that had already succeeded,
+    // sometimes several times in a row. Keyed by topicId, scoped to this one
+    // run (fresh Map per aiRunJob call — a page reload naturally starts
+    // clean rather than risking stale cached HTML from a run that never
+    // finished), so a retry can pick up right after the last completed
+    // stage instead of from the top. See aiGenerateOne's use of it.
+    const aiPartialCache = new Map();
     const keyLimit = startKeys.map(() => threadsPerKey);
     const reduceKeyThreads = (k) => {
       if (keyLimit[k] <= 1) return;
@@ -8142,8 +8172,10 @@ theorem (Теорема) — узел, целиком посвящённый о�
           // Whole-topic retry, on top of the per-request retries inside
           // aiCompleteRetry: any failure anywhere in the pipeline (including one
           // caused by another device grabbing the lease mid-run, or a connection
-          // dropped by switching devices) restarts this topic from the top,
-          // rather than giving up on it and moving to the next one.
+          // dropped by switching devices) retries this topic rather than giving
+          // up on it and moving to the next one. aiGenerateOne itself resumes
+          // from its last completed checkpoint (see aiPartialCache) instead of
+          // regenerating the draft from scratch on every attempt.
           let html = null, errMsg = null, failed = false, lastErr = null;
           let attempts = spentAttempts;
           while (attempts < MAX_TOPIC_ATTEMPTS){
@@ -8164,7 +8196,7 @@ theorem (Теорема) — узел, целиком посвящённый о�
               html = mode === 'normalize' ? await aiNormalizeOne(attemptCtx, node, onStep, onLive)
                 : mode === 'clarify' ? await aiClarifyOne(attemptCtx, node, onStep, onLive)
                 : mode === 'types' ? await aiTypesOne(attemptCtx, node, onStep, onLive)
-                : await aiGenerateOne(attemptCtx, node, topicIndex, stemIdx, job.settings.links, onStep, onLive);
+                : await aiGenerateOne(attemptCtx, node, topicIndex, stemIdx, job.settings.links, onStep, onLive, aiPartialCache);
               errMsg = null; lastErr = null;
             } catch (err){
               failed = true; lastErr = err;
