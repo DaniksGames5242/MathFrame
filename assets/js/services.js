@@ -562,12 +562,81 @@
     return s.replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; });
   }
   function renderSteps(container, steps) {
-    container.innerHTML = '';
-    steps.forEach(function (s, i) {
-      var row = el('div', 'alg-step', container);
-      el('span', 'alg-step-num', row, String(i + 1));
-      el('span', 'alg-step-tex', row).innerHTML = texToHtml(s.tex);
+    renderSolution(container, steps, { detail: 'normal', explain: false, columns: false });
+  }
+  // Текст пояснения: обычный текст + формулы внутри $…$.
+  function richText(str) {
+    return String(str).split(/(\$[^$]+\$)/).map(function (part) {
+      return /^\$[^$]+\$$/.test(part) ? texToHtml(part.slice(1, -1)) : escapeHtml(part);
+    }).join('');
+  }
+  function renderColumn(col) {
+    var box = el('div', 'alg-col');
+    var grid = el('div', 'alg-col-grid', box);
+    col.rows.forEach(function (r) {
+      var row = el('div', 'alg-col-row' + (r.cls ? ' ' + r.cls : ''), grid);
+      if (col.kind === 'grid' && !col.side) el('span', 'sg', row, r.sign || '');
+      r.cells.forEach(function (ch, i) {
+        var c = el('span', 'c' + (ch === '.' || ch === '' ? ' pt' : '') + (r.u && i >= r.u[0] && i <= r.u[1] ? ' u' : ''), row);
+        c.textContent = ch === '.' ? ',' : ch;
+      });
     });
+    if (col.side) {
+      var side = el('div', 'alg-col-side', box);
+      el('div', null, side, col.side[0]);
+      el('div', null, side, col.side[1].replace('.', ','));
+    }
+    if (col.note) el('div', 'alg-col-note', box, col.note);
+    return box;
+  }
+  // Показ решения с учётом настроек: detail = brief | normal | full,
+  // explain — пояснения словами, columns — вычисления в столбик.
+  function renderSolution(container, steps, set) {
+    container.innerHTML = '';
+    var maxLvl = set.detail === 'brief' ? 0 : set.detail === 'full' ? 2 : 1;
+    if (set.detail === 'brief') {
+      var line = el('div', 'alg-brief', container), first = true;
+      (function walk(list) {
+        list.forEach(function (s) {
+          if (s.group) { walk(s.steps); return; }
+          if (s.lvl > 0) return;
+          var tex = s.briefTex || s.tex;
+          if (!tex) {
+            // короткие «вердикты» без формулы (посторонний корень и т.п.) — мелким текстом
+            if (/посторонн|не подходит|решений нет|отбрасываем|не входит/.test(s.text)) el('span', 'btext', line).innerHTML = richText(s.text.replace(/\s*[—(].*$/, ''));
+            return;
+          }
+          if (!first) el('span', 'arrow', line, '⇒');
+          el('span', 'alg-step-tex', line).innerHTML = texToHtml(tex);
+          first = false;
+        });
+      })(steps);
+      return;
+    }
+    var n = 0;
+    (function walk(list, host) {
+      list.forEach(function (s) {
+        if (s.lvl > maxLvl) return;
+        if (s.group) {
+          var g = el('div', 'alg-group', host);
+          el('div', 'alg-group-h', g).innerHTML = richText(s.group);
+          walk(s.steps, g);
+          if (!g.querySelector('.alg-step')) g.remove();
+          return;
+        }
+        var text = (set.detail === 'full' && s.textFull) ? s.textFull : s.text;
+        if (!s.tex && (!set.explain || !text)) return;
+        var row = el('div', 'alg-step' + (s.tex ? '' : ' note'), host);
+        el('span', 'alg-step-num', row, s.tex ? String(++n) : '•');
+        var body = el('div', 'alg-step-body', row);
+        if (s.tex) el('div', 'alg-step-tex', body).innerHTML = texToHtml(s.tex);
+        if (set.explain && text) el('div', 'alg-step-text', body).innerHTML = richText(text);
+        if (set.columns && s.cols && s.cols.length) {
+          var cw = el('div', 'alg-cols', body);
+          s.cols.forEach(function (c) { if (c) cw.appendChild(renderColumn(c)); });
+        }
+      });
+    })(steps, container);
   }
 
   /* ======================================================================
@@ -620,24 +689,109 @@
       var systemMethod = 'gauss';
       var equationMethod = 'discriminant';
 
+      /* ---- настройки решения (запоминаются в браузере) ---- */
+      var SET_KEY = 'mf-alg-settings';
+      var set = { detail: 'normal', explain: true, columns: false, check: true, dec: false };
+      try { var saved = JSON.parse(localStorage.getItem(SET_KEY) || 'null'); if (saved) for (var sk in saved) if (sk in set) set[sk] = saved[sk]; } catch (e) {}
+      function saveSet() { try { localStorage.setItem(SET_KEY, JSON.stringify(set)); } catch (e) {} }
+      var optsBox = el('div', 'alg-opts');
+      p.insertBefore(optsBox, badge);
+      function seg(label, key, items) {
+        var w = el('div', 'alg-opt', optsBox);
+        el('span', 'alg-opt-lbl', w, label);
+        var sg = el('div', 'alg-seg', w);
+        items.forEach(function (it) {
+          var b = el('button', null, sg, it[1]); b.type = 'button';
+          b.addEventListener('click', function () {
+            set[key] = it[0];
+            if (key === 'detail') set.columns = it[0] === 'full' ? true : (it[0] === 'brief' ? false : set.columns);
+            saveSet(); syncOpts(); recompute();
+          });
+          b.dataset.v = String(it[0]);
+        });
+        return sg;
+      }
+      function tog(label, key, title) {
+        var l = el('label', 'alg-opt alg-tog', optsBox); l.title = title || '';
+        var i = el('input', null, l); i.type = 'checkbox';
+        el('span', null, l, label);
+        i.addEventListener('change', function () { set[key] = i.checked; saveSet(); recompute(); });
+        return i;
+      }
+      var segDetail = seg('Решение', 'detail', [['brief', 'Кратко'], ['normal', 'Обычно'], ['full', 'Подробно']]);
+      var segNum = seg('Числа', 'dec', [[false, 'Дроби'], [true, 'Десятичные']]);
+      var tExplain = tog('Пояснения словами', 'explain', 'Под каждой формулой — что и почему сделано');
+      var tCols = tog('Столбиком', 'columns', 'Показывать вычисления в столбик и деление уголком');
+      var tCheck = tog('Проверка', 'check', 'Подставлять найденные корни в исходное уравнение');
+      function syncOpts() {
+        [segDetail, segNum].forEach(function (sg, i) {
+          var key = i ? 'dec' : 'detail';
+          Array.prototype.forEach.call(sg.children, function (b) { b.classList.toggle('on', b.dataset.v === String(set[key])); });
+        });
+        tExplain.checked = set.explain; tCols.checked = set.columns; tCheck.checked = set.check;
+        var brief = set.detail === 'brief';
+        [tExplain, tCols, tCheck].forEach(function (i) { i.disabled = brief; i.parentNode.style.opacity = brief ? .45 : ''; });
+      }
+      syncOpts();
+      var checkWrap = el('div', 'alg-check');
+      p.insertBefore(checkWrap, answerWrap.nextSibling);
+
+      function renderSolverResult(res) {
+        checkWrap.hidden = true; checkWrap.innerHTML = '';
+        if (res.error) { setBadge(res.internal ? 'Ошибка' : 'Не получилось решить'); showError(res.error.replace(/\$([^$]+)\$/g, function (_, t) { return latexToPlainText(t).replace(/\\[a-z]+\s?/g, ''); })); errWrap.innerHTML = richText('Не получилось: ' + res.error); return; }
+        setBadge(res.badge, res.kind);
+        methodRow.hidden = true; methodRow.innerHTML = '';
+        if (res.methods && res.methods.list.length > 1 && set.detail !== 'brief') {
+          methodRow.hidden = false;
+          res.methods.list.forEach(function (m) {
+            var b = el('button', 'geo-subchip', methodRow, m.label); b.type = 'button';
+            b.classList.toggle('on', m.id === res.methods.current);
+            b.addEventListener('click', function () {
+              if (res.methods.key === 'quad') equationMethod = m.id; else systemMethod = m.id;
+              recompute();
+            });
+          });
+        }
+        renderSolution(stepsWrap, res.steps, set);
+        answerWrap.innerHTML = '';
+        var a = res.answer;
+        el('div', 'alg-answer-label', answerWrap, a.label || 'Ответ');
+        a.items.forEach(function (it) {
+          var row = el('div', 'alg-answer-root', answerWrap);
+          el('span', 'alg-answer-big', row).innerHTML = texToHtml(it.tex);
+          if (it.approx) el('span', 'alg-answer-approx', row, (it.approxExact ? '= ' : '≈ ') + it.approx);
+        });
+        (a.extra || []).forEach(function (x) { el('div', 'alg-answer-approx', answerWrap).innerHTML = richText(x); });
+        if (a.note) el('div', 'alg-answer-note', answerWrap).innerHTML = richText(a.note);
+        if (set.check && set.detail !== 'brief' && res.check && res.check.length) {
+          checkWrap.hidden = false;
+          el('div', 'alg-check-h', checkWrap, 'Проверка');
+          res.check.forEach(function (c) {
+            var ok = isFinite(c.l) && isFinite(c.rr) && Math.abs(c.l - c.rr) < 1e-7 * Math.max(1, Math.abs(c.l));
+            var fmtV = function (x) { return MFSolver._t.numTex(x).tex; };
+            el('div', null, checkWrap).innerHTML = richText('$' + c.v + ' = ' + c.r.tex + '$: левая часть $= ' + fmtV(c.l) + '$, правая $= ' + fmtV(c.rr) + '$ ' + (ok ? '— верно ✓' : '— не совпадает ✗'));
+          });
+        }
+      }
+
       var aboutBtn = el('button', 'mini alg-about-btn', p, 'Что умеет этот калькулятор');
       aboutBtn.type = 'button';
       var aboutBox = el('div', 'alg-about', p);
       aboutBox.hidden = true;
       aboutBox.innerHTML =
-        '<p><b>Точно решает:</b> линейные и квадратные уравнения (с выбором способа — ' +
-        'дискриминант / выделение полного квадрата / теорема Виета, где применимо); ' +
-        'линейные и квадратные неравенства (со знаком, включая разворот при делении на ' +
-        'отрицательное); линейные системы любого размера — можно выбрать способ ' +
-        '(метод Гаусса, Крамера, матричный — для квадратных систем; подстановка и ' +
-        'сложение — для систем 2×2); нелинейную систему из 2 уравнений с 2 переменными ' +
-        '(окружности, параболы и т.п. — численно, с явной пометкой); упрощение многочленов ' +
-        'от одной переменной; линейное уравнение с двумя переменными — выражает одну через ' +
-        'другую; арифметику с корнями и дробями символьно, включая избавление от ' +
-        'иррациональности в знаменателе (например, 1/(√5−2) = 2+√5, а не приближённое число).</p>' +
-        '<p><b>Решает численно</b> (с пометкой об этом): уравнения и неравенства ' +
-        'степени 3 и выше, а также нелинейные (например, с sin, ln) — корни ' +
-        'находятся приближённо, без формулы в шагах.</p>' +
+        '<p><b>Точно и по шагам решает:</b> вычисления с дробями, корнями и огромными целыми (2^100, 30!); ' +
+        'линейные, квадратные (6 способов на выбор) и уравнения высших степеней (вынесение множителя, замена, ' +
+        'подбор рационального корня со схемой Горнера); дробно-рациональные (с ОДЗ и отсевом посторонних корней); ' +
+        'иррациональные (уединение корня, возведение в степень, проверка); с модулем; показательные и ' +
+        'логарифмические (одно основание, замена, свойства логарифмов, log_2(x) через «_»); тригонометрические ' +
+        '(серии решений, замена, тождества, двойной угол, однородные, вспомогательный угол); неравенства методом ' +
+        'интервалов; системы линейных уравнений (подстановка, сложение, Гаусс, Крамер) и нелинейные (подстановка, ' +
+        'замена степеней, вычитание); системы с условиями-неравенствами; упрощение и разложение на множители.</p>' +
+        '<p><b>Настройки решения:</b> «Кратко» — только цепочка ключевых преобразований; «Обычно» — шаги с ' +
+        'пояснениями; «Подробно» — ещё и промежуточная арифметика, вычисления в столбик и деление уголком. ' +
+        'Пояснения, столбики, проверку и формат чисел можно включать отдельно.</p>' +
+        '<p><b>Численно</b> (с честным объяснением, почему формулы нет) — только то, что точно не решается: ' +
+        'например x = cos x или 2^x = x + 2. Периодические корни выписываются серией.</p>' +
         '<p><b>Комплексные числа:</b> как только в поле появляется «i» (клавиша есть ' +
         'на клавиатуре), калькулятор целиком переключается на арифметику в ℂ — ' +
         'вычисление, упрощение, линейные и квадратные уравнения (здесь они <b>всегда</b> ' +
@@ -721,9 +875,11 @@
         // из двух разных числовых систем в одном ответе.
         var isComplex = mf.field.hasNode(function (n) { return n.t === 'ch' && n.v === 'i'; });
 
+        checkWrap.hidden = true;
         if (sysRows !== null) {
           if (isComplex) { analyzeComplexSystem(sysRows); return; }
-          analyzeSystem(sysRows);
+          stepsWrap.innerHTML = ''; answerWrap.innerHTML = ''; methodRow.hidden = true;
+          renderSolverResult(MFSolver.solve({ rows: sysRows }, { dec: set.dec, pref: { quad: equationMethod, sys: systemMethod } }));
           return;
         }
 
@@ -735,372 +891,7 @@
         var isVector = mf.field.hasNode(function (n) { return n.t === 'accent' && n.kind === 'vec'; });
         if (isVector) { analyzeVector(linear); return; }
 
-        var rel;
-        try { rel = MFAlgebra.splitRelation(linear); } catch (e) { rel = null; }
-
-        try {
-          if (!rel) analyzeExpression(linear);
-          else analyzeRelation(rel);
-        } catch (e) {
-          showError('Не получилось разобрать ввод: ' + e.message);
-        }
-      }
-
-      function analyzeExpression(linear) {
-        var ast;
-        try { ast = MFMath.parse(linear); } catch (e) { showError('Не удалось разобрать выражение'); return; }
-        var vars = MFMath.varsIn(ast).filter(function (v) { return MFMath.CONSTS[v] === undefined; });
-
-        if (!vars.length) {
-          setBadge('Вычисление', 'calc');
-          var trace = MFAlgebra.traceEvalSteps(ast);
-          renderSteps(stepsWrap, trace);
-          var value;
-          try { value = MFMath.evalAst(ast, {}); } catch (e) { showError('Ошибка вычисления'); return; }
-          if (!isFinite(value)) { showError('Выражение не определено (деление на 0 или похожее)'); return; }
-          numAnswer(value, ast);
-          return;
-        }
-
-        setBadge('Упрощение выражения', 'simplify');
-        if (vars.length === 1) {
-          var poly = MFAlgebra.polyOf(ast, vars[0]);
-          if (poly) {
-            renderSteps(stepsWrap, [{ tex: MFMath.tex(ast) }, { tex: MFAlgebra.polyToTex(poly, vars[0]) }]);
-            answerWrap.innerHTML = '';
-            el('div', 'alg-answer-label', answerWrap, 'Максимально упрощено');
-            el('div', 'alg-answer-big', answerWrap).innerHTML = texToHtml(MFAlgebra.polyToTex(poly, vars[0]));
-            return;
-          }
-        }
-        // многомерное / не-многочлен — базовое упрощение, честно помечаем предел возможностей
-        var simp = MFMath.simplify(ast);
-        renderSteps(stepsWrap, [{ tex: MFMath.tex(ast) }, { tex: MFMath.tex(simp) }]);
-        answerWrap.innerHTML = '';
-        el('div', 'alg-answer-label', answerWrap, 'Упрощено');
-        el('div', 'alg-answer-big', answerWrap).innerHTML = texToHtml(MFMath.tex(simp));
-        if (vars.length > 1) el('div', 'alg-answer-approx', answerWrap,
-          'переменные: ' + vars.join(', ') + ' — для нескольких переменных упрощение базовое');
-      }
-
-      function analyzeRelation(rel) {
-        var lhsAst, rhsAst;
-        try { lhsAst = MFMath.parse(rel.lhs); rhsAst = MFMath.parse(rel.rhs); }
-        catch (e) { showError('Не удалось разобрать уравнение/неравенство'); return; }
-        var diff = { t: '-', a: lhsAst, b: rhsAst };
-        var vars = MFMath.varsIn(diff).filter(function (v) { return MFMath.CONSTS[v] === undefined; });
-        var isEq = rel.op === '=';
-
-        if (!vars.length) {
-          // числовое утверждение вроде "2+2=4" — просто проверяем истинность
-          var lv, rv;
-          try { lv = MFMath.evalAst(lhsAst, {}); rv = MFMath.evalAst(rhsAst, {}); }
-          catch (e) { showError('Ошибка вычисления'); return; }
-          setBadge('Проверка равенства/неравенства', 'calc');
-          var holds = ({ '=': lv === rv, '<': lv < rv, '>': lv > rv, '≤': lv <= rv, '≥': lv >= rv, '≠': lv !== rv })[rel.op];
-          renderSteps(stepsWrap, [{ tex: MFMath.tex(lhsAst) + relTexLocal(rel.op) + MFMath.tex(rhsAst) },
-                                    { tex: MFMath.fmtNum(lv) + relTexLocal(rel.op) + MFMath.fmtNum(rv) }]);
-          answerWrap.innerHTML = '';
-          el('div', 'alg-answer-label', answerWrap, 'Ответ');
-          el('div', 'alg-answer-big', answerWrap, holds ? 'Верно' : 'Неверно');
-          return;
-        }
-
-        if (vars.length === 1) {
-          var v = vars[0];
-          var poly = MFAlgebra.polyOf(diff, v);
-          if (isEq) {
-            setBadge('Уравнение', 'eq');
-            var res;
-            if (poly && poly.length - 1 === 2) {
-              // Квадратное уравнение — тот же принцип выбора метода, что и у
-              // систем (см. ниже analyzeSystem): дискриминант и полный
-              // квадрат — общие приёмы, работают для ЛЮБОГО квадратного
-              // уравнения, а вот теорема Виета — только когда для НЕЁ ЖЕ
-              // самой нашлись целые корни (проверяем реальным вызовом, а не
-              // предполагаем «раз уравнение квадратное — Виета подойдёт»).
-              var eqCandidates = [
-                { id: 'discriminant', label: 'Дискриминант', fn: MFAlgebra.solveEquationPoly },
-                { id: 'completeSquare', label: 'Полный квадрат', fn: MFAlgebra.solveQuadraticCompleteSquare },
-                { id: 'vieta', label: 'Теорема Виета', fn: MFAlgebra.solveQuadraticVieta }
-              ];
-              var eqMethods = eqCandidates.map(function (m) {
-                return { id: m.id, label: m.label, result: m.fn(poly, v) };
-              }).filter(function (m) { return m.result; });
-              methodRow.hidden = false;
-              methodRow.innerHTML = '';
-              eqMethods.forEach(function (m) {
-                var b = el('button', 'geo-subchip', methodRow, m.label);
-                b.type = 'button';
-                b.classList.toggle('on', m.id === equationMethod);
-                b.addEventListener('click', function () { equationMethod = m.id; recompute(); });
-              });
-              var chosenEq = eqMethods.filter(function (m) { return m.id === equationMethod; })[0] || eqMethods[0];
-              equationMethod = chosenEq.id;
-              res = chosenEq.result;
-            } else {
-              methodRow.hidden = true;
-              if (poly) res = MFAlgebra.solveEquationPoly(poly, v);
-              else res = numericEquationFallback(diff, v);
-            }
-            renderSteps(stepsWrap, [{ tex: MFMath.tex(lhsAst) + ' = ' + MFMath.tex(rhsAst) }].concat(res.steps));
-            renderEquationAnswer(res, v);
-          } else {
-            methodRow.hidden = true;
-            setBadge('Неравенство', 'ineq');
-            var ires;
-            if (poly && poly.length - 1 <= 1) ires = MFAlgebra.solveInequalityLinear(poly, v, rel.op);
-            else if (poly && poly.length - 1 === 2) ires = MFAlgebra.solveInequalityQuadratic(poly, v, rel.op);
-            else ires = numericInequalityFallback(diff, v, rel.op);
-            renderSteps(stepsWrap, [{ tex: MFMath.tex(lhsAst) + relTexLocal(rel.op) + MFMath.tex(rhsAst) }].concat(ires.steps || []));
-            renderInequalityAnswer(ires, v);
-          }
-          return;
-        }
-
-        if (vars.length === 2 && isEq) {
-          var aff = MFAlgebra.affineOf(diff, vars);
-          if (aff) {
-            setBadge('Уравнение с двумя переменными', 'eq');
-            var v0 = vars[0], v1 = vars[1];
-            var k0 = aff.coeffs[v0] || 0, k1 = aff.coeffs[v1] || 0;
-            if (Math.abs(k0) < 1e-9 && Math.abs(k1) < 1e-9) { showError('Не удалось выразить переменные'); return; }
-            var exprVar = Math.abs(k0) >= 1e-9 ? v0 : v1;
-            var otherVar = exprVar === v0 ? v1 : v0;
-            var kExpr = aff.coeffs[exprVar], kOther = aff.coeffs[otherVar] || 0, cst = aff.const;
-            // exprVar = -(kOther*otherVar + cst) / kExpr
-            var tex1 = exprVar + ' = \\frac{-(' + MFMath.fmtNum(kOther) + otherVar + ' + (' + MFMath.fmtNum(cst) + '))}{' + MFMath.fmtNum(kExpr) + '}';
-            renderSteps(stepsWrap, [{ tex: MFMath.tex(lhsAst) + ' = ' + MFMath.tex(rhsAst) }, { tex: tex1 }]);
-            answerWrap.innerHTML = '';
-            el('div', 'alg-answer-label', answerWrap, 'Одно уравнение, две переменные — выражаем одну через другую');
-            el('div', 'alg-answer-big', answerWrap).innerHTML = texToHtml(tex1);
-            return;
-          }
-        }
-        showError('Такое уравнение/неравенство пока не поддерживается (переменных: ' + vars.length + ')');
-      }
-
-      function relTexLocal(op) { return op === '≤' ? '\\le' : op === '≥' ? '\\ge' : op === '≠' ? '\\ne' : op; }
-
-      function numericEquationFallback(diff, v) {
-        var f = function (x) { return MFMath.evalAst(diff, (function () { var o = {}; o[v] = x; return o; })()); };
-        var rs = MFMath.roots(f, -1e4, 1e4, 20000);
-        return { kind: 'numeric', steps: [{ tex: '\\text{решаем численно — формула недоступна для такого вида}' }], roots: rs };
-      }
-      function numericInequalityFallback(diff, v, op) {
-        var f = function (x) { return MFMath.evalAst(diff, (function () { var o = {}; o[v] = x; return o; })()); };
-        var nr = MFAlgebra.solveInequalityNumeric(f, op, -1e4, 1e4);
-        return { kind: 'numeric', steps: [{ tex: '\\text{решаем численно — формула недоступна для такого вида}' }], segments: nr.segments };
-      }
-
-      function renderEquationAnswer(res, v) {
-        answerWrap.innerHTML = '';
-        if (res.kind === 'identity') { el('div', 'alg-answer-big', answerWrap, 'Верно при любом ' + v + ' (тождество)'); return; }
-        if (res.kind === 'contradiction') { el('div', 'alg-answer-big', answerWrap, 'Решений нет'); return; }
-        var roots = res.roots || [];
-        if (!roots.length) { el('div', 'alg-answer-big', answerWrap, 'Действительных решений нет'); return; }
-        el('div', 'alg-answer-label', answerWrap, roots.length > 1 ? 'Корни' : 'Ответ');
-        roots.forEach(function (r, i) {
-          var row = el('div', 'alg-answer-root', answerWrap);
-          if (Number.isInteger(r)) {
-            el('span', 'alg-answer-big', row).innerHTML = texToHtml(v + ' = ' + MFMath.fmtNum(r));
-            return;
-          }
-          // Квадратное уравнение с иррациональными корнями — точная форма это
-          // (-b ± √D)/2a, а НЕ отдельно взятая дробь или корень от самого r
-          // (r² в общем случае тоже иррационален, так что «просто корень из r²»
-          // здесь не работает в принципе — нужен контекст исходного b/D/2a).
-          var exactTex, approxStr, isExactDecimal;
-          if (res.kind === 'quadratic' && res.exactRadical) {
-            var sign = i === 0 ? 1 : -1;
-            exactTex = MFAlgebra.quadraticRootTex(res.exactRadical.b, res.exactRadical.D, res.exactRadical.a2, sign);
-            approxStr = MFMath.fmtNum(r, 10);
-            isExactDecimal = false;   // если бы десятичная запись была точной, quadraticRootTex сам вернул бы целое/дробь без √
-          } else {
-            var e = MFAlgebra.exactAnswerTex(r);
-            exactTex = e.exact; approxStr = e.approx; isExactDecimal = e.isExactDecimal;
-          }
-          el('span', 'alg-answer-big', row).innerHTML = texToHtml(v + ' = ' + exactTex);
-          if (approxStr) el('span', 'alg-answer-approx', row, (isExactDecimal ? '= ' : '≈ ') + approxStr);
-        });
-        if (res.kind === 'numeric') el('div', 'alg-answer-note', answerWrap, 'найдено численно');
-      }
-      function renderInequalityAnswer(res, v) {
-        answerWrap.innerHTML = '';
-        el('div', 'alg-answer-label', answerWrap, 'Ответ');
-        if (res.kind === 'numeric') {
-          if (!res.segments.length) { el('div', 'alg-answer-big', answerWrap, 'Решений нет'); return; }
-          var txt = res.segments.map(function (s) {
-            return (s.lo === -Infinity ? '(-∞' : '(' + MFMath.fmtNum(s.lo)) + '; ' + (s.hi === Infinity ? '+∞)' : MFMath.fmtNum(s.hi) + ')');
-          }).join(' ∪ ');
-          el('div', 'alg-answer-big', answerWrap, v + ' ∈ ' + txt);
-          el('div', 'alg-answer-note', answerWrap, 'найдено численно');
-          return;
-        }
-        var region = res.region !== undefined ? res.region : MFAlgebra.intervalToTex(res.op, res.bound, MFMath.fmtNum(res.bound));
-        var regionTex = res.region !== undefined ? MFAlgebra.regionToTex(res.region) : region;
-        el('div', 'alg-answer-big', answerWrap).innerHTML = texToHtml(regionTex);
-      }
-
-      /* ---------------------------------------------------------- системы */
-      function analyzeSystem(rows) {
-        stepsWrap.innerHTML = ''; answerWrap.innerHTML = ''; clearError(); methodRow.hidden = true;
-        if (!rows.length) { setBadge('Пустая система'); return; }
-        var parsed = [];
-        for (var i = 0; i < rows.length; i++) {
-          var rel = MFAlgebra.splitRelation(rows[i]);
-          if (!rel) { showError('Строка ' + (i + 1) + ' системы не похожа на уравнение/неравенство'); return; }
-          parsed.push(rel);
-        }
-        var ops = parsed.map(function (r) { return r.op; });
-        var allEq = ops.every(function (o) { return o === '='; });
-        var allIneq = ops.every(function (o) { return o !== '='; });
-
-        var diffs = parsed.map(function (r) {
-          try { return { t: '-', a: MFMath.parse(r.lhs), b: MFMath.parse(r.rhs), op: r.op }; }
-          catch (e) { return null; }
-        });
-        if (diffs.some(function (d) { return !d; })) { showError('Не удалось разобрать одну из строк системы'); return; }
-
-        var allVars = [];
-        diffs.forEach(function (d) {
-          MFMath.varsIn(d).forEach(function (v) {
-            if (MFMath.CONSTS[v] === undefined && allVars.indexOf(v) < 0) allVars.push(v);
-          });
-        });
-        allVars.sort();
-
-        if (allEq) {
-          setBadge('Система уравнений', 'eq');
-          var affRows = diffs.map(function (d) { return MFAlgebra.affineOf(d, allVars); });
-          if (affRows.some(function (a) { return !a; })) {
-            // Нелинейная система — если ровно 2 уравнения и 2 переменные, решаем
-            // ТЕМ ЖЕ численным методом, что и в построителе графиков (маршевый
-            // квадрат ищет затравки рядом с обеими кривыми, 2D Ньютон уточняет
-            // до точных координат) — честно помечая результат как численный.
-            if (diffs.length === 2 && allVars.length === 2) {
-              var hV = allVars[0], vV = allVars[1];
-              var G1 = function (hVal, vVal) { var o = {}; o[hV] = hVal; o[vV] = vVal; try { return MFMath.evalAst(diffs[0], o); } catch (e) { return NaN; } };
-              var G2 = function (hVal, vVal) { var o = {}; o[hV] = hVal; o[vV] = vVal; try { return MFMath.evalAst(diffs[1], o); } catch (e) { return NaN; } };
-              var pts2 = findIntersections2D(G1, G2, -200, 200, -200, 200, 90);
-              renderSteps(stepsWrap, [{ tex: '\\text{система нелинейна — решаем численно}' }]);
-              answerWrap.innerHTML = '';
-              if (!pts2.length) { el('div', 'alg-answer-big', answerWrap, 'Решений не найдено на [−200; 200] по каждой переменной'); return; }
-              el('div', 'alg-answer-label', answerWrap, pts2.length > 1 ? 'Решения (численно)' : 'Ответ (численно)');
-              pts2.slice(0, 10).forEach(function (pt) {
-                el('div', 'alg-answer-big', answerWrap, hV + ' = ' + fmtGeo(pt.x) + ',  ' + vV + ' = ' + fmtGeo(pt.y));
-              });
-              el('div', 'alg-answer-note', answerWrap, 'найдено численно — точной символьной формы для нелинейных систем не строим');
-              return;
-            }
-            showError('Нелинейная система поддерживается только для 2 уравнений с 2 переменными (сейчас: ' + diffs.length + ' уравнени' + (diffs.length===1?'е':'я') + ', ' + allVars.length + ' переменн' + (allVars.length===1?'ая':'ых') + ')');
-            return;
-          }
-          // Выбор метода имеет смысл только для ЛИНЕЙНОЙ системы — до этой
-          // строки могли отсеяться нелинейные случаи (см. return выше).
-          // ВАЖНО: метод предлагается только когда он ДЕЙСТВИТЕЛЬНО решает
-          // ИМЕННО ЭТУ систему — не по формальному признаку (квадратная /
-          // 2×2), а проверкой на самих числах. Крамер и матричный метод сами
-          // отказываются (возвращают null) при D=0 — вырожденная система не
-          // различает «нет решений» и «бесконечно много» этим способом;
-          // подстановка/сложение отказываются при вырожденном первом
-          // уравнении. Раньше кнопка такого метода всё равно показывалась и
-          // была активной, а по клику расчёт молча подменялся Гауссом —
-          // выглядело так, будто выбранный метод и дал этот ответ, хотя на
-          // самом деле для конкретно этой системы он неприменим.
-          var candidateMethods = [{ id: 'gauss', label: 'Метод Гаусса', fn: MFAlgebra.solveLinearSystem }];
-          if (diffs.length === allVars.length && allVars.length > 1) {
-            candidateMethods.push({ id: 'cramer', label: 'Метод Крамера', fn: MFAlgebra.solveLinearSystemCramer });
-            candidateMethods.push({ id: 'matrix', label: 'Матричный метод', fn: MFAlgebra.solveLinearSystemMatrix });
-          }
-          if (diffs.length === 2 && allVars.length === 2) {
-            candidateMethods.push({ id: 'substitution', label: 'Подстановка', fn: MFAlgebra.solveLinearSystemSubstitution });
-            candidateMethods.push({ id: 'elimination', label: 'Сложение', fn: MFAlgebra.solveLinearSystemElimination });
-          }
-          var methods = candidateMethods.map(function (m) {
-            return { id: m.id, label: m.label, result: m.fn(affRows, allVars) };
-          }).filter(function (m) { return m.result; });
-          // Гаусс — универсальный метод, отказать не может; это только
-          // подстраховка на случай непредвиденного null и там.
-          if (!methods.length) methods = [{ id: 'gauss', label: 'Метод Гаусса', result: MFAlgebra.solveLinearSystem(affRows, allVars) }];
-          if (methods.length > 1) {
-            methodRow.hidden = false;
-            methodRow.innerHTML = '';
-            methods.forEach(function (m) {
-              var b = el('button', 'geo-subchip', methodRow, m.label);
-              b.type = 'button';
-              b.classList.toggle('on', m.id === systemMethod);
-              b.addEventListener('click', function () { systemMethod = m.id; recompute(); });
-            });
-          }
-          var chosen = methods.filter(function (m) { return m.id === systemMethod; })[0] || methods[0];
-          systemMethod = chosen.id;   // если ранее выбранный метод для этой системы недоступен — синхронизируем состояние с тем, что реально показано
-          var res = chosen.result;
-          renderSteps(stepsWrap, res.steps);
-          answerWrap.innerHTML = '';
-          if (res.kind === 'none') { el('div', 'alg-answer-big', answerWrap, 'Решений нет'); return; }
-          if (res.kind === 'infinite') { el('div', 'alg-answer-big', answerWrap, 'Бесконечно много решений'); return; }
-          el('div', 'alg-answer-label', answerWrap, 'Ответ');
-          allVars.forEach(function (v) {
-            var val = res.values[v];
-            var e = MFAlgebra.exactAnswerTex(val);
-            var row = el('div', 'alg-answer-root', answerWrap);
-            el('span', 'alg-answer-big', row).innerHTML = texToHtml(v + ' = ' + e.exact);
-            if (e.approx) el('span', 'alg-answer-approx', row, (e.isExactDecimal ? '= ' : '≈ ') + e.approx);
-          });
-          return;
-        }
-
-        if (allIneq && allVars.length === 1) {
-          setBadge('Система неравенств', 'ineq');
-          var v2 = allVars[0];
-          var regions = [];
-          var allSteps = [];
-          for (var j = 0; j < diffs.length; j++) {
-            var poly2 = MFAlgebra.polyOf(diffs[j], v2);
-            if (!poly2) { showError('Одна из строк системы — не многочлен, пока не поддерживается'); return; }
-            var deg = poly2.length - 1;
-            var r2 = deg <= 1 ? MFAlgebra.solveInequalityLinear(poly2, v2, diffs[j].op)
-                              : deg === 2 ? MFAlgebra.solveInequalityQuadratic(poly2, v2, diffs[j].op)
-                              : null;
-            if (!r2) { showError('Строка ' + (j + 1) + ' — многочлен степени выше 2, для систем пока не поддерживается'); return; }
-            allSteps = allSteps.concat(r2.steps);
-            regions.push(regionToIntervalList(r2.region !== undefined ? r2.region : { lo: r2.op === '<' || r2.op === '≤' ? -Infinity : r2.bound, loInc: r2.op === '≥', hi: r2.op === '<' || r2.op === '≤' ? r2.bound : Infinity, hiInc: r2.op === '≤' }));
-          }
-          var combined = regions.reduce(function (acc, r) { return acc === null ? r : intersectIntervalLists(acc, r); }, null);
-          renderSteps(stepsWrap, allSteps);
-          answerWrap.innerHTML = '';
-          el('div', 'alg-answer-label', answerWrap, 'Пересечение условий');
-          if (!combined || !combined.length) { el('div', 'alg-answer-big', answerWrap, 'Решений нет'); return; }
-          el('div', 'alg-answer-big', answerWrap).innerHTML = texToHtml(MFAlgebra.regionToTex(combined.length === 1 ? combined[0] : combined));
-          return;
-        }
-
-        showError('Смешанные системы (уравнения и неравенства вместе) или системы неравенств с разными переменными пока не поддерживаются');
-      }
-
-      /* --------------------------------------- пересечение списков интервалов */
-      function regionToIntervalList(region) {
-        if (region === 'all') return [{ lo: -Infinity, loInc: true, hi: Infinity, hiInc: true }];
-        if (region === 'none') return [];
-        if (region && region.neq) return null;   // ≠ в системах не поддерживаем
-        if (Array.isArray(region)) return region;
-        if (region && region.lo !== undefined) return [region];
-        return null;
-      }
-      function intersectIntervalLists(A, B) {
-        if (!A || !B) return null;
-        var out = [];
-        A.forEach(function (a) {
-          B.forEach(function (b) {
-            var lo = a.lo, loInc = a.loInc;
-            if (b.lo > lo || (b.lo === lo && !b.loInc)) { lo = b.lo; loInc = b.loInc; }
-            var hi = a.hi, hiInc = a.hiInc;
-            if (b.hi < hi || (b.hi === hi && !b.hiInc)) { hi = b.hi; hiInc = b.hiInc; }
-            if (lo < hi || (lo === hi && loInc && hiInc)) out.push({ lo: lo, loInc: loInc, hi: hi, hiInc: hiInc });
-          });
-        });
-        return out;
+        renderSolverResult(MFSolver.solve({ linear: linear }, { dec: set.dec, pref: { quad: equationMethod, sys: systemMethod } }));
       }
 
       /* ======================================================================
@@ -1376,6 +1167,8 @@
     if (Math.abs(F1(x, y)) > 1e-6 || Math.abs(F2(x, y)) > 1e-6) return null;
     return { x: x, y: y };
   }
+  // Нужен решателю (mf-solver.js) для нелинейных систем, которые не сводятся к одному уравнению.
+  window.MFSolverNumeric2D = function (F1, F2) { return findIntersections2D(F1, F2, -200, 200, -200, 200, 90); };
   function findIntersections2D(F1, F2, x0, x1, y0, y1, gridN) {
     gridN = gridN || 60;
     var pts1 = traceImplicitPoints(F1, x0, x1, y0, y1, gridN, gridN);

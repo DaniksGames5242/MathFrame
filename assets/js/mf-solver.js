@@ -125,6 +125,9 @@
     if (q) return { tex: qTex(q), exact: true };
     var qp = recoverQ(x / Math.PI, 1000);
     if (qp && Math.abs(qp.n) <= 1000) return { tex: piTex(qp), exact: true };
+    if (x > 0) { var ke = recoverQ(Math.log(x), 12); if (ke && !qZero(ke)) return { tex: qOne(ke) ? 'e' : 'e^{' + qTex(ke) + '}', exact: true }; }
+    var rv = recoverVal(x);
+    if (rv && rv.s) return { tex: AL.surdToTex(rv.s), exact: true };
     var e = AL.exactAnswerTex(x);
     if (e && e.approx) return { tex: e.exact, exact: true };
     return { tex: fTex(x, 8), exact: false };
@@ -180,7 +183,7 @@
     switch (n.t) {
       case 'num': s = leafTex(n); return (s.charAt(0) === '-' && pp >= 2) ? '\\left(' + s + '\\right)' : s;
       case 'var': return n.name.length > 1 && n.name !== 'π' ? '\\mathrm{' + n.name + '}' : n.name;
-      case '+': s = T(n.a, p) + ' + ' + wrapNeg(T(n.b, p)); break;
+      case '+': s = n.b.t === 'neg' ? T(n.a, p) + ' - ' + wrapNeg(T(n.b.a, p + 1)) : T(n.a, p) + ' + ' + wrapNeg(T(n.b, p)); break;
       case '-': s = T(n.a, p) + ' - ' + wrapNeg(T(n.b, p + 1)); break;
       case '*': {
         var A = T(n.a, p), B = wrapNeg(T(n.b, p));
@@ -563,7 +566,7 @@
   /* ================================ 6. КОРНИ =============================
      {val, tex, exact, mult} — значение, точная запись (если есть), кратность. */
   function Rt(val, tex, exact) { return { val: val, tex: tex, exact: exact !== false, mult: 1 }; }
-  function rootQ(q) { return Rt(qv(q), qTex(q), !isF(q)); }
+  function rootQ(q) { return isF(q) ? rootNum(q.f) : Rt(qv(q), qTex(q), true); }
   function rootNum(x) { var e = numTex(x); return Rt(x, e.tex, e.exact); }
   function sameVal(a, b) { return Math.abs(a - b) < 1e-9 * Math.max(1, Math.abs(a)); }
   function uniqRoots(list) {
@@ -582,10 +585,15 @@
 
   /* ============================= 7. ШАГИ =================================*/
   function Steps() { this.list = []; }
+  // Одна и та же формула два раза подряд (преобразование ничего не
+  // изменило) не показывается — повтор сливается с предыдущим шагом.
+  var LAST = { tex: null, step: null };
   Steps.prototype.add = function (tex, text, lvl, extra) {
+    if (tex && tex === LAST.tex && LAST.step) { if (lvl !== undefined && lvl < LAST.step.lvl) LAST.step.lvl = lvl; return LAST.step; }
     var s = { tex: tex || null, text: text || '', lvl: lvl === undefined ? 1 : lvl };
     if (extra) for (var k in extra) s[k] = extra[k];
     this.list.push(s);
+    if (tex) { LAST.tex = tex; LAST.step = s; }
     return s;
   };
   Steps.prototype.note = function (text, lvl, extra) { return this.add(null, text, lvl === undefined ? 1 : lvl, extra); };
@@ -1340,7 +1348,8 @@
     if (qIsInt(P) && qIsInt(Den) && qIsInt(D)) {
       var rf = rootsForm(P.n, D.n, Den.n);
       if (rf.simplified) S.add(rf.simplified, 'Корень из дискриминанта не извлекается нацело — выносим множитель из-под корня.', 1);
-      S.add(formula + ' = \\frac{' + qTex(P) + ' \\pm \\sqrt{' + qTex(D) + '}}{' + qTex(Den) + '} = ' + rf.pm, 'Подставляем в формулу корней и сокращаем.', 0, { briefTex: v + '_{1,2} = ' + rf.pm });
+      var raw = '\\frac{' + qTex(P) + ' \\pm \\sqrt{' + qTex(D) + '}}{' + qTex(Den) + '}';
+      S.add(formula + ' = ' + raw + (raw === rf.pm ? '' : ' = ' + rf.pm), 'Подставляем в формулу корней и сокращаем.', 0, { briefTex: v + '_{1,2} = ' + rf.pm });
       return sol([Rt(rf.vPlus, rf.plus), Rt(rf.vMinus, rf.minus)]);
     }
     var sd = Math.sqrt(qv(D)), y1 = (qv(P) + sd) / qv(Den), y2 = (qv(P) - sd) / qv(Den);
@@ -1350,7 +1359,7 @@
   function quadIncomplete(a, b, cc, v, S) {
     if (qZero(cc)) {
       var bx = termsTex([{ c: a, m: mv(v) }, { c: b, m: {} }]);
-      if (qZero(b)) { S.add(v + '^2 = 0', 'Делим на $' + qTex(a) + '$: квадрат равен нулю только у нуля.', 0); var z = rootQ(Q0); z.mult = 2; return sol([z]); }
+      if (qZero(b)) { S.add(v + '^2 = 0', (qOne(a) ? '' : 'Делим на $' + qTex(a) + '$. ') + 'Квадрат равен нулю только у нуля, значит $' + v + ' = 0$.', 0); var z = rootQ(Q0); z.mult = 2; return sol([z]); }
       S.add(v + '\\left(' + bx + '\\right) = 0', 'Неполное уравнение без свободного члена: выносим $' + v + '$ за скобку.', 0);
       var x2 = qDiv(qNeg(b), a);
       S.add(v + ' = 0 \\quad \\text{или} \\quad ' + bx + ' = 0', 'Произведение равно нулю, когда хотя бы один из множителей равен нулю.', 1);
@@ -1562,5 +1571,1261 @@
     return out.sort(function (p1, p2) { return p1 - p2; });
   }
 
-  /*__PART3B__*/
+  var CXQ = { quiet: true };
+  // Корни без показа шагов (для ОДЗ, точек разбиения и т.п.).
+  function quietRoots(L, Rr, v) {
+    try { var s = solveEq(L, Rr, v, QUIET, CXQ); return s.all ? null : s.roots; } catch (e) { return []; }
+  }
+  // Проверка кандидатов подстановкой в исходное уравнение.
+  function checkRoots(roots, L, Rr, v, S, reason) {
+    var good = [];
+    roots.forEach(function (r) {
+      var lv = at(L, v, r.val), rv = at(Rr, v, r.val);
+      var ok = isFinite(lv) && isFinite(rv) && Math.abs(lv - rv) < 1e-7 * Math.max(1, Math.abs(lv), Math.abs(rv));
+      if (ok) { good.push(r); S.add(null, 'Проверка $' + v + ' = ' + r.tex + '$: левая часть $' + numTex(lv).tex + '$, правая $' + numTex(rv).tex + '$ — верно.', 1); }
+      else S.add(null, 'Проверка $' + v + ' = ' + r.tex + '$: ' + (isFinite(lv) && isFinite(rv) ? 'левая часть $' + numTex(lv).tex + '$, правая $' + numTex(rv).tex + '$ — не совпадают' : 'выражение не определено') + ' — посторонний корень' + (reason ? ' (' + reason + ')' : '') + ', отбрасываем.', 0);
+    });
+    return good;
+  }
+
+  /* ---------------------------------------------- дробно-рациональные */
+  function rfReduce(r) {
+    var g = uGcd(r.n, r.d);
+    if (uDeg(g) > 0) r = { n: uDivmod(r.n, g).q, d: uDivmod(r.d, g).q };
+    var sc = uIntScale(r.d);
+    if (sc) { var k = sc.k; if (qSign(sc.c[sc.c.length - 1]) < 0) k = qNeg(k); r = { n: uScale(r.n, k), d: uScale(r.d, k) }; }
+    return r;
+  }
+  function rfFromAst(n, v) {
+    switch (n.t) {
+      case '+': case '-': case '*': case '/': {
+        var A = rfFromAst(n.a, v), B = A && rfFromAst(n.b, v);
+        if (!B) return null;
+        if (n.t === '*') return rfReduce({ n: uMul(A.n, B.n), d: uMul(A.d, B.d) });
+        if (n.t === '/') { if (uDeg(B.n) < 0) return null; return rfReduce({ n: uMul(A.n, B.d), d: uMul(A.d, B.n) }); }
+        var an = uMul(A.n, B.d), bn = uMul(B.n, A.d);
+        return rfReduce({ n: n.t === '+' ? uAdd(an, bn) : uSub(an, bn), d: uMul(A.d, B.d) });
+      }
+      case 'neg': { var N = rfFromAst(n.a, v); return N && { n: uNeg(N.n), d: N.d }; }
+      case '^': {
+        var e = constQ(n.b);
+        if (hasV(n.a, v) && e && qIsInt(e) && Math.abs(e.n) <= 20) {
+          var b = rfFromAst(n.a, v); if (!b) return null;
+          return e.n >= 0 ? { n: uPow(b.n, e.n), d: uPow(b.d, e.n) } : rfReduce({ n: uPow(b.d, -e.n), d: uPow(b.n, -e.n) });
+        }
+      }
+      /* fallthrough */
+      default: {
+        var p = pFromAst(n); if (!p) return null;
+        var c = pToUni(p, v); return c ? { n: c, d: [Q1] } : null;
+      }
+    }
+  }
+  function denominators(n, v, out) {
+    out = out || [];
+    (function walk(x) {
+      if (!x) return;
+      if (x.t === '/' && hasV(x.b, v)) out.push(x.b);
+      if (x.t === '^' && hasV(x.a, v)) { var e = constQ(x.b); if (e && qIsInt(e) && e.n < 0) out.push(x.a); }
+      kids(x).forEach(walk);
+    })(n);
+    return out;
+  }
+  function rationalEq(L, Rr, v, S, cx) {
+    var diff = sub(L, Rr), dens = denominators(diff, v), excl = [], seen = {};
+    dens.forEach(function (d) {
+      var tx = T(d); if (seen[tx]) return; seen[tx] = 1;
+      (quietRoots(d, Nn(0), v) || []).forEach(function (r) { if (!excl.some(function (e) { return sameVal(e.val, r.val); })) excl.push(r); });
+    });
+    S.add(Object.keys(seen).map(function (t) { return t + ' \\ne 0'; }).join(',\\quad '), 'ОДЗ: знаменатели не должны обращаться в ноль' + (excl.length ? ', то есть $' + excl.map(function (r) { return v + ' \\ne ' + r.tex; }).join(',\\ ') + '$.' : '.'), 1, { briefTex: excl.length ? excl.map(function (r) { return v + ' \\ne ' + r.tex; }).join(',\\ ') : undefined });
+    var res;
+    var simpleSide = function (x) { return x.t === '/' || !denominators(x, v).length; };
+    if ((L.t === '/' || Rr.t === '/') && simpleSide(L) && simpleSide(Rr)) {
+      var ln = L.t === '/' ? L.a : L, ld = L.t === '/' ? L.b : null, rn = Rr.t === '/' ? Rr.a : Rr, rd = Rr.t === '/' ? Rr.b : null;
+      var nl = rd ? mul(ln, rd) : ln, nr = ld ? mul(rn, ld) : rn;
+      S.add(T(nl) + ' = ' + T(nr), ld && rd ? 'По основному свойству пропорции: произведение крайних членов равно произведению средних.' : 'Умножаем обе части на знаменатель $' + T(ld || rd) + '$ (по ОДЗ он не равен нулю).', 0);
+      res = solveEq(nl, nr, v, S, cx);
+    } else {
+      var rf = rfFromAst(diff, v);
+      if (!rf) return null;
+      S.add('\\frac{' + uTex(rf.n, v) + '}{' + uTex(rf.d, v) + '} = 0', 'Переносим всё в левую часть и приводим дроби к общему знаменателю.', 1);
+      S.add(uTex(rf.n, v) + ' = 0', 'Дробь равна нулю, когда числитель равен нулю, а знаменатель — нет.', 0);
+      res = solveUni(rf.n, v, S, cx);
+    }
+    if (res.all) return sol([], { all: true, allCond: excl.map(function (r) { return v + ' \\ne ' + r.tex; }).join(',\\ ') });
+    var good = [];
+    res.roots.forEach(function (r) {
+      if (excl.some(function (e) { return sameVal(e.val, r.val); }) || !isFinite(at(diff, v, r.val))) S.add(null, '$' + v + ' = ' + r.tex + '$ не входит в ОДЗ (знаменатель обращается в ноль) — посторонний корень, отбрасываем.', 0);
+      else good.push(r);
+    });
+    return sol(good, { numeric: res.numeric, series: res.series });
+  }
+
+  /* ---------------------------------------------- иррациональные
+     Выражение — сумма слагаемых «многочлен · произведение радикалов». */
+  function reKey(e) { return Object.keys(e).filter(function (k) { return e[k]; }).sort().map(function (k) { return k + ':' + e[k]; }).join(','); }
+  function reNorm(terms) {
+    var map = {};
+    terms.forEach(function (t) { var k = reKey(t.e); map[k] = map[k] ? { c: uAdd(map[k].c, t.c), e: t.e } : { c: t.c, e: t.e }; });
+    return Object.keys(map).map(function (k) { return map[k]; }).filter(function (t) { return uDeg(t.c) >= 0; });
+  }
+  function reMul(A, B, atoms) {
+    var out = [];
+    A.forEach(function (x) {
+      B.forEach(function (y) {
+        var e = {}, c = uMul(x.c, y.c), k;
+        for (k in x.e) e[k] = (e[k] || 0) + x.e[k];
+        for (k in y.e) e[k] = (e[k] || 0) + y.e[k];
+        for (k in e) while (e[k] >= atoms[k].k) { e[k] -= atoms[k].k; c = uMul(c, atoms[k].inner); }
+        out.push({ c: c, e: e });
+      });
+    });
+    return reNorm(out);
+  }
+  function reFromAst(n, v, atoms) {
+    function atom(inner, k) {
+      for (var i = 0; i < atoms.length; i++) if (atoms[i].k === k && uTex(atoms[i].inner, v) === uTex(inner, v)) return i;
+      atoms.push({ inner: inner, k: k, tex: k === 2 ? '\\sqrt{' + uTex(inner, v) + '}' : '\\sqrt[' + k + ']{' + uTex(inner, v) + '}' });
+      return atoms.length - 1;
+    }
+    function one(i) { var e = {}; e[i] = 1; return [{ c: [Q1], e: e }]; }
+    switch (n.t) {
+      case '+': case '-': { var A = reFromAst(n.a, v, atoms), B = A && reFromAst(n.b, v, atoms); if (!B) return null; return reNorm(A.concat(n.t === '-' ? B.map(function (t) { return { c: uNeg(t.c), e: t.e }; }) : B)); }
+      case 'neg': { var A2 = reFromAst(n.a, v, atoms); return A2 && A2.map(function (t) { return { c: uNeg(t.c), e: t.e }; }); }
+      case '*': { var A3 = reFromAst(n.a, v, atoms), B3 = A3 && reFromAst(n.b, v, atoms); return B3 ? reMul(A3, B3, atoms) : null; }
+      case '/': { if (hasV(n.b, v)) return null; var q = constQ(n.b), A4 = reFromAst(n.a, v, atoms); if (!q || qZero(q) || !A4) return null; return A4.map(function (t) { return { c: uScale(t.c, qDiv(Q1, q)), e: t.e }; }); }
+      case 'fn': if (n.name === 'sqrt' && hasV(n.a, v)) { var p = pFromAst(n.a), c = p && pToUni(p, v); return c ? one(atom(c, 2)) : null; } break;
+      case '^': {
+        if (!hasV(n.a, v)) break;
+        var k = rootIndex(n.b), e = constQ(n.b);
+        if (k) { var p2 = pFromAst(n.a), c2 = p2 && pToUni(p2, v); return c2 ? one(atom(c2, k)) : null; }
+        if (e && qIsInt(e) && e.n >= 0 && e.n <= 8) { var base = reFromAst(n.a, v, atoms); if (!base) return null; var r = [{ c: [Q1], e: {} }]; for (var i = 0; i < e.n; i++) r = reMul(r, base, atoms); return r; }
+        return null;
+      }
+    }
+    var pp = pFromAst(n), cc = pp && pToUni(pp, v);
+    return cc ? [{ c: cc, e: {} }] : null;
+  }
+  function reTex(R, v, atoms) {
+    if (!R.length) return '0';
+    return R.map(function (t, i) {
+      var at2 = Object.keys(t.e).filter(function (k) { return t.e[k]; }).map(function (k) { return atoms[k].tex + (t.e[k] > 1 ? '^{' + t.e[k] + '}' : ''); }).join(' \\cdot ');
+      var ct = uTex(t.c, v), multi = uTrim(t.c).filter(function (q) { return !qZero(q); }).length > 1;
+      var s;
+      if (!at2) s = multi && i ? '\\left(' + ct + '\\right)' : ct;
+      else if (ct === '1') s = at2; else if (ct === '-1') s = '-' + at2;
+      else s = (multi ? '\\left(' + ct + '\\right)' : ct) + ' \\cdot ' + at2;
+      return i === 0 ? s : (s.charAt(0) === '-' ? ' - ' + s.slice(1) : ' + ' + s);
+    }).join('');
+  }
+  function radicalEq(L, Rr, v, S, cx) {
+    var atoms = [], E = reFromAst(sub(L, Rr), v, atoms);
+    if (!E) return null;
+    var even = atoms.filter(function (a) { return a.k % 2 === 0; });
+    if (even.length) S.add(even.map(function (a) { return uTex(a.inner, v) + ' \\ge 0'; }).join(',\\quad '), 'ОДЗ: под корнем чётной степени не может стоять отрицательное число. Выполнение ОДЗ проверим подстановкой найденных корней.', 1);
+    for (var guard = 0; guard < 5; guard++) {
+      var idx = -1;
+      E.forEach(function (t) { for (var k in t.e) if (t.e[k] && idx < 0) idx = +k; });
+      if (idx < 0) break;
+      var a = atoms[idx], P1 = [], P0 = [], bad = false;
+      E.forEach(function (t) {
+        var e = {}; for (var k in t.e) if (+k !== idx) e[k] = t.e[k];
+        if (!t.e[idx]) P0.push({ c: t.c, e: e }); else if (t.e[idx] === 1) P1.push({ c: t.c, e: e }); else bad = true;
+      });
+      if (bad) return null;
+      var rhs = P0.map(function (t) { return { c: uNeg(t.c), e: t.e }; });
+      var lhsTex = (P1.length === 1 && reKey(P1[0].e) === '' && uTex(P1[0].c, v) === '1') ? a.tex : '\\left(' + reTex(P1, v, atoms) + '\\right) \\cdot ' + a.tex;
+      S.add(lhsTex + ' = ' + reTex(rhs, v, atoms), 'Уединяем радикал: оставляем $' + a.tex + '$ в одной части, всё остальное переносим в другую.', 1);
+      var pl = [{ c: [Q1], e: {} }], pr = [{ c: [Q1], e: {} }];
+      for (var i = 0; i < a.k; i++) { pl = reMul(pl, P1, atoms); pr = reMul(pr, rhs, atoms); }
+      pl = pl.map(function (t) { return { c: uMul(t.c, a.inner), e: t.e }; });
+      var deg = a.k === 2 ? 'квадрат' : a.k === 3 ? 'куб' : a.k + '-ю степень';
+      S.add(reTex(pl, v, atoms) + ' = ' + reTex(pr, v, atoms), 'Возводим обе части в ' + deg + (a.k % 2 === 0 ? '. Так могут появиться посторонние корни — в конце обязательна проверка.' : '.'), 0);
+      E = reNorm(pl.concat(pr.map(function (t) { return { c: uNeg(t.c), e: t.e }; })));
+    }
+    if (E.some(function (t) { return reKey(t.e); })) return null;
+    var c = E.length ? E[0].c : [Q0];
+    if (uDeg(c) < 0) return null;
+    S.add(uTex(c, v) + ' = 0', 'Раскрываем скобки и переносим всё в одну часть.', 1);
+    var g = S.group('Решаем $' + uTex(c, v) + ' = 0$', 1);
+    var res = solveUni(c, v, g, cx);
+    if (res.all) return null;
+    var cs = S.group('Проверка подстановкой в исходное уравнение', 0);
+    return sol(checkRoots(res.roots, L, Rr, v, cs, even.length ? 'появился при возведении в степень' : ''), { numeric: res.numeric });
+  }
+
+  /* ---------------------------------------------- модуль */
+  function absNodes(n, v) {
+    var out = [];
+    (function walk(x) {
+      if (!x) return;
+      if (x.t === 'fn' && x.name === 'abs' && hasV(x.a, v) && !anyNode(x.a, function (y) { return y.t === 'fn' && y.name === 'abs'; })) out.push(x);
+      kids(x).forEach(walk);
+    })(n);
+    return out;
+  }
+  function replaceNodes(n, map) {
+    if (!n) return n;
+    if (map.has(n)) return map.get(n);
+    var c = {}; for (var k in n) c[k] = n[k];
+    if (n.a) c.a = replaceNodes(n.a, map); if (n.b) c.b = replaceNodes(n.b, map); if (n.base) c.base = replaceNodes(n.base, map);
+    return c;
+  }
+  function isAbs(n) { return n.t === 'fn' && n.name === 'abs'; }
+  function hasAbs(n) { return anyNode(n, isAbs); }
+  function absEq(L, Rr, v, S, cx) {
+    var A = null, B = null;
+    if (isAbs(L) && !hasAbs(Rr) && !hasAbs(L.a)) { A = L.a; B = Rr; } else if (isAbs(Rr) && !hasAbs(L) && !hasAbs(Rr.a)) { A = Rr.a; B = L; }
+    if (A && !hasV(B, v)) {
+      var bq = constQ(B), bv = evalN(B);
+      if (bv < -1e-12) { S.add(null, 'Модуль не может быть отрицательным, а справа $' + T(B) + '$ — решений нет.', 0); return sol([], { none: true }); }
+      if (Math.abs(bv) < 1e-12) { S.add(T(A) + ' = 0', 'Модуль равен нулю только тогда, когда выражение под ним равно нулю.', 0); return solveEq(A, Nn(0), v, S, cx); }
+      var nb = bq ? NQ(qNeg(bq)) : neg(B);
+      S.add(T(A) + ' = ' + T(B) + ' \\quad \\text{или} \\quad ' + T(A) + ' = ' + T(nb), 'Модуль равен положительному числу, когда выражение под ним равно этому числу или противоположному.', 0);
+      var s1 = solveEq(A, B, v, S.group('Случай 1: $' + T(A) + ' = ' + T(B) + '$', 1), cx);
+      var s2 = solveEq(A, nb, v, S.group('Случай 2: $' + T(A) + ' = ' + T(nb) + '$', 1), cx);
+      return sol(s1.roots.concat(s2.roots), { numeric: s1.numeric || s2.numeric });
+    }
+    if (A) {
+      S.add(T(B) + ' \\ge 0', 'Модуль неотрицателен, значит и правая часть должна быть неотрицательной — это условие проверим для найденных корней.', 1);
+      S.add(T(A) + ' = ' + T(B) + ' \\quad \\text{или} \\quad ' + T(A) + ' = -\\left(' + T(B) + '\\right)', 'Раскрываем модуль: выражение под ним равно правой части или противоположному ей.', 0);
+      var t1 = solveEq(A, B, v, S.group('Случай 1: $' + T(A) + ' = ' + T(B) + '$', 1), cx);
+      var t2 = solveEq(A, neg(B), v, S.group('Случай 2: $' + T(A) + ' = -\\left(' + T(B) + '\\right)$', 1), cx);
+      var good = [];
+      t1.roots.concat(t2.roots).forEach(function (r) {
+        var bv2 = at(B, v, r.val);
+        if (bv2 >= -1e-9) good.push(r); else S.add(null, 'При $' + v + ' = ' + r.tex + '$ правая часть равна $' + numTex(bv2).tex + ' < 0$ — корень не подходит.', 0);
+      });
+      return sol(good);
+    }
+    // общий случай — метод интервалов
+    var diff = sub(L, Rr), nodes = absNodes(diff, v);
+    if (!nodes.length) return null;
+    var pts = [];
+    nodes.forEach(function (nd) { (quietRoots(nd.a, Nn(0), v) || []).forEach(function (r) { if (!pts.some(function (p) { return sameVal(p.val, r.val); })) pts.push(r); }); });
+    pts.sort(function (a, b) { return a.val - b.val; });
+    S.add(pts.map(function (p) { return v + ' = ' + p.tex; }).join(',\\quad '), 'Находим нули выражений под модулями — они делят числовую прямую на промежутки, на каждом из которых модули раскрываются однозначно.', 1);
+    var roots = [], intervals = [];
+    for (var i = 0; i <= pts.length; i++) {
+      var lo = i ? pts[i - 1] : null, hi = i < pts.length ? pts[i] : null;
+      var tp = lo && hi ? (lo.val + hi.val) / 2 : lo ? lo.val + 1 : hi ? hi.val - 1 : 0;
+      var map = new Map(), expl = [];
+      nodes.forEach(function (nd) {
+        var s = at(nd.a, v, tp) >= 0;
+        map.set(nd, s ? nd.a : neg(nd.a));
+        expl.push('$\\left|' + T(nd.a) + '\\right| = ' + T(s ? nd.a : neg(nd.a)) + '$');
+      });
+      var title = (lo ? (lo.tex + ' \\le ') : '') + v + (hi ? ' < ' + hi.tex : '');
+      if (!lo && hi) title = v + ' < ' + hi.tex; if (lo && !hi) title = v + ' \\ge ' + lo.tex; if (!lo && !hi) title = v + ' \\in \\mathbb{R}';
+      var g = S.group('Промежуток $' + title + '$', 1);
+      g.add(null, 'Здесь ' + expl.join(', ') + '.', 1);
+      var nl = replaceNodes(L, map), nr = replaceNodes(Rr, map);
+      g.add(T(nl) + ' = ' + T(nr), '', 1);
+      var s = solveEq(nl, nr, v, g, cx);
+      var inI = function (x) { return (!lo || x >= lo.val - 1e-9) && (!hi || x < hi.val - 1e-9); };
+      if (s.all) { intervals.push({ lo: lo, hi: hi, loInc: !!lo, hiInc: false }); g.add(null, 'Равенство верно на всём промежутке.', 0); }
+      s.roots.forEach(function (r) {
+        if (inI(r.val)) { roots.push(r); g.add(null, '$' + v + ' = ' + r.tex + '$ лежит в промежутке — подходит.', 1); }
+        else g.add(null, '$' + v + ' = ' + r.tex + '$ не лежит в промежутке — не подходит.', 1);
+      });
+    }
+    if (intervals.length) {
+      // склеиваем соседние промежутки и поглощаем точечные корни
+      var merged = [];
+      intervals.forEach(function (iv) { var p = merged[merged.length - 1]; if (p && p.hi && iv.lo && sameVal(p.hi.val, iv.lo.val)) { p.hi = iv.hi; } else merged.push(iv); });
+      merged.forEach(function (iv) { if (iv.hi && roots.some(function (r) { return sameVal(r.val, iv.hi.val); })) iv.hiInc = true; });
+      roots = roots.filter(function (r) { return !merged.some(function (iv) { return (!iv.lo || r.val >= iv.lo.val - 1e-9) && (!iv.hi || r.val <= iv.hi.val + 1e-9); }); });
+      return sol(roots, { intervals: merged });
+    }
+    return sol(roots);
+  }
+
+  /* ---------------------------------------------- показательные */
+  function logTex(g, gTex, xTex) {
+    if (Math.abs(g - Math.E) < 1e-12) return '\\ln ' + xTex;
+    if (g === 10) return '\\lg ' + xTex;
+    return '\\log_{' + gTex + '} ' + xTex;
+  }
+  function wrapArg(t) { return /^[0-9a-z.]+$/i.test(t) ? t : '\\left(' + t + '\\right)'; }
+  // Представить положительное число как степень g: k = log_g x, если k рационально.
+  function asPowerOf(x, g) { var k = recoverQ(Math.log(x) / Math.log(g), 12); return k && Math.abs(Math.pow(g, qv(k)) - x) < 1e-9 * Math.max(1, x) ? k : null; }
+  function commonBase(bases) {
+    var cands = [];
+    bases.forEach(function (b) {
+      var bb = b < 1 ? 1 / b : b;
+      cands.push(bb);
+      for (var k = 6; k >= 2; k--) { var r = Math.round(Math.pow(bb, 1 / k)); if (r > 1 && Math.abs(Math.pow(r, k) - bb) < 1e-9 * bb) cands.push(r); }
+    });
+    cands.sort(function (a, b) { return a - b; });
+    for (var i = 0; i < cands.length; i++) {
+      var g = cands[i];
+      if (bases.every(function (b) { return asPowerOf(b, g); })) return g;
+    }
+    return null;
+  }
+  function expAtoms(n, v) {
+    var out = [];
+    (function walk(x) {
+      if (!x) return;
+      if (x.t === '^' && hasV(x.b, v) && !hasV(x.a, v)) { out.push({ node: x, base: evalN(x.a), expo: x.b }); walk(x.b); return; }
+      if (x.t === 'fn' && x.name === 'exp' && hasV(x.a, v)) { out.push({ node: x, base: Math.E, expo: x.a }); walk(x.a); return; }
+      kids(x).forEach(walk);
+    })(n);
+    return out;
+  }
+  function gTexOf(g) { return Math.abs(g - Math.E) < 1e-12 ? 'e' : fTex(g); }
+  function expEq(L, Rr, v, S, cx) {
+    var diff = sub(L, Rr), atoms = expAtoms(diff, v);
+    if (!atoms.length || atoms.some(function (a) { return !(a.base > 0) || Math.abs(a.base - 1) < 1e-12; })) return null;
+    var g = commonBase(atoms.map(function (a) { return a.base; }));
+    if (!g) return null;
+    var gT = gTexOf(g);
+    // показатель каждого атома в основании g, как многочлен от v
+    var info = atoms.map(function (a) {
+      var r = asPowerOf(a.base, g), p = pFromAst(a.expo), c = p && pToUni(p, v);
+      return c ? { a: a, r: r, c: uScale(c, r) } : null;
+    });
+    if (info.some(function (x) { return !x; })) return null;
+    var rewrite = new Map();
+    info.forEach(function (x) { rewrite.set(x.a.node, pw(Vr('§g'), uToAst(x.c, v))); });
+    var changed = info.some(function (x) { return !qOne(x.r) || x.a.node.t === 'fn'; });
+    var gNode = { t: 'num', v: g, tx: gT, q: F(g) };
+    function show(n) { return T(subst(replaceNodes(n, rewrite), '§g', gNode)); }
+    if (changed) S.add(show(L) + ' = ' + show(Rr), 'Приводим все степени к одному основанию $' + gT + '$.', 1);
+    // Случай: c·g^E = K (одна степень)
+    function sidePow(n) {   // n = const·атом → {k: Q, x}
+      if (n.t === '*' && !hasV(n.a, v)) { var s = sidePow(n.b); return s && { coef: evalN(n.a) * s.coef, info: s.info }; }
+      var inf = info.filter(function (x) { return x.a.node === n; })[0];
+      return inf ? { coef: 1, info: inf } : null;
+    }
+    var sl = sidePow(L), sr = sidePow(Rr);
+    if ((sl && (sr || !hasV(Rr, v))) || (sr && !hasV(L, v))) {
+      if (!sl) { var t = sl; sl = sr; sr = t; var tt = L; L = Rr; Rr = tt; }
+      var E1 = sl.info.c, E2;
+      if (sr) {
+        var off = asPowerOf(sr.coef / sl.coef, g);
+        if (off) { E2 = uAdd(sr.info.c, [off]); }
+        else return expLogBoth(sl, sr, v, S, g, gT);
+      } else {
+        var K = evalN(Rr) / sl.coef;
+        if (!(K > 0)) { S.add(null, 'Показательная функция принимает только положительные значения, а справа $' + numTex(K).tex + '$ — решений нет.', 0); return sol([], { none: true }); }
+        var kq = asPowerOf(K, g);
+        if (kq) E2 = [kq];
+        else {
+          var lt = logTex(g, gT, wrapArg(numTex(K).tex));
+          S.add(uTex(E1, v) + ' = ' + lt, 'Число $' + numTex(K).tex + '$ не является «круглой» степенью $' + gT + '$, поэтому логарифмируем по основанию $' + gT + '$ (по определению логарифма).', 0);
+          var lv = Math.log(K) / Math.log(g);
+          if (uDeg(E1) === 1) {
+            var kk = E1[1], mm = E1[0], xv = (lv - qv(mm)) / qv(kk);
+            var tex = qZero(mm) && qOne(kk) ? lt : (qOne(kk) ? lt + ' - ' + qTexP(mm) : '\\frac{' + lt + (qZero(mm) ? '' : (qSign(mm) > 0 ? ' - ' + qTex(mm) : ' + ' + qTex(qNeg(mm)))) + '}{' + qTex(kk) + '}');
+            S.add(v + ' = ' + tex, 'Выражаем $' + v + '$.', 0);
+            return sol([Rt(xv, tex, true)]);
+          }
+          var rs = solveUni(uSub(E1, [F(lv)]), v, S.group('Решаем уравнение для показателя', 1), cx);
+          return sol(rs.roots, { numeric: true });
+        }
+      }
+      S.add(gT + '^{' + uTex(E1, v) + '} = ' + gT + '^{' + uTex(E2, v) + '}', 'Записываем обе части как степени с основанием $' + gT + '$.', 0);
+      S.add(uTex(E1, v) + ' = ' + uTex(E2, v), 'Основания равны (и не равны $1$) — значит, равны и показатели.', 0);
+      return polyEq(uToAst(E1, v), uToAst(E2, v), v, S, cx) || numericEq(L, Rr, v, S, cx, '');
+    }
+    // Замена t = g^{αv}: все показатели линейны
+    if (info.some(function (x) { return uDeg(x.c) > 1; })) return null;
+    var alphas = info.map(function (x) { return x.c[1] || Q0; });
+    if (alphas.some(isF)) return null;
+    var num = 0, den = 1;
+    alphas.forEach(function (a) { if (!qZero(a)) { num = gcd(num, a.n); den = lcm(den, a.d); } });
+    if (!num) return null;
+    var alpha = Q(num, den);
+    var tMap = new Map();
+    info.forEach(function (x) {
+      var pwr = qDiv(x.c[1] || Q0, alpha), beta = x.c[0] || Q0;
+      var coef = { t: 'num', v: Math.pow(g, qv(beta)), q: qIsInt(beta) && Number.isInteger(g) ? qPow(qi(g), beta.n) : (recoverQ(Math.pow(g, qv(beta))) || F(Math.pow(g, qv(beta)))) };
+      coef.tx = qTex(coef.q);
+      var tp = qOne(pwr) ? Vr('t') : pw(Vr('t'), NQ(pwr));
+      tMap.set(x.a.node, qZero(beta) ? tp : mul(coef, tp));
+    });
+    var tAst = replaceNodes(diff, tMap);
+    if (hasV(tAst, v)) return null;
+    var tp2 = pFromAst(tAst), tc = tp2 && pToUni(tp2, 't');
+    if (!tc) return null;
+    var tDef = gT + '^{' + termsTex([{ c: alpha, m: mv(v) }]) + '}';
+    S.add(uTex(tc, 't') + ' = 0', 'Делаем замену $t = ' + tDef + '$, где $t > 0$: каждая степень выражается через $t$.', 0);
+    var st = solveUni(tc, 't', S.group('Решаем уравнение для $t$', 1), cx), out = [];
+    st.roots.forEach(function (tr) {
+      if (tr.val <= 1e-12) { S.add(null, '$t = ' + tr.tex + '$ не подходит: $t = ' + tDef + '$ всегда положительно.', 0); return; }
+      var k = asPowerOf(tr.val, g), lv = Math.log(tr.val) / Math.log(g), xv = lv / qv(alpha);
+      var lt = k ? qTex(k) : logTex(g, gT, wrapArg(tr.tex));
+      var tex = qOne(alpha) ? lt : (k ? qTex(qDiv(k, alpha)) : '\\frac{' + lt + '}{' + qTex(alpha) + '}');
+      S.add(tDef + ' = ' + tr.tex + ' \\;\\Rightarrow\\; ' + v + ' = ' + tex, 'Обратная замена.', 0);
+      out.push(Rt(xv, tex, true));
+    });
+    return sol(out, { numeric: st.numeric });
+  }
+  function expLogBoth(sl, sr, v, S, g, gT) {
+    // a·g^{E1} = b·g^{E2}, b/a не степень g: логарифмируем обе части
+    var K = sr.coef / sl.coef;
+    if (!(K > 0)) { S.add(null, 'Левая и правая части имеют разные знаки при любом $' + v + '$ — решений нет.', 0); return sol([], { none: true }); }
+    var lk = Math.log(K) / Math.log(g), c = uSub(sl.info.c, uAdd(sr.info.c, [F(lk)]));
+    S.add(uTex(sl.info.c, v) + ' = ' + uTex(sr.info.c, v) + ' + ' + logTex(g, gT, wrapArg(numTex(K).tex)), 'Логарифмируем обе части по основанию $' + gT + '$.', 0);
+    return solveUni(c, v, S, CXQ.quiet ? { pref: {} } : {});
+  }
+
+  /* ---------------------------------------------- логарифмические */
+  function logAtoms(n, v) {
+    var out = [];
+    (function walk(x) {
+      if (!x) return;
+      if (x.t === 'fn' && (x.name === 'ln' || x.name === 'log' || x.name === 'lg') && hasV(x.a, v)) {
+        var b = x.base ? evalN(x.base) : (x.name === 'ln' ? Math.E : 10);
+        out.push({ node: x, base: b, bTex: x.base ? T(x.base) : (x.name === 'ln' ? 'e' : '10') }); return;
+      }
+      kids(x).forEach(walk);
+    })(n);
+    return out;
+  }
+  function logEq(L, Rr, v, S, cx) {
+    var diff = sub(L, Rr), atoms = logAtoms(diff, v);
+    if (!atoms.length || atoms.some(function (a) { return !(a.base > 0) || Math.abs(a.base - 1) < 1e-12 || hasV(a.node.base, v); })) return null;
+    var g = commonBase(atoms.map(function (a) { return a.base; }));
+    if (!g) return null;
+    var gT = gTexOf(g);
+    if (atoms.some(function (a) { return a.node.name === 'log' && !a.node.base; })) S.add(null, 'Запись $\\log$ без основания понимаем как десятичный логарифм $\\lg$ (основание $10$).', 1);
+    var args = [], ids = new Map(), dom = [];
+    atoms.forEach(function (a) {
+      var key = T(a.node.a), i = args.indexOf(key);
+      if (i < 0) { args.push(key); i = args.length - 1; dom.push(a.node.a); }
+      var r = asPowerOf(a.base, g);   // log_{g^r} A = (1/r)·log_g A
+      ids.set(a.node, qOne(r) ? Vr('§' + i) : mul(NQ(qDiv(Q1, r)), Vr('§' + i)));
+    });
+    S.add(dom.map(function (d) { return T(d) + ' > 0'; }).join(',\\quad '), 'ОДЗ: под знаком логарифма может стоять только положительное число. Проверим это для найденных корней.', 1);
+    var P = pFromAst(replaceNodes(diff, ids));
+    if (!P || hasV(pToAst(P), v)) return null;
+    var vars = pVars(P), cand = [];
+    function argEq(A, val, valTex, grp) {
+      var q = recoverQ(val);
+      var rhs = q ? NQ(q) : { t: 'num', v: val, q: F(val), tx: valTex };
+      grp.add(T(A) + ' = ' + (q ? qTex(q) : valTex), 'По определению логарифма: $\\log_{a} b = c \\iff b = a^{c}$.', 0);
+      return solveEq(A, rhs, v, grp, cx).roots;
+    }
+    if (vars.length === 1 && pTotalDeg(P) === 1) {
+      var k = coefIn(P, vars[0], 1), c0 = coefIn(P, vars[0], 0), val = qNeg(qDiv(c0, k));
+      var A = dom[+vars[0].slice(1)];
+      S.add(logTex(g, gT, wrapArg(T(A))) + ' = ' + qTex(val), 'Приводим к простейшему виду.', 0);
+      cand = argEq(A, Math.pow(g, qv(val)), gT + '^{' + qTex(val) + '}', S);
+    } else if (vars.length === 1) {
+      var tc = pToUni(P, vars[0]), A2 = dom[+vars[0].slice(1)];
+      S.add(uTex(tc, 't') + ' = 0', 'Замена $t = ' + logTex(g, gT, wrapArg(T(A2))) + '$.', 0);
+      var st = solveUni(tc, 't', S.group('Решаем уравнение для $t$', 1), cx);
+      st.roots.forEach(function (tr) { cand = cand.concat(argEq(A2, Math.pow(g, tr.val), gT + '^{' + tr.tex + '}', S.group('Обратная замена: $' + logTex(g, gT, wrapArg(T(A2))) + ' = ' + tr.tex + '$', 1))); });
+    } else if (pTotalDeg(P) === 1 && vars.every(function (x) { var q = coefIn(P, x, 1); return qIsInt(q); })) {
+      var numN = null, denN = null;
+      vars.forEach(function (x) {
+        var q = coefIn(P, x, 1), A3 = dom[+x.slice(1)], f = Math.abs(q.n) === 1 ? A3 : pw(A3, Nn(Math.abs(q.n)));
+        if (q.n > 0) numN = numN ? mul(numN, f) : f; else denN = denN ? mul(denN, f) : f;
+      });
+      var c1 = qNeg(pConstVal(P)), left = denN ? dvd(numN || Nn(1), denN) : numN;
+      S.add(logTex(g, gT, '\\left(' + T(left) + '\\right)') + ' = ' + qTex(c1), 'Используем свойства логарифмов: $\\log a + \\log b = \\log(ab)$, $\\log a - \\log b = \\log\\frac{a}{b}$, $k\\log a = \\log a^{k}$.', 0);
+      if (qZero(c1) && numN && denN) { S.add(T(numN) + ' = ' + T(denN), 'Логарифмы с одинаковым основанием равны — равны и аргументы.', 0); cand = solveEq(numN, denN, v, S, cx).roots; }
+      else cand = argEq(left, Math.pow(g, qv(c1)), gT + '^{' + qTex(c1) + '}', S);
+    } else return null;
+    var good = [];
+    uniqRoots(cand).forEach(function (r) {
+      var okd = dom.every(function (d) { return at(d, v, r.val) > 0; });
+      if (okd && isFinite(at(diff, v, r.val)) && Math.abs(at(diff, v, r.val)) < 1e-7) good.push(r);
+      else S.add(null, '$' + v + ' = ' + r.tex + '$ не входит в ОДЗ (аргумент логарифма не положителен) — отбрасываем.', 0);
+    });
+    return sol(good);
+  }
+
+  /* ---------------------------------------------- тригонометрические */
+  var PI = Math.PI;
+  // Табличные значения: t -> угол (в долях π) для arcsin/arccos/arctg.
+  function tableAngle(fn, t) {
+    var tab = fn === 'tan' ? [[0, Q0], [1 / Math.sqrt(3), Q(1, 6)], [1, Q(1, 4)], [Math.sqrt(3), Q(1, 3)]]
+                          : [[0, Q0], [0.5, Q(1, 6)], [Math.SQRT1_2, Q(1, 4)], [Math.sqrt(3) / 2, Q(1, 3)], [1, Q(1, 2)]];
+    for (var i = 0; i < tab.length; i++) {
+      if (Math.abs(Math.abs(t) - tab[i][0]) < 1e-10) {
+        var a = tab[i][1];
+        if (t < 0) a = fn === 'cos' ? qSub(Q1, a) : qNeg(a);
+        else if (fn === 'cos') a = qSub(Q(1, 2), a);
+        return a;
+      }
+    }
+    return null;
+  }
+  // Угол = {pi: Q, arc: tex|null, arcVal} ; значение = pi·π + arcVal
+  function angTex(a) {
+    if (a.arc) return (a.k && !qOne(a.k) ? (qEq(a.k, qi(-1)) ? '-' : qTex(a.k) + ' ') : '') + a.arc;
+    return piTex(a.pi);
+  }
+  function angVal(a) { return a.arc ? qv(a.k || Q1) * a.arcVal : qv(a.pi) * PI; }
+  function angScale(a, q) { return a.arc ? { arc: a.arc, arcVal: a.arcVal, k: qMul(a.k || Q1, q) } : { pi: qMul(a.pi, q) }; }
+  function trigBasic(fn, t, tTex) {   // серии решений для u: fn(u) = t
+    var nm = fn === 'tg' ? 'tan' : fn === 'ctg' ? 'cot' : fn;
+    if ((nm === 'sin' || nm === 'cos') && Math.abs(t) > 1 + 1e-12) return null;
+    if (nm === 'cot') { var a0 = tableAngle('tan', t === 0 ? Infinity : 1 / t); if (Math.abs(t) < 1e-12) return [{ base: { pi: Q(1, 2) }, per: Q1 }]; return [{ base: a0 ? { pi: t > 0 ? a0 : qAdd(Q1, a0) } : { arc: '\\operatorname{arcctg}' + wrapArg(tTex), arcVal: PI / 2 - Math.atan(t) }, per: Q1 }]; }
+    var ta = tableAngle(nm, t);
+    var arc = ta ? { pi: ta } : { arc: (nm === 'sin' ? '\\arcsin' : nm === 'cos' ? '\\arccos' : '\\operatorname{arctg}') + wrapArg(tTex), arcVal: nm === 'sin' ? Math.asin(t) : nm === 'cos' ? Math.acos(t) : Math.atan(t) };
+    if (nm === 'tan') return [{ base: arc, per: Q1 }];
+    if (nm === 'sin') {
+      if (Math.abs(t) < 1e-12) return [{ base: { pi: Q0 }, per: Q1 }];
+      if (Math.abs(Math.abs(t) - 1) < 1e-12) return [{ base: { pi: Q(t > 0 ? 1 : -1, 2) }, per: qi(2) }];
+      return [{ base: arc, per: Q1, alt: true }];
+    }
+    if (Math.abs(t) < 1e-12) return [{ base: { pi: Q(1, 2) }, per: Q1 }];
+    if (Math.abs(t - 1) < 1e-12) return [{ base: { pi: Q0 }, per: qi(2) }];
+    if (Math.abs(t + 1) < 1e-12) return [{ base: { pi: Q1 }, per: qi(2) }];
+    return [{ base: arc, per: qi(2), pm: true }];
+  }
+  function seriesTex(v, s) {
+    var b = angTex(s.base), pre = s.alt ? (b.charAt(0) === '-' ? '(-1)^{n+1}' + b.slice(1) : '(-1)^{n}' + b) : s.pm ? '\\pm ' + b : b;
+    if (!s.alt && !s.pm && b === '0') pre = '';
+    var per = piTex(s.per) + ' n';
+    var off = s.off ? angTex(s.off) : '';
+    var body = pre + (off ? (off.charAt(0) === '-' ? ' - ' + off.slice(1) : ' + ' + off) : '');
+    return v + ' = ' + (body ? body + ' + ' : '') + per + ',\\ n \\in \\mathbb{Z}';
+  }
+  function seriesVals(s, nmax) {
+    var out = [];
+    for (var n = -nmax; n <= nmax; n++) {
+      var b = angVal(s.base), off = s.off ? angVal(s.off) : 0, sign = s.alt ? (n % 2 ? -1 : 1) : 1;
+      var vs = s.pm ? [b, -b] : [sign * b];
+      vs.forEach(function (x) { out.push(x * (s.scale || 1) + off + qv(s.per) * PI * n); });
+    }
+    return out;
+  }
+  // sin 2u и cos 2u рядом с функциями от u — раскрываем формулами двойного угла.
+  function doubleAngle(L, Rr, v, S) {
+    var args = {};
+    [L, Rr].forEach(function (n) { (function walk(x) { if (!x) return; if (x.t === 'fn' && TRIG[x.name] && hasV(x.a, v)) { var p = pFromAst(x.a), c = p && pToUni(p, v); if (c && uDeg(c) === 1) args[qv(c[1]) + '|' + qv(c[0])] = c; } kids(x).forEach(walk); })(n); });
+    var ks = Object.values(args);
+    if (ks.length !== 2) return null;
+    var a = ks[0], b = ks[1];
+    if (!qZero(a[0]) || !qZero(b[0])) return null;
+    var small = qEq(qMul(qi(2), a[1]), b[1]) ? a : qEq(qMul(qi(2), b[1]), a[1]) ? b : null;
+    if (!small) return null;
+    var big = small === a ? b : a, u = uToAst(small, v), onlySin = true;
+    [L, Rr].forEach(function (n) { anyNode(n, function (x) { if (x.t === 'fn' && x.name === 'cos' && T(x.a) === T(u)) onlySin = false; return false; }); });
+    function rw(x) {
+      if (!x) return x;
+      if (x.t === 'fn' && TRIG[x.name] && hasV(x.a, v)) {
+        var p = pFromAst(x.a), c = p && pToUni(p, v);
+        if (c && uDeg(c) === 1 && qEq(c[1], big[1])) {
+          if (x.name === 'sin') return mul(Nn(2), mul({ t: 'fn', name: 'sin', a: u }, { t: 'fn', name: 'cos', a: u }));
+          if (x.name === 'cos') return onlySin ? sub(Nn(1), mul(Nn(2), pw({ t: 'fn', name: 'sin', a: u }, Nn(2)))) : sub(mul(Nn(2), pw({ t: 'fn', name: 'cos', a: u }, Nn(2))), Nn(1));
+          return null;
+        }
+      }
+      var c2 = {}; for (var k in x) c2[k] = x[k];
+      if (x.a) c2.a = rw(x.a); if (x.b) c2.b = rw(x.b);
+      return c2;
+    }
+    var nl = rw(L), nr = rw(Rr);
+    S.add(T(nl) + ' = ' + T(nr), 'Применяем формулы двойного угла: $\\sin 2u = 2\\sin u\\cos u$, $\\cos 2u = ' + (onlySin ? '1 - 2\\sin^2 u' : '2\\cos^2 u - 1') + '$.', 1);
+    return { L: nl, R: nr };
+  }
+  function trigEq(L, Rr, v, S, cx) {
+    var da = doubleAngle(L, Rr, v, S);
+    if (da) { L = da.L; Rr = da.R; }
+    var diff = sub(L, Rr), atoms = [];
+    (function walk(x) { if (!x) return; if (x.t === 'fn' && TRIG[x.name] && hasV(x.a, v)) { atoms.push(x); return; } kids(x).forEach(walk); })(diff);
+    var argP = null, k = null, m = null, ok = true;
+    atoms.forEach(function (a) {
+      var p = pFromAst(a.a), c = p && pToUni(p, v);
+      if (!c || uDeg(c) !== 1) { ok = false; return; }
+      if (!k) { k = c[1]; m = c[0]; argP = a.a; } else if (!qEq(k, c[1]) || !qEq(m, c[0])) ok = false;
+    });
+    if (!ok || !atoms.length) return null;
+    var map = new Map(), NAMES = { sin: 's', cos: 'c', tan: 'tg', tg: 'tg', cot: 'ct', ctg: 'ct' };
+    atoms.forEach(function (a) { map.set(a, Vr(NAMES[a.name])); });
+    var P = pFromAst(replaceNodes(diff, map));
+    if (!P || freeVars(pToAst(P)).some(function (x) { return x === v; })) return null;
+    var fv = pVars(P), uT = T(argP), fnT = { s: '\\sin', c: '\\cos', tg: '\\operatorname{tg}', ct: '\\operatorname{ctg}' };
+    var FN = { s: 'sin', c: 'cos', tg: 'tan', ct: 'cot' };
+    function full(x) { return fnT[x] + wrapArg(uT); }
+    var pre = [];
+    if (fv.length === 2) ['s', 'c'].forEach(function (f0) {
+      if (fv.length === 2 && pList(P).every(function (t) { return t.m[f0]; })) {
+        var rest = pNew(); pList(P).forEach(function (t) { var m2 = {}; for (var kk in t.m) m2[kk] = t.m[kk]; m2[f0]--; pAddTerm(rest, t.c, m2); });
+        S.add(full(f0) + ' \\cdot \\left(' + pTex(rest).replace(/\bs\b/g, full('s')).replace(/\bc\b/g, full('c')) + '\\right) = 0', 'Выносим общий множитель $' + full(f0) + '$: произведение равно нулю, когда один из множителей равен нулю.', 0);
+        S.add(full(f0) + ' = 0', 'Первый случай.', 1);
+        pre = pre.concat(trigBasic(FN[f0], 0, '0'));
+        P = rest; fv = pVars(P);
+      }
+    });
+    if (!fv.length) return trigFinish(pre, k, m, v, S, diff);
+    if (fv.length === 2 && fv.indexOf('s') >= 0 && fv.indexOf('c') >= 0) {
+      var evenS = pList(P).every(function (t) { return !((t.m.s || 0) % 2); }), evenC = pList(P).every(function (t) { return !((t.m.c || 0) % 2); });
+      var degs = pList(P).map(function (t) { return (t.m.s || 0) + (t.m.c || 0); });
+      if (evenS || evenC) {
+        var from = evenS ? 's' : 'c', to = evenS ? 'c' : 's';
+        var rep = pNew(); pList(P).forEach(function (t) { var e = (t.m[from] || 0) / 2, m2 = {}; if (t.m[to]) m2[to] = t.m[to]; var q = pMul(pConst(t.c), pPow(pSub(pConst(Q1), pMul(pVar(to), pVar(to))), e)); rep = pAdd(rep, pMul(q, pAddTerm(pNew(), Q1, m2))); });
+        S.add(null, 'Используем основное тригонометрическое тождество: $' + fnT[from] + '^2 ' + wrapArg(uT) + ' = 1 - ' + fnT[to] + '^2 ' + wrapArg(uT) + '$.', 1);
+        P = rep; fv = [to];
+      } else if (degs.every(function (d) { return d === degs[0]; }) && degs[0] > 0) {
+        var dd = degs[0], cc0 = coefIn(P, 's', dd);
+        S.add(null, 'Однородное уравнение степени ' + dd + ': делим на $' + full('c') + '^{' + dd + '}$. ' + (qZero(cc0) ? 'Но при $' + full('c') + ' = 0$ уравнение тоже выполняется — эти корни учтём отдельно.' : 'При $' + full('c') + ' = 0$ было бы $' + full('s') + ' = \\pm 1$, и уравнение не выполнялось бы, поэтому делить можно.'), 1);
+        var rep2 = pNew(); pList(P).forEach(function (t) { var m3 = {}; if (t.m.s) m3.tg = t.m.s; pAddTerm(rep2, t.c, m3); });
+        if (qZero(cc0)) { P = rep2; }
+        P = rep2; fv = ['tg'];
+        if (qZero(cc0)) cx._extraCos = true;
+      } else if (degs.every(function (d) { return d <= 1; })) {
+        var a = coefIn(P, 's', 1), b = coefIn(P, 'c', 1), c = qNeg(pConstVal(P));
+        var Rv = Math.sqrt(qv(a) * qv(a) + qv(b) * qv(b)), phi = Math.atan2(qv(b), qv(a)), ratio = qv(c) / Rv;
+        var phiQ = recoverQ(phi / PI, 24);
+        S.add(null, 'Метод вспомогательного угла: $a\\sin u + b\\cos u = R\\sin(u + \\varphi)$, где $R = \\sqrt{a^2 + b^2} = ' + numTex(Rv).tex + '$' + (phiQ ? ', $\\varphi = ' + piTex(phiQ) + '$' : '') + '.', 1);
+        S.add('\\sin\\left(' + uT + (phiQ ? ' + ' + piTex(phiQ) : ' + \\varphi') + '\\right) = ' + numTex(ratio).tex, 'Делим обе части на $R$.', 0);
+        var ser = trigBasic('sin', ratio, numTex(ratio).tex);
+        if (!ser) { S.add(null, 'Синус не может быть больше $1$ по модулю — решений нет.', 0); return sol([], { none: true }); }
+        return trigFinish(ser.map(function (s) { s.shift = phiQ ? { pi: qNeg(phiQ) } : { arc: '\\varphi', arcVal: -phi, k: qi(-1) }; return s; }), k, m, v, S, diff);
+      } else return null;
+    }
+    if (fv.length !== 1) return null;
+    var f = fv[0], tc = pToUni(P, f);
+    var series = [];
+    if (uDeg(tc) === 1) {
+      var tv = qDiv(qNeg(tc[0]), tc[1]);
+      S.add(full(f) + ' = ' + qTex(tv), 'Простейшее тригонометрическое уравнение.', 0);
+      series = trigBasic(FN[f], qv(tv), qTex(tv));
+      if (!series) { S.add(null, 'Значения ' + (f === 's' ? 'синуса' : 'косинуса') + ' лежат на отрезке $[-1; 1]$ — решений нет.', 0); series = []; }
+    } else {
+      S.add(uTex(tc, 't') + ' = 0', 'Замена $t = ' + full(f) + '$' + (f === 's' || f === 'c' ? ', причём $-1 \\le t \\le 1$' : '') + '.', 0);
+      var st = solveUni(tc, 't', S.group('Решаем уравнение для $t$', 1), cx);
+      st.roots.forEach(function (tr) {
+        var b = trigBasic(FN[f], tr.val, tr.tex);
+        if (!b) { S.add(null, '$t = ' + tr.tex + '$ не подходит: $|t| > 1$.', 0); return; }
+        S.add(full(f) + ' = ' + tr.tex, 'Обратная замена.', 1);
+        series = series.concat(b);
+      });
+    }
+    series = pre.concat(series);
+    if (cx._extraCos) { series = series.concat([{ base: { pi: Q(1, 2) }, per: Q1 }]); cx._extraCos = false; }
+    return trigFinish(series, k, m, v, S, diff);
+  }
+  function trigFinish(series, k, m, v, S, diff) {
+    if (!series.length) return sol([], { none: true });
+    var mv2 = qv(m), mpi = recoverQ(mv2 / PI, 24);
+    var out = series.map(function (s) {
+      var r = { base: s.base, per: qDiv(s.per, qAbs(k)), alt: s.alt, pm: s.pm };
+      r.base = angScale(s.base, qDiv(Q1, k));
+      var offs = [];
+      if (s.shift) offs.push(angScale(s.shift, qDiv(Q1, k)));
+      if (!qZero(m)) offs.push(mpi ? { pi: qNeg(qDiv(mpi, k)) } : { arc: qTex(qAbs(m)), arcVal: Math.abs(mv2), k: qDiv(qi(mv2 > 0 ? -1 : 1), k) });
+      if (offs.length === 1) r.off = offs[0];
+      else if (offs.length === 2 && !offs[0].arc && !offs[1].arc) r.off = { pi: qAdd(offs[0].pi, offs[1].pi) };
+      else if (offs.length === 2) { r.off = offs[1].arc ? offs[1] : offs[0]; r.off2 = offs[1].arc ? offs[0] : offs[1]; }
+      if (r.base.arc === undefined && r.off && r.off.pi && !s.pm && !s.alt) { r.base = { pi: qAdd(r.base.pi, r.off.pi) }; r.off = null; }
+      if (r.off2) { r.off = r.off.arc ? { arc: angTex(r.off) + ' + ' + angTex(r.off2), arcVal: angVal(r.off) + angVal(r.off2) } : r.off; }
+      return r;
+    });
+    if (!qOne(k) || !qZero(m)) S.add(null, 'Выражаем $' + v + '$ из аргумента $' + termsTex([{ c: k, m: mv(v) }, { c: m.f !== undefined ? m : m, m: {} }]) + '$.', 1);
+    var texs = out.map(function (s) { return seriesTex(v, s); });
+    S.add(texs.join(';\\quad '), 'Общее решение (серии корней).', 0);
+    var bad = out.some(function (s) { return seriesVals(s, 1).some(function (x) { var y = at(diff, v, x); return isFinite(y) && Math.abs(y) > 1e-6; }); });
+    if (bad) return null;
+    return sol([], { series: texs, seriesSample: out.map(function (s) { return seriesVals(s, 0)[0]; }) });
+  }
+
+  /* ---------------------------------------------- численно */
+  function numericEq(L, Rr, v, S, cx, why) {
+    var f = function (x) { return at(sub(L, Rr), v, x); };
+    if (why) S.add(null, why, 0);
+    var roots = numericRoots(f);
+    var per = detectPeriod(f, roots.inner);
+    if (per) {
+      var base = roots.inner.filter(function (x) { return x >= -1e-9 && x < per.T - 1e-9; });
+      var Tt = per.tex;
+      var texs = base.map(function (x) { return v + ' \\approx ' + fTex(x, 8) + ' + ' + Tt + ' n'; });
+      S.add(texs.join(';\\quad ') + ',\\ n \\in \\mathbb{Z}', 'Левая часть периодична с периодом $' + Tt + '$: корни повторяются через каждый период. Выписываем корни на $[0; ' + Tt + ')$.', 0);
+      return sol([], { series: base.map(function (x) { return v + ' \\approx ' + fTex(x, 8) + ' + ' + Tt + ' n,\\ n \\in \\mathbb{Z}'; }), numeric: true });
+    }
+    var rs = roots.all.map(rootNum);
+    if (!rs.length) S.add(null, 'На промежутке $[-10^4; 10^4]$ функция нигде не обращается в ноль — корней не найдено.', 0);
+    else S.add(rootsTex(v, rs.slice(0, 12)), 'Найденные корни (с точностью около $10^{-10}$).', 0);
+    return sol(rs.slice(0, 40), { numeric: true });
+  }
+  function numericRoots(f) {
+    var found = [];
+    function push(x) {
+      var y = f(x), h = 1e-4 * Math.max(1, Math.abs(x));
+      var scale = Math.max(1, Math.abs(f(x - h)), Math.abs(f(x + h)));
+      if (!isFinite(y) || Math.abs(y) > 1e-6 * scale || Math.abs(f(x - h)) > 1e6 && Math.abs(f(x + h)) > 1e6) return;
+      if (!found.some(function (z) { return Math.abs(z - x) < 1e-7 * Math.max(1, Math.abs(x)); })) found.push(x);
+    }
+    function scan(a, b, n) {
+      var h = (b - a) / n, px = a, pf = f(a), pa = Math.abs(pf), ppa = Infinity;
+      for (var i = 1; i <= n; i++) {
+        var x = a + i * h, fx = f(x);
+        if (fx === 0) push(x);
+        else if (isFinite(pf) && isFinite(fx) && pf * fx < 0) {
+          var lo = px, hi = x, flo = pf;
+          for (var k = 0; k < 100; k++) { var mdl = (lo + hi) / 2, fm = f(mdl); if (flo * fm <= 0) hi = mdl; else { lo = mdl; flo = fm; } }
+          push((lo + hi) / 2);
+        } else if (isFinite(pa) && pa < ppa && pa < Math.abs(fx) && pa < 1e-3) {
+          // касание оси без смены знака — минимизируем |f|
+          var l2 = px - h, r2 = x;
+          for (var g = 0; g < 100; g++) { var m1 = l2 + (r2 - l2) / 3, m2 = r2 - (r2 - l2) / 3; if (Math.abs(f(m1)) < Math.abs(f(m2))) r2 = m2; else l2 = m1; }
+          if (Math.abs(f((l2 + r2) / 2)) < 1e-12) push((l2 + r2) / 2);
+        }
+        ppa = pa; pa = Math.abs(fx); pf = fx; px = x;
+      }
+    }
+    scan(-12, 12, 24000);
+    var inner = found.slice().sort(function (a, b) { return a - b; });
+    scan(-120, 120, 24000); scan(-1e4, 1e4, 40000);
+    return { inner: inner, all: found.sort(function (a, b) { return a - b; }) };
+  }
+  function detectPeriod(f, roots) {
+    if (roots.length < 8) return null;
+    var cands = [PI, 2 * PI, PI / 2, 2 * PI / 3, PI / 3, 4 * PI];
+    for (var i = 0; i < cands.length; i++) {
+      var T0 = cands[i], ok = true;
+      for (var j = 0; j < 15 && ok; j++) { var x = -5 + j * 0.713; var a = f(x), b = f(x + T0); if (isFinite(a) && isFinite(b) && Math.abs(a - b) > 1e-8 * Math.max(1, Math.abs(a))) ok = false; }
+      if (ok) return { T: T0, tex: piTex(recoverQ(T0 / PI)) };
+    }
+    return null;
+  }
+
+  /* ============================ 11. НЕРАВЕНСТВА ==========================
+     Область — список промежутков {lo, hi (Rt|null = бесконечность), loInc, hiInc}. */
+  var FLIP = { '<': '>', '>': '<', '≤': '≥', '≥': '≤', '≠': '≠' };
+  function holdsOp(y, op) { return op === '>' ? y > 1e-12 : op === '≥' ? y > -1e-12 : op === '<' ? y < -1e-12 : op === '≤' ? y < 1e-12 : Math.abs(y) > 1e-12; }
+  function ivTex(iv) {
+    if (iv.lo && iv.hi && sameVal(iv.lo.val, iv.hi.val)) return '\\{' + iv.lo.tex + '\\}';
+    return (iv.lo && iv.loInc ? '[' : '(') + (iv.lo ? iv.lo.tex : '-\\infty') + ';\\ ' + (iv.hi ? iv.hi.tex : '+\\infty') + (iv.hi && iv.hiInc ? ']' : ')');
+  }
+  function regionTex(reg, v) {
+    if (!reg.length) return '\\text{решений нет}';
+    if (reg.length === 1 && !reg[0].lo && !reg[0].hi) return v + ' \\in \\mathbb{R}';
+    return v + ' \\in ' + reg.map(ivTex).join(' \\cup ');
+  }
+  function solveIneq(L, Rr, op, v, S, cx) {
+    var diff = sub(L, Rr), f = features(diff, v);
+    var pl = pFromAst(L), pr = pFromAst(Rr), c = pl && pr && pToUni(pSub(pl, pr), v);
+    if (c && uDeg(c) <= 1) return linearIneq(L, Rr, op, v, S);
+    var fn = function (x) { return at(diff, v, x); };
+    // критические точки: нули выражения и точки, где оно не определено
+    var crit = [], dom = [];
+    var zr = quietRoots(L, Rr, v);
+    if (zr === null) zr = [];
+    denominators(diff, v).forEach(function (d) { (quietRoots(d, Nn(0), v) || []).forEach(function (r) { dom.push(r); }); });
+    (function walk(x) {
+      if (!x) return;
+      if ((x.t === 'fn' && (x.name === 'sqrt' || x.name === 'ln' || x.name === 'log' || x.name === 'lg')) && hasV(x.a, v)) (quietRoots(x.a, Nn(0), v) || []).forEach(function (r) { dom.push(r); });
+      if (x.t === 'fn' && x.name === 'abs' && hasV(x.a, v)) (quietRoots(x.a, Nn(0), v) || []).forEach(function (r) { dom.push(r); });
+      kids(x).forEach(walk);
+    })(diff);
+    if (f.trig) return periodicIneq(diff, op, v, S);
+    crit = uniqRoots(zr.concat(dom));
+    if (c) {
+      S.add(uTex(c, v) + ' ' + relTex(op) + ' 0', 'Переносим всё в левую часть.', 1);
+      S.add(null, 'Решаем методом интервалов: находим нули левой части и определяем её знак на каждом промежутке.', 1);
+    } else if (f.den && !f.rad && !f.log && !f.exp) {
+      var rf = rfFromAst(diff, v);
+      if (rf) S.add('\\frac{' + uTex(rf.n, v) + '}{' + uTex(rf.d, v) + '} ' + relTex(op) + ' 0', 'Переносим всё влево и приводим к общему знаменателю. Дальше — метод интервалов: знак дроби меняется только в нулях числителя и знаменателя.', 1);
+    } else S.add(null, 'Находим точки, где выражение $' + T(diff) + '$ обращается в ноль или теряет смысл, и проверяем знак на промежутках между ними.', 1);
+    if (zr.length) S.add(zr.map(function (r) { return v + ' = ' + r.tex; }).join(',\\ '), 'Нули выражения (решаем уравнение $' + T(L) + ' = ' + T(Rr) + '$).', 1);
+    var excluded = dom.filter(function (d) { return !isFinite(fn(d.val)); });
+    if (excluded.length) S.add(excluded.map(function (r) { return v + ' \\ne ' + r.tex; }).join(',\\ '), 'В этих точках выражение не определено — они «выколоты».', 1);
+    // знаки
+    var pts = crit, reg = [], cells = [], signs = [];
+    for (var i = 0; i <= pts.length; i++) {
+      var lo = i ? pts[i - 1] : null, hi = i < pts.length ? pts[i] : null;
+      var tp = lo && hi ? (lo.val + hi.val) / 2 : lo ? lo.val + Math.max(1, Math.abs(lo.val)) : hi ? hi.val - Math.max(1, Math.abs(hi.val)) : 0;
+      var y = fn(tp), ok = isFinite(y) && holdsOp(y, op);
+      cells.push(ivTex({ lo: lo, hi: hi }));
+      signs.push(!isFinite(y) ? '\\times' : y > 0 ? '+' : y < 0 ? '-' : '0');
+      if (ok) reg.push({ lo: lo, hi: hi, loInc: false, hiInc: false });
+    }
+    if (pts.length && pts.length <= 8) S.add('\\begin{array}{c|' + cells.map(function () { return 'c'; }).join('') + '} ' + v + ' & ' + cells.join(' & ') + ' \\\\ \\hline \\text{знак} & ' + signs.join(' & ') + ' \\end{array}', 'Знак на каждом промежутке определяем подстановкой любой его точки ($\\times$ — выражение там не определено).', 1);
+    // сами точки
+    pts.forEach(function (p) {
+      var y = fn(p.val);
+      if (isFinite(y) && holdsOp(y, op)) reg.push({ lo: p, hi: p, loInc: true, hiInc: true });
+    });
+    reg = mergeRegion(reg);
+    S.add(regionTex(reg, v), (op === '≥' || op === '≤') ? 'Неравенство нестрогое — нули выражения входят в ответ, выколотые точки — нет.' : 'Неравенство строгое — концы промежутков не входят.', 0);
+    return reg;
+  }
+  function mergeRegion(reg) {
+    reg.sort(function (a, b) { return (a.lo ? a.lo.val : -Infinity) - (b.lo ? b.lo.val : -Infinity) || (a.hi ? a.hi.val : Infinity) - (b.hi ? b.hi.val : Infinity); });
+    var out = [];
+    reg.forEach(function (r) {
+      var p = out[out.length - 1];
+      if (p && p.hi && r.lo && sameVal(p.hi.val, r.lo.val) && (p.hiInc || r.loInc)) { if (!r.hi || !p.hi || r.hi.val >= p.hi.val) { p.hi = r.hi; p.hiInc = r.hiInc; } return; }
+      if (p && (!p.hi || (r.lo && r.lo.val < p.hi.val - 1e-12))) { if (p.hi && (!r.hi || r.hi.val > p.hi.val)) { p.hi = r.hi; p.hiInc = r.hiInc; } return; }
+      out.push({ lo: r.lo, hi: r.hi, loInc: r.loInc, hiInc: r.hiInc });
+    });
+    return out;
+  }
+  function linearIneq(L, Rr, op, v, S) {
+    var sides = expandSides(L, Rr, relTex(op), S);
+    var a = qSub(coefIn(sides.l, v, 1), coefIn(sides.r, v, 1)), b = qSub(coefIn(sides.r, v, 0), coefIn(sides.l, v, 0));
+    S.add(termsTex(qZero(a) ? [{ c: Q0, m: {} }] : [{ c: a, m: mv(v) }]) + ' ' + relTex(op) + ' ' + qTex(b), 'Переносим слагаемые с $' + v + '$ влево, числа — вправо (с противоположным знаком) и приводим подобные.', 1);
+    if (qZero(a)) {
+      var ok = holdsOp(-qv(b), op);
+      S.add(null, 'Получили $0 ' + relTex(op) + ' ' + qTex(b) + '$ — ' + (ok ? 'верно при любом $' + v + '$.' : 'неверно ни при каком $' + v + '$.'), 0);
+      return ok ? [{ lo: null, hi: null }] : [];
+    }
+    var x = qDiv(b, a), op2 = qSign(a) < 0 ? FLIP[op] : op;
+    if (!qOne(a)) S.add(v + ' ' + relTex(op2) + ' ' + qTex(x), 'Делим обе части на $' + qTex(a) + '$' + (qSign(a) < 0 ? '. Число отрицательное — знак неравенства меняется на противоположный!' : '; число положительное, знак неравенства сохраняется.'), 0);
+    var r = rootQ(x);
+    if (op2 === '≠') return [{ lo: null, hi: r }, { lo: r, hi: null }];
+    var inc = op2 === '≥' || op2 === '≤';
+    return op2 === '<' || op2 === '≤' ? [{ lo: null, hi: r, hiInc: inc }] : [{ lo: r, hi: null, loInc: inc }];
+  }
+  function periodicIneq(diff, op, v, S) {
+    var fn = function (x) { return at(diff, v, x); }, per = detectPeriod(fn, [1, 2, 3, 4, 5, 6, 7, 8]);
+    if (!per) fail('это тригонометрическое неравенство пока не решается: не удалось определить период');
+    var T0 = per.T, pts = [], h = T0 / 4000, prev = fn(0);
+    for (var i = 1; i <= 4000; i++) { var x = i * h, y = fn(x); if (isFinite(prev) && isFinite(y) && prev * y <= 0 && prev !== 0) { var lo = x - h, hi = x; for (var k = 0; k < 80; k++) { var m = (lo + hi) / 2; if (fn(lo) * fn(m) <= 0) hi = m; else lo = m; } pts.push((lo + hi) / 2); } prev = y; }
+    S.add(null, 'Выражение периодично с периодом $' + per.tex + '$, поэтому решаем неравенство на одном периоде $[0; ' + per.tex + ')$ и добавляем $' + per.tex + ' n$.', 1);
+    var b = [0].concat(pts, [T0]), parts = [];
+    for (var j = 0; j < b.length - 1; j++) if (holdsOp(fn((b[j] + b[j + 1]) / 2), op)) parts.push([b[j], b[j + 1]]);
+    var inc = op === '≥' || op === '≤';
+    var texs = parts.map(function (p) { var a = rootNum(p[0]).tex, c = rootNum(p[1]).tex; return a + ' + ' + per.tex + ' n ' + (inc ? '\\le' : '<') + ' ' + v + ' ' + (inc ? '\\le' : '<') + ' ' + c + ' + ' + per.tex + ' n'; });
+    S.add(texs.join(';\\quad ') + ',\\ n \\in \\mathbb{Z}', 'Промежутки, где неравенство выполняется.', 0);
+    return { periodic: texs };
+  }
+
+  /* ============================== 12. СИСТЕМЫ ============================ */
+  function casesTex(rows) { return '\\begin{cases} ' + rows.join(' \\\\ ') + ' \\end{cases}'; }
+  function rowTex(row, vars) {
+    var t = []; vars.forEach(function (x, j) { if (!qZero(row[j])) t.push({ c: row[j], m: mv(x) }); });
+    return (t.length ? termsTex(t) : '0') + ' = ' + qTex(row[vars.length]);
+  }
+  function gaussSolve(M, vars, S) {
+    var n = M.length, m = vars.length, r = 0, piv = [];
+    S.add(casesTex(M.map(function (row) { return rowTex(row, vars); })), 'Записываем систему так, чтобы переменные были слева, числа — справа.', 1);
+    for (var col = 0; col < m && r < n; col++) {
+      var p = -1; for (var i = r; i < n; i++) if (!qZero(M[i][col]) && (p < 0 || qOne(qAbs(M[i][col])))) p = i;
+      if (p < 0) continue;
+      if (p !== r) { var tmp = M[p]; M[p] = M[r]; M[r] = tmp; }
+      var ops = [];
+      for (var i2 = r + 1; i2 < n; i2++) {
+        if (qZero(M[i2][col])) continue;
+        var f = qDiv(M[i2][col], M[r][col]);
+        M[i2] = M[i2].map(function (x, j) { return qSub(x, qMul(f, M[r][j])); });
+        ops.push('из уравнения ' + (i2 + 1) + ' вычитаем уравнение ' + (r + 1) + ', умноженное на $' + qTex(f) + '$');
+      }
+      if (ops.length) S.add(casesTex(M.map(function (row) { return rowTex(row, vars); })), 'Исключаем $' + vars[col] + '$: ' + ops.join('; ') + '.', 1);
+      piv.push(col); r++;
+    }
+    for (var i3 = 0; i3 < n; i3++) if (M[i3].slice(0, m).every(qZero) && !qZero(M[i3][m])) { S.add('0 = ' + qTex(M[i3][m]), 'Получилось неверное равенство — система несовместна, решений нет.', 0); return { kind: 'none' }; }
+    var free = vars.filter(function (_, j) { return piv.indexOf(j) < 0; });
+    var vals = {};
+    free.forEach(function (x, i) { vals[x] = { free: true, p: pVar(free.length === 1 ? 't' : 't_' + (i + 1)) }; });
+    for (var k = piv.length - 1; k >= 0; k--) {
+      var c = piv[k], row = M[k], rhs = pConst(row[m]);
+      for (var j = c + 1; j < m; j++) if (!qZero(row[j])) rhs = pSub(rhs, pScale(vals[vars[j]].p, row[j]));
+      rhs = pScale(rhs, qDiv(Q1, row[c]));
+      vals[vars[c]] = { p: rhs };
+      S.add(vars[c] + ' = ' + pTex(rhs), 'Из уравнения ' + (k + 1) + ' выражаем $' + vars[c] + '$' + (k < piv.length - 1 ? ' (подставляем уже найденное)' : '') + '.', 1);
+    }
+    if (free.length) S.add(null, 'Переменных больше, чем независимых уравнений: $' + free.join(', ') + '$ — свободн' + (free.length > 1 ? 'ые' : 'ая') + ', решений бесконечно много.', 0);
+    return { kind: free.length ? 'infinite' : 'unique', vals: vals, free: free };
+  }
+  function det(A) {
+    if (A.length === 1) return A[0][0];
+    var s = Q0;
+    for (var j = 0; j < A.length; j++) {
+      var minor = A.slice(1).map(function (r) { return r.filter(function (_, k) { return k !== j; }); });
+      s = qAdd(s, qMul(qMul(qi(j % 2 ? -1 : 1), A[0][j]), det(minor)));
+    }
+    return s;
+  }
+  function matTex(A) { return '\\begin{vmatrix} ' + A.map(function (r) { return r.map(function (q) { return qTex(q); }).join(' & '); }).join(' \\\\ ') + ' \\end{vmatrix}'; }
+  function cramer(M, vars, S) {
+    var A = M.map(function (r) { return r.slice(0, vars.length); }), b = M.map(function (r) { return r[vars.length]; });
+    var D = det(A);
+    if (qZero(D)) return null;
+    S.add('\\Delta = ' + matTex(A) + ' = ' + qTex(D), 'Главный определитель из коэффициентов при переменных. Он не равен нулю — решение единственное.', 0);
+    var vals = {};
+    vars.forEach(function (x, i) {
+      var Ai = A.map(function (r, k) { var c = r.slice(); c[i] = b[k]; return c; }), Di = det(Ai);
+      vals[x] = { p: pConst(qDiv(Di, D)) };
+      S.add('\\Delta_{' + x + '} = ' + matTex(Ai) + ' = ' + qTex(Di) + ',\\quad ' + x + ' = \\frac{\\Delta_{' + x + '}}{\\Delta} = ' + qTex(qDiv(Di, D)), 'Заменяем столбец коэффициентов при $' + x + '$ столбцом свободных членов.', 1, { briefTex: x + ' = ' + qTex(qDiv(Di, D)) });
+    });
+    return { kind: 'unique', vals: vals, free: [] };
+  }
+  function substitution2(M, vars, S) {
+    if (M.length !== 2 || vars.length !== 2) return null;
+    var bi = -1, bj = -1;
+    for (var i = 0; i < 2 && bi < 0; i++) for (var j = 0; j < 2; j++) if (qOne(qAbs(M[i][j]))) { bi = i; bj = j; break; }
+    if (bi < 0) for (var i2 = 0; i2 < 2 && bi < 0; i2++) for (var j2 = 0; j2 < 2; j2++) if (!qZero(M[i2][j2])) { bi = i2; bj = j2; break; }
+    if (bi < 0) return null;
+    var x = vars[bj], y = vars[1 - bj], r = M[bi], oi = 1 - bi, o = M[oi];
+    var expr = pScale(pSub(pConst(r[2]), pScale(pVar(y), r[1 - bj])), qDiv(Q1, r[bj]));
+    S.add(x + ' = ' + pTex(expr), 'Из уравнения ' + (bi + 1) + ' выражаем $' + x + '$' + (qOne(qAbs(r[bj])) ? ' (коэффициент при нём $\\pm 1$ — так проще).' : '.'), 0);
+    var subP = pAdd(pScale(expr, o[bj]), pScale(pVar(y), o[1 - bj]));
+    S.add(pTex(subP) + ' = ' + qTex(o[2]), 'Подставляем в уравнение ' + (oi + 1) + '.', 1);
+    var a = coefIn(subP, y, 1), b = qSub(o[2], pConstVal(subP));
+    if (qZero(a)) { S.add('0 = ' + qTex(b), qZero(b) ? 'Верное равенство — решений бесконечно много.' : 'Неверное равенство — решений нет.', 0); return qZero(b) ? null : { kind: 'none' }; }
+    var yv = qDiv(b, a);
+    S.add(termsTex([{ c: a, m: mv(y) }]) + ' = ' + qTex(b) + ' \\;\\Rightarrow\\; ' + y + ' = ' + qTex(yv), 'Решаем линейное уравнение с одной переменной.', 0);
+    var xv = qDiv(qSub(r[2], qMul(r[1 - bj], yv)), r[bj]);
+    S.add(x + ' = ' + qTex(xv), 'Подставляем найденное $' + y + '$ в выражение для $' + x + '$.', 0);
+    var vals = {}; vals[x] = { p: pConst(xv) }; vals[y] = { p: pConst(yv) };
+    return { kind: 'unique', vals: vals, free: [] };
+  }
+  function addition2(M, vars, S) {
+    if (M.length !== 2 || vars.length !== 2) return null;
+    var best = null;
+    [0, 1].forEach(function (j) { if (qZero(M[0][j]) || qZero(M[1][j]) || isF(M[0][j]) || isF(M[1][j])) return; var L2 = lcm(M[0][j].n * M[1][j].d, M[1][j].n * M[0][j].d); if (!best || L2 < best.L) best = { j: j, L: L2 }; });
+    if (!best) return null;
+    var j = best.j, k1 = qDiv(qi(best.L), M[0][j]), k2 = qNeg(qDiv(qi(best.L), M[1][j]));
+    var R1 = M[0].map(function (q) { return qMul(q, k1); }), R2 = M[1].map(function (q) { return qMul(q, k2); });
+    S.add(casesTex([rowTex(R1, vars), rowTex(R2, vars)]), 'Домножаем уравнения на $' + qTex(k1) + '$ и $' + qTex(k2) + '$, чтобы коэффициенты при $' + vars[j] + '$ стали противоположными.', 1);
+    var sum = R1.map(function (q, i) { return qAdd(q, R2[i]); }), y = vars[1 - j];
+    S.add(rowTex(sum, vars), 'Складываем уравнения почленно — $' + vars[j] + '$ исчезает.', 0);
+    if (qZero(sum[1 - j])) { S.add(null, qZero(sum[2]) ? 'Получилось $0 = 0$ — уравнения равносильны, решений бесконечно много.' : 'Получилось неверное равенство — решений нет.', 0); return qZero(sum[2]) ? null : { kind: 'none' }; }
+    var yv = qDiv(sum[2], sum[1 - j]);
+    S.add(y + ' = ' + qTex(yv), 'Находим $' + y + '$.', 0);
+    var xv = qDiv(qSub(M[0][2], qMul(M[0][1 - j], yv)), M[0][j]);
+    S.add(vars[j] + ' = ' + qTex(xv), 'Подставляем в первое уравнение и находим $' + vars[j] + '$.', 0);
+    var vals = {}; vals[vars[j]] = { p: pConst(xv) }; vals[y] = { p: pConst(yv) };
+    return { kind: 'unique', vals: vals, free: [] };
+  }
+  function linearSystem(polys, vars, S, cx) {
+    var M = polys.map(function (p) { var row = vars.map(function (x) { return coefIn(p, x, 1); }); row.push(qNeg(pConstVal(p))); return row; });
+    var list = [{ id: 'gauss', label: 'Метод Гаусса' }];
+    var sq = M.length === vars.length && !qZero(det(M.map(function (r) { return r.slice(0, vars.length); })));
+    if (M.length === 2 && vars.length === 2) { list.unshift({ id: 'addition', label: 'Сложение' }); list.unshift({ id: 'substitution', label: 'Подстановка' }); }
+    if (sq && vars.length <= 4) list.push({ id: 'cramer', label: 'Метод Крамера' });
+    var m = offerMethods(cx, 'sys', list, list[0].id);
+    var copy = M.map(function (r) { return r.slice(); });
+    var tmp = new Steps();
+    var res = m === 'cramer' ? cramer(copy, vars, tmp) : m === 'substitution' ? substitution2(copy, vars, tmp) : m === 'addition' ? addition2(copy, vars, tmp) : null;
+    if (res) { tmp.list.forEach(function (x) { S.list.push(x); }); return res; }
+    if (m !== 'gauss') S.add(null, 'Выбранный способ здесь не доводит решение до конца (уравнения зависимы), поэтому решаем методом Гаусса.', 1);
+    return gaussSolve(M, vars, S);
+  }
+  // Нелинейная система: ищем уравнение, линейное по одной переменной с
+  // постоянным коэффициентом, выражаем и подставляем в остальные.
+  function nonlinearSystem(eqs, vars, S, cx, depth) {
+    depth = depth || 0;
+    var polys = eqs.map(function (e) { return pFromAst(e); });
+    // вычитание: если нелинейные части двух уравнений пропорциональны
+    if (eqs.length === 2 && polys[0] && polys[1]) {
+      var nl = function (p) { var r = pNew(); pList(p).forEach(function (t) { if (mDeg(t.m) > 1) pAddTerm(r, t.c, t.m); }); return r; };
+      var n0 = nl(polys[0]), n1 = nl(polys[1]);
+      if (!pIsZero(n0) && !pIsZero(n1)) {
+        var t0 = pSorted(n0)[0], t1 = n1.t[mKey(t0.m)];
+        if (t1) {
+          var k = qDiv(t0.c, t1.c), rest = pSub(n0, pScale(n1, k));
+          if (pIsZero(rest)) {
+            var lin = pSub(polys[0], pScale(polys[1], k));
+            S.add(pTex(lin) + ' = 0', 'Вычитаем из первого уравнения второе' + (qOne(k) ? '' : ', умноженное на $' + qTex(k) + '$') + ': слагаемые второй степени взаимно уничтожаются, остаётся линейное уравнение.', 0);
+            eqs = [pToAst(lin), eqs[0]]; polys = [lin, polys[0]];
+          }
+        }
+      }
+    }
+    var mono = monoSystem(polys, vars, S, cx);
+    if (mono) return mono;
+    for (var i = 0; i < eqs.length; i++) {
+      if (!polys[i]) continue;
+      for (var j = 0; j < vars.length; j++) {
+        var w = vars[j], cs = pCoeffs(polys[i], w);
+        if (cs.length !== 2 || !pIsConst(cs[1]) || qZero(pConstVal(cs[1]))) continue;
+        var expr = pScale(pNeg(cs[0]), qDiv(Q1, pConstVal(cs[1])));
+        var eAst = pToAst(expr);
+        S.add(w + ' = ' + pTex(expr), 'Из уравнения ' + (i + 1) + ' выражаем $' + w + '$.', 0);
+        var others = eqs.filter(function (_, k) { return k !== i; }).map(function (e) { return subst(e, w, eAst); });
+        var rv = vars.filter(function (x) { return x !== w; });
+        var partial;
+        if (others.length === 1 && rv.length === 1) {
+          S.add(T(others[0]) + ' = 0', 'Подставляем в ' + (eqs.length === 2 ? 'другое уравнение' : 'остальные уравнения') + ' — получаем уравнение с одной переменной.', 0);
+          var s = solveEq(others[0], Nn(0), rv[0], S.group('Решаем уравнение относительно $' + rv[0] + '$', 1), cx);
+          if (s.all || s.series) return null;
+          partial = s.roots.map(function (r) { var o = {}; o[rv[0]] = r; return o; });
+        } else if (others.length && rv.length) {
+          var sub2 = S.group('Подставляем и решаем систему для $' + rv.join(', ') + '$', 1);
+          var ps = others.map(function (e) { return pFromAst(e); });
+          var r2 = ps.every(function (p) { return p && pTotalDeg(p) <= 1; }) ? linearSystem(ps, rv, sub2, { quiet: true }) : null;
+          if (r2 && r2.kind === 'unique') { var o2 = {}; rv.forEach(function (x) { o2[x] = rootQ(pConstVal(r2.vals[x].p)); }); partial = [o2]; }
+          else partial = depth < 2 ? nonlinearSystem(others, rv, sub2, cx, depth + 1) : null;
+          if (!partial) return null;
+        } else return null;
+        var out = [];
+        partial.forEach(function (sl) {
+          var env = {}; rv.forEach(function (x) { env[x] = sl[x].val; });
+          var wv = pEval(expr, env), rec = {};
+          for (var k in sl) rec[k] = sl[k];
+          var e2 = subst(eAst, rv[0], NQ(qLit(0)));
+          var qx = rv.every(function (x) { return sl[x].exact && recoverQ(sl[x].val); }) ? recoverQ(wv) : null;
+          rec[w] = qx ? rootQ(qx) : rootNum(wv);
+          out.push(rec);
+          S.add(w + ' = ' + rec[w].tex, 'При $' + rv.map(function (x) { return x + ' = ' + sl[x].tex; }).join(',\\ ') + '$.', 1);
+        });
+        return out;
+      }
+    }
+    return null;
+  }
+
+  // Замена «степеней как новых неизвестных»: x²+y²=25, x²−y²=7 -> u=x², w=y².
+  function monoSystem(polys, vars, S, cx) {
+    if (polys.some(function (p) { return !p; })) return null;
+    var keys = {}, list = [];
+    polys.forEach(function (p) { pList(p).forEach(function (t) { var k = mKey(t.m); if (k && !keys[k]) { keys[k] = 1; list.push(t.m); } }); });
+    if (list.length !== polys.length || list.length !== vars.length) return null;
+    if (!list.every(function (m) { var ks = Object.keys(m); return ks.length === 1 && m[ks[0]] >= 2; })) return null;
+    var names = list.map(function (_, i) { return ['u', 'w', 'p', 'q'][i] || 'u' + i; });
+    S.add(list.map(function (m, i) { return names[i] + ' = ' + monoTex(m); }).join(',\\quad '), 'Переменные входят только в виде этих степеней — обозначим их новыми буквами: система станет линейной.', 0);
+    var lin = polys.map(function (p) { var r = pNew(); pList(p).forEach(function (t) { var k = mKey(t.m); var i = list.findIndex(function (m) { return mKey(m) === k; }); pAddTerm(r, t.c, i < 0 ? {} : mv(names[i])); }); return r; });
+    var res = linearSystem(lin, names, S.group('Решаем линейную систему', 1), { quiet: true });
+    if (res.kind !== 'unique') return null;
+    var opts = list.map(function (m, i) {
+      var v = Object.keys(m)[0], val = pConstVal(res.vals[names[i]].p);
+      return { v: v, roots: binomialRoots(val, m[v], v, S.group('Обратная замена: $' + monoTex(m) + ' = ' + qTex(val) + '$', 1)).roots };
+    });
+    var out = [{}];
+    opts.forEach(function (o) { var nx = []; out.forEach(function (sl) { o.roots.forEach(function (r) { var c = {}; for (var k in sl) c[k] = sl[k]; c[o.v] = r; nx.push(c); }); }); out = nx; });
+    return out;
+  }
+
+  /* ========================= 13. УПРОЩЕНИЕ ВЫРАЖЕНИЙ ===================== */
+  function factorUniTex(c, v) {
+    var sc = uIntScale(c); if (!sc || uDeg(c) < 2) return null;
+    var k = qDiv(Q1, sc.k), ic = sc.c, parts = [], d = uDeg(ic);
+    var z = 0; while (qZero(ic[z])) z++;
+    if (z) { parts.push(z === 1 ? v : v + '^{' + z + '}'); ic = ic.slice(z); }
+    for (var guard = 0; guard < 10 && uDeg(ic) >= 1; guard++) {
+      var a0 = ic[0].n, an = ic[uDeg(ic)].n, found = null;
+      divisors(a0).some(function (p) { return divisors(an).some(function (q) { return [Q(p, q), Q(-p, q)].some(function (x) { if (qZero(uEvalQ(ic, x))) { found = x; return true; } return false; }); }); });
+      if (!found) break;
+      var lin = [qNeg(Q(found.n, 1)), qi(found.d)];
+      ic = uDivmod(ic, lin).q; parts.push('\\left(' + uTex(lin, v) + '\\right)');
+      if (uDeg(ic) === 0) { k = qMul(k, ic[0]); ic = [Q1]; }
+    }
+    if (parts.length < (z ? 1 : 2) && !(parts.length && uDeg(ic) >= 1)) return null;
+    if (uDeg(ic) >= 1) parts.push('\\left(' + uTex(ic, v) + '\\right)');
+    else k = qMul(k, ic[0]);
+    var pre = qOne(k) ? '' : qEq(k, qi(-1)) ? '-' : qTex(k) + ' ';
+    var counts = {}; parts.forEach(function (p) { counts[p] = (counts[p] || 0) + 1; });
+    var body = Object.keys(counts).map(function (p) { return counts[p] > 1 ? p + '^{' + counts[p] + '}' : p; }).join('');
+    return parts.length >= 2 || pre ? pre + body : null;
+  }
+  function simplifyExpr(ast, vars, S) {
+    var notes = [], tl = tlFromAst(ast, notes);
+    if (tl) {
+      if (notes.length) S.add(termsTex(tl), 'Раскрываем скобки: ' + notes.join('; ') + '.', 1);
+      var P = tlToPoly(tl);
+      if (hasLikeTerms(tl)) S.add(pTex(P), 'Приводим подобные слагаемые.', 1, { textFull: 'Приводим подобные: ' + likeTermsNote(tl) + '.' });
+      else if (!notes.length) S.add(pTex(P), 'Записываем многочлен в стандартном виде (по убыванию степеней).', 1);
+      var extra = [];
+      if (vars.length === 1) {
+        var ft = factorUniTex(pToUni(P, vars[0]), vars[0]);
+        if (ft && pList(P).length > 1) { S.add(pTex(P) + ' = ' + ft, 'Раскладываем на множители (ищем корни многочлена среди делителей).', 1); extra.push('в виде произведения: $' + ft + '$'); }
+      }
+      return { label: 'Упрощённый вид', items: [{ tex: pTex(P) }], extra: extra };
+    }
+    if (vars.length === 1) {
+      var rf = rfFromAst(ast, vars[0]);
+      if (rf) {
+        var v = vars[0], dens = denominators(ast, v), excl = [];
+        dens.forEach(function (d) { (quietRoots(d, Nn(0), v) || []).forEach(function (r) { if (!excl.some(function (e) { return sameVal(e.val, r.val); })) excl.push(r); }); });
+        var tex = uDeg(rf.d) === 0 ? uTex(uScale(rf.n, qDiv(Q1, rf.d[0])), v) : '\\frac{' + uTex(rf.n, v) + '}{' + uTex(rf.d, v) + '}';
+        S.add(tex, 'Приводим к общему знаменателю и сокращаем общие множители числителя и знаменателя.', 0);
+        var ex2 = excl.length ? ['при $' + excl.map(function (r) { return v + ' \\ne ' + r.tex; }).join(',\\ ') + '$ (в этих точках исходное выражение не определено)'] : [];
+        return { label: 'Упрощённый вид', items: [{ tex: tex }], extra: ex2 };
+      }
+    }
+    // тождественная константа? проверяем в случайных точках
+    var vals = [], okc = true;
+    for (var i = 0; i < 6; i++) { var env = {}; vars.forEach(function (x, k) { env[x] = 0.37 + i * 0.91 + k * 0.53; }); vals.push(evalN(ast, env)); }
+    if (vals.every(function (y) { return isFinite(y) && Math.abs(y - vals[0]) < 1e-9 * Math.max(1, Math.abs(y)); })) {
+      var nt = numTex(vals[0]);
+      S.add(T(ast) + ' = ' + nt.tex, 'Выражение при любых значениях переменных равно одному и тому же числу — оно тождественно постоянно (например, $\\sin^2 x + \\cos^2 x = 1$).', 0);
+      return { label: 'Тождественно равно', items: [{ tex: nt.tex }], extra: [] };
+    }
+    var s = MF.simplify(clone(ast));
+    S.add(T(s), 'Выражение не многочлен и не дробь из многочленов — делаем только базовые упрощения (убираем умножение на 1, сложение с 0 и т.п.).', 0);
+    return { label: 'Упрощено', items: [{ tex: T(s) }], extra: [] };
+  }
+
+  /* ============================== 14. ВХОД =============================== */
+  function parseSide(s, what) {
+    if (!String(s).trim()) fail(what + ' пустая');
+    try { return MF.parse(s, true); } catch (e) { fail((what ? what + ': ' : '') + e.message); }
+  }
+  function answerFromSol(s, v) {
+    if (s.series) return { label: 'Ответ', items: s.series.map(function (t) { return { tex: t }; }), note: s.numeric ? 'найдено численно' : '' };
+    if (s.all) return { label: 'Ответ', items: [{ tex: v + ' \\in \\mathbb{R}' + (s.allCond ? ',\\ ' + s.allCond : '') }], note: 'подходит любое допустимое значение' };
+    var items = [];
+    if (s.intervals) s.intervals.forEach(function (iv) { items.push({ tex: v + ' \\in ' + ivTex(iv) }); });
+    s.roots.forEach(function (r) { items.push({ tex: v + ' = ' + r.tex, approx: r.exact && !/^-?\d+$/.test(r.tex) ? MF.fmtNum(r.val, 10) : null, approxExact: false }); });
+    if (!items.length) return { label: 'Ответ', items: [{ tex: '\\text{решений нет}' }], note: s.noneWhy ? '' : '' };
+    return { label: items.length > 1 ? 'Ответ (' + items.length + ' ' + plural(items.length, 'решение', 'решения', 'решений') + ')' : 'Ответ', items: items, note: s.numeric ? 'найдено численно' : '' };
+  }
+  function pickVar(vars) { return vars.indexOf('x') >= 0 ? 'x' : vars[0]; }
+  function solveSingle(linear, cx) {
+    var S = new Steps(), res = { steps: S.list };
+    var rel = AL.splitRelation(linear);
+    if (!rel) {
+      var ast = parseSide(linear, '');
+      var vars = freeVars(ast);
+      if (!vars.length) { res.badge = 'Вычисление'; res.kind = 'calc'; res.answer = valAnswer(traceEval(ast, S)); return res; }
+      res.badge = 'Упрощение выражения'; res.kind = 'simplify';
+      S.add(T(ast), 'Исходное выражение.', 0);
+      res.answer = simplifyExpr(ast, vars, S);
+      return res;
+    }
+    if (/[=<>≤≥≠]/.test(rel.rhs.replace(/^[=]/, ''))) fail('в строке несколько знаков сравнения — для двойного неравенства или нескольких условий используйте систему «{ }»');
+    var L = parseSide(rel.lhs, 'левая часть'), Rr = parseSide(rel.rhs, 'правая часть');
+    var vs = freeVars(sub(L, Rr)), op = rel.op;
+    S.add(T(L) + ' ' + relTex(op) + ' ' + T(Rr), op === '=' ? 'Исходное уравнение.' : 'Исходное неравенство.', 0);
+    if (!vs.length) {
+      res.badge = 'Проверка числового ' + (op === '=' ? 'равенства' : 'неравенства'); res.kind = 'calc';
+      var g1 = S.group('Левая часть', 1), lv = traceEval(L, g1), g2 = S.group('Правая часть', 1), rv = traceEval(Rr, g2);
+      var d = valExact(lv) && valExact(rv) && lv.s && rv.s ? AL.surdToNumber(AL.surdSub(lv.s, rv.s)) : lv.x - rv.x;
+      var ok = op === '=' ? Math.abs(d) < 1e-12 * Math.max(1, Math.abs(lv.x)) : holdsOp(d, op);
+      S.add(valTex(lv) + ' ' + relTex(op) + ' ' + valTex(rv), ok ? 'Утверждение верно.' : 'Утверждение неверно.', 0);
+      res.answer = { label: 'Ответ', items: [{ tex: ok ? '\\text{Верно}' : '\\text{Неверно}' }] };
+      return res;
+    }
+    if (op === '=' && vs.length === 1) {
+      res.kind = 'eq'; res.badge = 'Уравнение';
+      var s = solveEq(L, Rr, vs[0], S, cx);
+      res.answer = answerFromSol(s, vs[0]);
+      if (!s.numeric && !s.series && s.roots.length) res.check = s.roots.slice(0, 4).map(function (r) { return { v: vs[0], r: r, l: at(L, vs[0], r.val), rr: at(Rr, vs[0], r.val) }; });
+      return res;
+    }
+    if (op !== '=' && vs.length === 1) {
+      res.kind = 'ineq'; res.badge = 'Неравенство';
+      var reg = solveIneq(L, Rr, op, vs[0], S, cx);
+      res.answer = { label: 'Ответ', items: reg.periodic ? reg.periodic.map(function (t) { return { tex: t + ',\\ n \\in \\mathbb{Z}' }; }) : [{ tex: regionTex(reg, vs[0]) }] };
+      return res;
+    }
+    if (op === '=') {
+      // одно уравнение с несколькими переменными — выражаем одну через другие
+      res.kind = 'eq'; res.badge = 'Уравнение с ' + vs.length + ' переменными';
+      var P = pFromAst(sub(L, Rr)), w = null;
+      var order = ['y', 'z'].concat(vs);
+      if (P) for (var i = 0; i < order.length && !w; i++) { var x = order[i]; if (vs.indexOf(x) < 0) continue; var cs = pCoeffs(P, x); if (cs.length === 2) w = x; else if (cs.length === 3 && pIsZero(cs[1])) w = x; }
+      if (!w) fail('одно уравнение с переменными $' + vs.join(', ') + '$ задаёт целое множество решений; выразить одну переменную через другие здесь не удаётся — добавьте ещё уравнения через «{ }»');
+      var cs2 = pCoeffs(P, w), tex;
+      S.add(null, 'Одно уравнение с несколькими переменными имеет бесконечно много решений. Выразим $' + w + '$ через ' + (vs.length === 2 ? '$' + vs.filter(function (z) { return z !== w; })[0] + '$' : 'остальные переменные') + '.', 0);
+      if (cs2.length === 2) {
+        var cst = cs2[1], num = pNeg(cs2[0]);
+        tex = w + ' = ' + (pIsConst(cst) ? pTex(pScale(num, qDiv(Q1, pConstVal(cst)))) : '\\frac{' + pTex(num) + '}{' + pTex(cst) + '}');
+        S.add(tex, 'Переносим слагаемые без $' + w + '$ вправо и делим на коэффициент при $' + w + '$' + (pIsConst(cst) ? '.' : ' (при условии $' + pTex(cst) + ' \\ne 0$).'), 0);
+      } else {
+        var rhs = pScale(pNeg(cs2[0]), pIsConst(cs2[2]) ? qDiv(Q1, pConstVal(cs2[2])) : Q1);
+        tex = w + ' = \\pm\\sqrt{' + (pIsConst(cs2[2]) ? pTex(rhs) : '\\frac{' + pTex(pNeg(cs2[0])) + '}{' + pTex(cs2[2]) + '}') + '}';
+        S.add(w + '^2 = ' + pTex(rhs), 'Выражаем $' + w + '^2$.', 1);
+        S.add(tex, 'Извлекаем корень (при неотрицательном подкоренном выражении).', 0);
+      }
+      res.answer = { label: 'Выразили ' + w, items: [{ tex: tex }] };
+      return res;
+    }
+    fail('неравенство с несколькими переменными задаёт область на плоскости — её удобнее посмотреть в «Построителе графиков»');
+  }
+  function solveSystem(rows, cx) {
+    var S = new Steps(), res = { steps: S.list };
+    if (!rows.length || rows.every(function (r) { return !r.trim(); })) fail('система пустая');
+    var rels = rows.map(function (r, i) {
+      var rel = AL.splitRelation(r);
+      if (!rel) fail('строка ' + (i + 1) + ' системы — не уравнение и не неравенство (нет знака =, <, >)');
+      return { op: rel.op, L: parseSide(rel.lhs, 'строка ' + (i + 1) + ', левая часть'), R: parseSide(rel.rhs, 'строка ' + (i + 1) + ', правая часть') };
+    });
+    S.add(casesTex(rels.map(function (r) { return T(r.L) + ' ' + relTex(r.op) + ' ' + T(r.R); })), 'Исходная система.', 0);
+    var vars = []; rels.forEach(function (r) { freeVars(sub(r.L, r.R)).forEach(function (x) { if (vars.indexOf(x) < 0) vars.push(x); }); });
+    vars.sort();
+    var eqs = rels.filter(function (r) { return r.op === '='; }), ineqs = rels.filter(function (r) { return r.op !== '='; });
+    if (!eqs.length) {
+      if (vars.length !== 1) fail('система неравенств с несколькими переменными задаёт область на плоскости — её удобнее посмотреть в «Построителе графиков»');
+      res.kind = 'ineq'; res.badge = 'Система неравенств';
+      var v = vars[0], acc = null;
+      ineqs.forEach(function (r, i) {
+        var g = S.group('Неравенство ' + (i + 1) + ': $' + T(r.L) + ' ' + relTex(r.op) + ' ' + T(r.R) + '$', 1);
+        var reg = solveIneq(r.L, r.R, r.op, v, g, cx);
+        if (reg.periodic) fail('системы из периодических неравенств пока не поддерживаются');
+        acc = acc === null ? reg : intersectRegions(acc, reg);
+      });
+      S.add(regionTex(acc, v), 'Пересекаем решения всех неравенств (подходят значения, удовлетворяющие каждому).', 0);
+      res.answer = { label: 'Ответ', items: [{ tex: regionTex(acc, v) }] };
+      return res;
+    }
+    res.kind = 'eq'; res.badge = ineqs.length ? 'Система уравнений с условиями' : 'Система уравнений';
+    var sols;
+    if (vars.length === 1) {
+      var v1 = vars[0], cur = null;
+      eqs.forEach(function (r, i) {
+        var s = solveEq(r.L, r.R, v1, S.group('Уравнение ' + (i + 1), 1), cx);
+        var rs = s.all ? null : s.roots;
+        cur = cur === null ? rs : rs === null ? cur : cur.filter(function (a) { return rs.some(function (b) { return sameVal(a.val, b.val); }); });
+      });
+      if (cur === null) fail('все уравнения системы — тождества; добавьте условие, которое задаёт переменную');
+      sols = cur.map(function (r) { var o = {}; o[v1] = r; return o; });
+      if (eqs.length > 1) S.add(null, 'Оставляем только общие корни всех уравнений.', 1);
+    } else {
+      var polys = eqs.map(function (r) { return pFromAst(sub(r.L, r.R)); });
+      if (polys.every(function (p) { return p && pTotalDeg(p) <= 1; })) {
+        res.badge = (ineqs.length ? 'Система с условиями' : 'Система линейных уравнений');
+        var lr = linearSystem(polys, vars, S, cx);
+        if (lr.kind === 'none') { res.answer = { label: 'Ответ', items: [{ tex: '\\text{решений нет}' }], note: 'система несовместна' }; return res; }
+        if (lr.kind === 'infinite') {
+          res.answer = { label: 'Общее решение', items: [{ tex: '\\left(' + vars.map(function (x) { return pTex(lr.vals[x].p); }).join(';\\ ') + '\\right),\\ ' + lr.free.map(function (_, i) { return lr.free.length === 1 ? 't' : 't_' + (i + 1); }).join(', ') + ' \\in \\mathbb{R}' }], note: 'бесконечно много решений' };
+          return res;
+        }
+        var o3 = {}; vars.forEach(function (x) { o3[x] = rootQ(pConstVal(lr.vals[x].p)); }); sols = [o3];
+      } else {
+        res.badge = 'Нелинейная система';
+        sols = nonlinearSystem(eqs.map(function (r) { return sub(r.L, r.R); }), vars, S, cx);
+        if (!sols) {
+          if (eqs.length !== 2 || vars.length !== 2) fail('нелинейную систему не удалось свести к одному уравнению подстановкой, а численный поиск реализован только для 2 уравнений с 2 переменными');
+          S.add(null, 'Ни одно уравнение не удаётся выразить через одну переменную в явном виде, и вычитание не убирает нелинейные слагаемые. Поэтому ищем точки пересечения двух кривых численно (сетка + метод Ньютона).', 0);
+          var e1 = sub(eqs[0].L, eqs[0].R), e2 = sub(eqs[1].L, eqs[1].R), a = vars[0], b = vars[1];
+          var F1 = function (x, y) { var o = {}; o[a] = x; o[b] = y; return evalN(e1, o); }, F2 = function (x, y) { var o = {}; o[a] = x; o[b] = y; return evalN(e2, o); };
+          sols = (global.MFSolverNumeric2D ? global.MFSolverNumeric2D(F1, F2) : []).map(function (p) { var o = {}; o[a] = rootNum(p.x); o[b] = rootNum(p.y); return o; });
+          res.numeric = true;
+        }
+      }
+    }
+    // проверка/фильтр по всем строкам
+    var good = sols.filter(function (s) {
+      var env = {}; for (var k in s) env[k] = s[k].val;
+      var okEq = eqs.every(function (r) { var d = evalN(sub(r.L, r.R), env); return isFinite(d) && Math.abs(d) < 1e-6; });
+      var okIn = ineqs.every(function (r) { return holdsOp(evalN(sub(r.L, r.R), env), r.op); });
+      if (okEq && !okIn) S.add(null, 'Решение $' + vars.map(function (x) { return x + ' = ' + s[x].tex; }).join(',\\ ') + '$ не удовлетворяет условию-неравенству — отбрасываем.', 0);
+      return okEq && okIn;
+    });
+    res.answer = { label: good.length > 1 ? 'Ответ (' + good.length + ' ' + plural(good.length, 'решение', 'решения', 'решений') + ')' : 'Ответ',
+      items: good.length ? good.map(function (s) { return { tex: vars.length === 1 ? vars[0] + ' = ' + s[vars[0]].tex : '\\left(' + vars.map(function (x) { return s[x].tex; }).join(';\\ ') + '\\right)' }; }) : [{ tex: '\\text{решений нет}' }],
+      note: (vars.length > 1 && good.length ? 'пары записаны в порядке $(' + vars.join(';\\ ') + ')$' : '') + (res.numeric ? (vars.length > 1 && good.length ? '; ' : '') + 'найдено численно' : '') };
+    return res;
+  }
+  function intersectRegions(A, B) {
+    var out = [];
+    A.forEach(function (a) {
+      B.forEach(function (b) {
+        var lo = a.lo, loInc = a.loInc;
+        if (b.lo && (!lo || b.lo.val > lo.val + 1e-12 || (sameVal(b.lo.val, lo.val) && !b.loInc))) { lo = b.lo; loInc = b.loInc; }
+        var hi = a.hi, hiInc = a.hiInc;
+        if (b.hi && (!hi || b.hi.val < hi.val - 1e-12 || (sameVal(b.hi.val, hi.val) && !b.hiInc))) { hi = b.hi; hiInc = b.hiInc; }
+        if (!lo || !hi || lo.val < hi.val - 1e-12 || (sameVal(lo.val, hi.val) && loInc && hiInc)) out.push({ lo: lo, hi: hi, loInc: loInc, hiInc: hiInc });
+      });
+    });
+    return out;
+  }
+
+  // Публичный вход. input: { linear } или { rows }; opts: { pref:{quad,sys}, dec }.
+  function solve(input, opts) {
+    opts = opts || {};
+    OPTS.dec = !!opts.dec; LAST.tex = null; LAST.step = null; LAST.tex = null; LAST.step = null;
+    var cx = { pref: opts.pref || {} };
+    try {
+      var res = input.rows ? solveSystem(input.rows, cx) : solveSingle(input.linear, cx);
+      res.methods = cx.methods || null;
+      return res;
+    } catch (e) {
+      if (e && e.solver) return { error: e.message, steps: [] };
+      return { error: 'внутренняя ошибка решателя: ' + (e && e.message), steps: [], internal: true };
+    }
+  }
+
+  global.MFSolver = { solve: solve, _t: { T: T, numTex: numTex, column: column, Q: Q } };
 })(typeof window !== 'undefined' ? window : this);

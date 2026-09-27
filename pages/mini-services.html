@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<script>/* MathFrame: тема до первого кадра + маска перехода между страницами (см. common.js › PAGE TRANSITIONS) */(function(){var d=document.documentElement;try{var t=localStorage.getItem('theme');if(t==='light'||(t!=='dark'&&!matchMedia('(prefers-color-scheme: dark)').matches))d.classList.add('light');}catch(e){}try{var s=sessionStorage.getItem('mf-veil');if(!s)return;sessionStorage.removeItem('mf-veil');var v=JSON.parse(s),n=performance.getEntriesByType&&performance.getEntriesByType('navigation')[0];if(!v||!v.fill||Date.now()-v.t>8000||(n&&n.type&&n.type!=='navigate'))return;window.__mfVeil=v;d.style.setProperty('--mf-veil-fill',v.fill);d.classList.add('mf-veil-on');setTimeout(function(){d.classList.remove('mf-veil-on')},4000);}catch(e){}})();</script>
 <title>Мини-сервисы — MathFrame</title>
 
 <style>
@@ -243,6 +244,43 @@ label.f input:focus,label.f select:focus{border-color:var(--accent);box-shadow:0
 .alg-about b{color:var(--text-primary)}
 
 /* KaTeX внутри шагов/ответа наследует текущий цвет и не переполняет карточку */
+/* ---- настройки решения ---- */
+.alg-opts{display:flex;flex-wrap:wrap;gap:.45rem .9rem;align-items:center;margin:.75rem 0 .2rem;
+  padding:.55rem .7rem;border:1px solid var(--border);border-radius:var(--r);background:var(--bg-sunken)}
+.alg-opt{display:flex;align-items:center;gap:.35rem;font-size:.8rem;color:var(--text-secondary)}
+.alg-opt-lbl{font-family:var(--font-mono);font-size:.68rem;letter-spacing:.06em;text-transform:uppercase;color:var(--text-tertiary)}
+.alg-seg{display:inline-flex;border:1px solid var(--border-strong);border-radius:999px;overflow:hidden}
+.alg-seg button{font:inherit;font-size:.78rem;padding:.3rem .7rem;min-height:32px;border:0;background:transparent;color:var(--text-secondary);cursor:pointer}
+.alg-seg button.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.alg-tog{display:inline-flex;align-items:center;gap:.3rem;cursor:pointer;user-select:none}
+.alg-tog input{accent-color:var(--accent);width:16px;height:16px}
+/* ---- шаги ---- */
+.alg-step-body{min-width:0;flex:1;display:flex;flex-direction:column;gap:.2rem}
+.alg-step-text{overflow-wrap:anywhere;font-size:.84rem;color:var(--text-secondary);line-height:1.45}
+.alg-step-text .katex{font-size:1em}
+.alg-step.note .alg-step-num{opacity:.45}
+.alg-group{margin:.2rem 0 .2rem .4rem;padding:.3rem 0 .3rem .7rem;border-left:2px solid var(--accent-soft)}
+.alg-group-h{font-size:.8rem;font-weight:600;color:var(--text-secondary);margin-bottom:.15rem}
+.alg-brief{display:flex;flex-wrap:wrap;gap:.3rem .6rem;align-items:center;font-size:1.02rem;padding:.3rem 0}
+.alg-brief .arrow{color:var(--text-tertiary)}
+.alg-brief .btext{font-size:.8rem;color:var(--text-tertiary)}
+.alg-check{margin-top:.6rem;padding:.55rem .7rem;border-radius:var(--r);background:var(--bg-sunken);font-size:.84rem;color:var(--text-secondary)}
+.alg-check-h{font-family:var(--font-mono);font-size:.68rem;letter-spacing:.06em;text-transform:uppercase;color:var(--text-tertiary);margin-bottom:.25rem}
+/* ---- вычисления в столбик ---- */
+.alg-cols{display:flex;flex-wrap:wrap;gap:1rem;margin-top:.35rem}
+.alg-col{display:inline-flex;align-items:flex-start;gap:.6rem;padding:.45rem .6rem;border:1px dashed var(--border-strong);border-radius:var(--r-sm);
+  font-family:var(--font-mono);font-size:.95rem;line-height:1.35;background:var(--bg-card);max-width:100%;overflow-x:auto}
+.alg-col-grid{display:flex;flex-direction:column}
+.alg-col-row{display:flex;white-space:pre}
+.alg-col-row .c{width:1ch;text-align:center}
+.alg-col-row .c.pt{width:.45ch}
+.alg-col-row .c.u{border-bottom:1.5px solid var(--text-secondary)}
+.alg-col-row .sg{width:1.3ch;text-align:center;color:var(--accent)}
+.alg-col-row.carry{font-size:.7em;color:var(--accent);height:1.1em}
+.alg-col-side{display:flex;flex-direction:column}
+.alg-col-side div{padding:0 .35rem;border-left:1.5px solid var(--text-secondary)}
+.alg-col-side div:first-child{border-bottom:1.5px solid var(--text-secondary)}
+.alg-col-note{font-family:var(--font-body,inherit);font-size:.75rem;color:var(--text-tertiary);max-width:24ch;align-self:center}
 .alg-step-tex .katex,.alg-answer-big .katex{font-size:1.05em}
 .alg-answer-big .katex{font-size:1.15em}
 
@@ -498,6 +536,7 @@ label.f input:focus,label.f select:focus{border-color:var(--accent);box-shadow:0
 <script src="/assets/js/mathframe-ui.js"></script>
 <script src="/assets/js/mathfield.js"></script>
 <script src="/assets/js/mf-math.js"></script>
+<script src="/assets/js/mf-solver.js"></script>
 <script src="/assets/js/mf-keyboard.js"></script>
 <script src="/assets/js/services.js"></script>
 <script>var PAGE_ROOT = '/';</script>
