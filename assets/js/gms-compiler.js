@@ -7323,7 +7323,9 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '      if (drawObj.side === -1) measureVal = 360 - measureVal;\n',
             '      const isRightAngle = Math.abs(measureVal - 90) < 0.5;\n',
             '      if (drawObj.arc) {\n',
-            '        const arcCount = Math.min(3, Math.max(1, drawObj.count || 1));\n',
+            // Прямой угол — всегда ОДИН квадратик, независимо от count: все прямые углы и так
+            // равны, «двойная» отметка (для групп равных углов) им не нужна.
+            '        const arcCount = isRightAngle ? 1 : Math.min(3, Math.max(1, drawObj.count || 1));\n',
             '        const arcGap = 4;\n',
             '        for (let k = 0; k < arcCount; k++) {\n',
             '        const rK = arcRadius - k * arcGap;\n',
@@ -18260,7 +18262,7 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '    const isRight = Math.abs(ao.def.measure - 90) < 0.5;\n',
             '    const segs = [];\n',
             '    if (ao.showArc) {\n',
-            '      for (let k = 0; k < ao.count; k++) {\n',
+            '      for (let k = 0; k < (isRight ? 1 : ao.count); k++) {\n',
             '        const rk = r - k * (r * 0.12);\n',
             '        if (rk <= 0) continue;\n',
             '        if (isRight) {\n',
@@ -18450,7 +18452,7 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '    const isRight = Math.abs(ao.measure - 90) < 0.5;\n',
             '    const segs = [];\n',
             '    if (def.showArc) {\n',
-            '      for (let k = 0; k < def.count; k++) {\n',
+            '      for (let k = 0; k < (isRight ? 1 : def.count); k++) {\n',
             '        const rk = r - k * (r * 0.12);\n',
             '        if (rk <= 0) continue;\n',
             '        if (isRight) {\n',
