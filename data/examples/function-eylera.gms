@@ -48,8 +48,8 @@ Function factorText() {
 Update {
   if (n != lastN) {
     gc = newGraph(); gn = newGraph(); phi = 0;
-    float R = 4.2;
-    if (n > 24) { R = 4.4; }
+    float R = 3.5;
+    if (n > 24) { R = 3.9; }
     repeat (n) {
       float k = i + 1;
       float ang = pi / 2 - 2 * pi * i / n;

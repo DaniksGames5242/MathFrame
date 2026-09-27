@@ -8,16 +8,16 @@ camera type = fixed;
 // ---- Правильный треугольник: места 1, 2, 3 (серые метки) и фишки 1, 2, 3 на них ----
 // Кнопки применяют к текущему положению поворот r (на 120° против часовой) или отражение s
 // (относительно оси через место 1). Любая комбинация — одна из 6 перестановок фишек: S₃.
-new Point { name = "V1"; pos = (0, 3.6); dynamic = false; collision = false; active = false }
-new Point { name = "V2"; pos = (-3.12, -1.8); dynamic = false; collision = false; active = false }
-new Point { name = "V3"; pos = (3.12, -1.8); dynamic = false; collision = false; active = false }
+new Point { name = "V1"; pos = (0, 2.7); dynamic = false; collision = false; active = false }
+new Point { name = "V2"; pos = (-3.12, -2.7); dynamic = false; collision = false; active = false }
+new Point { name = "V3"; pos = (3.12, -2.7); dynamic = false; collision = false; active = false }
 new Line { name = "s12"; pos = (V1, V2); interact = false }
 new Line { name = "s23"; pos = (V2, V3); interact = false }
 new Line { name = "s31"; pos = (V3, V1); interact = false }
-draw Text { name = "m1"; pos = (0, 4.5); text = "место 1" }
-draw Text { name = "m2"; pos = (-4.1, -2.4); text = "место 2" }
-draw Text { name = "m3"; pos = (4.1, -2.4); text = "место 3" }
-new Point { name = "AX"; pos = (0, -3); dynamic = false; collision = false; active = false }
+draw Text { name = "m1"; pos = (0, 3.6); text = "место 1" }
+draw Text { name = "m2"; pos = (-4.1, -3.3); text = "место 2" }
+draw Text { name = "m3"; pos = (4.1, -3.3); text = "место 3" }
+new Point { name = "AX"; pos = (0, -2.7); dynamic = false; collision = false; active = false }
 new Line { name = "axis"; pos = (V1, AX); active = false }
 draw Punctir { name = "pax"; edge = "axis"; layer = 1 }
 
@@ -34,12 +34,12 @@ new UI { name = "bE"; type = button; label = "Сбросить (e)"; action = "p
 float at1 = 1; float at2 = 2; float at3 = 3;
 float pending = 0;
 float anim = 1;
-float f1x = 0; float f1y = 3.6; float f2x = -3.12; float f2y = -1.8; float f3x = 3.12; float f3y = -1.8;
+float f1x = 0; float f1y = 2.7; float f2x = -3.12; float f2y = -2.7; float f3x = 3.12; float f3y = -2.7;
 string word = "e";
 string info = "";
 
 Function px(k) { if (k == 1) { return 0; } if (k == 2) { return -3.12; } return 3.12; }
-Function py(k) { if (k == 1) { return 3.6; } return -1.8; }
+Function py(k) { if (k == 1) { return 2.7; } return -2.7; }
 Function rot(k) { if (k == 3) { return 1; } return k + 1; }
 Function refl(k) { if (k == 2) { return 3; } if (k == 3) { return 2; } return k; }
 // Приведённая запись элемента: каждый элемент S₃ однозначно имеет вид rᵏ или rᵏs

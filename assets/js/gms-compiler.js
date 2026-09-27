@@ -1008,7 +1008,8 @@ function removeObjectBlocks(code) {
                         else if (vars[valueStr] !== undefined && typeof vars[valueStr] === 'string' && vars[valueStr].startsWith('#')) parsedValue = vars[valueStr];
                         else throw new Error(`Некорректное значение для color: ${valueStr}`);
                     } else if (type === 'list') {
-                        const listMatch = valueStr.match(/^\(([\s\S]*)\)$/);
+                        // и (1, 2), и [1, 2] — второй вид используется в выражениях внутри Update
+                        const listMatch = valueStr.match(/^\(([\s\S]*)\)$/) || valueStr.match(/^\[([\s\S]*)\]$/);
                         if (listMatch) {
                             const items = splitTopLevelList(listMatch[1]).map(parseListLiteralItem);
                             parsedValue = items;
@@ -1076,12 +1077,18 @@ function removeObjectBlocks(code) {
                     if (itMatch) inputtype = itMatch[1];
                 }
 
-                let min = null, max = null, step = null;
+                let min = null, max = null, step = null, maxExpr = null;
                 if ((type === 'input' && inputtype === 'number') || type === 'slider') {
                     const minMatch = matchField(block, /(?:^|[^A-Za-z0-9_])min\s*=\s*([\d.-]+)/);
                     if (minMatch) min = parseFloat(minMatch[1]);
                     const maxMatch = matchField(block, /(?:^|[^A-Za-z0-9_])max\s*=\s*([\d.-]+)/);
                     if (maxMatch) max = parseFloat(maxMatch[1]);
+                    // max = выражение (например, p - 1): верхняя граница ползунка, зависящая
+                    // от других переменных. Пересчитывается при каждой перерисовке.
+                    else if (type === 'slider') {
+                        const me = matchField(block, /(?:^|[^A-Za-z0-9_])max\s*=\s*([^;]+)/);
+                        if (me) maxExpr = me[1].trim();
+                    }
                     const stepMatch = matchField(block, /(?:^|[^A-Za-z0-9_])step\s*=\s*([\d.]+)/);
                     if (stepMatch) step = parseFloat(stepMatch[1]);
                 }
@@ -1125,7 +1132,7 @@ function removeObjectBlocks(code) {
                 const stepper = parseBoolField(block, vars, 'stepper', true);
                 const layer = parseNumberField(block, vars, 'layer', 100, false);
 
-                return { name, type, label, color, textcolor, active, activeExpr: parseActiveExpr(block), variable, funcName, default: defaultValue, action, inputtype, min, max, step, stepper, options, optionLabels, x, y, width: uiWidth, height: uiHeight, radius, layer };
+                return { name, type, label, color, textcolor, active, activeExpr: parseActiveExpr(block), variable, funcName, default: defaultValue, action, inputtype, min, max, maxExpr, step, stepper, options, optionLabels, x, y, width: uiWidth, height: uiHeight, radius, layer };
             } catch (e) {
                 return null;
             }
@@ -4971,13 +4978,16 @@ function parseCommands(codeBlock, vars) {
                 indent + '      wrapper.appendChild(label); wrapper.appendChild(input);\n',
                 indent + '    } else if (ui.type === \'slider\') {\n',
                 indent + '      const input = document.createElement(\'input\'); input.type = \'range\';\n',
-                indent + '      input.min = ui.min; input.max = ui.max; input.step = ui.step || 1;\n',
+                indent + '      input.min = ui.min; input.max = ui.max; input.step = ui.step || 1; ui._input = input;\n',
                 indent + '      let defaultVal = (ui.default !== undefined && ui.default !== null) ? ui.default : ui.min;\n',
                 indent + '      if (ui.variable) { const val = hooks.getVar(ui.variable); if (val !== undefined) defaultVal = val; }\n',
                 indent + '      input.value = defaultVal;\n',
                 indent + '      input.style.accentColor = ui.color || \'var(--gc-accent)\';\n',
                 indent + '      if (positioned) { input.style.width = \'100%\'; }\n',
                 indent + '      const valueLabel = document.createElement(\'span\'); valueLabel.textContent = String(defaultVal); valueLabel.style.color = ui.textcolor || \'var(--gc-control-text)\'; valueLabel.style.marginLeft = \'6px\';\n',
+                // Ширина подписи значения фиксирована (по самому длинному значению): иначе
+                // «14.1» → «14.15» меняет ширину, и центрированная строка контролов дёргается.
+                indent + '      { const dec = (String(ui.step || 1).split(\'.\')[1] || \'\').length; const w = Math.max(String(ui.min).length, String(ui.maxExpr ? 999 : ui.max).length) + (dec ? dec + 1 : 0) + 1; valueLabel.style.display = \'inline-block\'; valueLabel.style.minWidth = w + \'ch\'; valueLabel.style.fontVariantNumeric = \'tabular-nums\'; }\n',
                 indent + '      if (ui.variable) {\n',
                 indent + '        if (hooks.getVar(ui.variable) === undefined) hooks.setVar(ui.variable, defaultVal);\n',
                 indent + '        input.addEventListener(\'input\', function() {\n',
@@ -9692,7 +9702,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '            const isHl = !!hlEdgeSet[edgeKey(e.a, e.b)];\n',
             '            ctx.strokeStyle = isHl ? (d.highlightColor || \'#e8590c\') : eCol;\n',
             '            ctx.lineWidth = isHl ? 3.5 : 2;\n',
-            '            let mx, my;\n',
+            '            let mx, my, cxE = null, cyE = null;\n',
             '            if (e.a === e.b) {\n',
             '                // петля\n',
             '                ctx.beginPath();\n',
@@ -9702,9 +9712,13 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '            } else if (total > 1) {\n',
             '                const off = (ord - (total + 1) / 2) * 22;\n',
             '                const midX = (p1.x + p2.x) / 2, midY = (p1.y + p2.y) / 2;\n',
-            '                const dxE = p2.x - p1.x, dyE = p2.y - p1.y;\n',
+            // Нормаль берём по каноническому направлению пары (от меньшего имени к большему):
+            // иначе у встречных рёбер a→b и b→a нормали противоположны и обе дуги ложатся на
+            // одну сторону, сливаясь в «двоящуюся» линию.
+            '                const cA = e.a < e.b ? p1 : p2, cB = e.a < e.b ? p2 : p1;\n',
+            '                const dxE = cB.x - cA.x, dyE = cB.y - cA.y;\n',
             '                const len = Math.hypot(dxE, dyE) || 1;\n',
-            '                const cxE = midX - (dyE / len) * off, cyE = midY + (dxE / len) * off;\n',
+            '                cxE = midX - (dyE / len) * off; cyE = midY + (dxE / len) * off;\n',
             '                ctx.beginPath();\n',
             '                ctx.moveTo(p1.x, p1.y);\n',
             '                ctx.quadraticCurveTo(cxE, cyE, p2.x, p2.y);\n',
@@ -9716,7 +9730,8 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '            }\n',
             '            // стрелка для ориентированного графа\n',
             '            if (d.directed && e.a !== e.b) {\n',
-            '                const ang = Math.atan2(p2.y - p1.y, p2.x - p1.x);\n',
+            // у дуги стрелка смотрит по касательной в конце (от контрольной точки к p2)
+            '                const ang = cxE !== null ? Math.atan2(p2.y - cyE, p2.x - cxE) : Math.atan2(p2.y - p1.y, p2.x - p1.x);\n',
             '                const tipX = p2.x - Math.cos(ang) * R;\n',
             '                const tipY = p2.y - Math.sin(ang) * R;\n',
             '                const ah = 11;\n',
@@ -9751,7 +9766,11 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '            }\n',
             '            if (d.labels) {\n',
             '                ctx.fillStyle = d.labelColor || __gcDefaultColor();\n',
-            '                ctx.font = Math.max(9, R * 1.1) + \'px sans-serif\';\n',
+            // длинная подпись уменьшается, чтобы уместиться в кружок узла
+            '                let fs = Math.max(9, R * 1.1);\n',
+            '                ctx.font = fs + \'px sans-serif\';\n',
+            '                const tw = ctx.measureText(String(n.label)).width;\n',
+            '                if (tw > R * 1.7) { fs = Math.max(7, fs * R * 1.7 / tw); ctx.font = fs + \'px sans-serif\'; }\n',
             '                ctx.textAlign = \'center\';\n',
             '                ctx.textBaseline = \'middle\';\n',
             '                ctx.fillText(String(n.label), p.x, p.y);\n',
@@ -9861,9 +9880,14 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '        const arrowLen = d.__liveLength || d.length || 12;\n',
             '        const angleOffset = 0.45;\n',
             '        const p = fieldToPixel(x, y);\n',
-            '        const tipOff = 0.3;\n',
+            // Стрелка на конце отрезка (pos = ±1, смотрит наружу): острие упирается в край
+            // точки-конца. Раньше острие выносилось на 0.3 за конец и торчало из кружка точки.
+            '        let tipOff = 0.3;\n',
+            '        const endPt = (d.pos >= 1 && dir >= 0) ? line.pB : ((d.pos <= -1 && dir < 0) ? line.pA : null);\n',
+            '        if (endPt) tipOff = (endPt.active === false || endPt.visible === false) ? 0 : -gcPointRadiusField(endPt);\n',
             '        const tipX = x + Math.cos(angle) * tipOff;\n',
             '        const tipY = y + Math.sin(angle) * tipOff;\n',
+            '        if (endPt && tipOff < 0) { const b = fieldToPixel(x - Math.cos(angle) * 0.6, y - Math.sin(angle) * 0.6); p.x = b.x; p.y = b.y; }\n',
             '        const tip = fieldToPixel(tipX, tipY);\n',
             '        ctx.strokeStyle = d.__liveColor || d.color || __gcDefaultColor();\n',
             '        ctx.lineWidth = d.__liveThickness || d.thickness || line.thickness || 2;\n',
@@ -10652,6 +10676,16 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '      for (const ui of uiData) {\n',
             '        if (!ui._wrapper) continue;\n',
             '        ui._wrapper.style.display = isObjectActive(ui) ? \'\' : \'none\';\n',
+            '        if (ui.maxExpr && ui._input) {\n',
+            '          let mx; try { mx = Number(evaluate(ui.maxExpr)); } catch (e) { mx = NaN; }\n',
+            '          if (isFinite(mx) && String(mx) !== ui._input.max) {\n',
+            '            ui._input.max = mx;\n',
+            '            const cur = Number(userVars[ui.variable]);\n',
+            '            if (cur > mx) { userVars[ui.variable] = mx; }\n',
+            '            ui._input.value = userVars[ui.variable];\n',
+            '            if (ui._input.nextSibling) ui._input.nextSibling.textContent = String(userVars[ui.variable]);\n',
+            '          }\n',
+            '        }\n',
             '      }\n',
             '    }\n',
             '\n',
@@ -16205,9 +16239,13 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             // Function/Void: многострочное тело со statements; возврат значения — через
             // исключение GLReturnSignal (перехватывается здесь же). Void без явного
             // return просто возвращает undefined — как и положено процедуре.
-            try { glExecStatementsSync(fn.bodyStmts, localCtx); }
+            // return в синхронном исполнителе возвращается значением-сигналом, а не
+            // исключением: throw на каждом return в горячих функциях (кривые, поля, по
+            // сотне вызовов на кадр) тормозил отрисовку в десятки раз.
+            let r;
+            try { r = glExecStatementsSync(fn.bodyStmts, localCtx); }
             catch (e) { if (e instanceof GLReturnSignal) return e.value; throw e; }
-            return undefined;
+            return (r instanceof GLReturnSignal) ? r.value : undefined;
         }
         return glEvalExpr(fn.bodyAst, localCtx);
     }
@@ -16490,32 +16528,32 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
     // glEvalExpr (синхронно, в т.ч. во время рендера), поэтому await здесь недопустим.
     // wait() внутри такой функции не поддержан (это не имеет смысла синхронно) — просто
     // логируется предупреждение и пропускается.
-    function glExecStatementsSync(stmts, ctx) { for (const s of stmts) glExecStatementSync(s, ctx); }
+    function glExecStatementsSync(stmts, ctx) { for (const s of stmts) { const r = glExecStatementSync(s, ctx); if (r !== undefined) return r; } return undefined; }
     function glExecStatementSync(s, ctx) {
         switch (s.type) {
             case 'assign': glApplySingleAssign(s, ctx); break;
             case 'multiAssign': for (const a of s.assigns) glApplySingleAssign(a, ctx); break;
             case 'if':
-                if (glEvalExpr(s.cond, ctx)) glExecStatementsSync(s.thenB, ctx);
-                else if (s.elseB) glExecStatementsSync(s.elseB, ctx);
+                if (glEvalExpr(s.cond, ctx)) return glExecStatementsSync(s.thenB, ctx);
+                else if (s.elseB) return glExecStatementsSync(s.elseB, ctx);
                 break;
             case 'repeat': {
                 const cnt = Math.max(0, Math.floor(glEvalExpr(s.count, ctx)));
-                for (let i = 0; i < cnt; i++) glExecStatementsSync(s.body, Object.assign(Object.create(ctx), { i }));
+                for (let i = 0; i < cnt; i++) { const r = glExecStatementsSync(s.body, Object.assign(Object.create(ctx), { i })); if (r !== undefined) return r; }
                 break;
             }
             case 'while': {
               let guard = 0;
               while (glEvalExpr(s.cond, ctx)) {
                 if (++guard > 1000000) throw new Error('Цикл while превысил 1000000 итераций — похоже, условие никогда не станет ложным');
-                glExecStatementsSync(s.body, Object.assign(Object.create(ctx), { i: guard - 1 }));
+                const r = glExecStatementsSync(s.body, Object.assign(Object.create(ctx), { i: guard - 1 })); if (r !== undefined) return r;
               }
               break;
             }
             case 'forEach': {
                 const coll = glEvalExpr(s.coll, ctx);
                 if (Array.isArray(coll)) {
-                    for (const item of coll) glExecStatementsSync(s.body, Object.assign(Object.create(ctx), { [s.varName]: item }));
+                    for (const item of coll) { const r = glExecStatementsSync(s.body, Object.assign(Object.create(ctx), { [s.varName]: item })); if (r !== undefined) return r; }
                 }
                 break;
             }
@@ -16526,7 +16564,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
                 GL_USER_FUNCS[s.name] = { params: s.params, bodyAst: s.body };
                 break;
             case 'return':
-                throw new GLReturnSignal(s.expr ? glEvalExpr(s.expr, ctx) : undefined);
+                return new GLReturnSignal(s.expr ? glEvalExpr(s.expr, ctx) : undefined);
             case 'expr': glEvalExpr(s.expr, ctx); break;
         }
     }

@@ -10,7 +10,7 @@ show grid = true;
 // ---- Кривая ζ(σ + it), t ∈ [0; T], на комплексной плоскости (ось x — Re, ось y — Im) ----
 // Если кривая проходит через начало координат, при этом t у ζ(σ + it) ноль.
 new Point { name = "O"; pos = (0, 0); dynamic = false; collision = false; size = 0.8; color = #f59e0b }
-new Curve { name = "zc"; type = parametric; x = "zre(t * T)"; y = "zim(t * T)"; segments = 500; color = #3b82f6; thickness = 2.5 }
+new Curve { name = "zc"; type = parametric; x = "cre(t * T)"; y = "cim(t * T)"; segments = 900; color = #3b82f6; thickness = 2.5 }
 new Point { name = "Z"; pos = (0, 0); dynamic = false; collision = false; text = true("ζ(s)"); color = #3b82f6 }
 
 new UI { name = "sS"; type = slider; label = "σ = Re s"; variable = sigma; min = 0.1; max = 0.9; step = 0.01; default = 0.5 }
@@ -22,6 +22,10 @@ float T = 14.13;
 float NB = 40;
 float zr = 0; float zi = 0; float lastT = -1; float lastS = -1;
 float dN = 0;
+// Таблица ζ(σ + it) с шагом DT по t ∈ [0; 30] — пересчитывается только при смене σ;
+// ползунок T лишь меняет видимую часть кривой (без повторных вычислений ζ).
+float DT = 0.05; float M = 600; float cacheS = -1;
+list tr = [0]; list ti = [0];
 string info = "";
 
 // Коэффициенты ускорения Борвейна для η(s) = Σ (−1)^(k) / (k+1)^s
@@ -52,11 +56,20 @@ Function zeta(t) {
   lastT = t; lastS = sigma;
   return 0;
 }
+Function build() {
+  tr = [0]; ti = [0]; zeta(0); tr[0] = zr; ti[0] = zi;
+  repeat (M) { zeta((i + 1) * DT); push(tr, zr); push(ti, zi); }
+  cacheS = sigma; return 0;
+}
+// Линейная интерполяция по таблице
+Function cre(t) { if (cacheS < 0) { return 0; } float k = floor(t / DT); if (k >= M) { return tr[M]; } float f = t / DT - k; return tr[k] + (tr[k + 1] - tr[k]) * f; }
+Function cim(t) { if (cacheS < 0) { return 0; } float k = floor(t / DT); if (k >= M) { return ti[M]; } float f = t / DT - k; return ti[k] + (ti[k + 1] - ti[k]) * f; }
 Function sgn(v) { if (v < 0) { return " − "; } return " + "; }
 Function zre(t) { zeta(t); return zr; }
 Function zim(t) { zeta(t); return zi; }
 
 Update {
+  if (sigma != cacheS) { build(); }
   zeta(T); Z.pos.x = zr; Z.pos.y = zi;
   float mag = sqrt(zr * zr + zi * zi);
   info = "**Гипотеза Римана:** все нетривиальные нули дзета-функции ζ(s) лежат на прямой Re s = ½. Синяя кривая — образ отрезка вертикальной прямой s = σ + it (0 ≤ t ≤ T) при отображении ζ; ноль ζ — это момент, когда кривая проходит через начало координат (оранжевая точка).\n\nσ = " + format(sigma, 2) + ", T = " + format(T, 2) + ":   ζ(σ + iT) = " + format(zr, 3) + sgn(zi) + format(abs(zi), 3) + "i,   |ζ| = " + format(mag, 3) + ".";

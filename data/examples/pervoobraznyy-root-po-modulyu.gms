@@ -12,7 +12,7 @@ draw Graph { name = "gPath"; graph = "gp"; nodeColor = #3b82f6; edgeColor = #f59
 draw Graph { name = "gRest"; graph = "gr"; nodeColor = #6b7280; nodeRadius = 13; interactive = false; showWeights = false }
 
 new UI { name = "sP"; type = select; label = "p"; variable = p; options = (5, 7, 11, 13, 17, 19, 23); default = 11 }
-new UI { name = "sG"; type = slider; label = "g"; variable = g; min = 2; max = 22; step = 1; default = 2 }
+new UI { name = "sG"; type = slider; label = "g"; variable = g; min = 2; max = p - 1; step = 1; default = 2 }
 
 // ---- Логика ----
 float p = 11;

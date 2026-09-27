@@ -45,7 +45,7 @@ Update {
       addNode(ga, format(k, 0), pos(k));
       if (isRes(k)) { addNode(gq, format(k, 0), pos(k)); nres = nres + 1; }
     }
-    repeat (p - 1) { float x = i + 1; addEdge(ga, format(x, 0), format(md(x * x, p), 0)); }
+    repeat (p - 1) { float x = i + 1; if (md(x * x, p) != x) { addEdge(ga, format(x, 0), format(md(x * x, p), 0)); } }
     lastP = p;
   }
   gs = newGraph(); addNode(gs, format(a, 0), pos(a));

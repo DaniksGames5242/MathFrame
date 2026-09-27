@@ -9,7 +9,7 @@ camera type = fixed;
 // простые делители N (снизу) — ни один из них не входит в набор ----
 draw Graph { name = "gSet"; graph = "gs"; nodeColor = #3b82f6; nodeRadius = 20; interactive = false; showWeights = false }
 draw Graph { name = "gN"; graph = "gn"; nodeColor = #f59e0b; edgeColor = #22c55e; nodeRadius = 26; directed = true; interactive = false; showWeights = false }
-draw Graph { name = "gF"; graph = "gf"; nodeColor = #22c55e; nodeRadius = 22; interactive = false; showWeights = false }
+draw Graph { name = "gF"; graph = "gf"; nodeColor = #22c55e; nodeRadius = 26; interactive = false; showWeights = false }
 
 new UI { name = "t2"; type = toggle; label = "2"; variable = u2; default = true }
 new UI { name = "t3"; type = toggle; label = "3"; variable = u3; default = true }
