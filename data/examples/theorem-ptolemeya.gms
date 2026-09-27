@@ -55,7 +55,7 @@ new UI { name = "btnIneq"; type = button; label = "Неравенство"; acti
 float tab = 1;
 string info = "";
 float TAU = 6.283185307179586;
-float gap = 0.35;
+float gap = 0.075;
 float aA = 3.49; float aB = 5.06; float aC = 0.349; float aD = 2.09;
 float pOx = 0; float pOy = 0;
 float pAx = 0; float pAy = 0; float pBx = 0; float pBy = 0; float pCx = 0; float pCy = 0;
@@ -102,13 +102,13 @@ Function inField(x, y) {
 }
 
 // Свободная D2: четырёхугольник ABCD2 выпуклый (все повороты в одну сторону, с запасом
-// по углу), D2 не ближе 1 к соседям, в поле
+// по углу), D2 не ближе 0.3 (касание точек) к соседям, в поле
 Function turn(ax, ay, bx, by, cx, cy) {
   return ((bx - ax) * (cy - ay) - (by - ay) * (cx - ax)) / (sqrt((bx - ax) ^ 2 + (by - ay) ^ 2) * sqrt((cx - bx) ^ 2 + (cy - by) ^ 2) + 0.000001);
 }
 Function okD2(x, y) {
   if (!inField(x, y)) { return false; }
-  if (sqrt((x - A.pos.x) ^ 2 + (y - A.pos.y) ^ 2) < 1 || sqrt((x - C.pos.x) ^ 2 + (y - C.pos.y) ^ 2) < 1) { return false; }
+  if (sqrt((x - A.pos.x) ^ 2 + (y - A.pos.y) ^ 2)< 0.3 || sqrt((x - C.pos.x) ^ 2 + (y - C.pos.y) ^ 2) < 0.3) { return false; }
   return turn(A.pos.x, A.pos.y, B.pos.x, B.pos.y, C.pos.x, C.pos.y) > 0.15 && turn(B.pos.x, B.pos.y, C.pos.x, C.pos.y, x, y) > 0.15
       && turn(C.pos.x, C.pos.y, x, y, A.pos.x, A.pos.y) > 0.15 && turn(x, y, A.pos.x, A.pos.y, B.pos.x, B.pos.y) > 0.15;
 }

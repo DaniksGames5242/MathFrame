@@ -82,7 +82,7 @@ Function inField(x, y) {
 }
 
 // Допустимо ли положение (x, y) перетаскиваемой вершины при соседях (ax, ay), (bx, by):
-// противоположная вершина остаётся в поле, стороны не короче 1.5,
+// противоположная вершина остаётся в поле, стороны не короче 0.35 (вершины вплотную),
 // угол при вершине от 15° до 165° (sin ≥ 0.26).
 Function ok(x, y, ax, ay, bx, by) {
   if (!inField(x, y) || !inField(ax + bx - x, ay + by - y)) { return false; }
@@ -90,7 +90,7 @@ Function ok(x, y, ax, ay, bx, by) {
   float vx = bx - x; float vy = by - y;
   float lu = sqrt(ux * ux + uy * uy);
   float lv = sqrt(vx * vx + vy * vy);
-  if (lu < 1.5 || lv < 1.5) { return false; }
+  if (lu < 0.35 || lv < 0.35) { return false; }
   return abs(ux * vy - uy * vx) / (lu * lv) >= 0.26;
 }
 
