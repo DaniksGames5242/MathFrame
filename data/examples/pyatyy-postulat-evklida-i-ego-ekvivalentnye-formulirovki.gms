@@ -15,10 +15,10 @@ new Circle { name = "abs"; center = O; radius = RB; thickness = 2; active = mode
 new Curve { name = "g0"; type = parametric; x = "gx(0, t)"; y = "gy(0, t)"; segments = 120; color = #ef4444; thickness = 4; layer = 20 }
 new Curve { name = "g1"; type = parametric; x = "gx(1, t)"; y = "gy(1, t)"; segments = 120; color = #f59e0b; thickness = 3; layer = 20 }
 new Curve { name = "g2"; type = parametric; x = "gx(2, t)"; y = "gy(2, t)"; segments = 120; color = #f59e0b; thickness = 3; layer = 20 }
-new Curve { name = "g3"; type = parametric; x = "gx(3, t)"; y = "gy(3, t)"; segments = 120; color = #3b82f6; thickness = 1.8; layer = 15 }
-new Curve { name = "g4"; type = parametric; x = "gx(4, t)"; y = "gy(4, t)"; segments = 120; color = #3b82f6; thickness = 1.8; layer = 15 }
-new Curve { name = "g5"; type = parametric; x = "gx(5, t)"; y = "gy(5, t)"; segments = 120; color = #3b82f6; thickness = 1.8; layer = 15 }
-new Curve { name = "g6"; type = parametric; x = "gx(6, t)"; y = "gy(6, t)"; segments = 120; color = #3b82f6; thickness = 1.8; layer = 15 }
+new Curve { name = "g3"; type = parametric; x = "gx(3, t)"; y = "gy(3, t)"; segments = 120; active = mode == "hyp"; color = #3b82f6; thickness = 1.8; layer = 15 }
+new Curve { name = "g4"; type = parametric; x = "gx(4, t)"; y = "gy(4, t)"; segments = 120; active = mode == "hyp"; color = #3b82f6; thickness = 1.8; layer = 15 }
+new Curve { name = "g5"; type = parametric; x = "gx(5, t)"; y = "gy(5, t)"; segments = 120; active = mode == "hyp"; color = #3b82f6; thickness = 1.8; layer = 15 }
+new Curve { name = "g6"; type = parametric; x = "gx(6, t)"; y = "gy(6, t)"; segments = 120; active = mode == "hyp"; color = #3b82f6; thickness = 1.8; layer = 15 }
 new Curve { name = "g7"; type = parametric; x = "gx(7, t)"; y = "gy(7, t)"; segments = 120; color = #6b7280; thickness = 1.5; layer = 15 }
 new Point { name = "U"; pos = (-2.6, -1.6); text = true("U"); pauseOnDrag = false; color = #ef4444; layer = 60 }
 new Point { name = "V"; pos = (2.4, -2.1); text = true("V"); pauseOnDrag = false; color = #ef4444; layer = 60 }
@@ -101,15 +101,14 @@ Update {
     float tc = b1 + w / 2;
     mob(cos(tc), sin(tc), px, py, 1); float cx0 = rx; float cy0 = ry; mob(-cos(tc), -sin(tc), px, py, 1);
     geo3(7, px, py, cx0, cy0, rx, ry);
-    lbx = S * (e1x * 0.8 + 0.05); lby = S * (e1y * 0.8 + 0.05);
+    // подпись l — у середины дуги, со стороны границы (подальше от P)
+    float mx = gx(0, 0.5); float my = gy(0, 0.5); float ml = sqrt(mx * mx + my * my);
+    if (ml < 0.3) { mx = mx - 0.5 * (py - my / S); my = my - 0.5; ml = 1; lbx = mx; lby = my; }
+    else { lbx = mx * (1 + 0.45 / ml); lby = my * (1 + 0.45 / ml); }
   } else {
     float dx = vx - ux; float dy = vy - uy;
     eline(0, ux, uy, dx, dy); eline(1, px, py, dx, dy); eline(2, px, py, dx, dy);
-    repeat (4) { float a = atan2(dy, dx) + 0.25 * (i + 1); eline(3 + i, px, py, cos(a), sin(a)); GL[3 + i] = 1; }
-    GL[3] = 1; EX[3] = 0; EY[3] = 0; FX[3] = 0; FY[3] = 0;
-    GL[4] = 1; EX[4] = 0; EY[4] = 0; FX[4] = 0; FY[4] = 0;
-    GL[5] = 1; EX[5] = 0; EY[5] = 0; FX[5] = 0; FY[5] = 0;
-    GL[6] = 1; EX[6] = 0; EY[6] = 0; FX[6] = 0; FY[6] = 0;
+    // синие кривые (3–6) в этом режиме скрыты (active), серая 7 — пересекающая l
     eline(7, px, py, cos(atan2(dy, dx) + 0.6), sin(atan2(dy, dx) + 0.6));
     lbx = S * (ux + vx) / 2 + 0.3; lby = S * (uy + vy) / 2 - 0.4;
   }
