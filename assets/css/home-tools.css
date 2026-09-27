@@ -27,30 +27,83 @@ html.light .section-card[data-tool="playground"]    { --tool-accent: #12a05e; --
 .section-card[data-tool]:hover::after { background: radial-gradient(320px circle at var(--mx, 50%) var(--my, 50%), var(--tool-accent-soft), transparent 70%); }
 .section-card[data-tool]:hover h3 svg { color: var(--tool-accent); }
 
-.tools-stage { position: relative; }
+/* Цвета морфа. Заливка призрака почти непрозрачная: пока форма растёт,
+   под ней не должны «просвечивать» уходящие карточки. Тот же цвет — фон
+   полноэкранной панели на телефоне, чтобы стык морф → панель был незаметен. */
+:root {
+  --tool-ghost-fill:   rgba(13, 18, 34, .94);
+  --tool-ghost-shadow: rgba(0, 0, 0, .45);
+  --tool-sheet-bg:     rgb(9, 13, 26);
+}
+html.light {
+  --tool-ghost-fill:   rgba(255, 255, 255, .96);
+  --tool-ghost-shadow: rgba(20, 40, 90, .16);
+  --tool-sheet-bg:     rgb(247, 249, 255);
+}
 
-/* «Призрак» — цветной прямоугольник, который анимированно растёт из карточки
-   на весь раздел, пока за ним подменяется содержимое. */
+.tools-stage {
+  position: relative;
+  --tool-gutter: max(clamp(1rem, 4vw, 1.5rem), var(--safe-l, 0px));
+}
+/* Пока панель открывается/открыта — сетка не ловит клики (при сворачивании
+   ловит: можно передумать и снова открыть ту же карточку). */
+.tools-stage.is-opening .sections { pointer-events: none; }
+
+/* Карточка-источник прячется под призраком без собственных переходов
+   (у неё длинные transition от reveal/наклона — иначе она «догоняла» бы). */
+.section-card.is-source {
+  opacity: 0 !important;
+  transform: none !important;
+  transition: none !important;
+}
+
+/* ---------------------------------------------------------------- призрак */
 .tool-ghost {
   position: absolute;
-  z-index: 6;
-  border-radius: var(--r-lg);
-  background: var(--bg-card);
-  border: 1px solid var(--tool-accent, var(--accent));
-  box-shadow: var(--shadow-lg), 0 0 0 1px var(--tool-accent-soft, var(--accent-soft));
-  opacity: 0;
+  inset: 0;
+  z-index: 1;
   pointer-events: none;
-  transition: left .5s var(--e-out), top .5s var(--e-out),
-              width .5s var(--e-out), height .5s var(--e-out),
-              opacity .3s var(--e-out);
+  opacity: 0;
+  transition: opacity .24s var(--e-out);
 }
-.tool-ghost.is-on { opacity: 1; }
+.tool-ghost[hidden] { display: none; }
+.tool-ghost.is-on { opacity: 1; transition: none; }
+.tool-ghost.is-fixed { position: fixed; z-index: 999; }
+
+.tool-ghost-svg {
+  position: absolute; left: 0; top: 0;
+  width: 100%; height: 100%;
+  overflow: visible;
+  filter: drop-shadow(0 22px 38px var(--tool-ghost-shadow));
+}
+.tool-ghost-fill   { fill: var(--tool-ghost-fill); }
+.tool-ghost.is-fixed .tool-ghost-fill { fill: var(--tool-sheet-bg); }  /* на весь экран — без просветов */
+.tool-ghost-stroke { fill: none; stroke: var(--tool-accent, var(--accent)); stroke-width: 1; }
+.tool-ghost-s0 { stop-color: var(--tool-accent, var(--accent)); stop-opacity: .14; }
+.tool-ghost-s1 { stop-color: var(--tool-accent, var(--accent)); stop-opacity: 0; }
+html.light .tool-ghost-s0 { stop-opacity: .09; }
+
+/* «Лицо» карточки: заголовок и описание, которые тают в начале раскрытия */
+.tool-ghost-face {
+  position: absolute;
+  padding: 1.6rem 1.5rem 1.4rem;
+  will-change: transform, opacity;
+}
+.tool-ghost-face h3 {
+  display: flex; align-items: center; gap: .65rem;
+  font-size: 1.16rem; margin-bottom: .5rem;
+  color: var(--text-primary);
+}
+.tool-ghost-face h3 svg { width: 21px; height: 21px; flex: 0 0 auto; color: var(--tool-accent, var(--accent)); }
+.tool-ghost-face p { color: var(--text-secondary); font-size: .94rem; }
 
 .sections.is-hidden { display: none; }
 
+/* ------------------------------------------------------------------ панель */
 .tool-panel {
   position: relative;
-  max-width: 1180px;
+  width: calc(100% - 2 * var(--tool-gutter));
+  max-width: calc(1180px - 2 * var(--tool-gutter));
   margin: 0 auto;
   padding: 1.7rem clamp(1.1rem, 4vw, 2.2rem) 2rem;
   border-radius: var(--r-lg);
@@ -59,12 +112,24 @@ html.light .section-card[data-tool="playground"]    { --tool-accent: #12a05e; --
   backdrop-filter: blur(18px) saturate(140%);
   -webkit-backdrop-filter: blur(18px) saturate(140%);
   box-shadow: var(--shadow-lg), 0 0 0 1px var(--tool-accent-soft, var(--accent-soft));
-  opacity: 0;
-  transform: translateY(8px);
-  transition: opacity .35s var(--e-out), transform .35s var(--e-out);
 }
 .tool-panel[hidden] { display: none; }
-.tool-panel.is-visible { opacity: 1; transform: none; }
+/* Во время морфа у панели нет своей «поверхности» — её рисует призрак,
+   панель лишь несёт содержимое поверх него. */
+.tool-panel.is-morphing {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+.tool-panel.is-morphing * { transition: none !important; }
+.tool-panel.is-floating {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  z-index: 2;
+}
+.tool-panel.is-leaving { pointer-events: none; }
 
 .tool-panel-close {
   position: absolute; top: 1.1rem; right: 1.1rem;
@@ -78,6 +143,7 @@ html.light .section-card[data-tool="playground"]    { --tool-accent: #12a05e; --
   transition: var(--transition-smooth);
 }
 .tool-panel-close:hover { color: var(--tool-accent); border-color: var(--tool-accent); transform: rotate(90deg); }
+.tool-panel-close:focus-visible { outline: 2px solid var(--tool-accent, var(--accent)); outline-offset: 2px; }
 
 .tool-panel-head { display: flex; align-items: flex-start; gap: .9rem; padding-right: 2.6rem; margin-bottom: 1.3rem; }
 .tool-panel-head svg { width: 26px; height: 26px; flex: 0 0 auto; color: var(--tool-accent); margin-top: .1rem; }
@@ -108,6 +174,8 @@ html.light .section-card[data-tool="playground"]    { --tool-accent: #12a05e; --
   background: var(--tool-accent-soft);
   transform: translateY(-2px);
 }
+html.light .tool-item { background: rgba(255, 255, 255, .7); }
+html.light .tool-item:hover, html.light .tool-item:focus-visible { background: var(--tool-accent-soft); }
 .tool-item-glyph {
   flex: 0 0 auto;
   width: 34px; height: 34px; border-radius: var(--r-sm);
@@ -145,14 +213,78 @@ html.light .section-card[data-tool="playground"]    { --tool-accent: #12a05e; --
 .tool-panel-cta::after { content: '→'; transition: transform var(--t) var(--e-out); }
 .tool-panel-cta:hover::after { transform: translateX(5px); }
 
+/* ------------------------------------------- телефон: панель на весь экран */
+html.tool-sheet-lock, html.tool-sheet-lock body { overflow: hidden; }
+
+.tool-panel.is-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  width: auto; max-width: none;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: var(--tool-sheet-bg);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: calc(1.3rem + var(--safe-t, 0px)) calc(1rem + var(--safe-r, 0px))
+           calc(1.6rem + var(--safe-b, 0px)) calc(1rem + var(--safe-l, 0px));
+}
+.tool-panel.is-sheet.is-morphing { background: transparent; }
+.tool-panel.is-sheet .tool-panel-close {
+  position: fixed;
+  top: calc(.75rem + var(--safe-t, 0px));
+  right: calc(.75rem + var(--safe-r, 0px));
+  width: 44px; height: 44px;
+  font-size: 1.1rem;
+  z-index: 2;
+}
+.tool-panel.is-sheet .tool-panel-head { padding-right: 3.2rem; margin-bottom: 1.1rem; }
+.tool-panel.is-sheet .tool-panel-head svg { display: block; width: 24px; height: 24px; }
+.tool-panel.is-sheet .tool-grid { grid-template-columns: 1fr; gap: .55rem; }
+.tool-panel.is-sheet .tool-item { min-height: 56px; }
+/* Главное действие — крупной кнопкой внизу, под большой палец */
+.tool-panel.is-sheet .tool-panel-cta {
+  display: flex; justify-content: center;
+  margin-top: 1.3rem;
+  min-height: 48px;
+  border-radius: var(--r);
+  border: 1px solid var(--tool-accent);
+  background: var(--tool-accent-soft);
+}
+
 @media (max-width: 640px) {
   .tool-panel { padding: 1.4rem 1rem 1.6rem; }
   .tool-panel-head svg { display: none; }
   .tool-panel-head { padding-right: 2.4rem; }
+  .tool-ghost-face { padding: .9rem 1rem .9rem calc(1rem + 44px + .85rem); }
+  .tool-ghost-face h3 { font-size: 1rem; margin: 0; }
+  .tool-ghost-face h3 svg {
+    position: absolute; left: 1rem; top: 50%; transform: translateY(-50%);
+    width: 24px; height: 24px;
+  }
+  .tool-ghost-face p {
+    font-size: .82rem; color: var(--text-tertiary);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  /* В common.css (18.1) ссылка карточки растянута на всю строку, и тап сразу
+     уводил на другую страницу. У карточек-инструментов тап раскрывает
+     инструмент, а на страницу ведёт шеврон справа. */
+  .sections > .section-card[data-tool] a::before { content: none; }
+}
+
+/* Тач: 3D-наклона нет (mfCards включается только при настоящем hover), вместо
+   него — короткое «нажатие» с подсветкой цветом инструмента. */
+@media (hover: none), (pointer: coarse) {
+  .section-card[data-tool]:active {
+    border-color: var(--tool-accent) !important;
+    box-shadow: 0 0 0 3px var(--tool-accent-soft);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .tool-ghost { transition: opacity .2s linear !important; }
-  .tool-panel { transition: opacity .2s linear !important; transform: none !important; }
+  .tool-ghost { transition: none; }
   .tool-item, .tool-panel-close { transition: none; }
 }

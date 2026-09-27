@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<script>/* MathFrame: тема до первого кадра + маска перехода между страницами (см. common.js › PAGE TRANSITIONS) */(function(){var d=document.documentElement;try{var t=localStorage.getItem('theme');if(t==='light'||(t!=='dark'&&!matchMedia('(prefers-color-scheme: dark)').matches))d.classList.add('light');}catch(e){}try{var s=sessionStorage.getItem('mf-veil');if(!s)return;sessionStorage.removeItem('mf-veil');var v=JSON.parse(s),n=performance.getEntriesByType&&performance.getEntriesByType('navigation')[0];if(!v||!v.fill||Date.now()-v.t>8000||(n&&n.type&&n.type!=='navigate'))return;window.__mfVeil=v;d.style.setProperty('--mf-veil-fill',v.fill);d.classList.add('mf-veil-on');setTimeout(function(){d.classList.remove('mf-veil-on')},4000);}catch(e){}})();</script>
 <title>AI‑агент — MathFrame</title>
 <meta name="description" content="Помощник по математике: объясняет темы справочника, разбирает решения и отвечает на вопросы." />
 <script>document.documentElement.classList.add('agent-page');</script>
@@ -17,356 +18,7 @@
 <!-- KaTeX уже используется в справочнике и мини-сервисах — тот же набор файлов. -->
 <link rel="stylesheet" href="/assets/lib/katex/katex.min.css" />
 <script defer src="/assets/lib/katex/katex.min.js"></script>
-
-<style>
-[hidden]{display:none !important}
-.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
-
-/* ===== страница как «приложение»: сама не прокручивается, внутри — три зоны ===== */
-html.agent-page,
-html.agent-page body{overflow:hidden;height:100%}
-html.agent-page #app-footer{display:none}
-
-.agent-shell{
-  --agent-h:calc(100vh - var(--header-height) - var(--safe-t, 0px));
-  height:var(--agent-h);
-  max-width:1240px;margin:0 auto;
-  padding:.7rem clamp(.5rem,2vw,1rem) calc(.7rem + var(--safe-b, 0px));
-  padding-left:max(clamp(.5rem,2vw,1rem),var(--safe-l, 0px));
-  padding-right:max(clamp(.5rem,2vw,1rem),var(--safe-r, 0px));
-}
-@supports (height:100dvh){
-  .agent-shell{--agent-h:calc(100dvh - var(--header-height) - var(--safe-t, 0px))}
-}
-.agent-card{
-  position:relative;height:100%;overflow:hidden;
-  display:grid;grid-template-columns:272px minmax(0,1fr);
-  background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r-lg);
-}
-
-/* ===== список чатов ===== */
-.chats{
-  display:flex;flex-direction:column;min-height:0;min-width:0;
-  border-right:1px solid var(--border);background:var(--bg-sunken);
-}
-.chats-head{padding:.7rem}
-.new-chat{
-  width:100%;display:inline-flex;align-items:center;justify-content:center;gap:.4rem;
-  font:inherit;font-size:.9rem;font-weight:600;padding:.6rem .8rem;min-height:40px;border-radius:var(--r);
-  border:1px solid var(--accent);background:var(--accent-soft);color:var(--accent);cursor:pointer;
-  transition:background var(--t),color var(--t);
-}
-.new-chat:hover:not(:disabled){background:var(--accent);color:#fff}
-.new-chat:disabled{opacity:.45;cursor:default}
-.new-chat svg{width:16px;height:16px}
-.chat-list{list-style:none;margin:0;padding:0 .5rem .5rem;flex:1 1 auto;min-height:0;overflow-y:auto}
-.chat-item{
-  display:flex;align-items:center;gap:.3rem;padding:.5rem .35rem .5rem .65rem;margin-bottom:2px;border-radius:var(--r-sm);
-  cursor:pointer;border:1px solid transparent;
-}
-.chat-item:hover{background:var(--accent-soft)}
-.chat-item.on{background:var(--accent-soft);border-color:var(--accent)}
-.chat-item:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
-.ci-main{min-width:0;flex:1 1 auto}
-.ci-title{font-size:.88rem;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.ci-title.empty{color:var(--text-tertiary);font-style:italic}
-.ci-meta{display:flex;align-items:center;gap:.4rem;font-size:.72rem;color:var(--text-tertiary)}
-.chat-item{position:relative;transition:background var(--t) var(--e-out),border-color var(--t) var(--e-out)}
-.chat-item::before{content:'';position:absolute;left:-1px;top:22%;bottom:22%;width:2px;border-radius:2px;
-  background:var(--accent);transform:scaleY(0);transition:transform var(--t) var(--e-out)}
-.chat-item.on::before{transform:none}
-.chat-item.mfa-on-in{animation:mfaOnIn .3s var(--e-out) backwards}
-.chat-item.mfa-on-in::before{animation:mfaBar .34s var(--e-out) backwards}
-@keyframes mfaOnIn{from{background:transparent;border-color:transparent}}
-@keyframes mfaBar{from{transform:scaleY(0)}}
-.chat-item.mfa-ci-in{animation:mfaCiIn .34s var(--e-out) backwards;animation-delay:calc(0ms - var(--mfa-age,0ms))}
-@keyframes mfaCiIn{from{opacity:0;transform:translateX(-14px)}}
-/* «отвечает…»: точка-локус с расходящимся кольцом */
-.ci-dot{position:relative;flex:0 0 auto;width:6px;height:6px;border-radius:50%;background:var(--accent-2)}
-.ci-dot::after{content:'';position:absolute;inset:-3px;border-radius:50%;border:1px solid var(--accent-2);
-  opacity:0;animation:mfaRing 1.5s var(--e-out) infinite}
-@keyframes mfaRing{0%{opacity:.9;transform:scale(.4)}100%{opacity:0;transform:scale(1.7)}}
-.ci-del{
-  flex:0 0 auto;width:28px;height:28px;border:0;border-radius:var(--r-sm);cursor:pointer;
-  display:inline-flex;align-items:center;justify-content:center;
-  background:transparent;color:var(--text-tertiary);opacity:0;transition:opacity var(--t),color var(--t),background var(--t);
-}
-.ci-del svg{width:15px;height:15px}
-.chat-item:hover .ci-del,.chat-item.on .ci-del,.ci-del:focus-visible{opacity:1}
-.ci-del:hover{color:#f87171;background:rgba(248,113,113,.12)}
-.chats-hint{padding:.6rem .7rem;font-size:.84rem;color:var(--text-secondary)}
-.chats-foot{padding:.55rem .8rem;border-top:1px solid var(--border);font-size:.74rem;line-height:1.35;color:var(--text-tertiary)}
-.chats-foot.err{color:var(--accent-3)}
-
-/* ===== правая часть: закреплённая шапка · лента · закреплённое поле ввода ===== */
-.chat{display:flex;flex-direction:column;min-height:0;min-width:0;position:relative}
-
-.chat-top{
-  position:relative;z-index:6;flex:0 0 auto;
-  display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;
-  padding:.6rem .8rem;border-bottom:1px solid var(--border);background:var(--bg-card);
-}
-.icon-btn{
-  display:none;flex:0 0 auto;width:38px;height:38px;border-radius:var(--r-sm);border:1px solid var(--border-strong);
-  background:var(--bg-sunken);color:var(--text-secondary);cursor:pointer;align-items:center;justify-content:center;
-}
-.icon-btn svg{width:18px;height:18px}
-.icon-btn:hover{color:var(--accent);border-color:var(--accent)}
-.chat-title{
-  flex:1 1 180px;min-width:0;font:inherit;font-size:1rem;font-weight:600;color:var(--text-primary);
-  padding:.4rem .55rem;border-radius:var(--r-sm);border:1px solid transparent;background:transparent;outline:none;
-  text-overflow:ellipsis;
-}
-.chat-title:hover{border-color:var(--border-strong)}
-.chat-title:focus{border-color:var(--accent);background:var(--bg-sunken);box-shadow:0 0 0 3px var(--accent-soft)}
-.chat-title:disabled{opacity:.7}
-.role-badge{
-  flex:0 0 auto;padding:.22rem .65rem;border-radius:2rem;font-size:.74rem;font-weight:600;letter-spacing:.02em;
-  color:var(--accent-3);border:1px solid rgba(242,180,92,.4);background:rgba(242,180,92,.1);white-space:nowrap;cursor:help;
-}
-.topic-ctl{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;min-width:0;max-width:100%}
-.chip-topic{
-  display:inline-flex;align-items:center;gap:.4rem;max-width:min(320px,100%);
-  padding:.28rem .4rem .28rem .8rem;border-radius:2rem;font-size:.82rem;
-  background:var(--accent-soft);color:var(--accent);border:1px solid var(--accent);
-}
-.chip-topic span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
-.chip-topic button{
-  flex:0 0 auto;width:1.35rem;height:1.35rem;border-radius:50%;border:0;cursor:pointer;
-  background:transparent;color:inherit;font-size:1rem;line-height:1;
-}
-.chip-topic button:hover{background:var(--accent);color:#fff}
-.tbtn{
-  font:inherit;font-size:.82rem;padding:.4rem .8rem;min-height:36px;border-radius:var(--r-sm);white-space:nowrap;
-  border:1px solid var(--border-strong);background:var(--bg-sunken);color:var(--text-secondary);cursor:pointer;
-  transition:color var(--t),border-color var(--t);
-}
-.tbtn:hover:not(:disabled){color:var(--accent);border-color:var(--accent)}
-.tbtn:disabled{opacity:.45;cursor:default}
-
-/* выбор темы — выпадает прямо из шапки */
-.picker{
-  position:absolute;left:0;right:0;top:100%;z-index:8;padding:.7rem .8rem;
-  background:var(--bg-card);border-bottom:1px solid var(--border);
-  box-shadow:0 18px 30px -12px rgba(0,0,0,.5);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
-}
-.picker input{
-  width:100%;padding:.55rem .75rem;border-radius:var(--r-sm);font:inherit;font-size:16px;
-  border:1px solid var(--border-strong);background:var(--bg-sunken);color:var(--text-primary);outline:none;
-}
-.picker input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
-.picker ul{list-style:none;margin:.4rem 0 0;padding:0;max-height:min(260px,40vh);overflow:auto}
-.picker li button{
-  width:100%;text-align:left;font:inherit;font-size:.92rem;padding:.5rem .6rem;border:0;border-radius:var(--r-sm);
-  background:transparent;color:var(--text-primary);cursor:pointer;
-}
-.picker li button:hover{background:var(--accent-soft);color:var(--accent)}
-.pick-empty{color:var(--text-tertiary);font-size:.85rem;padding:.4rem .6rem}
-/* открытие — CSS-анимация срабатывает сама при снятии hidden; закрытие — класс из JS */
-.picker{animation:mfaDrop .26s var(--e-out) backwards;transform-origin:50% 0}
-.picker.mfa-closing{animation:mfaDropOut .16s var(--e-inout) forwards;pointer-events:none}
-@keyframes mfaDrop{from{opacity:0;transform:translateY(-8px)}}
-@keyframes mfaDropOut{to{opacity:0;transform:translateY(-6px)}}
-.picker input,.chat-title,.compose-row textarea{transition:border-color var(--t) var(--e-out),box-shadow var(--t) var(--e-out),background var(--t)}
-.chip-topic.mfa-chip-pop{animation:mfaChipPop .36s var(--e-spring) backwards}
-@keyframes mfaChipPop{0%{opacity:0;transform:scale(.82)}60%{opacity:1}}
-
-/* лента сообщений — единственное, что прокручивается */
-.log-scroll{flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;scroll-behavior:auto}
-.log{padding:1rem clamp(.7rem,3vw,1.2rem) 1.2rem;display:flex;flex-direction:column;gap:1rem;max-width:860px;margin:0 auto}
-.msg{display:flex}
-.msg-user{justify-content:flex-end}
-.msg-body{min-width:0;max-width:100%}
-.msg-user .msg-body{
-  max-width:88%;padding:.6rem .9rem;border-radius:var(--r-lg) var(--r-lg) 4px var(--r-lg);
-  background:var(--accent-soft);border:1px solid var(--accent);white-space:pre-wrap;word-break:break-word;
-}
-.msg-assistant .msg-body{width:100%}
-
-/* ответ */
-.md{line-height:1.65;font-size:1rem;word-break:break-word}
-.md > :first-child{margin-top:0}
-.md > :last-child{margin-bottom:0}
-.md p{margin:.55em 0}
-.md h3,.md h4{margin:1.1em 0 .4em;font-family:var(--font-display)}
-.md h3{font-size:1.15rem}
-.md h4{font-size:1.02rem}
-.md ul,.md ol{margin:.5em 0;padding-left:1.4em}
-.md li{margin:.25em 0}
-.md a{color:var(--accent);text-decoration:underline;text-underline-offset:2px}
-.md strong{font-weight:700}
-.md hr{border:0;border-top:1px solid var(--border);margin:1em 0}
-.md blockquote{margin:.6em 0;padding:.2rem 1rem;border-left:3px solid var(--accent);color:var(--text-secondary)}
-.md code{font-family:var(--font-mono);font-size:.88em;background:var(--bg-sunken);border-radius:4px;padding:.12em .35em}
-.md pre{margin:.7em 0;padding:.8rem 1rem;overflow-x:auto;background:var(--bg-sunken);border:1px solid var(--border);border-radius:var(--r)}
-.md pre code{background:none;padding:0}
-.mfa-math[data-display="1"]{display:block;margin:.7em 0;overflow-x:auto;overflow-y:hidden;text-align:center}
-.mfa-math .katex{font-size:1.06em}
-
-/* «Думает»: самописец. Кривая равномерно уезжает влево, перо-точка качается по вертикали
-   в той же фазе (период волны 16px = 1.2s, перо стоит в x = 44 ≡ 3/4 периода), поэтому
-   кажется, что перо само вычерчивает синусоиду. Только transform. */
-.typing{display:inline-flex;align-items:center;gap:.7rem;padding:.45rem 0;color:var(--text-tertiary);font-size:.84rem}
-.tp-plot{position:relative;flex:0 0 auto;width:48px;height:16px}
-.tp-plot::before{content:'';position:absolute;left:0;width:44px;top:8px;height:1px;background:var(--border-strong)}
-.tp-trace{position:absolute;left:0;top:0;width:44px;height:16px;overflow:hidden;
-  -webkit-mask-image:linear-gradient(90deg,transparent,#000 60%);mask-image:linear-gradient(90deg,transparent,#000 60%)}
-.tp-trace svg{display:block;width:60px;height:16px;animation:mfaTrace 1.2s linear infinite}
-.tp-trace path{fill:none;stroke:var(--accent-2);stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
-.tp-pen{position:absolute;left:41px;top:5px;width:6px;height:6px;border-radius:50%;
-  background:var(--accent-3);box-shadow:0 0 8px var(--accent-3);transform:translateY(4.5px);
-  animation:mfaPen .6s cubic-bezier(.37,0,.63,1) infinite alternate}
-@keyframes mfaTrace{to{transform:translateX(-16px)}}
-@keyframes mfaPen{from{transform:translateY(4.5px)}to{transform:translateY(-4.5px)}}
-.tp-label{display:inline-block}
-.tp-label.mfa-lbl{animation:mfaLbl .32s var(--e-out) backwards}
-@keyframes mfaLbl{from{opacity:0;transform:translateY(5px)}}
-
-/* поток: курсор в конце текста и проявление только что пришедших символов */
-.mfa-caret{display:inline-block;width:2px;height:1.05em;margin-left:2px;vertical-align:-.16em;border-radius:1px;
-  background:var(--accent);box-shadow:0 0 6px var(--accent-glow);animation:mfaBlink 1s steps(1) infinite}
-@keyframes mfaBlink{50%{opacity:.15}}
-.mfa-tok{animation:mfaTok .36s linear backwards}
-@keyframes mfaTok{from{opacity:0}}
-
-/* появление сообщений: вопрос — справа, ответ — снизу. --mfa-age: сколько уже прошло
-   (элемент перерисовывается — анимация продолжается, а не начинается заново) */
-.msg.mfa-in-user{animation:mfaUserIn .36s var(--e-out) backwards;animation-delay:calc(0ms - var(--mfa-age,0ms))}
-.msg.mfa-in-bot{animation:mfaRise .42s var(--e-out) backwards;animation-delay:calc(90ms - var(--mfa-age,0ms))}
-@keyframes mfaUserIn{from{opacity:0;transform:translateX(22px) scale(.98)}}
-@keyframes mfaRise{from{opacity:0;transform:translateY(10px)}}
-@keyframes mfaFade{from{opacity:0}}
-.log.mfa-swap{animation:mfaSwap .3s var(--e-out)}
-@keyframes mfaSwap{from{opacity:0;transform:translateY(6px)}}
-.mfa-fresh{animation:mfaRise .36s var(--e-out) backwards;animation-delay:calc(40ms - var(--mfa-age,0ms))}
-
-.msg-err{margin-top:.6rem;padding:.55rem .8rem;border-radius:var(--r-sm);font-size:.9rem;
-  color:#f87171;background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.3)}
-.msg-src{display:flex;flex-wrap:wrap;gap:.4rem;align-items:center;margin-top:.7rem;font-size:.78rem;color:var(--text-tertiary)}
-.src-chip{
-  padding:.15rem .6rem;border-radius:2rem;font-size:.78rem;text-decoration:none;
-  color:var(--accent);border:1px solid var(--border-strong);background:var(--bg-sunken);
-  transition:border-color var(--t),background var(--t);
-}
-.src-chip:hover{border-color:var(--accent);background:var(--accent-soft)}
-.msg-acts{display:flex;gap:.3rem;margin-top:.5rem}
-.act{
-  display:inline-flex;align-items:center;gap:.35rem;font:inherit;font-size:.78rem;
-  padding:.25rem .55rem;border-radius:var(--r-sm);border:0;background:transparent;color:var(--text-tertiary);cursor:pointer;
-}
-.act svg{width:14px;height:14px}
-.act:hover{color:var(--accent);background:var(--accent-soft)}
-
-/* пустое состояние: здесь же — описание агента */
-.agent-empty{padding:clamp(1rem,6vh,3rem) .3rem 1rem;text-align:center}
-.agent-empty h2{font-size:clamp(1.35rem,3.6vw,1.8rem);margin-bottom:.5rem}
-.agent-empty p{color:var(--text-secondary);font-size:.95rem;max-width:56ch;margin:0 auto 1.2rem}
-.suggest{display:grid;gap:.5rem;grid-template-columns:repeat(2,minmax(0,1fr));text-align:left}
-.suggest-chip{
-  font:inherit;font-size:.88rem;line-height:1.4;text-align:left;padding:.7rem .9rem;border-radius:var(--r);
-  border:1px solid var(--border);background:var(--bg-sunken);color:var(--text-primary);cursor:pointer;
-  transition:border-color var(--t),background var(--t),transform var(--t);
-}
-.suggest-chip:hover{border-color:var(--accent);background:var(--accent-soft);transform:translateY(-2px);
-  box-shadow:0 10px 22px -12px var(--accent-glow)}
-.suggest-chip:active{transform:translateY(0) scale(.985);transition-duration:var(--t-fast)}
-.suggest-chip:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-
-/* эмблема пустого чата: оси → кривая → касательная → точка касания (вычерчивается один раз).
-   Задержки отсчитываются от --mfa-age: повторная отрисовка того же чата не запускает всё заново */
-.agent-emblem{display:block;width:118px;height:auto;margin:0 auto .9rem;overflow:visible}
-.agent-emblem path{fill:none;stroke-linecap:round;stroke-dasharray:1;stroke-dashoffset:0}
-.ae-axis{stroke:var(--border-strong);stroke-width:1.2}
-.ae-tick{stroke:var(--border-strong);stroke-width:1}
-.ae-curve{stroke:var(--accent-2);stroke-width:2.2}
-.ae-tan{stroke:var(--accent);stroke-width:1.4}
-.ae-pt{fill:var(--accent-3)}
-.ae-halo{fill:none;stroke:var(--accent-3);stroke-width:1;opacity:0;transform-box:fill-box;transform-origin:center}
-.agent-empty .ae-draw{animation:mfaDraw var(--dur,.9s) var(--e-out) backwards}
-.agent-empty .ae-pop{transform-box:fill-box;transform-origin:center;animation:mfaPtPop .42s var(--e-spring) backwards}
-.agent-empty .ae-halo{animation:mfaHalo 1s var(--e-out) backwards}
-.agent-empty .ae-in{animation:mfaRise .5s var(--e-out) backwards}
-.agent-empty .ae-draw,.agent-empty .ae-pop,.agent-empty .ae-halo,.agent-empty .ae-in{animation-delay:calc(var(--d,0s) - var(--mfa-age,0ms))}
-.agent-empty.mfa-static *{animation:none!important}
-@keyframes mfaDraw{from{stroke-dashoffset:1}}
-@keyframes mfaPtPop{from{opacity:0;transform:scale(0)}}
-@keyframes mfaHalo{0%{opacity:0;transform:scale(.6)}8%{opacity:.8}100%{opacity:0;transform:scale(3.2)}}
-
-/* баннеры */
-.agent-banner{flex:0 0 auto;margin:0 clamp(.7rem,3vw,1.1rem) .5rem;padding:.6rem .85rem;border-radius:var(--r-sm);font-size:.88rem}
-.agent-banner.warn{color:var(--accent-3);background:rgba(242,180,92,.1);border:1px solid rgba(242,180,92,.35)}
-.agent-banner.info{color:var(--text-secondary);background:var(--bg-sunken);border:1px solid var(--border)}
-.agent-banner,.login-bar{animation:mfaRise .38s var(--e-out) backwards}
-.agent-banner.mfa-re{animation:mfaFade .3s var(--e-out) backwards}
-.scrim{animation:mfaFade .25s var(--e-out) backwards}
-
-/* поле ввода — закреплено внизу */
-.composer{
-  flex:0 0 auto;z-index:5;
-  padding:.7rem clamp(.7rem,3vw,1.1rem) .6rem;
-  background:var(--bg-card);border-top:1px solid var(--border);
-}
-.composer-in{max-width:860px;margin:0 auto}
-.login-bar{
-  display:flex;gap:.7rem;align-items:center;justify-content:space-between;flex-wrap:wrap;
-  margin-bottom:.6rem;padding:.55rem .8rem;border-radius:var(--r-sm);font-size:.88rem;
-  background:var(--accent-soft);border:1px solid var(--accent);color:var(--text-primary);
-}
-.compose-row{display:flex;gap:.55rem;align-items:flex-end}
-.compose-row textarea{
-  flex:1 1 auto;min-width:0;resize:none;min-height:44px;max-height:180px;padding:.65rem .85rem;
-  font:inherit;font-size:16px;line-height:1.45;color:var(--text-primary);
-  background:var(--bg-sunken);border:1px solid var(--border-strong);border-radius:var(--r);outline:none;
-}
-.compose-row textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
-.compose-row textarea:disabled{opacity:.6}
-.round{
-  flex:0 0 auto;width:44px;height:44px;border-radius:var(--r);border:0;cursor:pointer;color:#fff;
-  display:inline-flex;align-items:center;justify-content:center;
-  background:linear-gradient(135deg,var(--accent),var(--accent-hover));box-shadow:0 6px 18px var(--accent-glow);
-  transition:transform var(--t) var(--e-out),opacity var(--t);
-}
-.round:hover:not(:disabled){transform:translateY(-1px)}
-.round:active:not(:disabled){transform:scale(.9);transition-duration:var(--t-fast)}
-.round.mfa-swap-in{animation:mfaSwapIn .3s var(--e-spring) backwards}
-@keyframes mfaSwapIn{from{opacity:0;transform:scale(.55) rotate(-90deg)}}
-.round:disabled{opacity:.4;cursor:default;box-shadow:none}
-.round.stop{background:var(--bg-sunken);color:var(--text-primary);border:1px solid var(--border-strong);box-shadow:none}
-.round svg{width:20px;height:20px}
-.fineprint{margin-top:.45rem;font-size:.72rem;color:var(--text-tertiary);text-align:center}
-
-/* ===== узкие экраны: список чатов — выезжающая панель ===== */
-.scrim{position:absolute;inset:0;z-index:20;background:rgba(0,0,0,.5)}
-@media (max-width:820px){
-  .agent-shell{padding:0;padding-bottom:var(--safe-b, 0px)}
-  .agent-card{grid-template-columns:minmax(0,1fr);border-radius:0;border-left:0;border-right:0}
-  .chats{
-    position:absolute;z-index:21;top:0;bottom:0;left:0;width:min(86vw,320px);
-    transform:translateX(-102%);transition:transform .25s var(--e-out);
-    background:var(--bg-body);
-    box-shadow:0 0 40px rgba(0,0,0,.5);
-  }
-  .agent-card.drawer-open .chats{transform:none}
-  .icon-btn{display:inline-flex}
-  .topic-ctl{flex:1 1 100%}
-  .ci-del{opacity:1}
-  .suggest{grid-template-columns:minmax(0,1fr)}
-  .msg-user .msg-body{max-width:94%}
-  .fineprint{display:none}
-}
-@media (hover:none){ .ci-del{opacity:1} }
-/* меньше движения (система или переключатель «Анимации»): всё сразу в конечном виде */
-@media (prefers-reduced-motion:reduce){
-  .chats{transition:none}
-  .tp-trace svg,.tp-pen,.tp-label,.mfa-caret,.mfa-tok,.msg,.log,.mfa-fresh,.picker,.chip-topic,.round,
-  .chat-item,.chat-item::before,.agent-banner,.login-bar,.scrim,.agent-empty *{animation:none!important}
-  .ci-dot::after{display:none}
-}
-html.mf-no-motion :is(.tp-trace svg,.tp-pen,.tp-label,.mfa-caret,.mfa-tok,.msg,.log,.mfa-fresh,.picker,.chip-topic,.round,
-  .chat-item,.chat-item::before,.agent-banner,.login-bar,.scrim,.agent-empty *){animation:none!important}
-html.mf-no-motion .chat-item::before{animation:none!important}
-html.mf-no-motion .ci-dot::after{display:none}
-</style>
+<link rel="stylesheet" href="/assets/css/ai-agent.css" />
 
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
@@ -386,6 +38,7 @@ html.mf-no-motion .ci-dot::after{display:none}
     <!-- ===== чаты аккаунта ===== -->
     <aside class="chats" id="agentChats" aria-label="Ваши чаты">
       <div class="chats-head">
+        <div class="chats-label" aria-hidden="true"><span>История чатов</span></div>
         <button type="button" class="new-chat" id="agentNew">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
           Новый чат
@@ -401,6 +54,9 @@ html.mf-no-motion .ci-dot::after{display:none}
         <button type="button" class="icon-btn" id="agentMenu" aria-label="Список чатов">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
         </button>
+        <span class="agent-ava" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 19h18"/><path d="M5 17C9 17 10 6 19 5"/><circle cx="11.2" cy="11.6" r="1.6" fill="currentColor" stroke="none"/></svg>
+        </span>
         <input type="text" class="chat-title" id="agentTitle" maxlength="80" placeholder="Новый чат" aria-label="Название чата" autocomplete="off" />
         <span class="role-badge" id="agentBadge" hidden></span>
         <div class="topic-ctl">
@@ -420,13 +76,17 @@ html.mf-no-motion .ci-dot::after{display:none}
       <div class="agent-banner info" id="agentBanner" hidden></div>
 
       <form class="composer" id="agentForm" autocomplete="off">
+        <button type="button" class="to-bottom" id="agentDown" aria-label="К последнему сообщению" tabindex="-1">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
+        </button>
         <div class="composer-in">
           <div class="login-bar" id="agentLogin" hidden>
             <span>Войдите в аккаунт, чтобы задать вопрос агенту — ваши чаты сохранятся в аккаунте.</span>
             <button type="button" class="btn small primary" id="agentLoginBtn">Войти</button>
           </div>
           <div class="compose-row">
-            <textarea id="agentInput" rows="1" maxlength="4000" aria-label="Ваш вопрос" placeholder="Спросите что угодно о математике…"></textarea>
+            <span class="compose-count" id="agentCount" aria-live="polite" hidden></span>
+            <textarea id="agentInput" rows="1" maxlength="4000" aria-label="Ваш вопрос" placeholder="Спросите что угодно о математике…" enterkeyhint="send"></textarea>
             <button type="submit" class="round" id="agentSend" aria-label="Отправить">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
             </button>
@@ -434,7 +94,7 @@ html.mf-no-motion .ci-dot::after{display:none}
               <svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
             </button>
           </div>
-          <div class="fineprint">Enter — отправить, Shift+Enter — новая строка. Агент может ошибаться — важное перепроверяйте.</div>
+          <div class="fineprint"><kbd>Enter</kbd> — отправить, <kbd>Shift</kbd>+<kbd>Enter</kbd> — новая строка. Агент может ошибаться — важное перепроверяйте.</div>
         </div>
       </form>
     </section>

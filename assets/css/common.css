@@ -221,8 +221,23 @@ h1, h2, h3, h4, h5, h6 {
                               calc(var(--mf-grid-step) * 5) calc(var(--mf-grid-step) * 5); }
 }
 /* canvas — заменяемый элемент: inset:0 его не растягивает, без явных размеров он 300×150 */
-#mf-canvas { width: 100%; height: 100%; opacity: 0; transition: opacity 1.2s var(--e-out); }
+/* Проявление фона: JS рисует первый кадр ПРОЗРАЧНЫМ, только потом ставит
+   .mf-ready; яркость/толщина линий дальше нарастают в самом шейдере (uFade),
+   поэтому CSS-переход короткий — он лишь страхует от резкого появления. */
+#mf-canvas { width: 100%; height: 100%; opacity: 0; transition: opacity .8s var(--e-out); }
 #mf-canvas.mf-ready { opacity: 1; }
+/* 2D-слои фона разделов (mf-backgrounds.js): формулы и фигуры главной,
+   построения справочника, графики мини-сервисов, граф форума, нейросеть
+   AI-агента. Над виньеткой, под контентом; клики не перехватывают. */
+.mf-bg-layer {
+  position: fixed; inset: 0;
+  width: 100%; height: 100%;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0;
+  transition: opacity .9s var(--e-out);
+}
+.mf-bg-layer.mf-ready { opacity: 1; }
 .mf-vignette {
   background:
     radial-gradient(ellipse 120% 80% at 50% 0%, transparent 40%, var(--bg-body) 100%),
@@ -438,6 +453,11 @@ h1, h2, h3, h4, h5, h6 {
   border-color: var(--accent);
   box-shadow: 0 8px 22px rgba(0,0,0,.3), 0 0 0 3px var(--accent-soft);
 }
+/* Светлая тема: чёрная тень .3 на светлом фоне даёт грязное серое пятно */
+html.light .btn:hover { box-shadow: 0 8px 22px rgba(20,40,90,.12), 0 0 0 3px var(--accent-soft); }
+html.light .btn-outline::before, html.light .btn:not(.primary):not(.btn-primary)::before {
+  background: linear-gradient(105deg, transparent 30%, color-mix(in srgb, var(--accent) 9%, transparent) 50%, transparent 70%);
+}
 .btn:active { transform: translateY(0) scale(.985); }
 .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 
@@ -472,6 +492,15 @@ html.light .btn.danger:hover { background: rgba(199,58,58,.12); border-color: #c
 }
 @keyframes mfRipple {
   to { transform: translate(-50%, -50%) scale(1); opacity: 0; }
+}
+/* Светлая тема: белый «локус» на белой/контурной кнопке не виден — берём
+   акцент раздела. На залитых акцентом кнопках белый остаётся. */
+html.light .mf-ripple {
+  background: radial-gradient(circle, color-mix(in srgb, var(--accent) 24%, transparent), transparent 70%);
+}
+html.light .btn.primary > .mf-ripple, html.light .btn-primary > .mf-ripple,
+html.light .calc-eq > .mf-ripple {
+  background: radial-gradient(circle, rgba(255,255,255,.45), transparent 70%);
 }
 
 .info-text { color: var(--text-secondary); font-size: .88rem; margin-top: .5rem; }
@@ -513,6 +542,16 @@ html.light .btn.danger:hover { background: rgba(199,58,58,.12); border-color: #c
   transition: opacity var(--t-slow) var(--e-out);
 }
 .section-card:hover::after, .mf-card:hover::after, .svc:hover::after { opacity: 1; }
+/* У карточек оба псевдоэлемента заняты сеткой и ободком, поэтому засечки
+   .mf-ticks на них не рисуются (в покое они и так были скрыты opacity:0).
+   Без сброса размеры/рамка засечки смешивались с маской сетки — при наведении
+   в левом верхнем углу появлялся маленький «кружок». */
+.section-card.mf-ticks::before, .mf-card.mf-ticks::before, .svc.mf-ticks::before,
+.section-card.mf-ticks::after, .mf-card.mf-ticks::after, .svc.mf-ticks::after,
+.section-card.mf-ticks:hover::before, .mf-card.mf-ticks:hover::before, .svc.mf-ticks:hover::before,
+.section-card.mf-ticks:hover::after, .mf-card.mf-ticks:hover::after, .svc.mf-ticks:hover::after {
+  width: auto; height: auto; border: 0; border-radius: inherit;
+}
 
 .section-card:hover, .mf-card:hover, .svc:hover {
   border-color: var(--border-strong);
@@ -553,6 +592,10 @@ html.light .btn.danger:hover { background: rgba(199,58,58,.12); border-color: #c
   transition: opacity var(--t) var(--e-out), visibility var(--t);
 }
 .overlay.active { opacity: 1; visibility: visible; pointer-events: auto; }
+/* Светлая тема: почти чёрная вуаль .62 «гасит» светлую страницу в грязно-
+   серый, а полупрозрачная модалка поверх неё тоже сереет */
+html.light .overlay { background: rgba(24, 36, 66, .30); }
+html.light .modal { background: rgba(255, 255, 255, .97); }
 
 .modal {
   position: fixed; top: 50%; left: 50%;
@@ -741,6 +784,14 @@ html.light .btn.danger:hover { background: rgba(199,58,58,.12); border-color: #c
   will-change: opacity, transform;
 }
 .mf-reveal.mf-in { opacity: 1; transform: none; }
+/* Появление закончилось (.mf-revealed ставит initReveal): задержка больше не
+   нужна, а карточкам возвращаем их собственные переходы — иначе наклон к
+   курсору (mfCards) ждал бы --mf-delay на каждом движении мыши. */
+.mf-reveal.mf-revealed, .mf-reveal-3d.mf-revealed { transition-delay: 0ms; will-change: auto; }
+.section-card.mf-revealed, .mf-card.mf-revealed {
+  transition: transform var(--t-slow) var(--e-out), border-color var(--t),
+              box-shadow var(--t-slow), background var(--t-slow), opacity var(--t-slow) var(--e-out);
+}
 .mf-reveal-scale { opacity: 0; transform: scale(.94); }
 .mf-reveal-scale.mf-in { opacity: 1; transform: none; }
 
@@ -832,7 +883,7 @@ html.light .btn.danger:hover { background: rgba(199,58,58,.12); border-color: #c
     scroll-behavior: auto !important;
   }
   .mf-plane { animation: none; }
-  #mf-canvas { display: none; }
+  #mf-canvas, .mf-bg-layer { display: none; }
   .mf-reveal, .mf-reveal-scale, .mf-reveal-3d { opacity: 1; transform: none; }
 }
 html.mf-no-motion *, html.mf-no-motion *::before, html.mf-no-motion *::after {
@@ -842,12 +893,16 @@ html.mf-no-motion *, html.mf-no-motion *::before, html.mf-no-motion *::after {
   scroll-behavior: auto !important;
 }
 html.mf-no-motion .mf-plane { animation: none; }
-html.mf-no-motion #mf-canvas { display: none; }
+html.mf-no-motion #mf-canvas, html.mf-no-motion .mf-bg-layer { display: none; }
 html.mf-no-motion .mf-reveal, html.mf-no-motion .mf-reveal-scale, html.mf-no-motion .mf-reveal-3d { opacity: 1; transform: none; }
 
 /* Экономия батареи/слабое железо: класс ставит JS (см. mathframe-ui.js) */
 html.mf-lite #mf-canvas { display: none; }
 html.mf-lite .section-card, html.mf-lite .mf-card { backdrop-filter: none; -webkit-backdrop-filter: none; }
+/* Телефон (html.mf-mobile, см. mfPerf): фон работает в пониженном разрешении,
+   а дорогое размытие под карточками выключаем — поверх живого фона оно
+   пересчитывается каждый кадр */
+html.mf-mobile .section-card, html.mf-mobile .mf-card { backdrop-filter: none; -webkit-backdrop-filter: none; }
 
 /* ============================================================================
    16. АДАПТИВ
@@ -867,7 +922,10 @@ html.mf-lite .section-card, html.mf-lite .mf-card { backdrop-filter: none; -webk
     position: fixed; top: var(--header-height); left: 0; right: 0;
     flex-direction: column; align-items: stretch; gap: 0;
     max-height: 0; overflow: hidden; opacity: 0;
-    background: var(--header-bg);
+    /* Почти непрозрачный фон: у #app-header свой backdrop-filter, и вложенное
+       размытие меню не срабатывает (фон шапки — «backdrop root»), поэтому
+       полупрозрачный --header-bg пропускал текст/фигуры страницы под пунктами */
+    background: color-mix(in srgb, var(--bg-body) 95%, transparent);
     backdrop-filter: blur(22px) saturate(150%);
     -webkit-backdrop-filter: blur(22px) saturate(150%);
     border-bottom: 1px solid var(--border);
@@ -968,8 +1026,11 @@ body { padding-top: calc(var(--header-height) + var(--safe-t)); }
   .section-card:hover, .mf-card:hover, .svc:hover { transform: none !important; }
   .section-card::after, .mf-card::after, .svc::after,
   .section-card::before, .mf-card::before, .svc::before { opacity: 0 !important; }
-  .btn:hover { transform: none; box-shadow: none; }
+  .btn:hover, html.light .btn:hover { transform: none; box-shadow: none; }
   .btn:active { transform: scale(.97); background: var(--accent-soft); }
+  /* Залитая кнопка на тапе не должна становиться бледной: белый текст на
+     --accent-soft в светлой теме почти не виден */
+  .btn.primary:active, .btn-primary:active { background: var(--accent-hover); }
   .section-card:active, .mf-card:active {
     transform: scale(.985) !important;
     border-color: var(--accent);
@@ -1117,13 +1178,14 @@ a, button, .section-card, .mf-card, .theme-option, .account-circle {
    заголовками, монотипные подписи, изолинии на фоне. Меняются две вещи:
      • акцентная пара цветов;
      • МОТИВ фона — само математическое поле (см. uMode в mathframe-ui.js):
-         главная      — линии тока потенциального течения
-         справочник   — конформная сетка w = z² + c (две системы линий)
-         форум        — интерференция волн от нескольких источников
-         мини-сервисы — динамическая решётка ячеек
+         главная      — линии тока + плавающие формулы, символы и фигуры
+         справочник   — «чертёж»: дуги циркуля, лучи, линии линейки + построения
+         форум        — дуги-связи между узлами (биполярные координаты) + граф
+         мини-сервисы — пучки графиков y = f(x), штриховка Римана + плоттеры
          песочница    — фигуры Хладни
-         админка      — решётка, приглушённая палитра
-         AI-агент     — рельеф функции потерь (изолинии уровня), фиолетовый
+         админка      — решётка ячеек, приглушённая палитра
+         AI-агент     — рельеф функции потерь + нейросеть с сигналами
+       (WebGL-мотивы — PAGE_MOTIF в mathframe-ui.js, 2D-слои — mf-backgrounds.js)
    ========================================================================== */
 [data-page="reference"]  { --accent:#7a7cff; --accent-hover:#9698ff; --accent-2:#59c8ff; --accent-3:#f2b45c;
                            --accent-soft:rgba(122,124,255,.14); --accent-glow:rgba(122,124,255,.40); }
@@ -1156,3 +1218,100 @@ html.light [data-page="ai-agent"]   { --accent:#6d3fd6; --accent-hover:#5a31b8; 
                                              border: 1.5px solid var(--accent); border-radius: 50%; }
 [data-page="admin"]     .mf-label::before { width: 18px; height: 3px;
                                             background: repeating-linear-gradient(90deg, var(--accent) 0 3px, transparent 3px 6px); }
+
+/* ============================================================================
+   21. ФИРМЕННЫЕ ЦВЕТА РАЗДЕЛОВ + ПЕРЕХОДЫ МЕЖДУ СТРАНИЦАМИ
+   ----------------------------------------------------------------------------
+   --page-color-<раздел> — «свой» цвет каждого раздела. Совпадает с --accent
+   раздела из § 20 (и, значит, с палитрой фона mfFlowField), но, в отличие от
+   --accent, объявлен глобально на :root: любая страница знает цвета ВСЕХ
+   разделов. Этим пользуются шапка (подсветка пунктов) и переход между
+   страницами (маска цвета целевого раздела, см. common.js › PAGE TRANSITIONS).
+   Другим модулям можно свободно брать эти токены.
+   ========================================================================== */
+:root {
+  --page-color-home:       #5b8cff;  /* синий оси */
+  --page-color-reference:  #7a7cff;  /* индиго */
+  --page-color-services:   #3ec2a4;  /* бирюза */
+  --page-color-forum:      #3fb5e8;  /* небесный */
+  --page-color-ai-agent:   #9b6bff;  /* фиолет */
+  --page-color-playground: #8b7bff;
+  --page-color-admin:      #7d90b0;
+}
+html.light {
+  --page-color-home:       #2f5fe0;
+  --page-color-reference:  #4a48d8;
+  --page-color-services:   #0f8a72;
+  --page-color-forum:      #0d7fae;
+  --page-color-ai-agent:   #6d3fd6;
+  --page-color-playground: #5b46d6;
+  --page-color-admin:      #465a78;
+}
+
+/* 21.1 Каждый пункт шапки знает свой цвет (data-nav-page ставит common.js) */
+#app-header nav a                              { --nav-c: var(--accent); }
+#app-header nav a[data-nav-page="home"]        { --nav-c: var(--page-color-home); }
+#app-header nav a[data-nav-page="reference"]   { --nav-c: var(--page-color-reference); }
+#app-header nav a[data-nav-page="services"]    { --nav-c: var(--page-color-services); }
+#app-header nav a[data-nav-page="forum"]       { --nav-c: var(--page-color-forum); }
+#app-header nav a[data-nav-page="ai-agent"]    { --nav-c: var(--page-color-ai-agent); }
+#app-header nav a[data-nav-page="playground"]  { --nav-c: var(--page-color-playground); }
+#app-header nav a[data-nav-page="admin"]       { --nav-c: var(--page-color-admin); }
+
+/* Наведение — лёгкий намёк на цвет раздела, куда ведёт пункт */
+#app-header nav a:hover {
+  color: color-mix(in srgb, var(--nav-c) 55%, var(--text-primary));
+  background: color-mix(in srgb, var(--nav-c) 12%, transparent);
+}
+/* Текущий раздел «светится» своим цветом */
+#app-header nav a.active {
+  color: var(--nav-c);
+  background: color-mix(in srgb, var(--nav-c) 10%, transparent);
+  text-shadow: 0 0 18px color-mix(in srgb, var(--nav-c) 45%, transparent);
+}
+#app-header nav a::after {
+  background: var(--nav-c);
+  box-shadow: 0 0 10px 0 color-mix(in srgb, var(--nav-c) 70%, transparent);
+}
+html.light #app-header nav a.active { text-shadow: none; }
+html.light #app-header nav a::after { box-shadow: 0 0 8px 0 color-mix(in srgb, var(--nav-c) 40%, transparent); }
+/* Скользящий индикатор перекрашивается в цвет пункта под курсором (mfNav) */
+.mf-nav-indicator {
+  background: linear-gradient(to right, transparent, var(--mf-ind-c, var(--accent)), transparent);
+  box-shadow: 0 0 12px 0 color-mix(in srgb, var(--mf-ind-c, var(--accent)) 55%, transparent);
+  transition: transform var(--t) var(--e-out), width var(--t) var(--e-out), opacity var(--t),
+              box-shadow var(--t), background var(--t);
+}
+/* Мобильное меню: вместо подчёркивания — вертикальная метка слева */
+@media (max-width: 768px) {
+  #app-header nav a::after {
+    left: 0; right: auto; top: 22%; bottom: 22%;
+    width: 3px; height: auto; border-radius: 0 3px 3px 0;
+    transform: scaleY(0);
+  }
+  #app-header nav a.active::after { transform: scaleY(1); }
+  #app-header nav a:hover { background: color-mix(in srgb, var(--nav-c) 10%, transparent); }
+}
+
+/* 21.2 Маска перехода.
+   html.mf-veil-on — ставит inline-скрипт в <head> новой страницы ДО первого
+   кадра, чтобы момент загрузки был закрыт тем же цветом, которым закончился
+   переход на прошлой странице. Цвет приходит из sessionStorage. Дальше
+   common.js заменяет псевдоэлемент на .mf-veil и «раскрывает» страницу. */
+html.mf-veil-on { background: var(--mf-veil-fill, var(--bg-body)); }
+html.mf-veil-on::after {
+  content: '';
+  position: fixed; inset: 0;
+  z-index: 2147483000;
+  background: var(--mf-veil-fill, var(--bg-body));
+  pointer-events: none;
+}
+.mf-veil {
+  position: fixed; inset: 0;
+  z-index: 2147483000;
+  pointer-events: none;
+  will-change: clip-path, opacity, -webkit-mask-image;
+}
+/* Пока идёт уход со страницы — клики не проходят, курсор «занят» */
+html.mf-veil-leaving, html.mf-veil-leaving * { cursor: progress !important; }
+html.mf-veil-leaving .mf-veil { pointer-events: auto; }

@@ -155,6 +155,9 @@
     },
     "api/chat.js": {
       "maxDuration": 60
+    },
+    "api/simplify.js": {
+      "maxDuration": 60
     }
   }
 }

@@ -9,8 +9,14 @@
      1. mfPlane      — вставляет слои подложки (сетка + WebGL-фон + виньетка)
      2. mfFlowField  — процедурный фон: изолинии скалярного поля, своё поле у
                        каждого раздела (uMode, см. PAGE_MOTIF). Интерактив общий
-                       для всех разделов: «линза» у курсора (линии гуще и ярче)
-                       и кольцевая волна от клика/тапа по пустому фону.
+                       для всех разделов: «линза» у курсора/пальца (линии гуще
+                       и ярче) и кольцевая волна от клика/тапа по пустому фону.
+                       Плавное проявление (uFade), палитра раздела из
+                       --page-color-*, отдельная «чернильная» палитра светлой
+                       темы и перелив при смене темы на лету (stepPalette).
+                       Поверх — 2D-слой раздела из mf-backgrounds.js (формулы
+                       и фигуры главной, построения, графики, граф, нейросеть);
+                       грузится сам, через MathFrameUI.bg.
      3. mfTracers    — частицы в hero главной: плывут вдоль тех же линий тока
                        (скорость = conj f′(z)), цвет и яркость — как у изолиний,
                        волна от клика их расталкивает (Canvas2D)
@@ -79,42 +85,116 @@
     }
     return fallback;
   }
+  // Тема сайта: класс .light на <html> (ставит common.js; без класса — тёмная)
   function isLight() { return document.documentElement.classList.contains('light'); }
-
-  /* Палитра фона — общая для шейдера и трассеров. Перечитывается при смене
-     темы, а не на каждом кадре (getComputedStyle в цикле дорог). */
-  var palette = { a: [0.36,0.55,1.00], b: [0.34,0.86,0.78], c: [0.95,0.71,0.36], light: false };
-  function readPalette() {
-    palette.light = isLight();
-    palette.a = toRGB(cssVar('--accent',   ''), palette.light ? [0.18,0.37,0.88] : [0.36,0.55,1.00]);
-    palette.b = toRGB(cssVar('--accent-2', ''), [0.34,0.86,0.78]);
-    palette.c = toRGB(cssVar('--accent-3', ''), [0.95,0.71,0.36]);
+  function pageName() {
+    var b = document.body, h = document.documentElement;
+    return (b && b.dataset.page) || (h && h.dataset.page) || 'home';
   }
-  // Тот же цвет, что у изолинии в этой точке (см. col в шейдере)
+
+  /* Палитра фона — общая для шейдера, трассеров и 2D-слоёв (mf-backgrounds.js).
+       tgt — целевые цвета текущей темы: перечитываются при смене темы, а не на
+             каждом кадре (getComputedStyle в цикле дорог);
+       a/b/c/ink/dark — то, что рисуется сейчас: плавно догоняет tgt (stepPalette),
+             поэтому смена темы на лету — мягкий перелив без скачка.
+     a   — цвет раздела (--page-color-<раздел>, тот же, что в топбаре);
+     b,c — вторичный и акцентный тона раздела (PAGE_MOTIF.pal, иначе --accent-2/3);
+     ink — «чернила» светлой темы: тонкие тёмные линии вместо светящихся;
+     dark — 1 тёмная тема, 0 светлая (промежуточные значения — во время перехода). */
+  var palette = { a: [0.36,0.55,1.00], b: [0.34,0.86,0.78], c: [0.95,0.71,0.36],
+                  ink: [0.10,0.14,0.25], dark: 1, light: false, tgt: null, ver: 0 };
+  function readPalette() {
+    var light = isLight(), name = pageName();
+    var m = (typeof PAGE_MOTIF !== 'undefined' && (PAGE_MOTIF[name] || PAGE_MOTIF.home)) || {};
+    var pal = (m.pal && (light ? m.pal.light : m.pal.dark)) || {};
+    palette.light = light;
+    palette.tgt = {
+      a:   toRGB(cssVar('--page-color-' + name, '') || cssVar('--accent', ''),
+                 light ? [0.18,0.37,0.88] : [0.36,0.55,1.00]),
+      b:   toRGB(pal.b || cssVar('--accent-2', ''), [0.34,0.86,0.78]),
+      c:   toRGB(pal.c || cssVar('--accent-3', ''), [0.95,0.71,0.36]),
+      ink: toRGB(pal.ink || '', light ? [0.10,0.14,0.25] : [0.82,0.87,0.96]),
+      dark: light ? 0 : 1
+    };
+    palette.ver++;
+  }
+  function snapPalette() {
+    var t = palette.tgt; if (!t) return;
+    palette.a = t.a.slice(); palette.b = t.b.slice(); palette.c = t.c.slice();
+    palette.ink = t.ink.slice(); palette.dark = t.dark;
+  }
+  // экспоненциальное догоняние: ~0.7 с на полный переход темы
+  function stepPalette(dt) {
+    var t = palette.tgt; if (!t) return;
+    var k = 1 - Math.exp(-dt * 5.0), keys = ['a', 'b', 'c', 'ink'];
+    for (var j = 0; j < 4; j++) {
+      var cur = palette[keys[j]], to = t[keys[j]];
+      for (var i = 0; i < 3; i++) cur[i] += (to[i] - cur[i]) * k;
+    }
+    palette.dark += (t.dark - palette.dark) * k;
+    if (Math.abs(t.dark - palette.dark) < 0.002) palette.dark = t.dark;
+  }
+  // Тот же цвет, что у изолинии в этой точке (см. col в шейдере):
+  // тёмная тема — светящийся акцент, светлая — «чернила» с оттенком акцента
   function fieldColor(spd, out) {
-    var A = palette.a, B = palette.b, C = palette.c;
+    var A = palette.a, B = palette.b, C = palette.c, K = palette.ink, D = palette.dark;
     var s = Math.max(0, Math.min(1, spd));
     var u = s < 0.55 ? 0 : (s - 0.55) / 0.45; u = u * u * (3 - 2 * u) * 0.55;
     for (var i = 0; i < 3; i++) {
       var v = A[i] + (B[i] - A[i]) * s;
-      out[i] = Math.round((v + (C[i] - v) * u) * 255);
+      var dk = v + (C[i] - v) * u, lt = K[i] + (v - K[i]) * 0.40;
+      out[i] = Math.round((lt + (dk - lt) * D) * 255);
     }
     return out;
   }
 
   /* --------------------------------------------------------------- 8. mfPerf
-     Грубая, но надёжная оценка: мало ядер / мало памяти / мобильный —
-     отключаем самое дорогое (WebGL-фон, backdrop-filter). */
+     Два уровня:
+       • статический (detectLite): мало ядер / мало памяти / экономия трафика —
+         html.mf-lite, WebGL-фон не запускаем вовсе. Телефон сам по себе больше
+         НЕ lite: он получает фон с пониженным разрешением (MOBILE) и класс
+         html.mf-mobile (без backdrop-filter);
+       • динамический (perfTick): считаем реальный FPS фона и ступенчато
+         снижаем качество — разрешение WebGL 1 → 0.75 → 0.55, затем кадр через
+         кадр, и лишь в крайнем случае плавно гасим WebGL (html.mf-lite). */
+  var MOBILE = false;
+  try {
+    MOBILE = window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 760;
+  } catch (e) {}
   function detectLite() {
     var lite = false;
     try {
-      if (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 3) lite = true;
+      var cores = navigator.hardwareConcurrency || 8;
+      if (cores <= 3) lite = true;
       if (navigator.deviceMemory && navigator.deviceMemory <= 2) lite = true;
-      if (window.innerWidth < 620) lite = true;
+      if (MOBILE && cores <= 4 && window.innerWidth < 620) lite = true;
       if (navigator.connection && navigator.connection.saveData) lite = true;
     } catch (e) {}
     if (lite) document.documentElement.classList.add('mf-lite');
+    if (MOBILE) document.documentElement.classList.add('mf-mobile');
     return lite;
+  }
+
+  var perf = { level: 0, scale: 1, skip: false, acc: 0, n: 0, since: 0, off: false };
+  // dtRaw — реальный интервал кадра в мс; now — performance.now()
+  function perfTick(dtRaw, now, onOff) {
+    if (perf.off) return;
+    if (!perf.since) perf.since = now + 3000;        // первые 3 с — загрузка, не судим
+    if (now < perf.since || dtRaw > 250) return;     // скрытая вкладка/разовый фриз
+    perf.acc += dtRaw; perf.n++;
+    if (perf.n < 90) return;
+    var avg = perf.acc / perf.n;
+    perf.acc = 0; perf.n = 0;
+    // 30 Гц-режим (энергосбережение iOS) — не повод гасить всё: крайний шаг
+    // только при реальных ~20 fps и хуже
+    var slow = perf.level < 3 ? avg > 22 : avg > 45;
+    if (!slow) return;
+    perf.level++;
+    perf.since = now + 1500;                          // дать новому режиму устояться
+    if (perf.level === 1) perf.scale = 0.75;
+    else if (perf.level === 2) perf.scale = 0.55;
+    else if (perf.level === 3) perf.skip = true;
+    else { perf.off = true; if (onOff) onOff(); }
   }
 
   /* ------------------------------------------------------- общее поле потока
@@ -192,24 +272,35 @@
 
   /* Фрагментный шейдер.
      ОДИН движок — РАЗНАЯ математика на разных разделах сайта (uMode).
-     Это и даёт «узнаваемо, но по-своему»: приём рисования одинаков везде
-     (изолинии скалярного поля), а само поле у каждого раздела своё.
-       0 — линии тока потенциального течения      (главная); курсор — диполь
-       1 — конформное отображение w = z² + c      (справочник): рисуем ОБА
-           семейства изолиний, получается ортогональная криволинейная сетка;
-           курсор — маленький полюс (сетка остаётся ортогональной)
-       2 — интерференция волн от нескольких точек (форум); курсор — источник
-       3 — динамическая решётка / ячейки          (мини-сервисы, админка);
-           курсор — локальная впадина
-       4 — фигуры Хладни                          (песочница); курсор — рябь
-       5 — рельеф функции потерь: дрейфующие ямы и холмы (AI-агент);
-           курсор — «зонд», продавливающий локальный минимум
-     uDraw = (вес семейства Re, вес семейства Im).
+     Приём рисования одинаков везде (изолинии скалярного поля постоянной
+     толщины), а само поле у каждого раздела своё. FIELD возвращает ТРИ
+     скалярных поля (x, y, z — три семейства линий) и их веса w (где семейство
+     видно). z-семейство рисуется акцентным цветом C.
+       0 — линии тока потенциального течения (главная); курсор — диполь.
+           Поверх — плавающие формулы и фигуры (mf-backgrounds.js)
+       1 — «чертёж» (справочник): у нескольких центров-построений концентрические
+           дуги циркуля (x) и лучи транспортира (y), через весь экран — длинные
+           линии линейки (z). Курсор — ещё один циркуль, «раскрывающийся» при
+           наведении
+       2 — «связи» (форум): биполярные координаты пар узлов — дуги-окружности,
+           соединяющие узлы (y, z), и ореолы Аполлония вокруг них (x). Курсор
+           притягивает средний узел — «подключается к разговору»
+       3 — «графики» (мини-сервисы): два пучка кривых y = f(x) (y, z) и
+           вертикальная штриховка суммы Римана под первой кривой (x). Кривая
+           тянется пройти через курсор
+       4 — фигуры Хладни (песочница); курсор — рябь
+       5 — рельеф функции потерь (AI-агент); курсор — «зонд», продавливающий
+           локальный минимум. Поверх — нейросеть с сигналами (mf-backgrounds.js)
+       6 — динамическая решётка ячеек (админка); курсор — впадина
      Общее для всех режимов (warp + яркость в main):
-       uPtr.z  — присутствие мыши/пера 0..1: «линза» у курсора сжимает поле
+       uPtr.z  — присутствие мыши/пальца 0..1: «линза» у курсора сжимает поле
                  (линии гуще) и подсвечивает их;
        uPulse  — до 4 колец от кликов: xy — центр, z — возраст в секундах
-                 (<0 — слот пуст). Кольцо расходится и сдвигает поле радиально. */
+                 (<0 — слот пуст). Кольцо расходится и сдвигает поле радиально;
+       uFade   — проявление при загрузке 0..1: яркость, толщина и лёгкий «наезд»
+                 масштаба нарастают вместе — без скачка;
+       uDark   — 1 тёмная тема, 0 светлая (плавно во время смены темы). В светлой
+                 линии — тонкие «чернила» uInk с оттенком акцента, без свечения. */
   var FRAG = [
     'precision highp float;',
     'uniform vec2  uRes;',
@@ -220,21 +311,28 @@
     'uniform vec3  uColA;',
     'uniform vec3  uColB;',
     'uniform vec3  uColC;',
+    'uniform vec3  uInk;',
     'uniform float uDark;',
+    'uniform float uFade;',
+    'uniform float uGain;',
     'uniform int   uMode;',
-    'uniform vec2  uDraw;',
+    'uniform vec3  uDraw;',
     '',
     'const float PLIFE = ' + PULSE_LIFE.toFixed(2) + ';',
     'const float PSPD  = ' + PULSE_SPEED.toFixed(2) + ';',
+    'const float TAU   = 6.2831853;',
+    'vec2 EXT;',   // полуразмеры экрана в единицах поля (задаётся в main)
     '',
     'vec2 cdiv(vec2 a, vec2 b){ float d = dot(b,b) + 1e-6;',
     '  return vec2(a.x*b.x + a.y*b.y, a.y*b.x - a.x*b.y) / d; }',
     'vec2 cmul(vec2 a, vec2 b){ return vec2(a.x*b.x - a.y*b.y, a.x*b.y + a.y*b.x); }',
     'float gs(vec2 d, float k){ return exp(-dot(d,d) * k); }',
+    'float ang(vec2 v){ return atan(v.y, v.x + 1e-6); }',
     '',
-    'vec2 FIELD(vec2 p){',
+    'vec3 FIELD(vec2 p, out vec3 w){',
     '  float t = uTime * 0.055;',
     '  vec2 dm = p - uMouse;',
+    '  w = vec3(1.0);',
     '  if (uMode == 0) {',
     '    vec2 s1 = vec2(cos(t*0.90), sin(t*0.70)) * 0.95;',
     '    vec2 s2 = vec2(cos(t*0.60+2.1), sin(t*1.10+1.3)) * 1.15;',
@@ -242,18 +340,66 @@
     '    f += cdiv(vec2( 0.30,  0.11), p - s1);',
     '    f += cdiv(vec2(-0.24,  0.15), p - s2);',
     '    f += cdiv(vec2( 0.18,  0.22), dm);',
-    '    return f;',
+    '    return vec3(f, 0.0);',
     '  } else if (uMode == 1) {',
-    '    vec2 c = vec2(cos(t*0.50), sin(t*0.40)) * 0.45 + uMouse * 0.25;',
-    '    return cmul(p, p) * 0.6 + c + cdiv(vec2(0.05, 0.0), dm) * uPtr.z;',
+    '    vec2 c1 = EXT * vec2(-0.62 + 0.10*sin(t*0.8),     0.32 + 0.12*cos(t*0.6));',
+    '    vec2 c2 = EXT * vec2( 0.64 + 0.08*cos(t*0.7+1.0), -0.30 + 0.14*sin(t*0.5+2.0));',
+    '    vec2 c3 = EXT * vec2( 0.08 + 0.30*sin(t*0.35+4.0), -0.88 + 0.05*cos(t*0.3));',
+    '    vec2 v = p - c1; float d = length(v);',
+    '    vec2 v2 = p - c2; float d2 = length(v2);',
+    '    if (d2 < d) { v = v2; d = d2; }',
+    '    v2 = p - c3; d2 = length(v2);',
+    '    if (d2 < d) { v = v2; d = d2; }',
+    '    float dc = length(dm) * (1.0 + 2.5 * (1.0 - uPtr.z));',
+    '    if (uPtr.z > 0.03 && dc < d) { v = dm; d = dc; }',
+    '    float a = 0.55 + t * 0.35;',
+    '    w = vec3(1.0 - smoothstep(0.45, 1.9, d),',
+    '             (1.0 - smoothstep(0.25, 1.15, d)) * 0.55,',
+    '             0.50);',
+    '    return vec3(d * 0.55 - uTime * 0.010,',
+    '                ang(v) * (24.0 / TAU) / 7.0 + t * 0.15,',
+    '                dot(p, vec2(cos(a), sin(a))) * 0.16);',
     '  } else if (uMode == 2) {',
-    '    vec2 s1 = vec2(cos(t*0.80), sin(t*0.60)) * 1.20;',
-    '    vec2 s2 = vec2(cos(t*0.50+2.4), sin(t*0.90+1.1)) * 1.30;',
-    '    float w = sin(length(p - s1) * 6.0 - uTime * 1.1)',
-    '            + sin(length(p - s2) * 6.0 - uTime * 0.9)',
-    '            + sin(length(dm) * 7.0 - uTime * 1.4);',
-    '    return vec2(w * 0.9, w * 0.55);',
+    '    vec2 s1 = EXT * vec2(-0.55 + 0.14*sin(t*0.9),     0.30 + 0.16*cos(t*0.7));',
+    '    vec2 s2 = EXT * vec2( 0.52 + 0.12*cos(t*0.6+1.0), 0.18 + 0.20*sin(t*0.8+2.0));',
+    '    vec2 s3 = EXT * vec2( 0.06 + 0.26*sin(t*0.5+3.0), -0.62 + 0.10*cos(t*0.9));',
+    '    s2 = mix(s2, uMouse, 0.35 * uPtr.z);',
+    '    vec2 v1 = p - s1, v2 = p - s2, v3 = p - s3;',
+    '    float d1 = length(v1), d2 = length(v2), d3 = length(v3);',
+    '    float m12 = min(d1, d2);',
+    '    w = vec3(0.45 * exp(-m12 * m12 * 0.9),',
+    '             exp(-(d1 + d2 - length(s1 - s2)) * 0.9),',
+    '             exp(-(d2 + d3 - length(s2 - s3)) * 0.9) * 0.85);',
+    '    return vec3(log((d1 + 1e-3) / (d2 + 1e-3)) * 0.30,',
+    '                (ang(v1) - ang(v2)) * (12.0 / TAU) / 7.0,',
+    '                (ang(v2) - ang(v3)) * (10.0 / TAU) / 7.0);',
     '  } else if (uMode == 3) {',
+    '    float T = uTime * 0.10;',
+    '    float b1 = 0.28 * EXT.y;',
+    '    float h1 = 0.42*sin(0.85*p.x + T) + 0.16*sin(2.2*p.x - 1.3*T) + b1;',
+    '    float hm = 0.42*sin(0.85*uMouse.x + T) + 0.16*sin(2.2*uMouse.x - 1.3*T) + b1;',
+    '    h1 += (uMouse.y - hm) * 0.9 * uPtr.z * gs(vec2(p.x - uMouse.x, 0.0), 1.6)',
+    '        * gs(vec2(0.0, uMouse.y - hm), 0.9);',
+    '    float h2 = -0.42*EXT.y + 0.55*cos(0.62*p.x - 0.8*T) * exp(-0.045*p.x*p.x)',
+    '             + 0.10*sin(3.1*p.x + 1.7*T);',
+    '    float lo = min(0.0, h1), hi = max(0.0, h1);',
+    '    float inR = smoothstep(lo, lo + 0.05, p.y) * (1.0 - smoothstep(hi - 0.05, hi, p.y));',
+    '    float e1 = p.y - h1, e2 = p.y - h2;',
+    '    w = vec3(0.42 * inR, exp(-e1*e1*9.0), exp(-e2*e2*9.0) * 0.9);',
+    '    return vec3(p.x * 0.55, e1 * 0.8, e2 * 0.8);',
+    '  } else if (uMode == 5) {',
+    '    float u = t * 1.6;',
+    '    vec2 c1 = vec2(cos(u*0.70), sin(u*0.50)) * 1.15;',
+    '    vec2 c2 = vec2(cos(u*0.45+2.2), sin(u*0.65+0.9)) * 1.35;',
+    '    vec2 c3 = vec2(cos(u*0.55+4.1), sin(u*0.40+2.7)) * 1.05;',
+    '    vec2 c4 = vec2(cos(u*0.35+1.0), sin(u*0.75+4.4)) * 1.70;',
+    '    float L = 0.045 * dot(p, p)',
+    '            - 0.95 * gs(p - c1, 1.1) - 0.70 * gs(p - c2, 1.6)',
+    '            + 0.60 * gs(p - c3, 1.3) + 0.45 * gs(p - c4, 2.0)',
+    '            + 0.10 * sin(p.x * 1.3 + u) * cos(p.y * 1.1 - u * 0.7)',
+    '            - 0.50 * gs(dm, 3.0) * (0.3 + 0.7 * uPtr.z);',
+    '    return vec3(L, L, 0.0) * 1.15;',
+    '  } else if (uMode == 6) {',
     '    vec2 g = p * 1.6;',
     '    vec2 id = floor(g); vec2 fr = fract(g) - 0.5;',
     '    float d = 1e9;',
@@ -267,19 +413,7 @@
     '      }',
     '    }',
     '    float m = d * 1.6 - 0.40 * gs(dm, 2.2);',
-    '    return vec2(m, m);',
-    '  } else if (uMode == 5) {',
-    '    float u = t * 1.6;',
-    '    vec2 c1 = vec2(cos(u*0.70), sin(u*0.50)) * 1.15;',
-    '    vec2 c2 = vec2(cos(u*0.45+2.2), sin(u*0.65+0.9)) * 1.35;',
-    '    vec2 c3 = vec2(cos(u*0.55+4.1), sin(u*0.40+2.7)) * 1.05;',
-    '    vec2 c4 = vec2(cos(u*0.35+1.0), sin(u*0.75+4.4)) * 1.70;',
-    '    float L = 0.045 * dot(p, p)',
-    '            - 0.95 * gs(p - c1, 1.1) - 0.70 * gs(p - c2, 1.6)',
-    '            + 0.60 * gs(p - c3, 1.3) + 0.45 * gs(p - c4, 2.0)',
-    '            + 0.10 * sin(p.x * 1.3 + u) * cos(p.y * 1.1 - u * 0.7)',
-    '            - 0.50 * gs(dm, 3.0) * (0.3 + 0.7 * uPtr.z);',
-    '    return vec2(L, L) * 1.15;',
+    '    return vec3(m, m, 0.0);',
     '  }',
     '  float n  = 3.0 + 1.5 * sin(t * 0.35);',
     '  float m2 = 2.0 + 1.5 * cos(t * 0.27);',
@@ -287,7 +421,7 @@
     '  float ch = sin(n*3.14159*p.x*s) * sin(m2*3.14159*p.y*s)',
     '           - sin(m2*3.14159*p.x*s) * sin(n*3.14159*p.y*s);',
     '  ch += 0.45 * gs(dm, 1.4) * sin(length(dm) * 9.0 - uTime * 1.2);',
-    '  return vec2(ch, ch);',
+    '  return vec3(ch, ch, 0.0);',
     '}',
     '',
     // Общий для всех режимов сдвиг координат: линза у курсора (раздвигает
@@ -308,31 +442,42 @@
     '',
     'void main(){',
     '  float mn = min(uRes.x, uRes.y);',
-    '  vec2 p = (gl_FragCoord.xy - 0.5*uRes) / mn * 2.7;',
+    '  EXT = 0.5 * uRes / mn * 2.7;',
+    '  float fe = uFade;',
+    // проявление: поле «собирается» из чуть большего масштаба
+    '  float zoom = 1.0 + 0.08 * (1.0 - fe);',
+    '  vec2 p = (gl_FragCoord.xy - 0.5*uRes) / mn * 2.7 * zoom;',
     '',
     // Толщина изолиний держится постоянной в ПИКСЕЛЯХ за счёт численной оценки
     // градиента (две доп. выборки). Поэтому не нужен OES_standard_derivatives —
     // шейдер одинаково работает в WebGL1 и WebGL2.
-    '  float e  = 2.7 / mn;',
-    '  vec2  f0 = FIELD(warp(p));',
-    '  vec2  fx = FIELD(warp(p + vec2(e, 0.0))) - f0;',
-    '  vec2  fy = FIELD(warp(p + vec2(0.0, e))) - f0;',
+    '  float e  = 2.7 * zoom / mn;',
+    '  vec3 W, Wd;',
+    '  vec3 f0 = FIELD(warp(p), W);',
+    '  vec3 fx = FIELD(warp(p + vec2(e, 0.0)), Wd) - f0;',
+    '  vec3 fy = FIELD(warp(p + vec2(0.0, e)), Wd) - f0;',
     '',
     '  float k = 7.0;',
-    '  float dx = abs(fract(f0.x * k + 0.5) - 0.5);',
-    '  float gx = length(vec2(fx.x, fy.x)) * k;',
-    '  float lx = 1.0 - smoothstep(0.0, gx * 1.4 + 1e-5, dx);',
-    '  float dy = abs(fract(f0.y * k + 0.5) - 0.5);',
-    '  float gy = length(vec2(fx.y, fy.y)) * k;',
-    '  float ly = 1.0 - smoothstep(0.0, gy * 1.4 + 1e-5, dy);',
+    '  vec3 g  = vec3(length(vec2(fx.x, fy.x)), length(vec2(fx.y, fy.y)),',
+    '                 length(vec2(fx.z, fy.z))) * k;',
+    '  vec3 dd = abs(fract(f0 * k + 0.5) - 0.5);',
+    // в светлой теме линии тоньше: тёмная линия на белом читается сильнее
+    '  float lw = mix(1.05, 1.4, uDark) * (0.6 + 0.4 * fe);',
+    '  vec3 l = vec3(1.0) - smoothstep(vec3(0.0), g * lw + 1e-5, dd);',
     // линии гуще ~3 px сливаются в муар/пятно (у особенностей поля) — гасим
-    '  lx *= 1.0 - smoothstep(0.12, 0.30, gx);',
-    '  ly *= 1.0 - smoothstep(0.12, 0.30, gy);',
-    '  float line = max(lx * uDraw.x, ly * uDraw.y);',
+    '  l *= vec3(1.0) - smoothstep(vec3(0.12), vec3(0.30), g);',
+    '  l *= uDraw * W;',
+    '  float line = max(l.x, l.y);',
+    '  float lz = l.z;',
     '',
-    '  float spd = clamp(length(f0) * 0.42, 0.0, 1.0);',
-    '  vec3  col = mix(uColA, uColB, spd);',
-    '  col = mix(col, uColC, smoothstep(0.55, 1.0, spd) * 0.55);',
+    '  float spd = clamp(length(f0.xy) * 0.42, 0.0, 1.0);',
+    '  vec3 acc = mix(uColA, uColB, spd);',
+    '  vec3 cDk = mix(acc, uColC, smoothstep(0.55, 1.0, spd) * 0.55);',
+    '  vec3 cLt = mix(uInk, acc, 0.40);',
+    '  vec3 col = mix(cLt, cDk, uDark);',
+    '  vec3 zc  = mix(mix(uInk, uColC, 0.55), uColC, uDark);',
+    '  col = mix(col, zc, lz / (line + lz + 1e-4));',
+    '  float a0 = max(line, lz);',
     '',
     '  vec2  dm   = p - uMouse;',
     '  float lens = gs(dm, 1.6) * uPtr.z;',
@@ -344,42 +489,56 @@
     '    float x = (length(p - P.xy) - P.z * PSPD) / 0.30;',
     '    ring = max(ring, exp(-x*x) * env);',
     '  }',
-    '  col = mix(col, uColB, ring * 0.45);',
+    '  col = mix(col, mix(mix(uInk, uColB, 0.6), uColB, uDark), ring * 0.45);',
     '',
     '  float r    = length((gl_FragCoord.xy - 0.5*uRes) / mn);',
-    '  float edge = 1.0 - smoothstep(0.30, 1.05, r);',
+    '  float edge = 1.0 - 0.8 * smoothstep(0.35, 1.2, r);',
     '  edge = max(edge, max(lens, ring) * 0.85);',
     '  float puls = 0.88 + 0.12 * sin(uTime * 0.5 + f0.y * 2.0);',
     '',
-    // волны и ячейки гуще остальных мотивов — чуть приглушаем, чтобы
-    // общая «плотность» фона была ровной по разделам
-    '  float gain = (uMode == 2 || uMode == 3) ? 0.82 : 1.0;',
-    '  float a = line * edge * puls * gain * (uDark > 0.5 ? 0.34 : 0.26)',
-    '          * (1.0 + 1.0 * lens + 2.2 * ring);',
-    '  gl_FragColor = vec4(col, a);',
+    '  float base = mix(0.22, 0.34, uDark) * uGain;',
+    '  float a = a0 * edge * puls * base',
+    '          * (1.0 + mix(0.7, 1.0, uDark) * lens + mix(1.3, 2.2, uDark) * ring);',
+    '  gl_FragColor = vec4(col, a * fe);',
     '}'
   ].join('\n');
 
   /* Соответствие «раздел сайта → мотив фона».
      Раздел берётся из <body data-page="..."> (или html), режим можно
-     переопределить вручную через data-mf-mode. */
+     переопределить вручную через data-mf-mode.
+       draw — веса трёх семейств линий (x, y, z), gain — общая яркость (мотивы
+       с плотной сеткой приглушены, чтобы «плотность» фона была ровной);
+       pal  — вторичный (b) и акцентный (c) тона раздела и «чернила» (ink)
+       светлой темы. Основной цвет (a) — всегда --page-color-<раздел> из
+       common.css, тот же, что у раздела в топбаре. Если захочется сменить
+       палитру раздела — править здесь (b/c/ink) и --page-color-* в common.css;
+       overlay — есть ли у раздела 2D-слой поверх (mf-backgrounds.js). */
   var PAGE_MOTIF = {
-    home:       { mode: 0, draw: [0, 1] },
-    reference:  { mode: 1, draw: [1, 1] },
-    forum:      { mode: 2, draw: [0, 1] },
-    services:   { mode: 3, draw: [0, 1] },
-    admin:      { mode: 3, draw: [0, 1] },
-    playground: { mode: 4, draw: [0, 1] },
-    'ai-agent': { mode: 5, draw: [0, 1] }
+    home:       { mode: 0, draw: [0, 1, 0], gain: 1.0, overlay: true,
+                  pal: { dark:  { b: '#56dcc8', c: '#f2b45c' },
+                         light: { b: '#0f8f80', c: '#b86e0e', ink: '#172340' } } },
+    reference:  { mode: 1, draw: [1, 1, 1], gain: 0.9, overlay: true,
+                  pal: { dark:  { b: '#59c8ff', c: '#f2b45c' },
+                         light: { b: '#1a6fb0', c: '#a8620c', ink: '#1c1d48' } } },
+    forum:      { mode: 2, draw: [1, 1, 1], gain: 0.9, overlay: true,
+                  pal: { dark:  { b: '#7ee3b0', c: '#ffb066' },
+                         light: { b: '#128a60', c: '#b35d12', ink: '#0f2738' } } },
+    services:   { mode: 3, draw: [1, 1, 1], gain: 0.95, overlay: true,
+                  pal: { dark:  { b: '#7cd2ff', c: '#f2c05c' },
+                         light: { b: '#1a6fb0', c: '#a2670a', ink: '#10302a' } } },
+    admin:      { mode: 6, draw: [0, 1, 0], gain: 0.82 },
+    playground: { mode: 4, draw: [0, 1, 0], gain: 1.0 },
+    'ai-agent': { mode: 5, draw: [0, 1, 0], gain: 1.0, overlay: true,
+                  pal: { dark:  { b: '#5cc8ff', c: '#e98cff' },
+                         light: { b: '#1672b8', c: '#9a2f98', ink: '#211a40' } } }
   };
   function currentMotif() {
     var b = document.body, h = document.documentElement;
-    var name = (b && b.dataset.page) || (h && h.dataset.page) || 'home';
-    var m = PAGE_MOTIF[name] || PAGE_MOTIF.home;
+    var m = PAGE_MOTIF[pageName()] || PAGE_MOTIF.home;
     var forced = (b && b.dataset.mfMode) || (h && h.dataset.mfMode);
     if (forced !== undefined && forced !== '') {
       var n = parseInt(forced, 10);
-      if (!isNaN(n)) return { mode: n, draw: n === 1 ? [1, 1] : [0, 1] };
+      if (!isNaN(n)) return { mode: n, draw: (n === 1 || n === 2 || n === 3) ? [1, 1, 1] : [0, 1, 0], gain: 1 };
     }
     return m;
   }
@@ -389,6 +548,7 @@
     gl.shaderSource(s, src);
     gl.compileShader(s);
     if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+      try { console.warn('[MathFrame] shader:', gl.getShaderInfoLog(s)); } catch (e) {}
       gl.deleteShader(s);
       return null;
     }
@@ -424,7 +584,8 @@
     gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
 
     var U = {};
-    ['uRes','uTime','uMouse','uPtr','uColA','uColB','uColC','uDark','uMode','uDraw'].forEach(function (n) {
+    ['uRes','uTime','uMouse','uPtr','uColA','uColB','uColC','uInk','uDark','uFade','uGain',
+     'uMode','uDraw'].forEach(function (n) {
       U[n] = gl.getUniformLocation(prog, n);
     });
     U.uPulse = gl.getUniformLocation(prog, 'uPulse[0]');
@@ -434,11 +595,14 @@
     // (premultipliedAlpha:false) показывал ≈ a³ — линии были почти невидимы.
     gl.disable(gl.BLEND);
 
-    // Пиксельная плотность ограничена: на retina хватает 1.5, экономим GPU
-    var dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+    // Пиксельная плотность ограничена: на retina хватает 1.5, на телефоне 1.25
+    // (линии и так тонкие, а пикселей втрое меньше). perf.scale — динамическое
+    // понижение разрешения на медленном железе (см. mfPerf).
+    var dpr = Math.min(window.devicePixelRatio || 1, MOBILE ? 1.25 : 1.5);
     function resize() {
-      var w = Math.max(1, Math.floor(cv.clientWidth  * dpr));
-      var h = Math.max(1, Math.floor(cv.clientHeight * dpr));
+      var k = dpr * perf.scale;
+      var w = Math.max(1, Math.floor(cv.clientWidth  * k));
+      var h = Math.max(1, Math.floor(cv.clientHeight * k));
       if (cv.width !== w || cv.height !== h) {
         cv.width = w; cv.height = h;
         gl.viewport(0, 0, w, h);
@@ -448,8 +612,9 @@
     return {
       gl: gl, canvas: cv, U: U, colors: palette,
       resize: resize, readColors: readPalette,
-      // I — состояние взаимодействия из startLoop: mx, my, pres, pulses (Float32Array(16))
-      draw: function (time, I) {
+      // I — состояние взаимодействия из startLoop: mx, my, pres, pulses (Float32Array(16));
+      // fade — проявление 0..1 (см. startLoop)
+      draw: function (time, I, fade) {
         resize();
         var mo = currentMotif();
         gl.uniform2f(U.uRes, cv.width, cv.height);
@@ -460,9 +625,12 @@
         gl.uniform3fv(U.uColA, palette.a);
         gl.uniform3fv(U.uColB, palette.b);
         gl.uniform3fv(U.uColC, palette.c);
-        gl.uniform1f(U.uDark, palette.light ? 0.0 : 1.0);
+        gl.uniform3fv(U.uInk, palette.ink);
+        gl.uniform1f(U.uDark, palette.dark);
+        gl.uniform1f(U.uFade, fade == null ? 1 : fade);
+        gl.uniform1f(U.uGain, mo.gain || 1);
         gl.uniform1i(U.uMode, mo.mode);
-        gl.uniform2f(U.uDraw, mo.draw[0], mo.draw[1]);
+        gl.uniform3f(U.uDraw, mo.draw[0], mo.draw[1], mo.draw[2] || 0);
         gl.clearColor(0, 0, 0, 0);
         gl.clear(gl.COLOR_BUFFER_BIT);
         gl.drawArrays(gl.TRIANGLES, 0, 3);
@@ -476,6 +644,13 @@
     var W = window.innerWidth, H = window.innerHeight, mn = Math.min(W, H) || 1;
     out[0] = (cx - W * 0.5) / mn * SCALE;
     out[1] = (H * 0.5 - cy) / mn * SCALE;
+    return out;
+  }
+  /* Координаты поля -> экран (для 2D-слоёв фона: кольца кликов и т.п.) */
+  function fromField(fx, fy, out) {
+    var W = window.innerWidth, H = window.innerHeight, mn = Math.min(W, H) || 1;
+    out[0] = W * 0.5 + fx * mn / SCALE;
+    out[1] = H * 0.5 - fy * mn / SCALE;
     return out;
   }
 
@@ -492,8 +667,9 @@
     var ctx = cv.getContext('2d');
     if (!ctx) return null;
 
-    var dpr = Math.min(window.devicePixelRatio || 1, 1.5);
-    var N = lite ? 80 : (window.innerWidth < 900 ? 120 : 190);
+    var dpr = Math.min(window.devicePixelRatio || 1, MOBILE ? 1.25 : 1.5);
+    // телефон: частиц меньше — hero там узкий, а шлейфы и так видны
+    var N = lite ? 60 : MOBILE ? 80 : (window.innerWidth < 900 ? 120 : 190);
     var P = [];
     // видимая часть hero в координатах поля (обновляется каждый кадр)
     var B = { x0: -SCALE, x1: SCALE, y0: -SCALE, y1: SCALE, vis: true };
@@ -544,7 +720,9 @@
 
         var S = FlowMath.sing(time * 0.055, I.mx, I.my);
         var step = Math.min(dt, 0.05) * 0.32;
-        var peak = palette.light ? 0.34 : 0.40;
+        // светлая тема: тёмные «чернильные» штрихи, тише светящихся тёмной;
+        // I.fade — общее проявление фона при загрузке
+        var peak = (0.26 + 0.14 * palette.dark) * (I.fade == null ? 1 : I.fade);
         var k = B.mn / SCALE * dpr;                // единица поля -> пиксели холста
         var ox = (B.W * 0.5 - B.left) * dpr, oy = (B.H * 0.5 - B.top) * dpr;
         var pl = I.pulses, spdR = PULSE_SPEED;
@@ -603,22 +781,49 @@
                    ' [role=button], [role=dialog], dialog, #app-header, .modal,' +
                    ' [class*="modal"], [class*="overlay"]';
 
+  /* 2D-слои фона (mf-backgrounds.js) регистрируются через MathFrameUI.bg.add.
+     Цикл один на всё: WebGL-поле, трассеры и слои рисуются в одном rAF, с
+     общим состоянием взаимодействия I и общим проявлением. */
+  var BG = { layers: [], queue: [], booted: false, loop: false, field: null, tracers: null,
+             I: { mx: 2.3, my: -0.95, pres: 0, sx: -1e4, sy: -1e4, touch: false, fade: 0,
+                  pulses: new Float32Array(PULSE_MAX * 4) } };
+  // плавная кривая проявления: быстрый старт без рывка, долгий мягкий хвост
+  function easeFade(x) { x = Math.max(0, Math.min(1, x)); return 1 - Math.pow(1 - x, 3); }
+  var FADE_IN = 1.8; // сек
+
   function startLoop(field, tracers) {
-    if (!field && !tracers) return;
-    var t0 = performance.now(), last = t0, raf = null, visible = true;
+    BG.field = field; BG.tracers = tracers;
+    if (BG.loop || reduced) return;
+    if (!field && !tracers && !BG.layers.length) return;   // запустится при первом слое
+    BG.loop = true;
+    var t0 = performance.now(), last = t0, raf = null, visible = !document.hidden;
     // точка покоя «курсора» — правее и ниже фигуры в hero, чтобы диполь
     // режима 0 не рисовал плотные кольца прямо за контентом
-    var tmx = 2.3, tmy = -0.95, lastMove = -1e9, inside = false;
-    var I = { mx: tmx, my: tmy, pres: 0, pulses: new Float32Array(PULSE_MAX * 4) };
+    var tmx = 2.3, tmy = -0.95, lastMove = -1e9, inside = false, touch = false;
+    var tsx = -1e4, tsy = -1e4;
+    var I = BG.I;
     var pulses = [];   // { x, y, t } — t в секундах от t0
     var tmp = [0, 0];
+    var fieldStart = -1, frameNo = 0, fadeAcc = 0;
 
+    function aim(x, y, isTouch) {
+      toField(x, y, tmp);
+      tmx = tmp[0]; tmy = tmp[1]; tsx = x; tsy = y;
+      if (I.sx < -1e3) { I.sx = x; I.sy = y; }
+      lastMove = performance.now(); inside = true; touch = !!isTouch;
+    }
     window.addEventListener('pointermove', function (e) {
-      if (e.pointerType === 'touch') return;
-      toField(e.clientX, e.clientY, tmp);
-      tmx = tmp[0]; tmy = tmp[1];
-      lastMove = performance.now(); inside = true;
+      aim(e.clientX, e.clientY, e.pointerType === 'touch');
     }, { passive: true });
+    // Тач вместо курсора: палец ведёт «линзу», пока касается экрана; после
+    // отпускания она гаснет за ~1 с. touchmove приходит и во время прокрутки —
+    // линза едет за пальцем, ничего не блокируя (passive).
+    function onTouch(e) {
+      var t = e.touches && e.touches[0];
+      if (t) aim(t.clientX, t.clientY, true);
+    }
+    window.addEventListener('touchstart', onTouch, { passive: true });
+    window.addEventListener('touchmove', onTouch, { passive: true });
     document.addEventListener('mouseout', function (e) { if (!e.relatedTarget) inside = false; });
     window.addEventListener('blur', function () { inside = false; });
 
@@ -631,14 +836,30 @@
       if (pulses.length > PULSE_MAX) pulses.shift();
     }, { passive: true });
 
+    // Крайняя ступень mfPerf: плавно гасим WebGL (CSS-переход opacity) и
+    // только потом перестаём его рисовать
+    function fieldOff() {
+      var f = BG.field; if (!f) return;
+      f.canvas.classList.remove('mf-ready');
+      f.__dying = true;
+      setTimeout(function () {
+        BG.field = null;
+        document.documentElement.classList.add('mf-lite');
+      }, 1300);
+    }
+
     function frame(now) {
       raf = requestAnimationFrame(frame);
       if (!visible) return;
-      var dt = Math.min(0.05, (now - last) / 1000); last = now;
+      var dtRaw = now - last;
+      var dt = Math.min(0.05, dtRaw / 1000); last = now;
+      var field = BG.field, tracers = BG.tracers, layers = BG.layers;
       // курсор догоняем с инерцией — резкие рывки мыши не дёргают картинку
       I.mx += (tmx - I.mx) * 0.06; I.my += (tmy - I.my) * 0.06;
-      var want = inside && now - lastMove < 4000 ? 1 : 0;
+      I.sx += (tsx - I.sx) * 0.08; I.sy += (tsy - I.sy) * 0.08;
+      var want = inside && now - lastMove < (touch ? 1100 : 4000) ? 1 : 0;
       I.pres += (want - I.pres) * (want ? 0.05 : 0.02);
+      I.touch = touch;
       var time = (now - t0) / 1000;
       for (var i = 0; i < PULSE_MAX; i++) {
         var q = pulses[i], age = q ? time - q.t : -1;
@@ -646,20 +867,55 @@
         I.pulses[i * 4] = q ? q.x : 0; I.pulses[i * 4 + 1] = q ? q.y : 0;
         I.pulses[i * 4 + 2] = age; I.pulses[i * 4 + 3] = 0;
       }
+      stepPalette(dt);
       // Переключатель «Анимации» может щёлкнуться в любой момент (см.
-      // common.js) — гасим/включаем фон и трассеры на лету, без пересборки
-      // WebGL-контекста. Канвас плавно растворяется через уже существующий
-      // CSS-переход у .mf-ready (opacity), трассеры просто один раз чистим.
+      // common.js) — гасим/включаем фон, трассеры и слои на лету, без
+      // пересборки WebGL-контекста. Канвас плавно растворяется через
+      // CSS-переход у .mf-ready (opacity), 2D-слои один раз чистим.
       var off = motionOff();
-      if (field && field.canvas) field.canvas.classList.toggle('mf-ready', !off);
+      if (field && field.canvas && !field.__dying && fieldStart >= 0) {
+        field.canvas.classList.toggle('mf-ready', !off);
+      }
       if (off) {
         pulses.length = 0;
         if (tracers && !tracers.__mfCleared) { try { tracers.clear(); } catch (e) {} tracers.__mfCleared = true; }
+        for (var c = 0; c < layers.length; c++) {
+          if (!layers[c].__mfCleared) { try { layers[c].clear(); } catch (e) {} layers[c].__mfCleared = true; }
+        }
         return;
       }
-      if (tracers) tracers.__mfCleared = false;
-      if (field)   { try { field.draw(time, I); } catch (e) {} }
-      if (tracers) { try { tracers.draw(time, I, dt); } catch (e) {} }
+      perfTick(dtRaw, now, fieldOff);
+      // ступень «кадр через кадр»: тяжёлое рисуем на чётных кадрах
+      frameNo++;
+      if (perf.skip && (frameNo & 1)) return;
+      var dtS = perf.skip ? Math.min(0.1, dt * 2) : dt;
+
+      // Проявление. Отсчёт идёт от ПЕРВОГО реально нарисованного кадра, а не
+      // от загрузки: если WebGL инициализировался с задержкой, поле всё равно
+      // начинает с нуля (прозрачный кадр), затем canvas получает .mf-ready и
+      // яркость/толщина/масштаб линий мягко нарастают за FADE_IN секунд.
+      // Копим именно время КАДРОВ (dt ограничен 50 мс): если страница после
+      // первого кадра надолго заняла поток (тяжёлая инициализация), яркость
+      // не «перепрыгнет» — продолжит нарастать с того же места.
+      if (fieldStart >= 0) fadeAcc += dtS;
+      if (field) {
+        if (fieldStart < 0) fieldStart = time;
+        I.fade = easeFade(fadeAcc / FADE_IN);
+        try { field.draw(time, I, I.fade); } catch (e) {}
+        if (!field.__shown) {
+          field.__shown = true;
+          // класс — только ПОСЛЕ первого (прозрачного) кадра: нечему «мигнуть»
+          requestAnimationFrame(function () { if (!motionOff()) field.canvas.classList.add('mf-ready'); });
+        }
+      } else {
+        if (fieldStart < 0) fieldStart = time;
+        I.fade = easeFade(fadeAcc / FADE_IN);
+      }
+      if (tracers) { tracers.__mfCleared = false; try { tracers.draw(time, I, dtS); } catch (e) {} }
+      for (var L = 0; L < layers.length; L++) {
+        layers[L].__mfCleared = false;
+        try { layers[L].draw(time, I, dtS); } catch (e) {}
+      }
     }
     document.addEventListener('visibilitychange', function () {
       visible = !document.hidden;
@@ -667,14 +923,55 @@
     });
     raf = requestAnimationFrame(frame);
 
-    if (field && field.canvas) {
-      requestAnimationFrame(function () { field.canvas.classList.add('mf-ready'); });
-    }
-    // при смене темы перечитываем цвета из CSS-переменных
+    // При смене темы перечитываем цвета из CSS-переменных; сами цвета
+    // переливаются к новым плавно (stepPalette). Пока фон ещё не проявился —
+    // без перелива, сразу нужная палитра (никакой «тёмной вспышки»).
+    var wasLight = isLight();
     try {
-      new MutationObserver(readPalette)
-        .observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+      new MutationObserver(function () {
+        var l = isLight();
+        if (l === wasLight) return;
+        wasLight = l;
+        readPalette();
+        if (I.fade < 0.25) snapPalette();
+      }).observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
     } catch (e) {}
+  }
+
+  /* Публичный вход для 2D-слоёв фона. factory(api) -> { draw(time, I, dt), clear() }
+     или null. До boot() слои копятся в очереди. */
+  var BG_API = {
+    I: BG.I, palette: palette, perf: perf, mobile: MOBILE, lite: false,
+    SCALE: SCALE, PULSE_SPEED: PULSE_SPEED, PULSE_LIFE: PULSE_LIFE, PULSE_MAX: PULSE_MAX,
+    toField: toField, fromField: fromField, motionOff: motionOff, page: pageName,
+    motif: function () { return currentMotif(); },
+    add: function (factory) {
+      if (reduced || typeof factory !== 'function') return;
+      if (!BG.booted) { BG.queue.push(factory); return; }
+      var layer = null;
+      try { layer = factory(BG_API); } catch (e) { try { console.warn('[MathFrame] bg layer:', e); } catch (x) {} }
+      if (!layer) return;
+      BG.layers.push(layer);
+      startLoop(BG.field, BG.tracers);
+    }
+  };
+
+  // Скрипт 2D-слоёв грузим асинхронно рядом с этим файлом — страницы править
+  // не нужно, а загрузка не задерживает первый кадр.
+  var BG_SRC = '';
+  try {
+    var me = document.currentScript && document.currentScript.src;
+    BG_SRC = me ? me.replace(/mathframe-ui\.js([?#].*)?$/, 'mf-backgrounds.js') : '/assets/js/mf-backgrounds.js';
+  } catch (e) { BG_SRC = '/assets/js/mf-backgrounds.js'; }
+  function loadBgLayers() {
+    if (reduced || !BG_SRC) return;
+    var m = PAGE_MOTIF[pageName()];
+    var b = document.body;
+    if (!m || !m.overlay || (b && b.dataset.mfOverlay === 'off')) return;
+    if (document.querySelector('script[data-mf-bg]')) return;
+    var s = document.createElement('script');
+    s.src = BG_SRC; s.async = true; s.setAttribute('data-mf-bg', '');
+    (document.head || document.documentElement).appendChild(s);
   }
 
   /* ---------------------------------------------------------------- 4. карточки
@@ -804,16 +1101,22 @@
       if (!ar.width) return;
       ind.style.width = ar.width + 'px';
       ind.style.transform = 'translateX(' + (ar.left - nr.left) + 'px)';
+      // Индикатор окрашивается в фирменный цвет раздела под курсором —
+      // «намёк», куда ведёт пункт (токены --page-color-* в common.css § 21;
+      // ключ раздела в data-nav-page ставит common.js). Ссылка на var(), а не
+      // вычисленный цвет — чтобы смена темы перекрашивала и индикатор.
+      var pg = a.getAttribute('data-nav-page');
+      if (pg) ind.style.setProperty('--mf-ind-c', 'var(--page-color-' + pg + ')');
+      else ind.style.removeProperty('--mf-ind-c');
       ind.classList.add('mf-on');
     }
     function hide() { ind.classList.remove('mf-on'); }
 
     // Индикатор — реакция на наведение. Текущий раздел помечает статическое
     // подчёркивание в CSS (a.active::after), поэтому полоска есть всегда, даже
-    // если JS не отработал, и не зависит от того, нашла ли шапка активную
-    // ссылку. Раньше индикатор в покое вставал под .active, и на главной, где
-    // common.js не помечает активной ни одну ссылку (её просто нет в меню),
-    // не было видно вообще ничего.
+    // если JS не отработал. Активный пункт (включая «Главную») помечает
+    // common.js — по пути и по <body data-page>; здесь индикатор его не
+    // дублирует и в покое скрыт.
     nav.querySelectorAll('a').forEach(function (a) {
       a.addEventListener('pointerenter', function (e) {
         if (e.pointerType && e.pointerType !== 'mouse') return;
@@ -863,25 +1166,43 @@
     var targets = document.querySelectorAll('.mf-reveal, .mf-reveal-3d');
     if (!targets.length) return;
     if (motionOff() || !('IntersectionObserver' in window)) {
-      targets.forEach(function (n) { n.classList.add('mf-in'); });
+      targets.forEach(function (n) { n.classList.add('mf-in'); settleReveal(n, true); });
       return;
     }
     var io = new IntersectionObserver(function (entries) {
       entries.forEach(function (en) {
         if (en.isIntersecting) {
           en.target.classList.add('mf-in');
+          settleReveal(en.target);
           io.unobserve(en.target);
         }
       });
     }, { rootMargin: '0px 0px -8% 0px', threshold: 0.08 });
-    targets.forEach(function (n) { io.observe(n); });
+    targets.forEach(function (n) { if (!n.classList.contains('mf-revealed')) io.observe(n); });
+  }
+
+  /* После появления блок помечается .mf-revealed (см. common.css › 14):
+     с него снимается ступенчатая задержка --mf-delay и возвращаются «родные»
+     переходы карточки. Иначе transition-delay 55…440 мс продолжал действовать
+     и на наклон mfCards: каждый pointermove перезапускал переход с задержкой,
+     и крутилась только первая карточка ряда (у неё задержка 0). */
+  function settleReveal(n, now) {
+    if (n.__mfSettle || n.classList.contains('mf-revealed')) return;
+    var d = parseFloat(n.style.getPropertyValue('--mf-delay')) || 0;
+    n.__mfSettle = setTimeout(function () {
+      n.__mfSettle = null;
+      n.classList.add('mf-revealed');
+      n.style.removeProperty('--mf-delay');
+    }, now ? 0 : d + 680);
   }
 
   /* -------------------------------------------------------------------- boot */
   function boot() {
     var lite = detectLite();
+    BG_API.lite = lite;
     buildPlane();
     readPalette();
+    snapPalette();
 
     var field = null, tracers = null;
     try { field = initFlowField(lite); } catch (e) {}
@@ -891,15 +1212,31 @@
       try { tracers = initTracers(host, lite); } catch (e) {}
     }
     startLoop(field, tracers);
+    // 2D-слои фона: те, что успели загрузиться раньше boot, — из очереди
+    BG.booted = true;
+    loadBgLayers();
+    BG.queue.splice(0).forEach(BG_API.add);
 
     initCards();
     initRipple();
     initNav();
     initReveal();
 
-    document.body.classList.add('mf-page-enter');
-    setTimeout(function () { document.body.classList.remove('mf-page-enter'); }, 700);
+    // Пришли через маску перехода (common.js › PAGE TRANSITIONS): страницу
+    // «открывает» сама маска, а фон проявляется своим uFade. Собственное
+    // появление body (opacity + transform) тогда лишнее: оно шло бы под маской
+    // третьим слоем и на полсекунды сдвигало fixed-шапку и слои фона.
+    var viaVeil = !!window.__mfVeil ||
+      document.documentElement.classList.contains('mf-veil-on') ||
+      !!document.querySelector('.mf-veil-in');
+    if (!viaVeil) {
+      document.body.classList.add('mf-page-enter');
+      setTimeout(function () { document.body.classList.remove('mf-page-enter'); }, 700);
+    }
   }
+
+  // 2D-слои начинаем качать сразу, параллельно разбору страницы
+  try { if (document.body) loadBgLayers(); } catch (e) {}
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', boot);
@@ -914,6 +1251,7 @@
     nav: initNav,
     burst: burst,
     panelIn: panelIn,
-    motionOff: motionOff
+    motionOff: motionOff,
+    bg: BG_API          // процедурный фон: 2D-слои (mf-backgrounds.js), палитра, состояние
   };
 })();

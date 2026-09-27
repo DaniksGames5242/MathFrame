@@ -193,7 +193,11 @@
     const hold = html => { store.push(html); return '\u0000' + (store.length - 1) + '\u0000'; };
     let s = String(src || '').replace(/\r\n/g, '\n');
 
-    s = s.replace(/```[^\n]*\n([\s\S]*?)(```|$)/g, (m, code) => hold('<pre><code>' + escapeHtml(code.replace(/\n$/, '')) + '</code></pre>'));
+    // Язык блока (```python) — в data-lang: подпись рисует CSS, без лишних текстовых узлов.
+    s = s.replace(/```([^\n]*)\n([\s\S]*?)(```|$)/g, (m, lang, code) => {
+      const l = String(lang || '').trim().split(/\s+/)[0].replace(/[^\w+#.\-]/g, '').slice(0, 20);
+      return hold('<pre data-lang="' + escapeHtml(l) + '"><code>' + escapeHtml(code.replace(/\n$/, '')) + '</code></pre>');
+    });
     s = s.replace(/`([^`\n]+)`/g, (m, c) => hold('<code>' + escapeHtml(c) + '</code>'));
     // Модели нередко пишут \( \) и \[ \] несмотря на просьбу — приводим к $ и $$.
     s = s.replace(/\\\[([\s\S]+?)\\\]/g, (m, t) => '$$' + t + '$$').replace(/\\\(([\s\S]+?)\\\)/g, (m, t) => '$' + t + '$');
@@ -356,6 +360,7 @@
       form: $('agentForm'), input: $('agentInput'), send: $('agentSend'), stop: $('agentStop'),
       login: $('agentLogin'), loginBtn: $('agentLoginBtn'), badge: $('agentBadge'),
     };
+    let stuck = true;   // лента «прилипла» к низу — см. scrollBottom()
 
     // Обычный пользователь: до 50 чатов (сверх — самый старый удаляется), сообщение до 4000 знаков,
     // 12 последних реплик в запросе. У администраторов этих ограничений нет — роль сообщает сервер.
@@ -535,7 +540,27 @@
       copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></svg>',
       redo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg>',
       trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg>',
+      // аватар агента: ось, кривая и точка касания — тот же мотив, что у эмблемы пустого чата
+      agent: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 19h18"/><path d="M5 17C9 17 10 6 19 5"/><circle cx="11.2" cy="11.6" r="1.6" fill="currentColor" stroke="none"/></svg>',
     };
+
+    // Кнопка «копировать» на блоках кода (только у готового ответа — во время потока
+    // разметка перестраивается каждый кадр). В кнопке нет текста — подпись даёт CSS.
+    function decorateCode(md) {
+      md.querySelectorAll('pre').forEach(pre => {
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'code-copy'; b.title = 'Копировать код'; b.setAttribute('aria-label', 'Копировать код');
+        b.innerHTML = ICON.copy;
+        b.addEventListener('click', () => {
+          const code = pre.querySelector('code');
+          (navigator.clipboard ? navigator.clipboard.writeText(code ? code.textContent : pre.textContent) : Promise.reject()).then(() => {
+            b.classList.add('done');
+            setTimeout(() => b.classList.remove('done'), 1500);
+          }).catch(() => {});
+        });
+        pre.appendChild(b);
+      });
+    }
 
     /* ==================================================================
        ХРАНЕНИЕ: Firestore (аккаунт) + копия в localStorage (мгновенный старт, офлайн)
@@ -752,7 +777,34 @@
        ================================================================== */
     function scrollBottom(force) {
       const s = el.scroll;
-      if (force || s.scrollHeight - s.scrollTop - s.clientHeight < 160) s.scrollTop = s.scrollHeight;
+      if (force || s.scrollHeight - s.scrollTop - s.clientHeight < 160) {
+        s.scrollTop = s.scrollHeight;
+        stuck = true;
+      }
+    }
+
+    // «Прилипание» к низу ленты. KaTeX, шрифты и картинки догружаются ПОСЛЕ
+    // renderLog()/scrollBottom(true) и увеличивают высоту — без этого длинный
+    // чат открывался не на последнем сообщении. Пока пользователь сам не ушёл
+    // вверх (stuck), любое изменение размеров ленты или окна возвращает её к
+    // низу. Программная прокрутка тоже шлёт scroll, но у самого низа — stuck
+    // остаётся true. (Сам флаг stuck объявлен сразу после el — scrollBottom
+    // может вызываться раньше, чем исполнится этот блок.)
+    el.scroll.addEventListener('scroll', () => {
+      const s = el.scroll;
+      stuck = s.scrollHeight - s.scrollTop - s.clientHeight < 48;
+    }, { passive: true });
+    if (window.ResizeObserver) {
+      // Экран-приветствие (.agent-empty) не «дотягиваем» — его поведение
+      // прокрутки остаётся прежним (только явные scrollBottom).
+      const ro = new ResizeObserver(() => {
+        if (stuck && !el.log.querySelector('.agent-empty')) el.scroll.scrollTop = el.scroll.scrollHeight;
+      });
+      ro.observe(el.log);
+      ro.observe(el.scroll);
+    }
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(() => { if (stuck && !el.log.querySelector('.agent-empty')) el.scroll.scrollTop = el.scroll.scrollHeight; });
     }
 
     function renderSyncNote() {
@@ -847,6 +899,7 @@
       el.pick.textContent = topic ? 'Сменить тему' : 'Выбрать тему';
     }
 
+    const SUGGEST_ICONS = ['c²', 'x²', 'dy', '△'];
     const SUGGESTIONS = [
       'Объясни теорему Пифагора простыми словами',
       'Как решать квадратные уравнения? Покажи на примере',
@@ -867,8 +920,13 @@
         md.className = 'md';
         md.innerHTML = m.content ? mdToHtml(m.content) : '';
         body.appendChild(md);
-        if (c.busy && isLast && m.content) appendCaret(md);
-        if (c.busy && isLast && !m.content) body.appendChild(typingEl(m));
+        const ava = document.createElement('span');
+        ava.className = 'msg-ava'; ava.setAttribute('aria-hidden', 'true'); ava.innerHTML = ICON.agent;
+        wrap.appendChild(ava);
+        const streaming = c.busy && isLast;
+        if (streaming && m.content) appendCaret(md);
+        if (streaming && !m.content) { body.appendChild(typingEl(m)); wrap.classList.add('is-thinking'); }
+        if (!streaming && m.content) decorateCode(md);
         if (m.error) {
           const err = document.createElement('div'); err.className = 'msg-err'; err.textContent = m.error;
           fresh(err, m, 'err', 'mfa-fresh', 500);
@@ -946,7 +1004,11 @@
           'или просто спросите.</p>';
         const chips = document.createElement('div'); chips.className = 'suggest';
         SUGGESTIONS.forEach(t => {
-          const b = document.createElement('button'); b.type = 'button'; b.className = 'suggest-chip ae-in'; b.textContent = t;
+          const b = document.createElement('button'); b.type = 'button'; b.className = 'suggest-chip ae-in';
+          const ico = document.createElement('span'); ico.className = 'sg-ico'; ico.setAttribute('aria-hidden', 'true');
+          ico.textContent = SUGGEST_ICONS[chips.children.length % SUGGEST_ICONS.length];
+          const lbl = document.createElement('span'); lbl.className = 'sg-t'; lbl.textContent = t;
+          b.append(ico, lbl);
           b.style.setProperty('--d', (0.42 + chips.children.length * 0.06).toFixed(2) + 's');
           b.addEventListener('click', () => submit(t));
           chips.appendChild(b);
@@ -1237,9 +1299,50 @@
     function openDrawer() { el.card.classList.add('drawer-open'); el.scrim.hidden = false; }
     function closeDrawer() { el.card.classList.remove('drawer-open'); el.scrim.hidden = true; }
 
+    const countEl = $('agentCount'), downBtn = $('agentDown'), composeRow = el.input.closest('.compose-row');
     function autosize() {
       el.input.style.height = 'auto';
-      el.input.style.height = Math.min(el.input.scrollHeight, 180) + 'px';
+      el.input.style.height = Math.min(el.input.scrollHeight, 200) + 'px';
+      // вид кнопки отправки (пустое поле — приглушена) и счётчик, когда до лимита недалеко
+      const len = el.input.value.length, max = el.input.maxLength > 0 ? el.input.maxLength : 0;
+      if (composeRow) composeRow.classList.toggle('has-text', !!el.input.value.trim());
+      if (countEl) {
+        const near = max && len > max * 0.8;
+        countEl.hidden = !near;
+        if (near) { countEl.textContent = len + ' / ' + max; countEl.classList.toggle('warn', len >= max * 0.95); }
+      }
+    }
+
+    // «Вниз»: появляется, когда пользователь ушёл вверх по ленте
+    function updateDown() {
+      if (!downBtn) return;
+      const s = el.scroll;
+      downBtn.classList.toggle('show', s.scrollHeight - s.scrollTop - s.clientHeight > 320);
+    }
+    el.scroll.addEventListener('scroll', updateDown, { passive: true });
+    if (downBtn) downBtn.addEventListener('click', () => {
+      el.scroll.scrollTo({ top: el.scroll.scrollHeight, behavior: motionOff() ? 'auto' : 'smooth' });
+    });
+
+    // Экранная клавиатура на телефоне: высота «приложения» = видимая область
+    // (visualViewport), иначе поле ввода уезжает под клавиатуру.
+    if (window.visualViewport && window.matchMedia && matchMedia("(pointer: coarse)").matches) {
+      const vv = window.visualViewport, root = document.documentElement;
+      let vvRaf = 0;
+      const fit = () => {
+        vvRaf = 0;
+        const near = el.scroll.scrollHeight - el.scroll.scrollTop - el.scroll.clientHeight < 160;
+        root.style.setProperty('--agent-vvh', Math.round(vv.height) + 'px');
+        root.classList.add('agent-vv');
+        // iOS прокручивает страницу, чтобы показать поле; сама страница прокручиваться не должна
+        if (window.scrollY) window.scrollTo(0, 0);
+        if (near) el.scroll.scrollTop = el.scroll.scrollHeight;
+        updateDown();
+      };
+      const schedule = () => { if (!vvRaf) vvRaf = requestAnimationFrame(fit); };
+      vv.addEventListener('resize', schedule);
+      vv.addEventListener('scroll', schedule);
+      fit();
     }
 
     el.form.addEventListener('submit', e => { e.preventDefault(); submit(el.input.value); });

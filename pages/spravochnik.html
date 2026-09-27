@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <script>/* MathFrame: тема до первого кадра + маска перехода между страницами (см. common.js › PAGE TRANSITIONS) */(function(){var d=document.documentElement;try{var t=localStorage.getItem('theme');if(t==='light'||(t!=='dark'&&!matchMedia('(prefers-color-scheme: dark)').matches))d.classList.add('light');}catch(e){}try{var s=sessionStorage.getItem('mf-veil');if(!s)return;sessionStorage.removeItem('mf-veil');var v=JSON.parse(s),n=performance.getEntriesByType&&performance.getEntriesByType('navigation')[0];if(!v||!v.fill||Date.now()-v.t>8000||(n&&n.type&&n.type!=='navigate'))return;window.__mfVeil=v;d.style.setProperty('--mf-veil-fill',v.fill);d.classList.add('mf-veil-on');setTimeout(function(){d.classList.remove('mf-veil-on')},4000);}catch(e){}})();</script>
   <title>Справочник — MathFrame</title>
 
   <style>
@@ -981,6 +982,8 @@
       pointer-events: none;
     }
 
+    /* светлая тема: вместо почти чёрной вуали — лёгкое синеватое затемнение */
+    html.light .spr-sidebar-overlay, html.light .spr-download-overlay { background: rgba(24, 36, 66, 0.30); }
     .spr-sidebar-overlay {
       display: none;
       position: fixed;
@@ -1207,6 +1210,224 @@
     .spr-task-feedback-bad { color: #ef4444; }
     .spr-task-feedback-warn { color: #eab308; }
     .spr-task-explanation { margin-top: 0.5rem; font-weight: 400; color: var(--text-primary); }
+
+    /* ===== «УПРОСТИТЬ» (пересказ темы нейросетью) ===== */
+    .spr-simplify-bar {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.55rem 0.7rem;
+      margin: -0.6rem 0 1.3rem;
+      animation: fadeIn 0.3s ease;
+    }
+    .spr-simplify-bar[hidden] { display: none; }
+    .spr-simplify-btn,
+    .spr-simplify-orig {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      min-height: 2.35rem;
+      padding: 0.45rem 1.05rem 0.45rem 0.85rem;
+      border-radius: 999px;
+      font: inherit;
+      font-size: 0.9rem;
+      font-weight: 600;
+      line-height: 1.1;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+      transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease,
+                  background 0.3s ease, color 0.3s ease, border-color 0.3s ease, opacity 0.3s ease;
+    }
+    .spr-simplify-btn {
+      overflow: hidden;
+      isolation: isolate;
+      color: #fff;
+      border: 1px solid transparent;
+      background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%);
+      box-shadow: 0 4px 16px -4px var(--accent-glow);
+      /* Без перехода color/background: градиент ↔ «нажатая» подложка
+         (.is-active) меняется мгновенно (градиенты не анимируются), и плавный
+         цвет текста давал ~0.3 с белого текста на бледной подложке —
+         «белое на белом» в светлой теме. */
+      transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease,
+                  border-color 0.3s ease, opacity 0.3s ease;
+    }
+    /* мягкий «блик», пробегающий по кнопке при наведении и во время загрузки */
+    .spr-simplify-btn::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      z-index: -1;
+      background: linear-gradient(110deg, transparent 20%, rgba(255,255,255,0.35) 45%, transparent 70%);
+      transform: translateX(-120%);
+      transition: transform 0.7s ease;
+    }
+    .spr-simplify-btn:hover::before { transform: translateX(120%); }
+    .spr-simplify-btn:hover { transform: translateY(-1px); box-shadow: 0 8px 22px -6px var(--accent-glow); }
+    .spr-simplify-btn:active { transform: translateY(0) scale(0.96); }
+    .spr-simplify-btn:focus-visible,
+    .spr-simplify-orig:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+    .spr-simplify-btn svg { width: 17px; height: 17px; flex: 0 0 auto; }
+    .spr-simplify-btn .spr-simplify-icon { display: inline-flex; transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); }
+    .spr-simplify-btn:hover .spr-simplify-icon { transform: rotate(-12deg) scale(1.12); }
+    .spr-simplify-spinner {
+      display: none;
+      width: 16px;
+      height: 16px;
+      flex: 0 0 auto;
+      border-radius: 50%;
+      border: 2px solid rgba(255,255,255,0.35);
+      border-top-color: #fff;
+      animation: sprSimplifySpin 0.8s linear infinite;
+    }
+    .spr-simplify-btn.is-loading { cursor: progress; }
+    .spr-simplify-btn.is-loading .spr-simplify-icon { display: none; }
+    .spr-simplify-btn.is-loading .spr-simplify-spinner { display: inline-block; }
+    .spr-simplify-btn.is-loading::before { animation: sprSimplifySheen 1.3s ease-in-out infinite; transition: none; }
+    /* включённое упрощение — «нажатая» кнопка */
+    .spr-simplify-btn.is-active {
+      color: var(--accent);
+      background: var(--accent-soft);
+      border-color: var(--accent);
+      box-shadow: none;
+    }
+    .spr-simplify-btn.is-active::before { display: none; }
+    .spr-simplify-orig {
+      color: var(--text-primary);
+      background: transparent;
+      border: 1px solid var(--border);
+      padding: 0.45rem 1rem;
+      animation: sprSimplifyPop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .spr-simplify-orig[hidden] { display: none; }
+    .spr-simplify-orig:hover { border-color: var(--accent); color: var(--accent); transform: translateY(-1px); }
+    .spr-simplify-orig:active { transform: scale(0.96); }
+    .spr-simplify-orig svg { width: 15px; height: 15px; }
+    .spr-simplify-note {
+      font-size: 0.78rem;
+      color: var(--text-secondary);
+      animation: fadeIn 0.3s ease;
+    }
+    .spr-simplify-note[hidden] { display: none; }
+
+    .spr-simplify-error {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.7rem;
+      flex-wrap: wrap;
+      margin: -0.6rem 0 1.2rem;
+      padding: 0.7rem 0.9rem;
+      border-radius: 0.8rem;
+      border: 1px solid rgba(239, 68, 68, 0.45);
+      background: rgba(239, 68, 68, 0.08);
+      color: var(--text-primary);
+      font-size: 0.88rem;
+      animation: sprSimplifyPop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .spr-simplify-error[hidden] { display: none; }
+    .spr-simplify-error-text { flex: 1 1 14rem; min-width: 0; }
+    .spr-simplify-error button {
+      flex: 0 0 auto;
+      padding: 0.3rem 0.8rem;
+      border-radius: 999px;
+      border: 1px solid rgba(239, 68, 68, 0.55);
+      background: transparent;
+      color: inherit;
+      font: inherit;
+      font-size: 0.82rem;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .spr-simplify-error button:hover { background: rgba(239, 68, 68, 0.12); }
+
+    /* Описание во время запроса и во время подмены текста */
+    .spr-description { position: relative; }
+    .spr-description.is-simplifying > * {
+      opacity: 0.45;
+      filter: saturate(0.6);
+      transition: opacity 0.4s ease, filter 0.4s ease;
+    }
+    .spr-description.is-simplifying::after {
+      content: '';
+      position: absolute;
+      inset: -0.4rem -0.6rem;
+      border-radius: 0.9rem;
+      pointer-events: none;
+      background: linear-gradient(100deg, transparent 25%, var(--accent-soft) 45%, rgba(86, 220, 200, 0.14) 55%, transparent 75%);
+      background-size: 250% 100%;
+      animation: sprSimplifyShimmer 1.6s ease-in-out infinite;
+    }
+    .spr-description.spr-desc-out {
+      opacity: 0;
+      filter: blur(6px);
+      transform: translateY(6px) scale(0.995);
+      transition: opacity 0.22s ease, filter 0.22s ease, transform 0.22s ease;
+    }
+    .spr-description.spr-desc-in { animation: sprDescIn 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+
+    /* Упрощённый текст */
+    .spr-simplified-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      margin-bottom: 0.9rem;
+      padding: 0.25rem 0.7rem;
+      border-radius: 999px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      color: var(--accent);
+      background: var(--accent-soft);
+    }
+    .spr-simplified-badge svg { width: 14px; height: 14px; }
+    .spr-simplified-body {
+      padding-left: 1rem;
+      border-left: 3px solid transparent;
+      border-image: linear-gradient(to bottom, var(--accent), var(--accent-2)) 1;
+    }
+    .spr-simplified-body > :last-child { margin-bottom: 0; }
+    .spr-simplified-body h3, .spr-simplified-body h4, .spr-simplified-body h5 { margin: 1.1rem 0 0.5rem; line-height: 1.3; }
+    .spr-simplified-body h3 { font-size: 1.3rem; }
+    .spr-simplified-body h4 { font-size: 1.12rem; }
+    .spr-simplified-body strong { font-weight: 700; color: var(--text-primary); }
+    .spr-simplified-body > h3:first-child, .spr-simplified-body > h4:first-child { margin-top: 0; }
+    .spr-simplified-body blockquote {
+      margin: 0 0 0.9rem;
+      padding: 0.5rem 0.8rem;
+      border-radius: 0.6rem;
+      background: var(--accent-soft);
+    }
+    .spr-simplified-body code {
+      font-family: var(--font-mono, ui-monospace, monospace);
+      font-size: 0.9em;
+      padding: 0.05rem 0.3rem;
+      border-radius: 0.3rem;
+      background: rgba(127, 127, 127, 0.15);
+    }
+    .spr-simplified-body hr { border: none; border-top: 1px solid var(--border); margin: 1rem 0; }
+    .spr-md-math { margin: 0 0 0.9rem; overflow-x: auto; overflow-y: hidden; }
+    .spr-md-math .katex-display { margin: 0.3em 0; }
+
+    @keyframes sprSimplifySpin { to { transform: rotate(360deg); } }
+    @keyframes sprSimplifySheen { from { transform: translateX(-120%); } to { transform: translateX(120%); } }
+    @keyframes sprSimplifyShimmer { from { background-position: 100% 0; } to { background-position: -150% 0; } }
+    @keyframes sprSimplifyPop {
+      from { opacity: 0; transform: translateY(4px) scale(0.94); }
+      to { opacity: 1; transform: none; }
+    }
+    @keyframes sprDescIn {
+      from { opacity: 0; filter: blur(6px); transform: translateY(-4px); }
+      to { opacity: 1; filter: blur(0); transform: none; }
+    }
+
+    @media (max-width: 480px) {
+      .spr-simplify-bar { gap: 0.5rem; }
+      .spr-simplify-btn, .spr-simplify-orig { flex: 1 1 auto; min-height: 2.6rem; }
+      .spr-simplify-note { flex-basis: 100%; text-align: center; }
+      .spr-simplified-body { padding-left: 0.75rem; }
+    }
   </style>
 
   <!-- KaTeX -->
@@ -5094,7 +5315,13 @@
       const expanded = new Set();
       const referrerOf = new Map();
       let currentId = null;
+      // Тема, к которой идёт переход: navigate() отрисовывает новую тему с задержкой
+      // (анимация слайда), а URL/состояние должны меняться сразу.
+      let targetId = null;
       let compilerModulePromise = null;
+      // Прокрутку восстанавливаем сами (после отрисовки темы, KaTeX и картинок) —
+      // браузерная делала бы это раньше, чем появится содержимое, и страница прыгала бы.
+      try { if ('scrollRestoration' in history) history.scrollRestoration = 'manual'; } catch (e) {}
       // ---- Пошаговое доказательство (topic.type === 'proof') ----
       // currentProofStepIndex — индекс (с нуля) текущего РАЗВЁРНУТОГО пункта в аккордеоне
       // описания; используется и для подсветки/сворачивания пунктов, и для того, чтобы
@@ -5244,6 +5471,22 @@
                     </div>
                   </div>
                   <h1 class="spr-title" id="sprTitle"></h1>
+                  <div class="spr-simplify-bar" id="sprSimplifyBar" hidden>
+                    <button type="button" class="spr-simplify-btn" id="sprSimplifyBtn" aria-pressed="false">
+                      <span class="spr-simplify-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 4.9L18.7 9.7 13.8 11.5 12 16.4 10.2 11.5 5.3 9.7 10.2 7.9Z"/><path d="M18.5 15.5l.8 2.1 2.2.8-2.2.8-.8 2.2-.8-2.2-2.1-.8 2.1-.8Z"/><path d="M5.5 15.8l.5 1.3 1.3.5-1.3.5-.5 1.3-.5-1.3-1.3-.5 1.3-.5Z"/></svg></span>
+                      <span class="spr-simplify-spinner" aria-hidden="true"></span>
+                      <span class="spr-simplify-label" id="sprSimplifyLabel">Упростить</span>
+                    </button>
+                    <button type="button" class="spr-simplify-orig" id="sprShowOriginalBtn" hidden>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>
+                      Показать оригинал
+                    </button>
+                    <span class="spr-simplify-note" id="sprSimplifyNote" aria-live="polite"></span>
+                  </div>
+                  <div class="spr-simplify-error" id="sprSimplifyError" role="alert" hidden>
+                    <span class="spr-simplify-error-text" id="sprSimplifyErrorText"></span>
+                    <button type="button" id="sprSimplifyRetry">Повторить</button>
+                  </div>
                   <div class="spr-body" id="sprBody">
                     <div class="spr-description" id="sprDescription"></div>
                     <div class="spr-example" id="sprExample"></div>
@@ -5310,6 +5553,14 @@
           downloadDoc: document.getElementById('sprDownloadDoc'),
           downloadHtml: document.getElementById('sprDownloadHtml'),
           downloadCancel: document.getElementById('sprDownloadCancel'),
+          simplifyBar: document.getElementById('sprSimplifyBar'),
+          simplifyBtn: document.getElementById('sprSimplifyBtn'),
+          simplifyLabel: document.getElementById('sprSimplifyLabel'),
+          showOriginalBtn: document.getElementById('sprShowOriginalBtn'),
+          simplifyNote: document.getElementById('sprSimplifyNote'),
+          simplifyError: document.getElementById('sprSimplifyError'),
+          simplifyErrorText: document.getElementById('sprSimplifyErrorText'),
+          simplifyRetry: document.getElementById('sprSimplifyRetry'),
         };
         return true;
       }
@@ -5618,6 +5869,8 @@
       // ДЕРЕВО
       // ===================================================================
       function renderTree() {
+        // Перестройка дерева не должна сбрасывать его прокрутку в начало.
+        const prevTreeScroll = els.tree.scrollTop;
         els.tree.innerHTML = '';
         const rootIds = getFilteredChildren(null);
         if (rootIds.length === 0) {
@@ -5626,6 +5879,7 @@
         }
         const ul = buildList(rootIds);
         els.tree.appendChild(ul);
+        if (prevTreeScroll) els.tree.scrollTop = prevTreeScroll;
 
         if (isFirstRender) {
           isFirstRender = false;
@@ -5741,6 +5995,8 @@
             void activeRow.offsetWidth;
             activeRow.classList.add('spr-active-transition');
             setTimeout(() => {
+              // При восстановлении после перезагрузки дерево уже прокручено как было.
+              if (restoringTreeScroll) return;
               activeRow.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
             }, 100);
           }
@@ -5981,6 +6237,14 @@
           referrerOf.set(id, currentId);
         }
 
+        // Запоминаем, где остановились в уходящей теме (пригодится для «Назад»),
+        // и сразу отражаем новую тему в адресе.
+        captureState();
+        cancelScrollRestore();
+        targetId = id;
+        if (!opts.fromUrl) setUrlTopic(id);
+        captureState();
+
         const direction = opts.direction || 'forward';
         const slideClass = direction === 'forward' ? 'slide-left' : 'slide-right';
 
@@ -6000,7 +6264,9 @@
         });
 
         setTimeout(() => {
+          if (targetId !== id) return;   // пока шла анимация, успели уйти на другую тему
           renderTopic(id, { skipScroll: true, noHistory: true, isTransition: true });
+          if (opts.restoreScroll) restoreScrollPosition(savedState.scroll[id] || 0);
           inner.classList.remove(slideClass);
           requestAnimationFrame(() => {
             inner.classList.add('slide-none');
@@ -6011,13 +6277,16 @@
         }, 300);
 
         closeMobileSidebar();
-        if (!opts.skipScroll) {
+        if (!opts.skipScroll && !opts.restoreScroll) {
           window.scrollTo({ top: 0, behavior: 'smooth' });
         }
       }
 
+      // Вызывается и на popstate (кнопки «Назад»/«Вперёд»), и на hashchange (ручная
+      // правка адреса, ссылки вида #id) — повторный вызов для той же темы ничего не делает.
       function onHashChange() {
-        const id = decodeURIComponent(location.hash.replace(/^#/, ''));
+        const id = topicIdFromUrl();
+        if (id && id === targetId) return;
         if (id && topicsById.has(id)) {
           const currentIdx = historyStack.indexOf(id);
           let direction = 'forward';
@@ -6025,15 +6294,183 @@
           else if (currentIdx !== -1 && currentIdx > historyIndex) direction = 'forward';
           else direction = 'forward';
           historyIndex = currentIdx !== -1 ? currentIdx : historyStack.length;
-          navigate(id, { direction, noHistory: true });
+          navigate(id, { direction, noHistory: true, fromUrl: true, restoreScroll: true });
         } else {
           const roots = getFilteredChildren(null);
           if (roots.length) {
-            location.hash = roots[0];
+            setUrlTopic(roots[0], true);
+            navigate(roots[0], { noHistory: true, fromUrl: true });
           } else {
             showEmptyState('Нет тем, соответствующих фильтру.');
           }
         }
+      }
+
+      // ===================================================================
+      // СОСТОЯНИЕ СТРАНИЦЫ: тема в адресе + прокрутка/дерево/фильтры в sessionStorage
+      // ===================================================================
+      // Адрес: /spravochnik/#<id> (так же ссылаются на темы AI-агент и другие страницы);
+      // ?topic=<id> тоже понимается при открытии и сразу переписывается в #<id>.
+      // sessionStorage (переживает перезагрузку вкладки): позиция прокрутки для каждой
+      // темы, прокрутка и раскрытые узлы дерева, фильтры, строка поиска, какие темы
+      // показаны в упрощённом виде. localStorage: последняя открытая тема — чтобы
+      // /spravochnik/ без #id в новой вкладке открылся там же.
+      const STATE_KEY = 'spr-state:v1';
+      const LAST_TOPIC_KEY = 'spr-last-topic';
+      const MAX_SCROLL_ENTRIES = 120;
+      const savedState = (function readState() {
+        let s = null;
+        try { s = JSON.parse(sessionStorage.getItem(STATE_KEY) || 'null'); } catch (e) {}
+        if (!s || typeof s !== 'object') s = {};
+        if (!s.scroll || typeof s.scroll !== 'object') s.scroll = {};
+        if (!s.simplified || typeof s.simplified !== 'object') s.simplified = {};
+        return s;
+      })();
+      let stateReady = false;          // до первой отрисовки ничего не перезаписываем
+      let restoringTreeScroll = false;
+      let saveTimer = null;
+      let scrollRestoreRun = null;
+
+      function topicIdFromUrl() {
+        let id = '';
+        try { id = decodeURIComponent(location.hash.replace(/^#/, '')); } catch (e) { id = location.hash.replace(/^#/, ''); }
+        if (!id) {
+          try { id = new URLSearchParams(location.search).get('topic') || ''; } catch (e) {}
+        }
+        return id;
+      }
+
+      function setUrlTopic(id, replace) {
+        let url;
+        try {
+          const u = new URL(location.href);
+          u.searchParams.delete('topic');
+          u.hash = encodeURIComponent(id);
+          url = u.pathname + u.search + u.hash;
+        } catch (e) {
+          url = '#' + encodeURIComponent(id);
+        }
+        if (!replace && topicIdFromUrl() === id) replace = true;
+        try {
+          if (replace) history.replaceState(history.state, '', url);
+          else history.pushState({ sprTopic: id }, '', url);
+        } catch (e) {
+          location.hash = id;
+        }
+      }
+
+      function captureState() {
+        if (!stateReady || !els.tree) return;
+        // Прокрутку пишем только когда на экране действительно та тема, к которой
+        // шли (во время анимации перехода window ещё показывает прошлую).
+        if (currentId && currentId === targetId && !scrollRestoreRun) {
+          delete savedState.scroll[currentId];               // свежие — в конец (для обрезки)
+          savedState.scroll[currentId] = Math.max(0, Math.round(window.scrollY || window.pageYOffset || 0));
+          const keys = Object.keys(savedState.scroll);
+          for (let i = 0; i < keys.length - MAX_SCROLL_ENTRIES; i++) delete savedState.scroll[keys[i]];
+        }
+        savedState.id = targetId || currentId || null;
+        if (!restoringTreeScroll) savedState.tree = Math.round(els.tree.scrollTop);
+        savedState.expanded = Array.from(expanded);
+        savedState.filters = { cls: classFilter, type: typeFilter, sort: sortMode };
+        savedState.query = els.searchInput ? els.searchInput.value : '';
+        try { sessionStorage.setItem(STATE_KEY, JSON.stringify(savedState)); } catch (e) {}
+        if (savedState.id) { try { localStorage.setItem(LAST_TOPIC_KEY, savedState.id); } catch (e) {} }
+      }
+
+      // Троттлинг: не чаще раза в 250 мс, последняя позиция всегда записывается.
+      function scheduleSave() {
+        if (saveTimer) return;
+        saveTimer = setTimeout(() => { saveTimer = null; captureState(); }, 250);
+      }
+
+      function setupStatePersistence() {
+        window.addEventListener('scroll', scheduleSave, { passive: true });
+        els.tree.addEventListener('scroll', () => { if (!restoringTreeScroll) scheduleSave(); }, { passive: true });
+        // раскрытие/сворачивание узлов, фильтры, строка поиска
+        els.tree.addEventListener('click', scheduleSave);
+        [els.classFilter, els.typeFilter, els.sortMode].forEach(sel => sel.addEventListener('change', scheduleSave));
+        els.searchInput.addEventListener('input', scheduleSave);
+        els.searchClear.addEventListener('click', scheduleSave);
+        const flush = () => { clearTimeout(saveTimer); saveTimer = null; captureState(); };
+        window.addEventListener('pagehide', flush);
+        document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flush(); });
+        window.addEventListener('popstate', onHashChange);
+        window.addEventListener('hashchange', onHashChange);
+      }
+
+      // Фильтры, строка поиска и раскрытые узлы — до первой отрисовки дерева.
+      function restoreTreeState() {
+        const f = savedState.filters || {};
+        const setSel = (sel, v) => (v != null && sel && sel.querySelector(`option[value="${CSS.escape(String(v))}"]`)) ? (sel.value = String(v), true) : false;
+        if (setSel(els.classFilter, f.cls)) classFilter = els.classFilter.value;
+        if (setSel(els.typeFilter, f.type)) typeFilter = els.typeFilter.value;
+        if (setSel(els.sortMode, f.sort)) sortMode = els.sortMode.value;
+        if (typeof savedState.query === 'string' && savedState.query) {
+          els.searchInput.value = savedState.query;
+          els.searchWrap.classList.add('has-value');
+          lastQuery = savedState.query.trim();
+        }
+        if (Array.isArray(savedState.expanded)) {
+          expanded.clear();
+          savedState.expanded.forEach(id => { if (topicsById.has(id)) expanded.add(id); });
+          return true;
+        }
+        return false;
+      }
+
+      function cancelScrollRestore() {
+        if (scrollRestoreRun) scrollRestoreRun.finish();
+      }
+
+      // Ставит прокрутку окна на y и держит её там, пока тема «доезжает» (KaTeX,
+      // шрифты, картинки, пример) — без видимых прыжков: пока идёт восстановление,
+      // у body временно есть min-height, чтобы браузер не обрезал позицию по ещё
+      // короткой странице. Любое действие пользователя (колесо, касание, клавиши)
+      // сразу прекращает восстановление.
+      function restoreScrollPosition(y) {
+        cancelScrollRestore();
+        y = Math.max(0, Math.round(Number(y) || 0));
+        const jump = () => {
+          if (Math.abs((window.scrollY || 0) - y) > 1) {
+            try { window.scrollTo({ top: y, left: 0, behavior: 'instant' }); } catch (e) { window.scrollTo(0, y); }
+          }
+        };
+        if (!y) { jump(); return; }
+        const body = document.body;
+        const prevMinHeight = body.style.minHeight;
+        body.style.minHeight = (y + window.innerHeight) + 'px';
+        let done = false, timer = null, ro = null;
+        const stopEvents = ['wheel', 'touchstart', 'keydown', 'mousedown'];
+        const finish = () => {
+          if (done) return;
+          done = true;
+          clearTimeout(timer);
+          if (ro) ro.disconnect();
+          stopEvents.forEach(ev => window.removeEventListener(ev, finish, true));
+          body.style.minHeight = prevMinHeight;
+          if (scrollRestoreRun === run) scrollRestoreRun = null;
+          scheduleSave();
+        };
+        const run = { finish };
+        scrollRestoreRun = run;
+        stopEvents.forEach(ev => window.addEventListener(ev, finish, { capture: true, passive: true }));
+        jump();
+        if (window.ResizeObserver && els.contentInner) {
+          ro = new ResizeObserver(() => { if (!done) jump(); });
+          ro.observe(els.contentInner);
+        }
+        const pending = [];
+        if (document.fonts && document.fonts.ready) pending.push(document.fonts.ready.catch(() => {}));
+        els.topicView.querySelectorAll('img').forEach(img => {
+          if (img.complete) return;
+          pending.push(new Promise(r => { img.addEventListener('load', r, { once: true }); img.addEventListener('error', r, { once: true }); }));
+        });
+        Promise.all(pending).then(() => {
+          if (done) return;
+          requestAnimationFrame(() => { jump(); setTimeout(() => { if (!done) { jump(); finish(); } }, 700); });
+        });
+        timer = setTimeout(() => { if (!done) { jump(); finish(); } }, 5000);
       }
 
       function showEmptyState(msg) {
@@ -6047,6 +6484,7 @@
         const topic = topicsById.get(id);
         if (!topic) return;
         currentId = id;
+        if (!targetId) targetId = id;
         els.emptyState.hidden = true;
         els.topicView.hidden = false;
 
@@ -6064,6 +6502,7 @@
         renderBreadcrumb(id);
         renderNavButtons(id);
         renderDescription(topic);
+        setupSimplifyForTopic(topic);
         renderExample(topic);
         renderTask(topic);
 
@@ -6123,6 +6562,360 @@
         if (lastQuery && els.optHighlight.checked) {
           highlightTextInElement(els.description, lastQuery);
         }
+      }
+
+      // ===================================================================
+      // «УПРОСТИТЬ»: пересказ темы простыми словами (нейросеть, /api/simplify)
+      // ===================================================================
+      // Описание темы переводится в текст (формулы остаются в $…$), уходит на сервер,
+      // ответ (Markdown + LaTeX) плавно подменяет описание. Ключ нейросети живёт только
+      // на сервере. Ответы кэшируются в localStorage по id темы + хэшу исходного
+      // текста: пока тема не изменилась, повторного запроса не будет. Какие темы
+      // показаны упрощёнными — в savedState.simplified (переживает перезагрузку).
+      const SIMPLIFY_ENDPOINT = '/api/simplify';
+      const SIMPLIFY_CACHE_PREFIX = 'spr-simplify:v1:';
+      const SIMPLIFY_INDEX_KEY = 'spr-simplify-index:v1';
+      const SIMPLIFY_CACHE_MAX = 80;
+      const SIMPLIFY_MIN_CHARS = 15;
+      const SPARKLE_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.8 4.9L18.7 9.7 13.8 11.5 12 16.4 10.2 11.5 5.3 9.7 10.2 7.9Z"/><path d="M18.5 15.5l.8 2.1 2.2.8-2.2.8-.8 2.2-.8-2.2-2.1-.8 2.1-.8Z"/></svg>';
+      const simplifyRequests = new Map();   // topicId -> { key, promise }
+      const simplifyMemCache = new Map();   // запасной кэш, если localStorage недоступен
+      let simplifyShown = false;            // текущая тема сейчас показана упрощённой
+      let simplifyMode = 'original';        // original | loading | simplified
+      let simplifySwapToken = 0;
+
+      function motionReduced() {
+        return document.documentElement.classList.contains('mf-no-motion') ||
+          !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+      }
+      function wait(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+      function hashString(s) {
+        let h = 0x811c9dc5;
+        for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+        return h.toString(36) + s.length.toString(36);
+      }
+
+      // HTML описания → простой текст с разметкой абзацев/списков; формулы остаются в $…$.
+      function descriptionToPlainText(html) {
+        const root = document.createElement('div');
+        root.innerHTML = html || '';
+        root.querySelectorAll('script,style,iframe,img,svg,video,audio,canvas,object,embed,button,input,select,textarea').forEach(n => n.remove());
+        root.querySelectorAll('.katex').forEach(k => {
+          const ann = k.querySelector('annotation[encoding="application/x-tex"]');
+          const disp = k.closest('.katex-display');
+          const tex = ann ? ann.textContent : k.textContent;
+          (disp || k).replaceWith(document.createTextNode(disp ? '$$' + tex + '$$' : '$' + tex + '$'));
+        });
+        const BLOCK = /^(P|DIV|SECTION|ARTICLE|BLOCKQUOTE|TABLE|TR|UL|OL|PRE|FIGURE|FIGCAPTION|DETAILS|SUMMARY|HR|DL|DT|DD)$/;
+        function walk(node) {
+          let out = '';
+          node.childNodes.forEach(ch => {
+            if (ch.nodeType === 3) { out += ch.nodeValue.replace(/\s+/g, ' '); return; }
+            if (ch.nodeType !== 1) return;
+            const tag = ch.tagName;
+            if (tag === 'BR') { out += '\n'; return; }
+            const inner = walk(ch);
+            if (/^H[1-6]$/.test(tag)) out += '\n\n## ' + inner.trim() + '\n\n';
+            else if (tag === 'LI') out += '\n- ' + inner.trim();
+            else if (tag === 'TD' || tag === 'TH') out += inner.trim() + ' | ';
+            else if (BLOCK.test(tag)) out += '\n\n' + inner + '\n\n';
+            else out += inner;
+          });
+          return out;
+        }
+        return walk(root).split('\n').map(l => l.replace(/[ \t ]+/g, ' ').trim()).join('\n')
+          .replace(/\n{3,}/g, '\n\n').trim();
+      }
+
+      function simplifySource(topic) {
+        const text = descriptionToPlainText(topic.description || '');
+        return { text, key: SIMPLIFY_CACHE_PREFIX + topic.id + ':' + hashString((topic.title || '') + '\n' + text) };
+      }
+
+      function simplifyCacheGet(key) {
+        if (simplifyMemCache.has(key)) return simplifyMemCache.get(key);
+        try {
+          const v = JSON.parse(localStorage.getItem(key) || 'null');
+          return v && typeof v.t === 'string' && v.t ? v.t : null;
+        } catch (e) { return null; }
+      }
+      function simplifyCacheSet(key, text) {
+        simplifyMemCache.set(key, text);
+        let index = [];
+        try { index = JSON.parse(localStorage.getItem(SIMPLIFY_INDEX_KEY) || '[]'); } catch (e) {}
+        if (!Array.isArray(index)) index = [];
+        index = index.filter(k => k !== key);
+        index.push(key);
+        while (index.length > SIMPLIFY_CACHE_MAX) { try { localStorage.removeItem(index.shift()); } catch (e) {} }
+        const val = JSON.stringify({ t: text, at: Date.now() });
+        for (let attempt = 0; attempt < 4; attempt++) {
+          try {
+            localStorage.setItem(key, val);
+            localStorage.setItem(SIMPLIFY_INDEX_KEY, JSON.stringify(index));
+            return;
+          } catch (e) {
+            // Переполнено хранилище — выбрасываем старую половину кэша и пробуем ещё раз.
+            const old = index.filter(k => k !== key);
+            if (!old.length) return;
+            old.slice(0, Math.max(1, Math.ceil(old.length / 2))).forEach(k => {
+              try { localStorage.removeItem(k); } catch (_) {}
+              index = index.filter(x => x !== k);
+            });
+          }
+        }
+      }
+
+      // Небольшой безопасный Markdown → HTML: весь текст экранируется, формулы
+      // вынимаются заранее и возвращаются как есть — их потом отрисует тот же
+      // renderMathInContainer (KaTeX), что и в обычных темах.
+      function simplifiedMarkdownToHtml(md) {
+        const math = [];
+        let src = String(md || '').replace(/\r\n?/g, '\n');
+        src = src.replace(/\\\[([\s\S]+?)\\\]/g, (m, e) => '$$' + e + '$$')
+                 .replace(/\\\(([\s\S]+?)\\\)/g, (m, e) => '$' + e + '$');
+        src = src.replace(/\$\$([\s\S]+?)\$\$|\$([^\$\n]+?)\$/g, m => {
+          math.push(m);
+          return '\u0000' + (math.length - 1) + '\u0000';
+        });
+        const inline = s => escapeHtml(s)
+          .replace(/`([^`]+)`/g, '<code>$1</code>')
+          .replace(/\*\*([^*]+?)\*\*/g, '<strong>$1</strong>')
+          .replace(/__([^_]+?)__/g, '<strong>$1</strong>')
+          .replace(/(^|[^\w*])\*(?!\s)([^*\n]+?)\*(?!\w)/g, '$1<em>$2</em>')
+          .replace(/(^|[^\w])_(?!\s)([^_\n]+?)_(?!\w)/g, '$1<em>$2</em>')
+          .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1');
+        let html = '';
+        let para = [];
+        let list = null;   // { tag, start, items: [] }
+        const flushPara = () => { if (para.length) { html += '<p>' + inline(para.join(' ')) + '</p>'; para = []; } };
+        const flushList = () => {
+          if (!list) return;
+          const start = list.tag === 'ol' && list.start > 1 ? ' start="' + list.start + '"' : '';
+          html += '<' + list.tag + start + '>' + list.items.map(i => '<li>' + inline(i) + '</li>').join('') + '</' + list.tag + '>';
+          list = null;
+        };
+        for (const raw of src.split('\n')) {
+          const line = raw.trim();
+          if (!line) { flushPara(); flushList(); continue; }
+          let m;
+          if ((m = line.match(/^(#{1,6})\s+(.+?)\s*#*$/))) {
+            flushPara(); flushList();
+            const lvl = Math.min(5, Math.max(3, m[1].length));
+            html += '<h' + lvl + '>' + inline(m[2]) + '</h' + lvl + '>';
+          } else if (/^(-{3,}|\*{3,}|_{3,})$/.test(line)) {
+            flushPara(); flushList();
+            html += '<hr>';
+          } else if ((m = line.match(/^[-*+•]\s+(.*)$/))) {
+            flushPara();
+            if (list && list.tag !== 'ul') flushList();
+            if (!list) list = { tag: 'ul', start: 1, items: [] };
+            list.items.push(m[1]);
+          } else if ((m = line.match(/^(\d+)[.)]\s+(.*)$/))) {
+            flushPara();
+            if (list && list.tag !== 'ol') flushList();
+            if (!list) list = { tag: 'ol', start: parseInt(m[1], 10) || 1, items: [] };
+            list.items.push(m[2]);
+          } else if ((m = line.match(/^>\s?(.*)$/))) {
+            flushPara(); flushList();
+            html += '<blockquote>' + inline(m[1]) + '</blockquote>';
+          } else if (/^\u0000\d+\u0000$/.test(line) && math[+line.slice(1, -1)].startsWith('$$')) {
+            flushPara(); flushList();
+            html += '<div class="spr-md-math">' + line + '</div>';
+          } else if (list && /^\s/.test(raw)) {
+            list.items[list.items.length - 1] += ' ' + line;   // продолжение пункта списка
+          } else {
+            flushList();
+            para.push(line);
+          }
+        }
+        flushPara(); flushList();
+        return html.replace(/\u0000(\d+)\u0000/g, (m, i) => escapeHtml(math[+i] || ''));
+      }
+
+      function renderSimplified(topic, md) {
+        const el = els.description;
+        el.innerHTML = '<div class="spr-simplified-badge">' + SPARKLE_SVG + 'Простыми словами</div>' +
+          '<div class="spr-simplified-body">' + simplifiedMarkdownToHtml(md) + '</div>';
+        renderMathInContainer(el);
+        if (lastQuery && els.optHighlight.checked) highlightTextInElement(el, lastQuery);
+      }
+
+      function setSimplifyUi(mode) {
+        simplifyMode = mode;
+        const btn = els.simplifyBtn;
+        btn.classList.toggle('is-loading', mode === 'loading');
+        btn.classList.toggle('is-active', mode === 'simplified');
+        btn.setAttribute('aria-pressed', mode === 'simplified' ? 'true' : 'false');
+        btn.setAttribute('aria-busy', mode === 'loading' ? 'true' : 'false');
+        els.simplifyLabel.textContent = mode === 'loading' ? 'Упрощаю…' : mode === 'simplified' ? 'Упрощено' : 'Упростить';
+        btn.title = mode === 'simplified' ? 'Вернуть исходный текст' : 'Объяснить тему простыми словами';
+        els.showOriginalBtn.hidden = mode !== 'simplified';
+        els.simplifyNote.textContent = mode === 'loading'
+          ? 'Нейросеть пересказывает тему простыми словами…'
+          : mode === 'simplified' ? 'Пересказ нейросети — сверяйтесь с оригиналом' : '';
+        els.description.classList.toggle('is-simplifying', mode === 'loading');
+      }
+
+      function showSimplifyError(msg) {
+        els.simplifyErrorText.textContent = msg || 'Не удалось упростить тему. Попробуйте ещё раз.';
+        els.simplifyError.hidden = false;
+      }
+      function hideSimplifyError() { els.simplifyError.hidden = true; }
+
+      function clearSwapStyles() {
+        const el = els.description;
+        el.classList.remove('spr-desc-out', 'spr-desc-in');
+        el.style.height = '';
+        el.style.overflow = '';
+        el.style.transition = '';
+      }
+
+      // Плавная подмена содержимого описания: старый текст растворяется с лёгким
+      // размытием, высота блока перетекает к новой, новый текст проявляется.
+      function swapDescription(renderFn, animate) {
+        const el = els.description;
+        const token = ++simplifySwapToken;
+        clearSwapStyles();
+        if (!animate || motionReduced()) { renderFn(); return; }
+        // Если читатель уже пролистал начало описания — сначала мягко поднимаем к кнопке.
+        const barTop = els.simplifyBar.getBoundingClientRect().top;
+        const headerH = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--header-height'), 10) || 64;
+        if (barTop < headerH) window.scrollTo({ top: Math.max(0, window.scrollY + barTop - headerH - 16), behavior: 'smooth' });
+        const startH = el.offsetHeight;
+        el.classList.add('spr-desc-out');
+        wait(230).then(() => {
+          if (token !== simplifySwapToken) return;
+          renderFn();
+          const endH = el.offsetHeight;
+          el.style.overflow = 'hidden';
+          el.style.height = startH + 'px';
+          void el.offsetHeight;
+          el.classList.remove('spr-desc-out');
+          el.classList.add('spr-desc-in');
+          el.style.transition = 'height 0.45s cubic-bezier(0.2, 0.8, 0.2, 1)';
+          el.style.height = endH + 'px';
+          return wait(520).then(() => { if (token === simplifySwapToken) clearSwapStyles(); });
+        });
+      }
+
+      // Вызывается при каждой отрисовке темы (renderTopic): кнопка, ошибки,
+      // восстановление упрощённого вида из кэша.
+      function setupSimplifyForTopic(topic) {
+        simplifySwapToken++;
+        clearSwapStyles();
+        hideSimplifyError();
+        simplifyShown = false;
+        const src = simplifySource(topic);
+        if (src.text.length < SIMPLIFY_MIN_CHARS) {
+          els.simplifyBar.hidden = true;
+          setSimplifyUi('original');
+          return;
+        }
+        els.simplifyBar.hidden = false;
+        const req = simplifyRequests.get(topic.id);
+        if (req && req.key === src.key) { setSimplifyUi('loading'); return; }
+        if (savedState.simplified[topic.id]) {
+          const cached = simplifyCacheGet(src.key);
+          if (cached) {
+            renderSimplified(topic, cached);
+            simplifyShown = true;
+            setSimplifyUi('simplified');
+            return;
+          }
+          delete savedState.simplified[topic.id];   // тема изменилась или кэш очищен
+        }
+        setSimplifyUi('original');
+      }
+
+      async function requestSimplification(topic, text) {
+        let token = '';
+        try {
+          const u = currentUser || (window.Auth && window.Auth.getCurrentUser && window.Auth.getCurrentUser());
+          if (u && u.getIdToken) token = await Promise.race([u.getIdToken(), wait(4000).then(() => '')]);
+        } catch (e) { token = ''; }
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 70000);
+        let res, data = null;
+        try {
+          const headers = { 'content-type': 'application/json' };
+          if (token) headers.authorization = 'Bearer ' + token;
+          res = await fetch(SIMPLIFY_ENDPOINT, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ id: topic.id, title: topic.title || '', text }),
+            signal: ctrl.signal,
+          });
+          try { data = await res.json(); } catch (e) { data = null; }
+        } catch (e) {
+          if (e && e.name === 'AbortError') throw new Error('Нейросеть отвечает слишком долго. Попробуйте ещё раз чуть позже.');
+          if (navigator.onLine === false) throw new Error('Нет подключения к интернету. Проверьте сеть и попробуйте ещё раз.');
+          throw new Error('Не удалось связаться с сервером. Проверьте интернет и попробуйте ещё раз.');
+        } finally {
+          clearTimeout(timer);
+        }
+        if (!res.ok) {
+          if (data && typeof data.error === 'string' && data.error) throw new Error(data.error);
+          if (res.status === 429) throw new Error('Слишком много запросов. Попробуйте чуть позже.');
+          if (res.status === 404 || res.status === 405) throw new Error('Сервис упрощения сейчас недоступен.');
+          throw new Error('Не удалось упростить тему (ошибка ' + res.status + '). Попробуйте ещё раз.');
+        }
+        const out = data && typeof data.text === 'string' ? data.text.trim() : '';
+        if (!out) throw new Error('Нейросеть вернула пустой ответ. Попробуйте ещё раз.');
+        return out;
+      }
+
+      function applySimplified(topic, text, animate) {
+        savedState.simplified[topic.id] = 1;
+        simplifyShown = true;
+        setSimplifyUi('simplified');
+        swapDescription(() => renderSimplified(topic, text), animate);
+        scheduleSave();
+      }
+
+      function showOriginal() {
+        const topic = topicsById.get(currentId);
+        if (!topic || !simplifyShown) return;
+        delete savedState.simplified[topic.id];
+        simplifyShown = false;
+        hideSimplifyError();
+        setSimplifyUi('original');
+        swapDescription(() => renderDescription(topic), true);
+        scheduleSave();
+      }
+
+      function simplifyCurrent() {
+        const topic = topicsById.get(currentId);
+        if (!topic || simplifyMode === 'loading') return;
+        if (simplifyShown) { showOriginal(); return; }
+        hideSimplifyError();
+        const src = simplifySource(topic);
+        if (src.text.length < SIMPLIFY_MIN_CHARS) return;
+        const cached = simplifyCacheGet(src.key);
+        if (cached) { applySimplified(topic, cached, true); return; }
+        let req = simplifyRequests.get(topic.id);
+        if (!req || req.key !== src.key) {
+          req = { key: src.key, promise: requestSimplification(topic, src.text) };
+          simplifyRequests.set(topic.id, req);
+        }
+        setSimplifyUi('loading');
+        req.promise.then(text => {
+          simplifyCacheSet(src.key, text);
+          if (currentId === topic.id && targetId === topic.id && simplifyMode === 'loading') applySimplified(topic, text, true);
+        }, err => {
+          if (currentId === topic.id && targetId === topic.id && simplifyMode === 'loading') {
+            setSimplifyUi('original');
+            showSimplifyError(err && err.message);
+          }
+        }).finally(() => {
+          if (simplifyRequests.get(topic.id) === req) simplifyRequests.delete(topic.id);
+        });
+      }
+
+      function setupSimplifyHandlers() {
+        els.simplifyBtn.addEventListener('click', simplifyCurrent);
+        els.showOriginalBtn.addEventListener('click', showOriginal);
+        els.simplifyRetry.addEventListener('click', simplifyCurrent);
       }
 
       // ===================================================================
@@ -7362,10 +8155,13 @@ ${bodyXml}
           generateSingleHtml();
         });
 
+        setupSimplifyHandlers();
+
         try {
           const data = await loadConfig();
           buildIndexes(data);
-          hideLoader();
+          // Загрузочный экран убираем после первой отрисовки темы и восстановления
+          // прокрутки (ниже) — чтобы не было видно, как страница «доезжает».
         } catch (e) {
           hideLoader();
           showEmptyState('Не удалось загрузить справочник: ' + e.message);
@@ -7374,26 +8170,45 @@ ${bodyXml}
         }
 
         if (topics.length === 0) {
+          hideLoader();
           showEmptyState('В справочнике пока нет ни одной темы.');
           return;
         }
 
-        getChildren(null).forEach(id => {
-          const t = topicsById.get(id);
-          if (t && t.type === 'folder') expanded.add(id);
-        });
+        // Фильтры, поиск и раскрытые узлы дерева — как были до перезагрузки;
+        // если сохранённого состояния нет — по умолчанию раскрыты корневые папки.
+        if (!restoreTreeState()) {
+          getChildren(null).forEach(id => {
+            const t = topicsById.get(id);
+            if (t && t.type === 'folder') expanded.add(id);
+          });
+        }
 
-        const hashId = decodeURIComponent(location.hash.replace(/^#/, ''));
-        let startId = hashId && topicsById.has(hashId) ? hashId : getFilteredChildren(null)[0];
+        // Тема: из адреса (#id или ?topic=id), иначе последняя открытая, иначе первая.
+        const urlId = topicIdFromUrl();
+        let lastId = savedState.id;
+        if (!lastId) { try { lastId = localStorage.getItem(LAST_TOPIC_KEY); } catch (e) {} }
+        let startId = urlId && topicsById.has(urlId) ? urlId
+          : (lastId && topicsById.has(lastId) ? lastId : getFilteredChildren(null)[0]);
         if (startId) {
           historyStack = [startId];
           historyIndex = 0;
-          location.hash = startId;
+          targetId = startId;
+          setUrlTopic(startId, true);   // без лишней записи в истории
         }
 
+        const savedTreeScroll = Number(savedState.tree) || 0;
+        const savedScroll = startId ? Number(savedState.scroll[startId]) || 0 : 0;
+        restoringTreeScroll = true;
         renderTree();
-        window.addEventListener('hashchange', onHashChange);
-        if (startId) renderTopic(startId);
+        if (startId) renderTopic(startId, { skipScroll: true });
+        if (savedTreeScroll) els.tree.scrollTop = savedTreeScroll;
+        setTimeout(() => { restoringTreeScroll = false; }, 400);
+
+        stateReady = true;
+        setupStatePersistence();
+        if (startId) restoreScrollPosition(savedScroll);
+        hideLoader();
       }
 
       if (document.readyState === 'loading') {

@@ -159,6 +159,7 @@ document.addEventListener('DOMContentLoaded', () => {
     renderHeader();
     renderFooter();
     initTheme();
+    try { mfRevealPage(); } catch (e) { document.documentElement.classList.remove('mf-veil-on'); } // маска перехода (PAGE TRANSITIONS)
     injectAuthModal();
     injectSettingsModal();
     trackVisit();
@@ -180,12 +181,17 @@ let isThemeAnimating = false;
 
 // ===== ТЕМА =====
 function initTheme() {
+    // Класс html.light может быть уже выставлен inline-скриптом в <head>
+    // (чтобы не мигала тёмная тема при загрузке). Поэтому при инициализации
+    // применяем тему безусловно, а не через applyTheme(): та при совпадении
+    // класса выходит рано и не обновляет картинки/фон hero.
     const saved = localStorage.getItem('theme');
     if (saved === 'light' || saved === 'dark') {
-        applyTheme(saved, false, false);
+        applyThemeImmediate(saved, false);
         updateAllThemeSelections(saved);
     } else {
-        applySystemTheme(false, false);
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        applyThemeImmediate(prefersDark ? 'dark' : 'light', false);
         updateAllThemeSelections('system');
         window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
             if (localStorage.getItem('theme') === 'system' || !localStorage.getItem('theme')) {
@@ -1064,35 +1070,42 @@ function renderHeader() {
     if (!header) return;
 
     // Массив ссылок с абсолютными путями от корня
+    // page — ключ раздела: совпадает с <body data-page> и с токенами
+    // --page-color-<page> в common.css (цвет подсветки и маски перехода).
     const navLinks = [
-        { href: '/', text: 'Главная' },
-        { href: '/spravochnik/', text: 'Справочник' },
-        { href: '/mini-services/', text: 'Мини‑сервисы' },
-        { href: '/forum/', text: 'Форум' },
-        { href: '/ai-agent/', text: 'AI‑агент' },
-        { href: '/playground/', text: 'Песочница' },
+        { href: '/', text: 'Главная', page: 'home' },
+        { href: '/spravochnik/', text: 'Справочник', page: 'reference' },
+        { href: '/mini-services/', text: 'Мини‑сервисы', page: 'services' },
+        { href: '/forum/', text: 'Форум', page: 'forum' },
+        { href: '/ai-agent/', text: 'AI‑агент', page: 'ai-agent' },
+        { href: '/playground/', text: 'Песочница', page: 'playground' },
     ];
 
     const currentPath = window.location.pathname;
+    const currentPage = (document.body && document.body.dataset.page) || '';
 
     const navHTML = navLinks
         .map(link => {
             // Для корня — только точное совпадение, иначе '/' считался бы
             // префиксом любого пути и «Главная» подсвечивалась бы везде.
-            const isActive = link.href === '/'
+            // Запасной признак — <body data-page>: работает и при открытии
+            // файла по «сырому» пути (/pages/home.html, локальный сервер).
+            const isActive = (link.href === '/'
                 ? (currentPath === '/' || currentPath === '')
-                : (currentPath === link.href || currentPath.startsWith(link.href));
+                : (currentPath === link.href || currentPath.startsWith(link.href)))
+                || currentPage === link.page;
             const activeClass = isActive ? ' active' : '';
-            return `<a href="${link.href}" class="nav-link${activeClass}">${link.text}</a>`;
+            const aria = isActive ? ' aria-current="page"' : '';
+            return `<a href="${link.href}" class="nav-link${activeClass}" data-nav-page="${link.page}"${aria}>${link.text}</a>`;
         })
         .join('');
 
     header.innerHTML = `
-    <a href="/" class="logo-container">
+    <a href="/" class="logo-container" data-nav-page="home">
       <img src="/assets/img/logo.png" alt="MathFrame" class="logo-icon"
            data-light-src="/assets/img/logo-light.png" data-dark-src="/assets/img/logo.png" />
     </a>
-    <nav id="app-nav">${navHTML}<a href="/admin/" id="admin-nav-link" class="nav-link" style="display:none;">Админ панель</a></nav>
+    <nav id="app-nav">${navHTML}<a href="/admin/" id="admin-nav-link" class="nav-link${currentPage === 'admin' ? ' active' : ''}" data-nav-page="admin" style="display:none;">Админ панель</a></nav>
     <div class="header-right">
       <div class="account-circle" id="account-circle" title="Аккаунт"></div>
       <button class="nav-toggle" id="nav-toggle" aria-label="Меню" aria-expanded="false">
@@ -1127,6 +1140,225 @@ function renderFooter() {
     if (!footer) return;
     footer.innerHTML = `<p>&copy; ${new Date().getFullYear()} MathFrame. Учись математике интерактивно.</p>`;
 }
+
+/* ===== ПЕРЕХОДЫ МЕЖДУ СТРАНИЦАМИ (PAGE TRANSITIONS) =====
+   Та же идея, что у animateThemeChange: маска расширяется из точки клика.
+   1) Уход (эта страница): по клику на пункт шапки/логотип поверх страницы
+      раскрываются два круга — «волна» чистого цвета целевого раздела
+      (--page-color-<раздел>) и следом за ней заливка того же цвета,
+      смешанного с фоном темы. Когда заливка закрыла экран — навигация.
+   2) Состояние (цвета, координаты, время) кладётся в sessionStorage.
+   3) Приход (новая страница): inline-скрипт в <head> ещё ДО первого кадра
+      ставит html.mf-veil-on — экран залит тем же цветом (см. common.css
+      § 21.2), поэтому загрузка не видна. mfRevealPage() заменяет его на
+      .mf-veil и открывает страницу расширяющимся «окном» из той же точки.
+   Обычное поведение (без анимации): Ctrl/Cmd/Shift/Alt/средний клик,
+   target=_blank, download, чужой домен, та же страница, reduced motion /
+   «Анимации: выкл». Страховки: таймеры на обеих сторонах, pageshow(bfcache),
+   проверка типа навигации (Назад/Вперёд/перезагрузка — без маски). */
+const MF_VEIL_KEY = 'mf-veil';
+const PAGE_TRANSITION_CONFIG = {
+    expandDuration: 520,   // раскрытие маски на уходе
+    ringLead: 90,          // на сколько «волна» цвета опережает заливку
+    revealDuration: 680,   // раскрытие новой страницы
+    revealMaxWait: 420,    // сколько максимум ждать window.load перед раскрытием
+    leaveTimeout: 6000,    // если навигация так и не случилась — снять маску
+};
+let mfLeaving = false;
+let mfLeaveTimer = 0;
+
+function mfMotionOff() {
+    if (window.MathFrameUI && typeof window.MathFrameUI.motionOff === 'function') {
+        try { return window.MathFrameUI.motionOff(); } catch (e) {}
+    }
+    try { if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return true; } catch (e) {}
+    return document.documentElement.classList.contains('mf-no-motion');
+}
+
+function mfParseHex(s) {
+    const m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(String(s || '').trim());
+    if (!m) return null;
+    let h = m[1];
+    if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+    const n = parseInt(h, 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
+// Цвета перехода в раздел page для текущей темы: чистый цвет раздела и
+// «заливка» — он же, растворённый в фоне темы (ей закрывается экран).
+function mfPageColors(page) {
+    const html = document.documentElement;
+    const cs = getComputedStyle(html);
+    const light = html.classList.contains('light');
+    const color = cs.getPropertyValue('--page-color-' + page).trim()
+        || cs.getPropertyValue('--page-color-home').trim()
+        || (light ? '#2f5fe0' : '#5b8cff');
+    const bg = cs.getPropertyValue('--mf-ink-0').trim() || (light ? '#fbfcfe' : '#04060c');
+    const c = mfParseHex(color), b = mfParseHex(bg);
+    let fill = bg, ring = color;
+    if (c && b) {
+        const mix = k => 'rgb(' + [0, 1, 2].map(i => Math.round(b[i] + (c[i] - b[i]) * k)).join(',') + ')';
+        fill = mix(light ? 0.13 : 0.2);
+        // Светлая тема: чистый насыщенный цвет раздела во всю ширину кольца
+        // выглядит на светлом фоне тяжёлой тёмной полосой — слегка
+        // растворяем его в фоне (тёмная тема без изменений).
+        if (light) ring = mix(0.62);
+    }
+    return { color: ring, fill, light };
+}
+
+function mfMakeVeil(bg) {
+    const v = document.createElement('div');
+    v.className = 'mf-veil';
+    v.style.background = bg;
+    return v;
+}
+
+function mfCancelLeave() {
+    clearTimeout(mfLeaveTimer);
+    mfLeaving = false;
+    document.documentElement.classList.remove('mf-veil-leaving');
+    document.querySelectorAll('.mf-veil-out').forEach(n => n.remove());
+}
+
+function mfStartPageLeave(a, e, page) {
+    const cfg = PAGE_TRANSITION_CONFIG;
+    const { color, fill, light } = mfPageColors(page);
+    const W = window.innerWidth, H = window.innerHeight;
+    let x = e.clientX, y = e.clientY;
+    // Enter с клавиатуры: у события нет координат — берём центр ссылки
+    if (!e.detail || (!x && !y)) {
+        const r = a.getBoundingClientRect();
+        x = r.left + r.width / 2; y = r.top + r.height / 2;
+    }
+    const R = Math.ceil(Math.hypot(Math.max(x, W - x), Math.max(y, H - y))) + 4;
+
+    try {
+        sessionStorage.setItem(MF_VEIL_KEY, JSON.stringify({
+            page, color, fill, light, x: Math.round(x), y: Math.round(y), w: W, h: H, t: Date.now()
+        }));
+    } catch (err) { return false; } // без sessionStorage переход был бы с «морганием» — не анимируем
+
+    // Страница начинает грузиться, пока идёт анимация
+    try {
+        const pf = document.createElement('link');
+        pf.rel = 'prefetch'; pf.href = a.href;
+        document.head.appendChild(pf);
+    } catch (err) {}
+
+    mfLeaving = true;
+    document.documentElement.classList.add('mf-veil-leaving');
+    const from = `circle(0px at ${x}px ${y}px)`, to = `circle(${R}px at ${x}px ${y}px)`;
+    const ease = 'cubic-bezier(0.65, 0, 0.35, 1)';
+    const ring = mfMakeVeil(color), cover = mfMakeVeil(fill);
+    ring.classList.add('mf-veil-out'); cover.classList.add('mf-veil-out');
+    ring.style.clipPath = cover.style.clipPath = from;
+    // В <html>, а не в <body>: у body бывает transform (анимация mf-page-enter),
+    // и тогда position:fixed считался бы от body, а не от окна.
+    document.documentElement.appendChild(ring);
+    document.documentElement.appendChild(cover);
+    ring.offsetHeight; // reflow — чтобы transition стартовал с нулевого круга
+    ring.style.transition = `clip-path ${cfg.expandDuration}ms ${ease}`;
+    cover.style.transition = `clip-path ${cfg.expandDuration}ms ${ease} ${cfg.ringLead}ms`;
+    ring.style.clipPath = to;
+    cover.style.clipPath = to;
+
+    let gone = false;
+    const go = () => {
+        if (gone) return;
+        gone = true;
+        window.location.assign(a.href);
+    };
+    cover.addEventListener('transitionend', go, { once: true });
+    setTimeout(go, cfg.expandDuration + cfg.ringLead + 80);
+    clearTimeout(mfLeaveTimer);
+    mfLeaveTimer = setTimeout(mfCancelLeave, cfg.leaveTimeout);
+    return true;
+}
+
+function mfOnNavClick(e) {
+    if (e.defaultPrevented || e.button !== 0) return;
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    const a = e.target.closest && e.target.closest('#app-header a[href][data-nav-page]');
+    if (!a) return;
+    if (mfLeaving) { e.preventDefault(); return; }       // двойной клик во время перехода
+    if (a.target && a.target !== '_self') return;
+    if (a.hasAttribute('download')) return;
+    let url;
+    try { url = new URL(a.href, location.href); } catch (err) { return; }
+    if (url.origin !== location.origin) return;
+    if (url.pathname === location.pathname && url.search === location.search) return; // та же страница
+    if (mfMotionOff()) return;
+    if (mfStartPageLeave(a, e, a.dataset.navPage || 'home')) e.preventDefault();
+}
+
+function mfRevealPage() {
+    const v = window.__mfVeil;
+    const html = document.documentElement;
+    window.__mfVeil = null;
+    if (!v) { html.classList.remove('mf-veil-on'); return; }
+    if (!html.classList.contains('mf-veil-on') || mfMotionOff()) {
+        html.classList.remove('mf-veil-on');
+        return;
+    }
+    const cfg = PAGE_TRANSITION_CONFIG;
+    const veil = mfMakeVeil(v.fill);
+    veil.classList.add('mf-veil-in');
+    document.documentElement.appendChild(veil);
+    // В том же кадре, что и вставка .mf-veil — подмена незаметна
+    html.classList.remove('mf-veil-on');
+    html.style.removeProperty('--mf-veil-fill');
+
+    const W = window.innerWidth, H = window.innerHeight;
+    // Точка клика с прошлой страницы (если окно успело изменить размер — масштабируем)
+    const x = Math.max(0, Math.min(W, v.w ? v.x * W / v.w : v.x));
+    const y = Math.max(0, Math.min(H, v.h && Math.abs(v.h - H) > 80 ? v.y * H / v.h : v.y));
+    const band = Math.max(120, Math.min(W, H) * 0.22);  // цветная кромка у края «окна»
+    const feather = 28;
+    const R = Math.hypot(Math.max(x, W - x), Math.max(y, H - y)) + feather + 4;
+    const at = `circle at ${x}px ${y}px`;
+    const easeInOut = p => (p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2);
+
+    let done = false, started = false;
+    const finish = () => { if (done) return; done = true; veil.remove(); };
+    const frame = t0 => function step(t) {
+        if (done) return;
+        const p = Math.min(1, Math.max(0, (t - t0) / cfg.revealDuration));
+        const r = easeInOut(p) * R;
+        veil.style.background = `radial-gradient(${at}, ${v.color} ${r.toFixed(1)}px, ${v.fill} ${(r + band).toFixed(1)}px)`;
+        const m = `radial-gradient(${at}, transparent ${r.toFixed(1)}px, #000 ${(r + feather).toFixed(1)}px)`;
+        veil.style.webkitMaskImage = m;
+        veil.style.maskImage = m;
+        veil.style.opacity = p > 0.55 ? String(1 - (p - 0.55) / 0.45) : '1';
+        if (p < 1) requestAnimationFrame(step); else finish();
+    };
+    const start = () => {
+        if (started) return;
+        started = true;
+        requestAnimationFrame(t => requestAnimationFrame(frame(t)));
+    };
+    // Даём странице дорисоваться (шрифты, KaTeX, шапка), но недолго
+    if (document.readyState === 'complete') setTimeout(start, 40);
+    else {
+        window.addEventListener('load', () => setTimeout(start, 20), { once: true });
+        setTimeout(start, cfg.revealMaxWait);
+    }
+    // rAF замирает во фоновой вкладке — маска не должна «зависнуть»
+    setTimeout(finish, cfg.revealMaxWait + cfg.revealDuration + 1200);
+}
+
+(function initPageTransitions() {
+    document.addEventListener('click', mfOnNavClick);
+    // Возврат кнопкой «Назад» из bfcache: страница восстановлена вместе с
+    // маской ухода — снимаем её.
+    window.addEventListener('pageshow', ev => {
+        if (ev.persisted) {
+            mfCancelLeave();
+            document.documentElement.classList.remove('mf-veil-on');
+            document.querySelectorAll('.mf-veil').forEach(n => n.remove());
+        }
+    });
+})();
 
 window.applyTheme = applyTheme;
 window.applySystemTheme = applySystemTheme;
