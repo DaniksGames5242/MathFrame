@@ -1008,7 +1008,8 @@ function removeObjectBlocks(code) {
                         else if (vars[valueStr] !== undefined && typeof vars[valueStr] === 'string' && vars[valueStr].startsWith('#')) parsedValue = vars[valueStr];
                         else throw new Error(`Некорректное значение для color: ${valueStr}`);
                     } else if (type === 'list') {
-                        const listMatch = valueStr.match(/^\(([\s\S]*)\)$/);
+                        // и (1, 2), и [1, 2] — второй вид используется в выражениях внутри Update
+                        const listMatch = valueStr.match(/^\(([\s\S]*)\)$/) || valueStr.match(/^\[([\s\S]*)\]$/);
                         if (listMatch) {
                             const items = splitTopLevelList(listMatch[1]).map(parseListLiteralItem);
                             parsedValue = items;
@@ -1076,12 +1077,18 @@ function removeObjectBlocks(code) {
                     if (itMatch) inputtype = itMatch[1];
                 }
 
-                let min = null, max = null, step = null;
+                let min = null, max = null, step = null, maxExpr = null;
                 if ((type === 'input' && inputtype === 'number') || type === 'slider') {
                     const minMatch = matchField(block, /(?:^|[^A-Za-z0-9_])min\s*=\s*([\d.-]+)/);
                     if (minMatch) min = parseFloat(minMatch[1]);
                     const maxMatch = matchField(block, /(?:^|[^A-Za-z0-9_])max\s*=\s*([\d.-]+)/);
                     if (maxMatch) max = parseFloat(maxMatch[1]);
+                    // max = выражение (например, p - 1): верхняя граница ползунка, зависящая
+                    // от других переменных. Пересчитывается при каждой перерисовке.
+                    else if (type === 'slider') {
+                        const me = matchField(block, /(?:^|[^A-Za-z0-9_])max\s*=\s*([^;]+)/);
+                        if (me) maxExpr = me[1].trim();
+                    }
                     const stepMatch = matchField(block, /(?:^|[^A-Za-z0-9_])step\s*=\s*([\d.]+)/);
                     if (stepMatch) step = parseFloat(stepMatch[1]);
                 }
@@ -1125,7 +1132,7 @@ function removeObjectBlocks(code) {
                 const stepper = parseBoolField(block, vars, 'stepper', true);
                 const layer = parseNumberField(block, vars, 'layer', 100, false);
 
-                return { name, type, label, color, textcolor, active, activeExpr: parseActiveExpr(block), variable, funcName, default: defaultValue, action, inputtype, min, max, step, stepper, options, optionLabels, x, y, width: uiWidth, height: uiHeight, radius, layer };
+                return { name, type, label, color, textcolor, active, activeExpr: parseActiveExpr(block), variable, funcName, default: defaultValue, action, inputtype, min, max, maxExpr, step, stepper, options, optionLabels, x, y, width: uiWidth, height: uiHeight, radius, layer };
             } catch (e) {
                 return null;
             }
@@ -1569,7 +1576,10 @@ function parsePunctirBlock(block, vars) {
             const colorExpr = captureExprField(block, 'color');
             let textEnabled = false;
             let textValue = null;
-            const textMatch = block.match(/text\s*=\s*(true\s*\(([^)]*)\)|false|[a-zA-Z_][a-zA-Z0-9_]*)/);
+            // true("...") — строка может содержать ")" (например, "ζ(s)"): сначала пробуем
+            // строковый литерал целиком, иначе прежний разбор до первой ")".
+            const quotedText = matchField(block, /(?:^|[^A-Za-z0-9_])text\s*=\s*true\s*\(\s*"((?:[^"\\]|\\.)*)"\s*\)/);
+            const textMatch = quotedText ? [quotedText[0], 'true("' + quotedText[1] + '")', '"' + quotedText[1] + '"'] : block.match(/text\s*=\s*(true\s*\(([^)]*)\)|false|[a-zA-Z_][a-zA-Z0-9_]*)/);
             if (textMatch) {
                 let full = textMatch[1];
                 if (full === 'false') textEnabled = false;
@@ -2441,7 +2451,9 @@ function parseCircleBlock(block, vars) {
         const layer = parseNumberField(block, vars, 'layer', 20, false);
         const collisionFields = parseGeneralCollisionFields(block, vars, false);
         const { updateMode, updateInterval } = parseUpdateFields(block, vars);
-        return { name, type, centerName, radius, radiusExpr, color, colorExpr, thickness, thicknessExpr, layer, updateMode, updateInterval, ...collisionFields };
+        // active = false — вспомогательная (невидимая) окружность, например траектория или
+        // опора для точек; раньше поле не читалось, и такая окружность всё равно рисовалась.
+        return { name, type, centerName, radius, radiusExpr, color, colorExpr, thickness, thicknessExpr, layer, active: parseBoolField(block, vars, 'active', true), activeExpr: parseActiveExpr(block), updateMode, updateInterval, ...collisionFields };
     } else if (type === 'FromPoints') {
         let pointNames = parsePointRefList(block, vars, 'points');
         if (!pointNames) {
@@ -2457,7 +2469,7 @@ function parseCircleBlock(block, vars) {
         const layer = parseNumberField(block, vars, 'layer', 20, false);
         const collisionFields = parseGeneralCollisionFields(block, vars, false);
         const { updateMode, updateInterval } = parseUpdateFields(block, vars);
-        return { name, type, pointNames, color, colorExpr, thickness, thicknessExpr, layer, updateMode, updateInterval, ...collisionFields };
+        return { name, type, pointNames, color, colorExpr, thickness, thicknessExpr, layer, active: parseBoolField(block, vars, 'active', true), activeExpr: parseActiveExpr(block), updateMode, updateInterval, ...collisionFields };
     }
     return null;
 }
@@ -4966,13 +4978,16 @@ function parseCommands(codeBlock, vars) {
                 indent + '      wrapper.appendChild(label); wrapper.appendChild(input);\n',
                 indent + '    } else if (ui.type === \'slider\') {\n',
                 indent + '      const input = document.createElement(\'input\'); input.type = \'range\';\n',
-                indent + '      input.min = ui.min; input.max = ui.max; input.step = ui.step || 1;\n',
+                indent + '      input.min = ui.min; input.max = ui.max; input.step = ui.step || 1; ui._input = input;\n',
                 indent + '      let defaultVal = (ui.default !== undefined && ui.default !== null) ? ui.default : ui.min;\n',
                 indent + '      if (ui.variable) { const val = hooks.getVar(ui.variable); if (val !== undefined) defaultVal = val; }\n',
                 indent + '      input.value = defaultVal;\n',
                 indent + '      input.style.accentColor = ui.color || \'var(--gc-accent)\';\n',
                 indent + '      if (positioned) { input.style.width = \'100%\'; }\n',
                 indent + '      const valueLabel = document.createElement(\'span\'); valueLabel.textContent = String(defaultVal); valueLabel.style.color = ui.textcolor || \'var(--gc-control-text)\'; valueLabel.style.marginLeft = \'6px\';\n',
+                // Ширина подписи значения фиксирована (по самому длинному значению): иначе
+                // «14.1» → «14.15» меняет ширину, и центрированная строка контролов дёргается.
+                indent + '      { const dec = (String(ui.step || 1).split(\'.\')[1] || \'\').length; const w = Math.max(String(ui.min).length, String(ui.maxExpr ? 999 : ui.max).length) + (dec ? dec + 1 : 0) + 1; valueLabel.style.display = \'inline-block\'; valueLabel.style.minWidth = w + \'ch\'; valueLabel.style.fontVariantNumeric = \'tabular-nums\'; }\n',
                 indent + '      if (ui.variable) {\n',
                 indent + '        if (hooks.getVar(ui.variable) === undefined) hooks.setVar(ui.variable, defaultVal);\n',
                 indent + '        input.addEventListener(\'input\', function() {\n',
@@ -5157,12 +5172,12 @@ function parseCommands(codeBlock, vars) {
                 '                    const t = next();\n',
                 '                    if (t.type !== \'op\' || ![\'=\', \'+=\', \'-=\', \'*=\', \'/=\'].includes(t.value)) throw new Error(\'Ожидался оператор присваивания\');\n',
                 '                    const expr = parseExpr();\n',
-                '                    assigns.push({ path, op: t.value, expr });\n',
+                '                    assigns.push({ path, op: t.value, expr, decl: true });\n',
                 '                    if (atOp(\',\')) { next(); continue; }\n',
                 '                    break;\n',
                 '                }\n',
                 '                if (atOp(\';\')) next();\n',
-                '                if (assigns.length === 1) return { type: \'assign\', path: assigns[0].path, op: assigns[0].op, expr: assigns[0].expr };\n',
+                '                if (assigns.length === 1) return { type: \'assign\', path: assigns[0].path, op: assigns[0].op, expr: assigns[0].expr, decl: true };\n',
                 '                return { type: \'multiAssign\', assigns };\n',
                 '            }\n',
                 '            const startPos = pos;\n',
@@ -9687,7 +9702,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '            const isHl = !!hlEdgeSet[edgeKey(e.a, e.b)];\n',
             '            ctx.strokeStyle = isHl ? (d.highlightColor || \'#e8590c\') : eCol;\n',
             '            ctx.lineWidth = isHl ? 3.5 : 2;\n',
-            '            let mx, my;\n',
+            '            let mx, my, cxE = null, cyE = null;\n',
             '            if (e.a === e.b) {\n',
             '                // петля\n',
             '                ctx.beginPath();\n',
@@ -9697,9 +9712,13 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '            } else if (total > 1) {\n',
             '                const off = (ord - (total + 1) / 2) * 22;\n',
             '                const midX = (p1.x + p2.x) / 2, midY = (p1.y + p2.y) / 2;\n',
-            '                const dxE = p2.x - p1.x, dyE = p2.y - p1.y;\n',
+            // Нормаль берём по каноническому направлению пары (от меньшего имени к большему):
+            // иначе у встречных рёбер a→b и b→a нормали противоположны и обе дуги ложатся на
+            // одну сторону, сливаясь в «двоящуюся» линию.
+            '                const cA = e.a < e.b ? p1 : p2, cB = e.a < e.b ? p2 : p1;\n',
+            '                const dxE = cB.x - cA.x, dyE = cB.y - cA.y;\n',
             '                const len = Math.hypot(dxE, dyE) || 1;\n',
-            '                const cxE = midX - (dyE / len) * off, cyE = midY + (dxE / len) * off;\n',
+            '                cxE = midX - (dyE / len) * off; cyE = midY + (dxE / len) * off;\n',
             '                ctx.beginPath();\n',
             '                ctx.moveTo(p1.x, p1.y);\n',
             '                ctx.quadraticCurveTo(cxE, cyE, p2.x, p2.y);\n',
@@ -9711,7 +9730,8 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '            }\n',
             '            // стрелка для ориентированного графа\n',
             '            if (d.directed && e.a !== e.b) {\n',
-            '                const ang = Math.atan2(p2.y - p1.y, p2.x - p1.x);\n',
+            // у дуги стрелка смотрит по касательной в конце (от контрольной точки к p2)
+            '                const ang = cxE !== null ? Math.atan2(p2.y - cyE, p2.x - cxE) : Math.atan2(p2.y - p1.y, p2.x - p1.x);\n',
             '                const tipX = p2.x - Math.cos(ang) * R;\n',
             '                const tipY = p2.y - Math.sin(ang) * R;\n',
             '                const ah = 11;\n',
@@ -9746,7 +9766,11 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '            }\n',
             '            if (d.labels) {\n',
             '                ctx.fillStyle = d.labelColor || __gcDefaultColor();\n',
-            '                ctx.font = Math.max(9, R * 1.1) + \'px sans-serif\';\n',
+            // длинная подпись уменьшается, чтобы уместиться в кружок узла
+            '                let fs = Math.max(9, R * 1.1);\n',
+            '                ctx.font = fs + \'px sans-serif\';\n',
+            '                const tw = ctx.measureText(String(n.label)).width;\n',
+            '                if (tw > R * 1.7) { fs = Math.max(7, fs * R * 1.7 / tw); ctx.font = fs + \'px sans-serif\'; }\n',
             '                ctx.textAlign = \'center\';\n',
             '                ctx.textBaseline = \'middle\';\n',
             '                ctx.fillText(String(n.label), p.x, p.y);\n',
@@ -9856,9 +9880,14 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '        const arrowLen = d.__liveLength || d.length || 12;\n',
             '        const angleOffset = 0.45;\n',
             '        const p = fieldToPixel(x, y);\n',
-            '        const tipOff = 0.3;\n',
+            // Стрелка на конце отрезка (pos = ±1, смотрит наружу): острие упирается в край
+            // точки-конца. Раньше острие выносилось на 0.3 за конец и торчало из кружка точки.
+            '        let tipOff = 0.3;\n',
+            '        const endPt = (d.pos >= 1 && dir >= 0) ? line.pB : ((d.pos <= -1 && dir < 0) ? line.pA : null);\n',
+            '        if (endPt) tipOff = (endPt.active === false || endPt.visible === false) ? 0 : -gcPointRadiusField(endPt);\n',
             '        const tipX = x + Math.cos(angle) * tipOff;\n',
             '        const tipY = y + Math.sin(angle) * tipOff;\n',
+            '        if (endPt && tipOff < 0) { const b = fieldToPixel(x - Math.cos(angle) * 0.6, y - Math.sin(angle) * 0.6); p.x = b.x; p.y = b.y; }\n',
             '        const tip = fieldToPixel(tipX, tipY);\n',
             '        ctx.strokeStyle = d.__liveColor || d.color || __gcDefaultColor();\n',
             '        ctx.lineWidth = d.__liveThickness || d.thickness || line.thickness || 2;\n',
@@ -10647,6 +10676,16 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '      for (const ui of uiData) {\n',
             '        if (!ui._wrapper) continue;\n',
             '        ui._wrapper.style.display = isObjectActive(ui) ? \'\' : \'none\';\n',
+            '        if (ui.maxExpr && ui._input) {\n',
+            '          let mx; try { mx = Number(evaluate(ui.maxExpr)); } catch (e) { mx = NaN; }\n',
+            '          if (isFinite(mx) && String(mx) !== ui._input.max) {\n',
+            '            ui._input.max = mx;\n',
+            '            const cur = Number(userVars[ui.variable]);\n',
+            '            if (cur > mx) { userVars[ui.variable] = mx; }\n',
+            '            ui._input.value = userVars[ui.variable];\n',
+            '            if (ui._input.nextSibling) ui._input.nextSibling.textContent = String(userVars[ui.variable]);\n',
+            '          }\n',
+            '        }\n',
             '      }\n',
             '    }\n',
             '\n',
@@ -16194,15 +16233,19 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
     function glCallUserFunc(name, args) {
         const fn = GL_USER_FUNCS[name];
         if (!fn) throw new Error('Неизвестная функция: ' + name);
-        const localCtx = { time: elapsedTime };
+        const localCtx = { time: elapsedTime, __gcFnScope: true };
         fn.params.forEach((p, i) => { localCtx[p] = args[i]; });
         if (fn.bodyStmts) {
             // Function/Void: многострочное тело со statements; возврат значения — через
             // исключение GLReturnSignal (перехватывается здесь же). Void без явного
             // return просто возвращает undefined — как и положено процедуре.
-            try { glExecStatementsSync(fn.bodyStmts, localCtx); }
+            // return в синхронном исполнителе возвращается значением-сигналом, а не
+            // исключением: throw на каждом return в горячих функциях (кривые, поля, по
+            // сотне вызовов на кадр) тормозил отрисовку в десятки раз.
+            let r;
+            try { r = glExecStatementsSync(fn.bodyStmts, localCtx); }
             catch (e) { if (e instanceof GLReturnSignal) return e.value; throw e; }
-            return undefined;
+            return (r instanceof GLReturnSignal) ? r.value : undefined;
         }
         return glEvalExpr(fn.bodyAst, localCtx);
     }
@@ -16412,9 +16455,19 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
         const val = glEvalExpr(a.expr, ctx);
         if (a.path.length === 1) {
             const name = a.path[0].name;
-            if (ctx && name in ctx) {
-                ctx[name] = a.op === '=' ? val : glApplyCompound(ctx[name], val, a.op);
-                if (ctx[name] && typeof ctx[name] === 'object' && 'dirty' in ctx[name]) ctx[name].dirty = true;
+            // Тело цикла (repeat/while/for) исполняется в дочерней области (Object.create(ctx)),
+            // поэтому присваивание пишется туда, где переменная объявлена: раньше тело шло в
+            // КОПИИ контекста, и, например, a = b в цикле внутри Function(a, b) терялось.
+            let owner = ctx;
+            // Объявление (float x = …) внутри Function/Void или тела цикла создаёт ЛОКАЛЬНУЮ
+            // переменную этой области. Раньше оно писало в глобальную область: локальная
+            // string s в одной функции затирала переменную s вызывающего кода. Объявления на
+            // верхнем уровне Start/Update по-прежнему глобальные (как и раньше).
+            if (a.decl && ctx && (ctx.__gcFnScope || Object.getPrototypeOf(ctx) !== Object.prototype)) owner = ctx;
+            else while (owner && owner !== Object.prototype && !Object.prototype.hasOwnProperty.call(owner, name)) owner = Object.getPrototypeOf(owner);
+            if (owner && owner !== Object.prototype) {
+                owner[name] = a.op === '=' ? val : glApplyCompound(owner[name], val, a.op);
+                if (owner[name] && typeof owner[name] === 'object' && 'dirty' in owner[name]) owner[name].dirty = true;
             } else {
                 window[name] = a.op === '=' ? val : glApplyCompound(window[name], val, a.op);
                 if (window[name] && typeof window[name] === 'object' && 'dirty' in window[name]) window[name].dirty = true;
@@ -16442,21 +16495,21 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
                 break;
             case 'repeat': {
                 const cnt = Math.max(0, Math.floor(glEvalExpr(s.count, ctx)));
-                for (let i = 0; i < cnt; i++) await glExecStatements(s.body, Object.assign({}, ctx, { i }));
+                for (let i = 0; i < cnt; i++) await glExecStatements(s.body, Object.assign(Object.create(ctx), { i }));
                 break;
             }
             case 'while': {
               let guard = 0;
               while (glEvalExpr(s.cond, ctx)) {
                 if (++guard > 1000000) throw new Error('Цикл while превысил 1000000 итераций — похоже, условие никогда не станет ложным');
-                await glExecStatements(s.body, Object.assign({}, ctx, { i: guard - 1 }));
+                await glExecStatements(s.body, Object.assign(Object.create(ctx), { i: guard - 1 }));
               }
               break;
             }
             case 'forEach': {
                 const coll = glEvalExpr(s.coll, ctx);
                 if (Array.isArray(coll)) {
-                    for (const item of coll) await glExecStatements(s.body, Object.assign({}, ctx, { [s.varName]: item }));
+                    for (const item of coll) await glExecStatements(s.body, Object.assign(Object.create(ctx), { [s.varName]: item }));
                 }
                 break;
             }
@@ -16475,32 +16528,32 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
     // glEvalExpr (синхронно, в т.ч. во время рендера), поэтому await здесь недопустим.
     // wait() внутри такой функции не поддержан (это не имеет смысла синхронно) — просто
     // логируется предупреждение и пропускается.
-    function glExecStatementsSync(stmts, ctx) { for (const s of stmts) glExecStatementSync(s, ctx); }
+    function glExecStatementsSync(stmts, ctx) { for (const s of stmts) { const r = glExecStatementSync(s, ctx); if (r !== undefined) return r; } return undefined; }
     function glExecStatementSync(s, ctx) {
         switch (s.type) {
             case 'assign': glApplySingleAssign(s, ctx); break;
             case 'multiAssign': for (const a of s.assigns) glApplySingleAssign(a, ctx); break;
             case 'if':
-                if (glEvalExpr(s.cond, ctx)) glExecStatementsSync(s.thenB, ctx);
-                else if (s.elseB) glExecStatementsSync(s.elseB, ctx);
+                if (glEvalExpr(s.cond, ctx)) return glExecStatementsSync(s.thenB, ctx);
+                else if (s.elseB) return glExecStatementsSync(s.elseB, ctx);
                 break;
             case 'repeat': {
                 const cnt = Math.max(0, Math.floor(glEvalExpr(s.count, ctx)));
-                for (let i = 0; i < cnt; i++) glExecStatementsSync(s.body, Object.assign({}, ctx, { i }));
+                for (let i = 0; i < cnt; i++) { const r = glExecStatementsSync(s.body, Object.assign(Object.create(ctx), { i })); if (r !== undefined) return r; }
                 break;
             }
             case 'while': {
               let guard = 0;
               while (glEvalExpr(s.cond, ctx)) {
                 if (++guard > 1000000) throw new Error('Цикл while превысил 1000000 итераций — похоже, условие никогда не станет ложным');
-                glExecStatementsSync(s.body, Object.assign({}, ctx, { i: guard - 1 }));
+                const r = glExecStatementsSync(s.body, Object.assign(Object.create(ctx), { i: guard - 1 })); if (r !== undefined) return r;
               }
               break;
             }
             case 'forEach': {
                 const coll = glEvalExpr(s.coll, ctx);
                 if (Array.isArray(coll)) {
-                    for (const item of coll) glExecStatementsSync(s.body, Object.assign({}, ctx, { [s.varName]: item }));
+                    for (const item of coll) { const r = glExecStatementsSync(s.body, Object.assign(Object.create(ctx), { [s.varName]: item })); if (r !== undefined) return r; }
                 }
                 break;
             }
@@ -16511,7 +16564,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
                 GL_USER_FUNCS[s.name] = { params: s.params, bodyAst: s.body };
                 break;
             case 'return':
-                throw new GLReturnSignal(s.expr ? glEvalExpr(s.expr, ctx) : undefined);
+                return new GLReturnSignal(s.expr ? glEvalExpr(s.expr, ctx) : undefined);
             case 'expr': glEvalExpr(s.expr, ctx); break;
         }
     }
@@ -16716,7 +16769,10 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '          if (hasUpdateBlock) {\n',
             '            await Update();\n',
             '            for (let p of points) {\n',
-            '              if (p.hidden || p.lineName || p.circleName || p.ellipseName || p.curveName || p.arcName || p.graphName || p.construct || p.transform) continue;\n',
+            // Неперетаскиваемые точки (dynamic = false) не прижимаются к полю: их положение
+            // задаёт сам сценарий (пересечения прямых, центры и т. п.), и прижатие ломало
+            // построение — например, точка пересечения за краем поля оказывалась на краю.
+            '              if (p.hidden || p.dynamic === false || p.lineName || p.circleName || p.ellipseName || p.curveName || p.arcName || p.graphName || p.construct || p.transform) continue;\n',
             '              const hw = gcFieldHalfW(), hh = gcFieldHalfH();\n',
             '              if (p.pos.x < -hw) p.pos.x = -hw; if (p.pos.x > hw) p.pos.x = hw;\n',
             '              if (p.pos.y < -hh) p.pos.y = -hh; if (p.pos.y > hh) p.pos.y = hh;\n',
@@ -17275,6 +17331,13 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '    };\n',
             '  });\n',
             '  function findPoint(name) { return pointObjs.find(function(o) { return o.name === name; }); }\n',
+            // Точки доступны в Start/Update по имени, как в 2D: A.pos.x читает и двигает саму
+            // точку (pos — это её mesh.position), всё, что от неё зависит, перестраивается.
+            // Раньше 3D-интерпретатор искал имя только среди переменных сценария, и любое
+            // обращение к точке падало с «Некорректный путь при обращении к A».
+            '  for (const po of pointObjs) {\n',
+            '    if (po.name && userVars[po.name] === undefined) userVars[po.name] = { name: po.name, pos: po.mesh.position };\n',
+            '  }\n',
             '\n',
             '  // ---------- Отрезки (в виде тонких цилиндров) ----------\n',
             '  const lineObjs = linesData.map(function(l) {\n',
@@ -18904,6 +18967,11 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             // чтобы mod(-1, 5) давало 4, а не -1.
             '    mod: function(a, b) { if (!b) return NaN; return ((a % b) + b) % b; },\n',
             '    trunc: Math.trunc, cbrt: Math.cbrt, expm1: Math.expm1, log1p: Math.log1p,\n',
+            // radians/degrees/format есть в 2D, но отсутствовали в 3D: выражение вида
+            // a = radians(alpha) давало NaN, и всё, что от него зависело (точки, плоскости),
+            // молча превращалось в NaN.
+            '    radians: function(deg) { return deg * Math.PI / 180; }, degrees: function(rad) { return rad * 180 / Math.PI; },\n',
+            '    format: function(x, d) { return (typeof x === \'number\' && isFinite(x)) ? x.toFixed(d === undefined ? 2 : d) : String(x); },\n',
             '    // === Массивы/статистика/случайные числа (портировано из GL_BUILTINS в 2D — раньше\n',
             '    // отсутствовали в 3D вовсе, поэтому range/randomNormal/push и т.п. в Start/Update тихо\n',
             '    // возвращали NaN, и циклы генерации данных (draw Histogram/Chart/Scatter3D) не выполнялись). ----\n',
@@ -19028,9 +19096,15 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '    if (op === \'/=\') return c / val;\n',
             '    return val;\n',
             '  }\n',
+            // Область, где объявлена переменная (тело цикла — дочерняя область, см. 2D).
+            '  function g3Owner(ctx, name) {\n',
+            '    let o = ctx;\n',
+            '    while (o && o !== Object.prototype && !Object.prototype.hasOwnProperty.call(o, name)) o = Object.getPrototypeOf(o);\n',
+            '    return (o && o !== Object.prototype) ? o : null;\n',
+            '  }\n',
             '  function g3ResolvePath(segs, ctx) {\n',
             '    const rootName = segs[0].name;\n',
-            '    const hasLocal = ctx && Object.prototype.hasOwnProperty.call(ctx, rootName);\n',
+            '    const hasLocal = !!g3Owner(ctx, rootName);\n',
             '    let obj = hasLocal ? ctx[rootName] : userVars[rootName];\n',
             '    for (let idx = 1; idx < segs.length - 1; idx++) {\n',
             '      if (obj === undefined || obj === null) throw new Error(\'Некорректный путь при обращении к \' + rootName);\n',
@@ -19045,12 +19119,13 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '    const val = g3Eval(a.expr, ctx);\n',
             '    if (a.path.length === 1) {\n',
             '      const name = a.path[0].name;\n',
-            '      const hasLocal = ctx && Object.prototype.hasOwnProperty.call(ctx, name);\n',
-            '      if (a.op === \'=\') { if (hasLocal) ctx[name] = val; else userVars[name] = val; }\n',
+            // Объявление внутри Function/Void или тела цикла — локальная переменная (см. 2D).
+            '      const own = (a.decl && ctx && (ctx.__gcFnScope || Object.getPrototypeOf(ctx) !== Object.prototype)) ? ctx : g3Owner(ctx, name); const hasLocal = !!own;\n',
+            '      if (a.op === \'=\') { if (hasLocal) own[name] = val; else userVars[name] = val; }\n',
             '      else {\n',
-            '        const cur = hasLocal ? ctx[name] : ((typeof userVars[name] === \'number\') ? userVars[name] : 0);\n',
+            '        const cur = hasLocal ? own[name] : ((typeof userVars[name] === \'number\') ? userVars[name] : 0);\n',
             '        const nv = g3ApplyCompound(cur, val, a.op);\n',
-            '        if (hasLocal) ctx[name] = nv; else userVars[name] = nv;\n',
+            '        if (hasLocal) own[name] = nv; else userVars[name] = nv;\n',
             '      }\n',
             '    } else {\n',
             '      const resolved = g3ResolvePath(a.path, ctx);\n',
@@ -19069,20 +19144,20 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '        break;\n',
             '      case \'repeat\': {\n',
             '        const cnt = Math.max(0, Math.floor(g3Eval(s.count, ctx)));\n',
-            '        for (let i = 0; i < cnt; i++) g3ExecStatementsSync(s.body, Object.assign({}, ctx, { i: i }));\n',
+            '        for (let i = 0; i < cnt; i++) g3ExecStatementsSync(s.body, Object.assign(Object.create(ctx), { i: i }));\n',
             '        break;\n',
             '      }\n',
             '      case \'while\': {\n',
             '        let guard = 0;\n',
             '        while (g3Eval(s.cond, ctx)) {\n',
             '          if (++guard > 1000000) throw new Error(\'Цикл while превысил 1000000 итераций — похоже, условие никогда не станет ложным\');\n',
-            '          g3ExecStatementsSync(s.body, Object.assign({}, ctx, { i: guard - 1 }));\n',
+            '          g3ExecStatementsSync(s.body, Object.assign(Object.create(ctx), { i: guard - 1 }));\n',
             '        }\n',
             '        break;\n',
             '      }\n',
             '      case \'forEach\': {\n',
             '        const coll = g3Eval(s.coll, ctx);\n',
-            '        if (Array.isArray(coll)) { for (const item of coll) g3ExecStatementsSync(s.body, Object.assign({}, ctx, { [s.varName]: item })); }\n',
+            '        if (Array.isArray(coll)) { for (const item of coll) g3ExecStatementsSync(s.body, Object.assign(Object.create(ctx), { [s.varName]: item })); }\n',
             '        break;\n',
             '      }\n',
             '      case \'wait\':\n',
@@ -19106,20 +19181,20 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '        break;\n',
             '      case \'repeat\': {\n',
             '        const cnt = Math.max(0, Math.floor(g3Eval(s.count, ctx)));\n',
-            '        for (let i = 0; i < cnt; i++) await g3ExecStatementsAsync(s.body, Object.assign({}, ctx, { i: i }));\n',
+            '        for (let i = 0; i < cnt; i++) await g3ExecStatementsAsync(s.body, Object.assign(Object.create(ctx), { i: i }));\n',
             '        break;\n',
             '      }\n',
             '      case \'while\': {\n',
             '        let guard = 0;\n',
             '        while (g3Eval(s.cond, ctx)) {\n',
             '          if (++guard > 1000000) throw new Error(\'Цикл while превысил 1000000 итераций — похоже, условие никогда не станет ложным\');\n',
-            '          await g3ExecStatementsAsync(s.body, Object.assign({}, ctx, { i: guard - 1 }));\n',
+            '          await g3ExecStatementsAsync(s.body, Object.assign(Object.create(ctx), { i: guard - 1 }));\n',
             '        }\n',
             '        break;\n',
             '      }\n',
             '      case \'forEach\': {\n',
             '        const coll = g3Eval(s.coll, ctx);\n',
-            '        if (Array.isArray(coll)) { for (const item of coll) await g3ExecStatementsAsync(s.body, Object.assign({}, ctx, { [s.varName]: item })); }\n',
+            '        if (Array.isArray(coll)) { for (const item of coll) await g3ExecStatementsAsync(s.body, Object.assign(Object.create(ctx), { [s.varName]: item })); }\n',
             '        break;\n',
             '      }\n',
             '      case \'wait\':\n',
@@ -19242,7 +19317,7 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '        if (G3_BUILTINS[node.name]) return G3_BUILTINS[node.name].apply(null, args);\n',
             '        const fn = G3_FUNCS[node.name];\n',
             '        if (fn) {\n',
-            '          const localCtx = {};\n',
+            '          const localCtx = { __gcFnScope: true };\n',
             '          fn.params.forEach(function(p, idx) { localCtx[p] = args[idx]; });\n',
             '          if (fn.stmts) {\n',
             '            try { g3ExecStatementsSync(fn.stmts, localCtx); }\n',
