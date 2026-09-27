@@ -7372,6 +7372,9 @@ id: <идентификатор> | title: <название темы> | type: <�
   function sanitizeLinks(html, validIds, selfId){
     const div = document.createElement('div');
     div.innerHTML = html || '';
+    // One link per topic per article — the links prompt says so, but weaker
+    // models link every mention; later repeats become plain text.
+    const seen = new Set();
     div.querySelectorAll('a').forEach(a => {
       const href = a.getAttribute('href') || '';
       // Section headings are never links, whatever the model decided.
@@ -7382,7 +7385,7 @@ id: <идентификатор> | title: <название темы> | type: <�
       }
       if (href.startsWith('topic:')){
         const id = href.slice(6);
-        if (validIds.has(id) && id !== selfId) return;
+        if (validIds.has(id) && id !== selfId && !seen.has(id)){ seen.add(id); return; }
       } else if (/^https:\/\/[^\s"<>]+$/.test(href)){
         const clean = document.createElement('a');
         clean.setAttribute('href', href);
