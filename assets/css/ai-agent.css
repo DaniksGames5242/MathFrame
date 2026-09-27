@@ -166,6 +166,9 @@ html.mf-lite .agent-card, html.mf-mobile .agent-card { -webkit-backdrop-filter: 
 .chats-foot:empty { display: none; }
 .chats-foot.err { color: var(--accent-3); }
 .chats-foot.err::before { background: var(--accent-3); }
+/* контакты разработчика внизу панели (разметку вставляет common.js) — подвала на этой странице нет */
+.chats-contact { flex: 0 0 auto; padding: .6rem .95rem calc(.7rem + var(--safe-b, 0px)); border-top: 1px solid var(--border); }
+.chats-contact:empty { display: none; }
 
 /* свёрнутая панель (широкий экран) */
 #agentMenu { display: none; }

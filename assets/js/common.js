@@ -1393,7 +1393,27 @@ function renderHeader() {
 function renderFooter() {
     const footer = document.getElementById('app-footer');
     if (!footer) return;
-    footer.innerHTML = `<p>&copy; ${new Date().getFullYear()} MathFrame. Учись математике интерактивно.</p>`;
+    footer.innerHTML = `<p>&copy; ${new Date().getFullYear()} MathFrame. Учись математике интерактивно.</p>` +
+        mfContactHTML('mf-contact--footer');
+    // Другие места с контактами (например, боковая панель AI-агента, где подвала нет)
+    document.querySelectorAll('[data-mf-contact]').forEach(slot => {
+        slot.innerHTML = mfContactHTML('mf-contact--compact');
+    });
+}
+
+/* Контакты разработчика — один источник для подвала и страницы AI-агента */
+const MF_CONTACT = {
+    email: 'mathframe.ru@gmail.com',
+    telegram: 'danik101011'
+};
+function mfContactHTML(mod) {
+    const iconMail = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="m4 7 8 6 8-6"/></svg>';
+    const iconTg = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.2 4.3 2.9 11.4c-.9.35-.85 1.64.07 1.9l4.53 1.3 1.73 5.3c.24.74 1.18.95 1.72.38l2.47-2.6 4.6 3.4c.66.48 1.6.12 1.77-.68L22.6 5.6c.2-.93-.6-1.63-1.4-1.3Z"/><path d="m7.5 14.6 10.4-7.1"/></svg>';
+    return `<div class="mf-contact ${mod || ''}">` +
+        `<span class="mf-contact-title">Связаться с разработчиком:</span>` +
+        `<a class="mf-contact-link" href="mailto:${MF_CONTACT.email}">${iconMail}<span>${MF_CONTACT.email}</span></a>` +
+        `<a class="mf-contact-link" href="https://t.me/${MF_CONTACT.telegram}" target="_blank" rel="noopener noreferrer" aria-label="Telegram @${MF_CONTACT.telegram} (откроется в новой вкладке)">${iconTg}<span>@${MF_CONTACT.telegram}</span></a>` +
+        `</div>`;
 }
 
 /* ===== ПЕРЕХОДЫ МЕЖДУ СТРАНИЦАМИ (PAGE TRANSITIONS) =====
