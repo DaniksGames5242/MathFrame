@@ -2441,7 +2441,9 @@ function parseCircleBlock(block, vars) {
         const layer = parseNumberField(block, vars, 'layer', 20, false);
         const collisionFields = parseGeneralCollisionFields(block, vars, false);
         const { updateMode, updateInterval } = parseUpdateFields(block, vars);
-        return { name, type, centerName, radius, radiusExpr, color, colorExpr, thickness, thicknessExpr, layer, updateMode, updateInterval, ...collisionFields };
+        // active = false — вспомогательная (невидимая) окружность, например траектория или
+        // опора для точек; раньше поле не читалось, и такая окружность всё равно рисовалась.
+        return { name, type, centerName, radius, radiusExpr, color, colorExpr, thickness, thicknessExpr, layer, active: parseBoolField(block, vars, 'active', true), activeExpr: parseActiveExpr(block), updateMode, updateInterval, ...collisionFields };
     } else if (type === 'FromPoints') {
         let pointNames = parsePointRefList(block, vars, 'points');
         if (!pointNames) {
@@ -2457,7 +2459,7 @@ function parseCircleBlock(block, vars) {
         const layer = parseNumberField(block, vars, 'layer', 20, false);
         const collisionFields = parseGeneralCollisionFields(block, vars, false);
         const { updateMode, updateInterval } = parseUpdateFields(block, vars);
-        return { name, type, pointNames, color, colorExpr, thickness, thicknessExpr, layer, updateMode, updateInterval, ...collisionFields };
+        return { name, type, pointNames, color, colorExpr, thickness, thicknessExpr, layer, active: parseBoolField(block, vars, 'active', true), activeExpr: parseActiveExpr(block), updateMode, updateInterval, ...collisionFields };
     }
     return null;
 }
@@ -16716,7 +16718,10 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '          if (hasUpdateBlock) {\n',
             '            await Update();\n',
             '            for (let p of points) {\n',
-            '              if (p.hidden || p.lineName || p.circleName || p.ellipseName || p.curveName || p.arcName || p.graphName || p.construct || p.transform) continue;\n',
+            // Неперетаскиваемые точки (dynamic = false) не прижимаются к полю: их положение
+            // задаёт сам сценарий (пересечения прямых, центры и т. п.), и прижатие ломало
+            // построение — например, точка пересечения за краем поля оказывалась на краю.
+            '              if (p.hidden || p.dynamic === false || p.lineName || p.circleName || p.ellipseName || p.curveName || p.arcName || p.graphName || p.construct || p.transform) continue;\n',
             '              const hw = gcFieldHalfW(), hh = gcFieldHalfH();\n',
             '              if (p.pos.x < -hw) p.pos.x = -hw; if (p.pos.x > hw) p.pos.x = hw;\n',
             '              if (p.pos.y < -hh) p.pos.y = -hh; if (p.pos.y > hh) p.pos.y = hh;\n',
@@ -17275,6 +17280,13 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '    };\n',
             '  });\n',
             '  function findPoint(name) { return pointObjs.find(function(o) { return o.name === name; }); }\n',
+            // Точки доступны в Start/Update по имени, как в 2D: A.pos.x читает и двигает саму
+            // точку (pos — это её mesh.position), всё, что от неё зависит, перестраивается.
+            // Раньше 3D-интерпретатор искал имя только среди переменных сценария, и любое
+            // обращение к точке падало с «Некорректный путь при обращении к A».
+            '  for (const po of pointObjs) {\n',
+            '    if (po.name && userVars[po.name] === undefined) userVars[po.name] = { name: po.name, pos: po.mesh.position };\n',
+            '  }\n',
             '\n',
             '  // ---------- Отрезки (в виде тонких цилиндров) ----------\n',
             '  const lineObjs = linesData.map(function(l) {\n',
@@ -18904,6 +18916,11 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             // чтобы mod(-1, 5) давало 4, а не -1.
             '    mod: function(a, b) { if (!b) return NaN; return ((a % b) + b) % b; },\n',
             '    trunc: Math.trunc, cbrt: Math.cbrt, expm1: Math.expm1, log1p: Math.log1p,\n',
+            // radians/degrees/format есть в 2D, но отсутствовали в 3D: выражение вида
+            // a = radians(alpha) давало NaN, и всё, что от него зависело (точки, плоскости),
+            // молча превращалось в NaN.
+            '    radians: function(deg) { return deg * Math.PI / 180; }, degrees: function(rad) { return rad * 180 / Math.PI; },\n',
+            '    format: function(x, d) { return (typeof x === \'number\' && isFinite(x)) ? x.toFixed(d === undefined ? 2 : d) : String(x); },\n',
             '    // === Массивы/статистика/случайные числа (портировано из GL_BUILTINS в 2D — раньше\n',
             '    // отсутствовали в 3D вовсе, поэтому range/randomNormal/push и т.п. в Start/Update тихо\n',
             '    // возвращали NaN, и циклы генерации данных (draw Histogram/Chart/Scatter3D) не выполнялись). ----\n',
