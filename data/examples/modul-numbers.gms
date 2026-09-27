@@ -35,9 +35,14 @@ draw Text { name = "lblAB"; pos = ((Pa.pos.x + Pb.pos.x) / 2, 0.8); text = "|a �
 
 new Claster { name = "tabDist"; elements = (Pa, Pb, ab, lblAB); active = false }
 
-// ---- Вкладка 3: график y = |x| ----
-func fabs(x) = abs(x);
+// ---- Вкладка 3: график y = |x − a| + b ----
+// Вершина V лежит на графике: перетаскивая её, сдвигаем «галочку» (a, b — координаты V).
+// Точка M скользит по графику и показывает значение модуля.
+float ga = 0;
+float gb = 0;
+func fabs(x) = abs(x - ga) + gb;
 draw Function { name = "grAbs"; f = "fabs"; xmin = -9.5; xmax = 9.5; segments = 400; grid = true; color = #3b82f6; thickness = 3 }
+new Point { name = "V"; pos = (0, 0); text = true("V"); pauseOnDrag = false }
 new Point { name = "P"; graph = "grAbs"; t = 0.3; text = true("M"); pauseOnDrag = false; collideWithPoints = false }
 new Point { name = "Px"; pos = (0, 0); dynamic = false; size = 0.6; collision = false }
 new Point { name = "Py"; pos = (0, 0); dynamic = false; size = 0.6; collision = false }
@@ -49,12 +54,12 @@ new Point { name = "Y1"; pos = (0, -4.8); dynamic = false; active = false }
 new Point { name = "Y2"; pos = (0, 4.8); dynamic = false; active = false }
 new Line { name = "yAxis"; pos = (Y1, Y2); interact = false; thickness = 1 }
 
-new Claster { name = "tabGraph"; elements = (grAbs, P, Px, Py, prX, prY, yAxis); active = false }
+new Claster { name = "tabGraph"; elements = (grAbs, V, P, Px, Py, prX, prY, yAxis); active = false }
 
 // ---- Кнопки вкладок ----
 new UI { name = "btnAbs"; type = button; label = "Модуль числа"; action = "tab = 1; tabAbs.active = true; tabDist.active = false; tabGraph.active = false" }
 new UI { name = "btnDist"; type = button; label = "Расстояние |a − b|"; action = "tab = 2; tabAbs.active = false; tabDist.active = true; tabGraph.active = false" }
-new UI { name = "btnGraph"; type = button; label = "График y = |x|"; action = "tab = 3; tabAbs.active = false; tabDist.active = false; tabGraph.active = true" }
+new UI { name = "btnGraph"; type = button; label = "График"; action = "tab = 3; tabAbs.active = false; tabDist.active = false; tabGraph.active = true" }
 
 // ---- Логика ----
 float tab = 1;
@@ -74,6 +79,18 @@ Function numP(v) {
   return num(v);
 }
 
+// Формула текущего графика: y = |x − a| + b с аккуратными знаками
+Function graphFormula() {
+  float a = round(ga * 10) / 10; float b = round(gb * 10) / 10;
+  string inner = "x";
+  if (a > 0) { inner = "x − " + num(a); }
+  if (a < 0) { inner = "x + " + num(-a); }
+  string f = "|" + inner + "|";
+  if (b > 0) { f = f + " + " + num(b); }
+  if (b < 0) { f = f + " − " + num(-b); }
+  return f;
+}
+
 Start {
   ptX = X.t; ptNX = NX.t;
 }
@@ -84,6 +101,17 @@ Update {
   if (abs(X.t - ptX) >= abs(NX.t - ptNX)) { NX.t = 1 - X.t; } else { X.t = 1 - NX.t; }
   ptX = X.t; ptNX = NX.t;
 
+  // Сдвиг графика вершиной V. M остаётся на графике; если после сдвига она оказалась
+  // бы за полем, она перемещается по графику к ближайшему допустимому месту.
+  // Вершина не поднимается выше 2.5 — иначе «галочка» почти целиком уходит за верх поля.
+  if (V.pos.y > 2.5) { V.pos.y = 2.5; }
+  ga = V.pos.x; gb = V.pos.y;
+  float half = max(0, fieldMaxY - gb);
+  float mx = min(max(P.pos.x, ga - half), ga + half);
+  mx = min(max(mx, -fieldMaxX), fieldMaxX);
+  P.t = (mx - grAbs.xmin) / (grAbs.xmax - grAbs.xmin);
+  P.pos.x = mx; P.pos.y = fabs(mx);
+
   // Проекции точки графика на оси
   Px.pos.x = P.pos.x; Px.pos.y = 0;
   Py.pos.x = 0; Py.pos.y = P.pos.y;
@@ -93,7 +121,7 @@ Update {
   } else if (tab == 2) {
     info = "**Модуль разности |a − b|** — расстояние между точками a и b на числовой прямой; порядок не важен: |a − b| = |b − a|.\n\n|a − b| = |" + num(Pa.pos.x) + " − " + numP(Pb.pos.x) + "| = " + num(abs(Pa.pos.x - Pb.pos.x)) + ".";
   } else {
-    info = "**График y = |x|** — «галочка»: при x ≥ 0 он совпадает с прямой y = x, при x < 0 — с прямой y = −x.\n\nM(" + num(P.pos.x) + "; " + num(P.pos.y) + "): |" + num(P.pos.x) + "| = " + num(P.pos.y) + ".";
+    info = "**График y = |x|** — «галочка»: при x ≥ 0 он совпадает с прямой y = x, при x < 0 — с прямой y = −x. Сдвиг вершины в точку (a; b) даёт график y = |x − a| + b.\n\ny = " + graphFormula() + ";   M(" + num(P.pos.x) + "; " + num(P.pos.y) + ").";
   }
 }
 ]
