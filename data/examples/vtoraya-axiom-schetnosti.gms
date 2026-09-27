@@ -7,7 +7,7 @@ camera type = fixed;
 
 // ---- Открытое множество U на плоскости — объединение двух открытых кругов (центры перетаскиваются).
 // Его покрывают двоичные квадраты: стороны 2, 1, 1/2, …, вершины в точках с рациональными
-// координатами. Берём квадрат, если он целиком в U, а его «родитель» — нет. Точка x ∈ U —
+// координатами. Берём квадрат, если он целиком в одном из кругов; квадраты у границы делим на четыре. Точка x ∈ U —
 // оранжевый квадрат базы, содержащий x и лежащий в U. ----
 draw Region { name = "rU"; f = "fu"; op = "<"; level = 0; color = #3b82f6; opacity = 0.18; quality = 3 }
 draw Graph { name = "gSq"; graph = "gq"; edgeWidth = 1.2; nodeRadius = 0; labels = false; interactive = false; showWeights = false; layer = 10 }
@@ -19,17 +19,21 @@ new Point { name = "X"; pos = (0.1, 0.2); text = true("x"); pauseOnDrag = false;
 new UI { name = "sK"; type = slider; label = "уровней"; variable = K; min = 1; max = 6; step = 1; default = 4 }
 
 // ---- Логика ----
+list QX = [0]; list QY = [0]; list NX = [0]; list NY = [0];
 float K = 4; float r1 = 3.2; float r2 = 2.6;
 float key = -1; float hitKey = -1; float cnt = 0; float hitSide = 0;
 string info = "";
 
 Function fu(x, y) { return min((x - C1.pos.x) ^ 2 + (y - C1.pos.y) ^ 2 - r1 * r1, (x - C2.pos.x) ^ 2 + (y - C2.pos.y) ^ 2 - r2 * r2); }
-// Квадрат [x; x + s] × [y; y + s] лежит в U? (проверка по сетке 5 × 5 точек, включая границу)
-Function inside(x, y, s) {
-  float ok = 1;
-  repeat (5) { float a = x + s * i / 4; repeat (5) { if (fu(a, y + s * i / 4) >= 0) { ok = 0; } } }
-  return ok;
-}
+// Квадрат [x; x + s] × [y; y + s] целиком в одном из кругов (круг выпуклый — достаточно четырёх вершин)
+Function inDisk(x, y, s, cx, cy, r) { float r2 = r * r;
+  if ((x - cx) ^ 2 + (y - cy) ^ 2 >= r2) { return 0; } if ((x + s - cx) ^ 2 + (y - cy) ^ 2 >= r2) { return 0; }
+  if ((x - cx) ^ 2 + (y + s - cy) ^ 2 >= r2) { return 0; } if ((x + s - cx) ^ 2 + (y + s - cy) ^ 2 >= r2) { return 0; }
+  return 1; }
+Function inside(x, y, s) { if (inDisk(x, y, s, C1.pos.x, C1.pos.y, r1) == 1) { return 1; } return inDisk(x, y, s, C2.pos.x, C2.pos.y, r2); }
+// Квадрат задевает круг: расстояние от центра до квадрата меньше радиуса
+Function meetsDisk(x, y, s, cx, cy, r) { float dx = max(x - cx, max(0, cx - x - s)); float dy = max(y - cy, max(0, cy - y - s)); if (dx * dx + dy * dy < r * r) { return 1; } return 0; }
+Function meets(x, y, s) { if (meetsDisk(x, y, s, C1.pos.x, C1.pos.y, r1) == 1) { return 1; } return meetsDisk(x, y, s, C2.pos.x, C2.pos.y, r2); }
 Function sq(x, y, s, c) {
   string k = format(x * 64, 0) + "_" + format(y * 64, 0) + "_" + format(s * 64, 0);
   addNode(gq, k + "a", [x, y]); addNode(gq, k + "b", [x + s, y]); addNode(gq, k + "c", [x + s, y + s]); addNode(gq, k + "d", [x, y + s]);
@@ -45,17 +49,20 @@ Update {
   float kk = K * 1000000 + round(C1.pos.x * 100) * 1000 + round(C1.pos.y * 100) + round(C2.pos.x * 37) * 7 + round(C2.pos.y * 53) * 11;
   if (kk != key) {
     gq = newGraph(); cnt = 0;
-    // уровень l: квадраты стороны 2/2^l на сетке с шагом той же длины
+    // Квадродерево: квадрат целиком в U — элемент покрытия; задевает U, но не лежит в нём —
+    // делим на 4 (до уровня K − 1); не задевает — отбрасываем. Так перебираются только
+    // квадраты у границы U, а не вся сетка уровня (на 6 уровнях это 40 тыс. клеток).
+    QX = [0]; QY = [0]; float nq = 0;
+    repeat (8) { float x = -8 + 2 * i; repeat (5) { float y = -5 + 2 * i; if (nq == 0) { QX[0] = x; QY[0] = y; } else { push(QX, x); push(QY, y); } nq = nq + 1; } }
     repeat (K) { float l = i; float s = 2 / pow(2, l);
-      float nx = 16 / s; float ny = 10 / s;
-      repeat (nx) { float x = -8 + s * i; repeat (ny) { float y = -5 + s * i;
-        if (inside(x, y, s) == 1) {
-          // родитель (вдвое больше) не целиком в U — иначе квадрат уже покрыт
-          float par = 0;
-          if (l > 0) { float ps = 2 * s; float px = -8 + ps * floor((x + 8) / ps); float py = -5 + ps * floor((y + 5) / ps); par = inside(px, py, ps); }
-          if (par == 0) { sq(x, y, s, col(l)); cnt = cnt + 1; }
-        }
-      } }
+      NX = [0]; NY = [0]; float nn = 0;
+      repeat (nq) { float x = QX[i]; float y = QY[i];
+        if (inside(x, y, s) == 1) { sq(x, y, s, col(l)); cnt = cnt + 1; }
+        else { if (l < K - 1 && meets(x, y, s) == 1) { float h = s / 2;
+          if (nn == 0) { NX[0] = x; NY[0] = y; } else { push(NX, x); push(NY, y); }
+          push(NX, x + h); push(NY, y); push(NX, x); push(NY, y + h); push(NX, x + h); push(NY, y + h); nn = nn + 4; } }
+      }
+      QX = NX; QY = NY; nq = nn;
     }
     key = kk;
   }
