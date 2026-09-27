@@ -4139,7 +4139,9 @@ function parseDrawTextBlock(block, vars) {
 
     const layer = parseNumberField(block, vars, 'layer', 45, false);
     const { updateMode, updateInterval } = parseUpdateFields(block, vars);
-    return { name, posXExpr, posYExpr, posZExpr, zGiven, textExpr, colorExpr, sizeExpr, activeExpr, layer, updateMode, updateInterval };
+    // align = left / center / right — к какой стороне текста привязана точка pos
+    const alignM = block.match(/(?:^|[^A-Za-z0-9_])align\s*=\s*"?(left|center|right)"?/);
+    return { name, posXExpr, posYExpr, posZExpr, zGiven, textExpr, colorExpr, sizeExpr, activeExpr, layer, updateMode, updateInterval, align: alignM ? alignM[1] : null };
 }
 
         function parseClasterBlock(block, vars) {
@@ -8246,8 +8248,16 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '        const q = Math.max(1, Math.floor(d.quality || 3));\n',
             '        const w = Math.max(2, Math.floor(width / q)), h = Math.max(2, Math.floor(height / q));\n',
             '        const tl = pixelToField(0, 0), br = pixelToField(width, height);\n',
+            // «Отпечаток» функций — их значения в 25 точках: f может зависеть от переменных
+            // сцены (точек, ползунков), и без него кэш заливки не замечал изменений, а граница
+            // пересчитывалась в каждом кадре (8 тыс. вызовов f).
+            '        const fp = [];\n',
+            '        for (let a = 1; a <= 5; a++) for (let b = 1; b <= 5; b++) {\n',
+            '            const sx0 = tl.x + (br.x - tl.x) * (a / 6 + 0.013), sy0 = tl.y + (br.y - tl.y) * (b / 6 + 0.017);\n',
+            '            try { fp.push(Number(glCallUserFunc(d.funcName, [sx0, sy0])).toFixed(6)); if (d.func2Name && GL_USER_FUNCS[d.func2Name]) fp.push(Number(glCallUserFunc(d.func2Name, [sx0, sy0])).toFixed(6)); } catch (e) { fp.push(\'x\'); }\n',
+            '        }\n',
             '        const key = [d.funcName, d.op, d.level, d.func2Name, d.op2, d.level2, d.combine, w, h,\n',
-            '            tl.x.toFixed(5), tl.y.toFixed(5), br.x.toFixed(5), br.y.toFixed(5), d.__liveColor, glUserFuncVersion].join(\'|\');\n',
+            '            tl.x.toFixed(5), tl.y.toFixed(5), br.x.toFixed(5), br.y.toFixed(5), d.__liveColor, glUserFuncVersion, fp.join(\',\')].join(\'|\');\n',
             '        if (!d._cache || d._cacheKey !== key) {\n',
             '            const off = document.createElement(\'canvas\');\n',
             '            off.width = w; off.height = h;\n',
@@ -8284,7 +8294,9 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '        ctx.drawImage(d._cache, 0, 0, width, height);\n',
             '        ctx.restore();\n',
             '        // граница области — изолиния f = level\n',
-            '        if (d.border) {\n',
+            '        if (d.border && d._borderKey === key && d._border) {\n',
+            '            drawSurfaceContour({ color: d.color, level: d.level, levels: 1 }, d._border.xs, d._border.ys, d._border.Z, d.level - 1, d.level + 1);\n',
+            '        } else if (d.border) {\n',
             '            const gridN = 90;\n',
             '            const xs = [], ys = [];\n',
             '            for (let i = 0; i <= gridN; i++) {\n',
@@ -8301,6 +8313,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '                }\n',
             '                Z.push(row);\n',
             '            }\n',
+            '            d._border = { xs: xs, ys: ys, Z: Z }; d._borderKey = key;\n',
             '            drawSurfaceContour({ color: d.color, level: d.level, levels: 1 }, xs, ys, Z, d.level - 1, d.level + 1);\n',
             '        }\n',
             '    }\n',
@@ -10557,7 +10570,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '            const pos = fieldToPixel(posX, posY);\n',
             '            ctx.fillStyle = color || __gcDefaultColor();\n',
             '            ctx.font = (14 * (size || 1)) + \'px sans-serif\';\n',
-            '            ctx.textAlign = \'center\';\n',
+            '            ctx.textAlign = d.align || \'center\';\n',
             '            ctx.textBaseline = \'middle\';\n',
             '            ctx.fillText(text, pos.x, pos.y);\n',
             '          });\n',
