@@ -4117,10 +4117,11 @@ function parseDrawTextBlock(block, vars) {
     }
 
     let activeExpr = 'true';
+    // active — целое выражение (active = nc > 3 && crK[3] == 1), а не только имя переменной
+    const activeFull = captureExprField(block, 'active');
     const activeMatch = matchField(block, /(?:^|[^A-Za-z0-9_])active\s*=\s*(true|false|[a-zA-Z_][a-zA-Z0-9_.]*)/);
-    if (activeMatch) {
-        activeExpr = activeMatch[1];
-    }
+    if (activeFull && activeFull.trim()) activeExpr = activeFull.trim();
+    else if (activeMatch) activeExpr = activeMatch[1];
 
     const layer = parseNumberField(block, vars, 'layer', 45, false);
     const { updateMode, updateInterval } = parseUpdateFields(block, vars);

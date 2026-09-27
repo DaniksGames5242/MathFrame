@@ -15,7 +15,8 @@ new Curve { name = "k2"; type = parametric; x = "kx(2, t)"; y = "ky(2, t)"; segm
 new Curve { name = "k3"; type = parametric; x = "kx(3, t)"; y = "ky(3, t)"; segments = 160; color = cc(3); thickness = 6; layer = 20; active = nA > 3 }
 
 new UI { name = "sK"; type = select; label = "диаграмма"; variable = kn; options = ("tre", "fig", "unk"); labels = ("трилистник", "восьмёрка", "тривиальный узел с петлёй"); default = "tre" }
-new UI { name = "bR"; type = button; label = "Все дуги красные"; action = "resetCol = 1" }
+new UI { name = "bF"; type = button; label = "Найти раскраску"; action = "findCol = 1" }
+new UI { name = "bR"; type = button; label = "Сброс"; action = "resetCol = 1" }
 
 // ---- Логика ----
 string kn = "tre";
@@ -25,6 +26,8 @@ float S = 1.3;
 float dl = 0.13;
 float clicks = 0;
 float resetCol = 0;
+float findCol = 0;
+float notFound = 0;
 float bad = 0; float used = 0;
 // дуги: параметры начала и конца; перекрёстки: верхняя дуга, две нижние, координаты
 list as = (0, 0, 0, 0); list ae = (0, 0, 0, 0); list col = (0, 0, 0, 0);
@@ -59,7 +62,25 @@ Update {
     if (kn == "unk") { nA = 1; nC = 1;
       setArc(0, pi, 3 * pi); setCr(0, 0, 0, 0, 0, 0); }
     repeat (4) { col[i] = 0; }
-    lastKn = kn; resetCol = 0;
+    lastKn = kn; resetCol = 0; notFound = 0;
+  }
+  // Перебор всех 3ⁿ раскрасок: первая правильная, где есть хотя бы два цвета
+  if (findCol == 1) {
+    notFound = 1;
+    repeat (3 ^ nA) {
+      if (notFound == 1) {
+        float m = i; repeat (nA) { col[i] = m - 3 * floor(m / 3); m = floor(m / 3); }
+        float okAll = 1;
+        repeat (nC) {
+          float a = col[co[i]]; float b = col[cu[i]]; float c = col[cv[i]];
+          if (!((a == b && b == c) || (a != b && b != c && a != c))) { okAll = 0; }
+        }
+        float two = 0; repeat (nA) { if (col[i] != col[0]) { two = 1; } }
+        if (okAll == 1 && two == 1) { notFound = 0; }
+      }
+    }
+    if (notFound == 1) { repeat (4) { col[i] = 0; } }
+    findCol = 0;
   }
   // Клик — ближайшая дуга меняет цвет
   if (mouseClickCount != clicks) {
@@ -90,6 +111,7 @@ Update {
     if (used >= 2) { info = info + "**Правильная раскраска в " + format(used, 0) + " цвета** — узел нетривиален."; }
     else { info = info + "Одноцветная раскраска правильна всегда и ничего не доказывает."; }
   }
+  if (notFound == 1) { info = info + " **Перебор всех раскрасок: правильных, кроме одноцветных, нет.**"; }
   if (kn == "fig") { info = info + " Восьмёрка нетривиальна, но в три цвета не раскрашивается: этот инвариант её не отличает от тривиального узла."; }
   if (kn == "unk") { info = info + " У диаграммы одна дуга — раскраска только одноцветная. Петлю убирает первое движение Рейдемейстера."; }
   info = info + "\n\nКлик по дуге меняет её цвет.";

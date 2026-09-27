@@ -20,7 +20,7 @@ new Point { name = "RP"; pos = (3.1, 0.3); pauseOnDrag = false; color = #3b82f6;
 new Circle { name = "cont"; center = K; radius = RP; color = #3b82f6; thickness = 3 }
 new Point { name = "D0"; pos = (0, 0); dynamic = false; collision = false; active = false }
 new Point { name = "D1"; pos = (0, 0); dynamic = false; collision = false; active = false }
-new Line { name = "dir"; pos = (D0, D1); color = #3b82f6; thickness = 3; interact = false }
+new Line { name = "dir"; pos = (D0, D1); color = "transparent"; interact = false }
 draw Vector { name = "vdir"; edge = "dir"; pos = 1; color = #3b82f6; thickness = 3 }
 
 // ---- Логика ----

@@ -53,37 +53,82 @@ draw Vector { name = "vs10"; edge = "s10"; pos = 0; color = #3b82f6; thickness =
 new Line { name = "s11"; pos = (P11, O); color = #3b82f6; thickness = 3; interact = false }
 draw Vector { name = "vs11"; edge = "s11"; pos = 0; color = #3b82f6; thickness = 3 }
 
+// Буквы у пересечений петли с лучами: оранжевые остаются в слове, серые сократились (x·x⁻¹)
+draw Text { name = "tk0"; pos = (crX[0] + 0.45, crY[0] + 0.35); text = lt(0); color = #f59e0b; size = 1.3; layer = 70; active = nc > 0 && crK[0] == 1 }
+draw Text { name = "tg0"; pos = (crX[0] + 0.45, crY[0] + 0.35); text = lt(0); color = #6b7280; size = 1.3; layer = 70; active = nc > 0 && crK[0] == 0 }
+draw Text { name = "tk1"; pos = (crX[1] + 0.45, crY[1] + 0.35); text = lt(1); color = #f59e0b; size = 1.3; layer = 70; active = nc > 1 && crK[1] == 1 }
+draw Text { name = "tg1"; pos = (crX[1] + 0.45, crY[1] + 0.35); text = lt(1); color = #6b7280; size = 1.3; layer = 70; active = nc > 1 && crK[1] == 0 }
+draw Text { name = "tk2"; pos = (crX[2] + 0.45, crY[2] + 0.35); text = lt(2); color = #f59e0b; size = 1.3; layer = 70; active = nc > 2 && crK[2] == 1 }
+draw Text { name = "tg2"; pos = (crX[2] + 0.45, crY[2] + 0.35); text = lt(2); color = #6b7280; size = 1.3; layer = 70; active = nc > 2 && crK[2] == 0 }
+draw Text { name = "tk3"; pos = (crX[3] + 0.45, crY[3] + 0.35); text = lt(3); color = #f59e0b; size = 1.3; layer = 70; active = nc > 3 && crK[3] == 1 }
+draw Text { name = "tg3"; pos = (crX[3] + 0.45, crY[3] + 0.35); text = lt(3); color = #6b7280; size = 1.3; layer = 70; active = nc > 3 && crK[3] == 0 }
+draw Text { name = "tk4"; pos = (crX[4] + 0.45, crY[4] + 0.35); text = lt(4); color = #f59e0b; size = 1.3; layer = 70; active = nc > 4 && crK[4] == 1 }
+draw Text { name = "tg4"; pos = (crX[4] + 0.45, crY[4] + 0.35); text = lt(4); color = #6b7280; size = 1.3; layer = 70; active = nc > 4 && crK[4] == 0 }
+draw Text { name = "tk5"; pos = (crX[5] + 0.45, crY[5] + 0.35); text = lt(5); color = #f59e0b; size = 1.3; layer = 70; active = nc > 5 && crK[5] == 1 }
+draw Text { name = "tg5"; pos = (crX[5] + 0.45, crY[5] + 0.35); text = lt(5); color = #6b7280; size = 1.3; layer = 70; active = nc > 5 && crK[5] == 0 }
+draw Text { name = "tk6"; pos = (crX[6] + 0.45, crY[6] + 0.35); text = lt(6); color = #f59e0b; size = 1.3; layer = 70; active = nc > 6 && crK[6] == 1 }
+draw Text { name = "tg6"; pos = (crX[6] + 0.45, crY[6] + 0.35); text = lt(6); color = #6b7280; size = 1.3; layer = 70; active = nc > 6 && crK[6] == 0 }
+draw Text { name = "tk7"; pos = (crX[7] + 0.45, crY[7] + 0.35); text = lt(7); color = #f59e0b; size = 1.3; layer = 70; active = nc > 7 && crK[7] == 1 }
+draw Text { name = "tg7"; pos = (crX[7] + 0.45, crY[7] + 0.35); text = lt(7); color = #6b7280; size = 1.3; layer = 70; active = nc > 7 && crK[7] == 0 }
+draw Text { name = "tk8"; pos = (crX[8] + 0.45, crY[8] + 0.35); text = lt(8); color = #f59e0b; size = 1.3; layer = 70; active = nc > 8 && crK[8] == 1 }
+draw Text { name = "tg8"; pos = (crX[8] + 0.45, crY[8] + 0.35); text = lt(8); color = #6b7280; size = 1.3; layer = 70; active = nc > 8 && crK[8] == 0 }
+draw Text { name = "tk9"; pos = (crX[9] + 0.45, crY[9] + 0.35); text = lt(9); color = #f59e0b; size = 1.3; layer = 70; active = nc > 9 && crK[9] == 1 }
+draw Text { name = "tg9"; pos = (crX[9] + 0.45, crY[9] + 0.35); text = lt(9); color = #6b7280; size = 1.3; layer = 70; active = nc > 9 && crK[9] == 0 }
+draw Text { name = "tk10"; pos = (crX[10] + 0.45, crY[10] + 0.35); text = lt(10); color = #f59e0b; size = 1.3; layer = 70; active = nc > 10 && crK[10] == 1 }
+draw Text { name = "tg10"; pos = (crX[10] + 0.45, crY[10] + 0.35); text = lt(10); color = #6b7280; size = 1.3; layer = 70; active = nc > 10 && crK[10] == 0 }
+draw Text { name = "tk11"; pos = (crX[11] + 0.45, crY[11] + 0.35); text = lt(11); color = #f59e0b; size = 1.3; layer = 70; active = nc > 11 && crK[11] == 1 }
+draw Text { name = "tg11"; pos = (crX[11] + 0.45, crY[11] + 0.35); text = lt(11); color = #6b7280; size = 1.3; layer = 70; active = nc > 11 && crK[11] == 0 }
+draw Text { name = "tk12"; pos = (crX[12] + 0.45, crY[12] + 0.35); text = lt(12); color = #f59e0b; size = 1.3; layer = 70; active = nc > 12 && crK[12] == 1 }
+draw Text { name = "tg12"; pos = (crX[12] + 0.45, crY[12] + 0.35); text = lt(12); color = #6b7280; size = 1.3; layer = 70; active = nc > 12 && crK[12] == 0 }
+draw Text { name = "tk13"; pos = (crX[13] + 0.45, crY[13] + 0.35); text = lt(13); color = #f59e0b; size = 1.3; layer = 70; active = nc > 13 && crK[13] == 1 }
+draw Text { name = "tg13"; pos = (crX[13] + 0.45, crY[13] + 0.35); text = lt(13); color = #6b7280; size = 1.3; layer = 70; active = nc > 13 && crK[13] == 0 }
+
 new UI { name = "sPr"; type = select; label = "петля"; variable = preset; options = ("ab", "comm", "a2"); labels = ("a·b", "a·b·a⁻¹·b⁻¹", "a²"); default = "ab" }
 
 // ---- Логика ----
 string preset = "ab";
 string lastPreset = "";
 string word = "";
+float yy1 = 0; float yy2 = 0;
 float w1 = 0; float w2 = 0;
 float sp = 0;
+float nc = 0;
+list crX = (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0); list crY = (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+list crC = (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0); list crK = (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+list stI = (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 list stk = (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 string info = "";
 
 // Буква: ±1 — a^±1, ±2 — b^±1. Свободная редукция: x·x⁻¹ сокращается сразу.
-Function pushL(c) {
+Function pushL(c, x, y) {
   if (c == 1 || c == -1) { w1 = w1 + c; } else { w2 = w2 + c / 2; }
-  if (sp > 0 && stk[sp - 1] == -c) { sp = sp - 1; return 0; }
-  if (sp < 30) { stk[sp] = c; sp = sp + 1; }
+  float me = -1;
+  if (nc < 14) { me = nc; crX[nc] = x; crY[nc] = y; crC[nc] = c; crK[nc] = 1; nc = nc + 1; }
+  if (sp > 0 && stk[sp - 1] == -c) {
+    sp = sp - 1;
+    if (stI[sp] >= 0) { crK[stI[sp]] = 0; }
+    if (me >= 0) { crK[me] = 0; }
+    return 0;
+  }
+  if (sp < 30) { stk[sp] = c; stI[sp] = me; sp = sp + 1; }
   return 0;
 }
+Function lt(k) { return letter(crC[k]); }
 // Пересечения отрезка (x1, y1)–(x2, y2) с лучами вверх из H₁ и H₂ — по порядку вдоль отрезка
 Function seg(x1, y1, x2, y2) {
   float t1 = 2; float t2 = 2; float c1 = 0; float c2 = 0;
   if ((x1 - H1.pos.x) * (x2 - H1.pos.x) < 0) {
     float t = (H1.pos.x - x1) / (x2 - x1);
     if (y1 + t * (y2 - y1) > H1.pos.y) { t1 = t; c1 = 1; if (x2 > x1) { c1 = -1; } }
+    yy1 = y1 + t * (y2 - y1);
   }
   if ((x1 - H2.pos.x) * (x2 - H2.pos.x) < 0) {
     float t = (H2.pos.x - x1) / (x2 - x1);
     if (y1 + t * (y2 - y1) > H2.pos.y) { t2 = t; c2 = 2; if (x2 > x1) { c2 = -2; } }
+    yy2 = y1 + t * (y2 - y1);
   }
-  if (t1 < t2) { if (c1 != 0) { pushL(c1); } if (c2 != 0) { pushL(c2); } }
-  else { if (c2 != 0) { pushL(c2); } if (c1 != 0) { pushL(c1); } }
+  if (t1 < t2) { if (c1 != 0) { pushL(c1, H1.pos.x, yy1); } if (c2 != 0) { pushL(c2, H2.pos.x, yy2); } }
+  else { if (c2 != 0) { pushL(c2, H2.pos.x, yy2); } if (c1 != 0) { pushL(c1, H1.pos.x, yy1); } }
   return 0;
 }
 Function letter(c) { if (c == 1) { return "a"; } if (c == -1) { return "a⁻¹"; } if (c == 2) { return "b"; } return "b⁻¹"; }
@@ -105,7 +150,7 @@ Update {
     lastPreset = preset;
   }
   away(P1); away(P2); away(P3); away(P4); away(P5); away(P6); away(P7); away(P8); away(P9); away(P10); away(P11);
-  sp = 0; w1 = 0; w2 = 0;
+  sp = 0; w1 = 0; w2 = 0; nc = 0;
   seg(O.pos.x, O.pos.y, P1.pos.x, P1.pos.y); seg(P1.pos.x, P1.pos.y, P2.pos.x, P2.pos.y); seg(P2.pos.x, P2.pos.y, P3.pos.x, P3.pos.y);
   seg(P3.pos.x, P3.pos.y, P4.pos.x, P4.pos.y); seg(P4.pos.x, P4.pos.y, P5.pos.x, P5.pos.y); seg(P5.pos.x, P5.pos.y, P6.pos.x, P6.pos.y);
   seg(P6.pos.x, P6.pos.y, P7.pos.x, P7.pos.y); seg(P7.pos.x, P7.pos.y, P8.pos.x, P8.pos.y); seg(P8.pos.x, P8.pos.y, P9.pos.x, P9.pos.y);
@@ -128,6 +173,6 @@ Update {
   else { info = info + "**" + word + "**."; }
   info = info + "   Число оборотов вокруг H₁: " + format(w1, 0) + ", вокруг H₂: " + format(w2, 0) + ".";
   if (sp > 0 && w1 == 0 && w2 == 0) { info = info + " Числа оборотов нулевые, но петля не стягивается: группа некоммутативна, ab ≠ ba."; }
-  info = info + "\n\nПока вершины двигаются, не задевая H₁ и H₂, петля деформируется непрерывно, и класс не меняется; меняется он, только когда отрезок перескакивает через выколотую точку.";
+  info = info + "\n\nКаждое пересечение петли с пунктиром даёт букву (a — луч из H₁, b — из H₂; степень −1, если петля идёт слева направо). Соседние x и x⁻¹ сокращаются (серые) — остаётся слово класса. Перетаскивая вершины, петлю можно деформировать: пока она не перескакивает через H₁ или H₂, слово не меняется. Попробуйте стянуть петлю в точку — это удастся, только если слово пустое.";
 }
 ]
