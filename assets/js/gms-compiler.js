@@ -17534,6 +17534,9 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '    const mat = new THREE.MeshStandardMaterial({\n',
             '      color: color, roughness: 0.45, metalness: 0.05, wireframe: !!pr.wireframe,\n',
             '      transparent: pr.opacity < 1, opacity: (typeof pr.opacity === \'number\') ? pr.opacity : 1, side: THREE.DoubleSide,\n',
+            // полупрозрачный примитив не пишет глубину: иначе его собственные треугольники
+            // заслоняют друг друга в случайном порядке и по сфере идут полосы
+            '      depthWrite: !(pr.opacity < 1),\n',
             '    });\n',
             '    const mesh = new THREE.Mesh(geo, mat);\n',
             '    const pos = pr.pos || { x: 0, y: 0, z: 0 };\n',
@@ -19436,7 +19439,7 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '      // поэтому геометрия у неё не фиксированная сетка, как у heightfield/parametric,\n',
             '      // а полностью пересобирается в updateImplicitSurfaceMesh — здесь только пустышка.\n',
             '      const geo0 = new THREE.BufferGeometry();\n',
-            '      const mat0 = new THREE.MeshStandardMaterial({ color: color, roughness: 0.6, transparent: opacity < 1, opacity: opacity, side: THREE.DoubleSide, depthWrite: true });\n',
+            '      const mat0 = new THREE.MeshStandardMaterial({ color: color, roughness: 0.6, transparent: opacity < 1, opacity: opacity, side: THREE.DoubleSide, depthWrite: opacity >= 1 });\n',
             '      const mesh0 = new THREE.Mesh(geo0, mat0);\n',
             '      scene.add(mesh0);\n',
             '      const res = Math.max(3, Math.min(40, Math.round(d.grid || 24)));\n',
@@ -19455,7 +19458,7 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '    for (let j = 0; j < n; j++) { for (let i = 0; i < n; i++) { const a0 = j * (n + 1) + i, b0 = a0 + 1, c0 = a0 + (n + 1), d0 = c0 + 1; idx.push(a0, c0, b0, b0, c0, d0); } }\n',
             '    geo.setIndex(idx);\n',
             '    geo.setAttribute(\'position\', new THREE.BufferAttribute(new Float32Array((n + 1) * (n + 1) * 3), 3));\n',
-            '    const mat = new THREE.MeshStandardMaterial({ color: color, roughness: 0.6, transparent: opacity < 1, opacity: opacity, side: THREE.DoubleSide, depthWrite: true });\n',
+            '    const mat = new THREE.MeshStandardMaterial({ color: color, roughness: 0.6, transparent: opacity < 1, opacity: opacity, side: THREE.DoubleSide, depthWrite: opacity >= 1 });\n',
             '    const mesh = new THREE.Mesh(geo, mat);\n',
             '    scene.add(mesh);\n',
             '    const obj = { name: d.name, n: n, mesh: mesh, type: d.type || \'heightfield\', activeExpr: d.activeExpr, active: d.active !== false };\n',

@@ -10,7 +10,7 @@ show axes = true;
 // ---- Поверхность z = (a·x² + b·y²)/2; в начале координат её главные кривизны — a и b ----
 // Точка M перетаскивается и остаётся на поверхности; в ней — касательная плоскость и нормаль.
 // (в сцене вертикальная ось — y, поэтому поверхность задана параметрически: x = u, высота y = f(u, v), z = v)
-draw Surface { name = "surf"; type = parametric; x = "u"; y = "(a * u * u + b * v * v) / 2"; z = "v"; umin = -2.6; umax = 2.6; vmin = -2.6; vmax = 2.6; grid = 36; color = #3b82f6; opacity = 0.75 }
+draw Surface { name = "surf"; type = parametric; x = "u"; y = "(a * u * u + b * v * v) / 2"; z = "v"; umin = -2.6; umax = 2.6; vmin = -2.6; vmax = 2.6; grid = 40; color = #3b82f6; opacity = 1 }
 new Point3D { name = "M"; pos = (0.8, 0, 0.5); text = true("M"); color = #f59e0b }
 new Point3D { name = "T1"; pos = (1, 0, 0); dynamic = false; active = false }
 new Point3D { name = "T2"; pos = (0, 1, 0); dynamic = false; active = false }
