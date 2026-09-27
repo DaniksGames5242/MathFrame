@@ -183,7 +183,22 @@ function findLoosePool(text, excludeIds, cap){
   return scored.slice(0, cap || 150).map(x => x[1]);
 }
 const candidateLines = list => list.map(t => 'id: ' + t.id + ' | title: ' + t.title + ' | type: ' + t.type).join('\n');
+// One link per topic per article (the links prompt's own rule, which weaker
+// models ignore — linking every single mention): the first occurrence of each
+// topic id stays a link, every later one becomes plain text.
+function dedupeLinks(html){
+  const seen = new Set();
+  return String(html).replace(/<a href="(topic:[^"]+)">([\s\S]*?)<\/a>/g, (m, href, inner) => {
+    if (seen.has(href)) return inner;
+    seen.add(href);
+    return m;
+  });
+}
+
 function sanitizeLinks(html, selfId){
+  return dedupeLinks(sanitizeLinksRaw(html, selfId));
+}
+function sanitizeLinksRaw(html, selfId){
   // Section headings are never links, whatever the model decided.
   html = String(html).replace(/<(h[1-4])>([\s\S]*?)<\/\1>/gi, (m, tag, inner) => "<" + tag + ">" + inner.replace(/<\/?a\b[^>]*>/gi, "") + "</" + tag + ">");
   return html.replace(/<a\b([^>]*)>([\s\S]*?)<\/a>/gi, (m, attrs, inner) => {
@@ -197,6 +212,67 @@ function sanitizeLinks(html, selfId){
   });
 }
 const normText = h => decode(String(h).replace(/<[^>]*>/g, '')).replace(/\s+/g, '');
+
+// When the link pass also "fixes" the text (a case ending, a dropped or added
+// word), its output can't be stored — but its choice of links is still good.
+// This moves those links onto the untouched original: each <a href="topic:ID">
+// anchor</a> from the model's answer wraps the same words in the original,
+// searching forward in document order, never inside a formula, a heading or
+// an existing link. Anchors that don't occur verbatim are simply skipped.
+function transplantLinks(original, linked){
+  const pairs = [];
+  String(linked).replace(/<a href="(topic:[^"]+|https:\/\/[^"]+)">([\s\S]*?)<\/a>/g, (m, href, inner) => {
+    const text = inner.replace(/<[^>]*>/g, '');
+    if (text.trim()) pairs.push({ href, text });
+    return m;
+  });
+  if (!pairs.length) return { html: original, placed: 0 };
+  // Tokenize into tags and text runs; remember which runs may take a link.
+  const parts = String(original).split(/(<[^>]+>)/);
+  let inHeading = 0, inLink = 0;
+  const allowed = parts.map(p => {
+    if (p.startsWith('<')){
+      if (/^<h[1-6]\b/i.test(p)) inHeading++;
+      else if (/^<\/h[1-6]>/i.test(p)) inHeading--;
+      else if (/^<a\b/i.test(p)) inLink++;
+      else if (/^<\/a>/i.test(p)) inLink--;
+      return false;
+    }
+    return !inHeading && !inLink;
+  });
+  // Formula spans ($…$ / $$…$$) inside a text run are off limits.
+  const formulaMask = text => {
+    const mask = new Array(text.length).fill(false);
+    text.replace(/\$\$[\s\S]*?\$\$|\$[^$]*?\$/g, (m, off) => { for (let k = off; k < off + m.length; k++) mask[k] = true; return m; });
+    return mask;
+  };
+  let placed = 0, cursorPart = 0, cursorOff = 0;
+  for (const { href, text } of pairs){
+    const tryFrom = (startPart, startOff) => {
+      for (let i = startPart; i < parts.length; i++){
+        if (!allowed[i]) continue;
+        const run = parts[i], mask = formulaMask(run);
+        let from = i === startPart ? startOff : 0;
+        for (;;){
+          const at = run.indexOf(text, from);
+          if (at < 0) break;
+          if (!mask.slice(at, at + text.length).some(Boolean)){
+            // Split the run so later searches can't nest into this link.
+            const before = run.slice(0, at), after = run.slice(at + text.length);
+            parts.splice(i, 1, before, '<a href="' + href + '">', text, '</a>', after);
+            allowed.splice(i, 1, true, false, false, false, true);
+            return { part: i + 4, off: 0 };
+          }
+          from = at + 1;
+        }
+      }
+      return null;
+    };
+    const hit = tryFrom(cursorPart, cursorOff) || tryFrom(0, 0);
+    if (hit){ placed++; cursorPart = hit.part; cursorOff = hit.off; }
+  }
+  return { html: parts.join(''), placed };
+}
 
 /* ---------------- KaTeX validation ---------------- */
 function katexErrors(html){
@@ -368,6 +444,11 @@ async function addLinks(t, html, steps, tlog){
     // The link pass may only wrap words in <a>; if the visible text moved,
     // it rewrote something — never let that slip through.
     if (normText(sanitized) === normText(html)) return sanitized;
+    const moved = transplantLinks(html, sanitized);
+    if (moved.placed){
+      tlog('этап ссылок изменил текст — ' + moved.placed + ' ссылок перенесено на исходный текст');
+      return sanitizeLinks(moved.html, t.id);
+    }
     tlog('⚠ этап ссылок изменил текст (попытка ' + attempt + ')');
   }
   tlog('⚠ ссылки не расставлены — текст оставлен без ссылок');
@@ -545,6 +626,48 @@ if (cmd === 'empty'){
     }
   }));
   log('== полный проход завершён');
+} else if (cmd === 'dedupe-offline'){
+  // Strips repeated links to the same topic from every finished article.
+  let fixed = 0, removed = 0;
+  for (const id of Object.keys(state.done)){
+    const t = byId.get(id); if (!t || !t.description) continue;
+    const before = (t.description.match(/href="topic:/g) || []).length;
+    const html = dedupeLinks(t.description);
+    if (html === t.description) continue;
+    if (normText(html) !== normText(t.description)){ log('⚠ ' + id + ': изменился текст — пропущено'); continue; }
+    removed += before - (html.match(/href="topic:/g) || []).length;
+    t.description = html; fixed++;
+    const file = path.join(RESULTS_DIR, id + '.json');
+    if (fs.existsSync(file)){ const r = JSON.parse(fs.readFileSync(file, 'utf8')); r.after = html; fs.writeFileSync(file, JSON.stringify(r, null, 1)); }
+  }
+  if (fixed) await saveConfig();
+  log('== повторные ссылки убраны: ' + removed + ' в ' + fixed + ' темах');
+} else if (cmd === 'relink-offline'){
+  // Topics already stored without links because the link pass had touched
+  // the text: move the links from its saved answer onto the stored text.
+  // No model calls. --dry prints instead of saving.
+  const dry = rest.includes('--dry');
+  const only = rest.find(a => !a.startsWith('--'));
+  let fixed = 0;
+  for (const [id, d] of Object.entries(state.done)){
+    if (only && id !== only) continue;
+    const t = byId.get(id); const file = path.join(RESULTS_DIR, id + '.json');
+    if (!t || !fs.existsSync(file) || /href="topic:/.test(t.description || '')) continue;
+    const r = JSON.parse(fs.readFileSync(file, 'utf8'));
+    const answers = r.steps.filter(s => s.label === 'ссылки');
+    if (!answers.length) continue;
+    const linked = sanitizeLinks(stripCodeFences(answers[answers.length - 1].text), id);
+    const moved = transplantLinks(t.description, linked);
+    if (!moved.placed) continue;
+    const html = sanitizeLinks(moved.html, id);
+    if (normText(html) !== normText(t.description)) { log('⚠ ' + id + ': перенос изменил текст — пропущено'); continue; }
+    if (dry){ console.log('== ' + id + ' (ссылок ' + moved.placed + ')\n' + html.slice(0, 1500)); continue; }
+    t.description = html; r.after = html;
+    fs.writeFileSync(file, JSON.stringify(r, null, 1));
+    fixed++;
+  }
+  if (!dry && fixed) await saveConfig();
+  log('== ссылки перенесены задним числом: ' + fixed + ' тем');
 } else if (cmd === 'triage-test'){
   const t = byId.get(rest[0]); const t0 = Date.now();
   await triageTopic(t, 1, 1);

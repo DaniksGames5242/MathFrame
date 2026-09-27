@@ -6,12 +6,6 @@
 <script>/* MathFrame: тема до первого кадра + маска перехода между страницами (см. common.js › PAGE TRANSITIONS) */(function(){var d=document.documentElement;try{var t=localStorage.getItem('theme');if(t==='light'||(t!=='dark'&&!matchMedia('(prefers-color-scheme: dark)').matches))d.classList.add('light');}catch(e){}try{var s=sessionStorage.getItem('mf-veil');if(!s)return;sessionStorage.removeItem('mf-veil');var v=JSON.parse(s),n=performance.getEntriesByType&&performance.getEntriesByType('navigation')[0];if(!v||!v.fill||Date.now()-v.t>8000||(n&&n.type&&n.type!=='navigate'))return;window.__mfVeil=v;d.style.setProperty('--mf-veil-fill',v.fill);d.classList.add('mf-veil-on');setTimeout(function(){d.classList.remove('mf-veil-on')},4000);}catch(e){}})();</script>
 <title>Мини-сервисы — MathFrame</title>
 
-<style>
-  @font-face { font-family:'BodyFont'; src:url('/assets/fonts/body-font.otf') format('opentype');
-               font-weight:400; font-display:swap; }
-  @font-face { font-family:'BodyFont'; src:url('/assets/fonts/body-font-bold.otf') format('opentype');
-               font-weight:700; font-display:swap; }
-</style>
 <link rel="stylesheet" href="/assets/css/common.css" />
 <link rel="stylesheet" href="/assets/css/mathfield.css" />
 <!-- KaTeX уже используется в справочнике (/assets/lib/katex/) — переиспользуем тот же

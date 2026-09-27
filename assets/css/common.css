@@ -8,18 +8,25 @@
 
    ВАЖНО: файл сохраняет ВСЕ прежние имена классов (header/nav/modal/btn/
    auth-tab/settings-field/theme-option/account-circle/footer и т.д.), потому что
-   их генерирует common.js. Новое добавляется, старое не ломается. 
+   их генерирует common.js. Новое добавляется, старое не ломается.
    ========================================================================== */
 
 /* ===== 0. СБРОС ===== */
-*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; } 
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
 /* ===== 1. ШРИФТЫ =====
    Заголовки набираются гарнитурой KaTeX_Main — это производная Computer Modern,
    т.е. буквально шрифт из LaTeX. Он уже есть на сайте (KaTeX лежит в
    /assets/lib/katex/), поэтому новых ассетов не требуется, а «математичность»
    считывается мгновенно. Если файлов нет — стек аккуратно деградирует до
-   локального BodyFont / системной серифы. */
+   локального BodyFont / системной серифы.
+
+   BodyFont раньше объявлялся через @font-face в <head> каждой страницы отдельно
+   (и был случайно пропущен на forum.html) — из-за этого на форуме основной
+   текст всегда падал на системный шрифт, а не на BodyFont, как везде на сайте
+   (и выглядел по-разному в зависимости от того, какой шрифт стоит в системе).
+   Объявляем его один раз здесь, в общем common.css, чтобы он гарантированно
+   грузился на всех страницах одинаково. */
 @font-face {
   font-family: 'MFDisplay';
   src: url('/assets/lib/katex/fonts/KaTeX_Main-Regular.woff2') format('woff2');
@@ -39,6 +46,16 @@
   font-family: 'MFMath';
   src: url('/assets/lib/katex/fonts/KaTeX_Math-Italic.woff2') format('woff2');
   font-weight: 400; font-style: italic; font-display: swap;
+}
+@font-face {
+  font-family: 'BodyFont';
+  src: url('/assets/fonts/body-font.otf') format('opentype');
+  font-weight: 400; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'BodyFont';
+  src: url('/assets/fonts/body-font-bold.otf') format('opentype');
+  font-weight: 700; font-style: normal; font-display: swap;
 }
 
 /* ===== 2. ТОКЕНЫ ===== */
@@ -88,10 +105,11 @@
   --r-xl: 22px;
   --tick: 9px;               /* длина угловой засечки */
   --header-height: 68px;
+  --mf-notice-h: 0px;        /* высота полосы уведомлений под шапкой (раздел 22, ставит common.js) */
 
   /* -- типографика -- */
   --font-display: 'MFDisplay', 'BodyFont', 'Iowan Old Style', 'Palatino Linotype', Georgia, serif;
-  --font-sans: 'BodyFont', 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-sans: 'BodyFont', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-mono: ui-monospace, 'SF Mono', 'JetBrains Mono', 'Cascadia Code', Menlo, Consolas, monospace;
   --font-math: 'MFMath', 'MFDisplay', Georgia, serif;
 
@@ -156,7 +174,7 @@ body {
   color: var(--text-primary);
   background: var(--bg-body);
   line-height: 1.62;
-  padding-top: var(--header-height);
+  padding-top: calc(var(--header-height) + var(--mf-notice-h));
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   transition: var(--theme-transition);
@@ -1072,7 +1090,7 @@ h1, h2, h3, h4, p, li, td, a { overflow-wrap: break-word; }
   height: calc(var(--header-height) + var(--safe-t));
   padding-top: var(--safe-t);
 }
-body { padding-top: calc(var(--header-height) + var(--safe-t)); }
+body { padding-top: calc(var(--header-height) + var(--safe-t) + var(--mf-notice-h)); }
 #app-footer {
   padding-bottom: calc(2.2rem + var(--safe-b));
   padding-left: calc(1rem + var(--safe-l));
@@ -1090,7 +1108,7 @@ body { padding-top: calc(var(--header-height) + var(--safe-t)); }
 /* 17.3 Высота вьюпорта на iOS: 100vh включает адресную строку и потому больше
    видимой области. svh/dvh считают честно. */
 @supports (height: 100svh) {
-  .hero, .mf-vh { min-height: calc(100svh - var(--header-height) - var(--safe-t)); }
+  .hero, .mf-vh { min-height: calc(100svh - var(--header-height) - var(--safe-t) - var(--mf-notice-h)); }
 }
 
 /* 17.4 Тач-устройства: :hover залипает — отключаем всё, что «остаётся».
@@ -1392,13 +1410,11 @@ html.mf-veil-leaving .mf-veil { pointer-events: auto; }
 /* ============================================================================
    22. ОБЪЯВЛЕНИЕ САЙТА И РЕЖИМ ТЕХРАБОТ
    Данные — Firestore settings/site (задаются в админ-панели, вкладка «Сайт»),
-   вставляет common.js › SITE NOTICES. Баннер идёт в потоке сразу после
-   #app-header: body — flex-колонка (раздел 13), поэтому баннер — обычный
-   нерастягиваемый элемент, <main> по-прежнему забирает свободное место, а
-   подвал остаётся внизу. Те же классы использует предпросмотр в админ-панели.
-   Заглушка техработ и плашка для админов — position: fixed, из потока выпадают;
-   z-index ниже модалок (200) — окно входа открывается поверх заглушки — и
-   намного ниже маски перехода (.mf-veil).
+   вставляет common.js › SITE NOTICES. Баннер и плашка техработ для админов
+   живут в полосе #mf-notices, закреплённой под шапкой (см. ниже). Базовые
+   классы .mf-site-banner использует и предпросмотр в админ-панели.
+   Заглушка техработ — position: fixed поверх всего, кроме модалок (200) — окно
+   входа открывается поверх заглушки — и маски перехода (.mf-veil).
    ========================================================================== */
 .mf-site-banner {
   --c: var(--accent);
@@ -1425,44 +1441,52 @@ html.light .mf-site-banner .msb-link { color: color-mix(in srgb, var(--c) 70%, v
 .mf-site-banner .msb-close:hover { background: color-mix(in srgb, var(--c) 18%, transparent); color: var(--text-primary); }
 .mf-site-banner .msb-close:focus-visible { outline: 2px solid var(--c); outline-offset: 1px; }
 
-/* На страницах сайта: карточка под шапкой по ширине контента */
-body > .mf-site-banner {
-  flex-shrink: 0; z-index: 2;
-  width: min(1120px, calc(100% - 2rem)); margin: .75rem auto 0;
-  -webkit-backdrop-filter: blur(12px) saturate(130%); backdrop-filter: blur(12px) saturate(130%);
-  animation: mfBannerIn 420ms var(--e-out) both;
+/* Полоса уведомлений #mf-notices — продолжение шапки: position: fixed сразу
+   под #app-header, при прокрутке не уезжает. Внутри — плашка техработ для
+   админов (.mf-maint-badge) и баннер. Её высоту common.js (ResizeObserver)
+   пишет в --mf-notice-h: на неё опираются отступ body (разделы 3, 17.2),
+   сайдбар справочника, высота чата AI-агента и липкие панели — контент под
+   полосу не заходит. Появление/закрытие анимирует высоту строки (JS), поэтому
+   контент сдвигается плавно.
+   z-index 99: ниже шапки (100) — выпадающее мобильное меню, вложенное в шапку,
+   перекрывает полосу; выше контента, сайдбара справочника (60–80) и липких
+   панелей; ниже заглушки техработ (190), модалок (200) и маски .mf-veil. */
+.mf-notices {
+  position: fixed; left: 0; right: 0;
+  top: calc(var(--header-height) + var(--safe-t, 0px));
+  z-index: 99;
+  display: flex; flex-direction: column;
+  pointer-events: none;
 }
-body > .mf-site-banner.is-leaving { animation: mfBannerOut 220ms ease-in both; }
-@keyframes mfBannerIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
-@keyframes mfBannerOut { to { opacity: 0; transform: translateY(-6px); } }
-html.mf-lite body > .mf-site-banner, html.mf-mobile body > .mf-site-banner {
-  -webkit-backdrop-filter: none; backdrop-filter: none;
-  background: color-mix(in srgb, var(--c) 12%, var(--bg-body));
+.mf-notices > * { pointer-events: auto; flex: none; }
+.mf-notices .mf-site-banner {
+  display: block; padding: 0; border: 0; border-radius: 0;
+  background: color-mix(in srgb, var(--c) 13%, var(--bg-body));
+  /* нижняя граница — inset-тенью: при сворачивании высоты до 0 исчезает вместе со строкой */
+  box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--c) 40%, transparent), 0 10px 22px -18px rgba(0,0,0,.55);
 }
-/* Справочник: слева фиксированный сайдбар — баннер, как и подвал, только в
-   основной колонке */
-@media (min-width: 901px) {
-  body[data-page="reference"] > .mf-site-banner {
-    width: auto; margin-left: calc(var(--spr-sidebar-width, 320px) + 1rem); margin-right: 1rem;
-  }
+.mf-notices .msb-inner {
+  position: relative; max-width: 1120px; margin: 0 auto; text-align: center;
+  padding: .55rem calc(2.9rem + var(--safe-r, 0px)) .55rem calc(2.9rem + var(--safe-l, 0px));
 }
-/* AI-агент — полноэкранное приложение, высоту считает сам: баннер там не в
-   потоке, а плавает под шапкой */
-html.agent-page body > .mf-site-banner {
-  position: fixed; left: 50%; top: calc(var(--header-height) + var(--safe-t, 0px) + .5rem);
-  width: min(720px, calc(100% - 2rem)); margin: 0; transform: translateX(-50%); z-index: 90;
-  box-shadow: var(--shadow, 0 10px 30px rgba(0,0,0,.25));
-  background: color-mix(in srgb, var(--c) 14%, var(--bg-body));
-  animation-name: mfBannerInFixed;
-}
-html.agent-page body > .mf-site-banner.is-leaving { animation-name: mfBannerOutFixed; }
-@keyframes mfBannerInFixed { from { opacity: 0; transform: translate(-50%, -8px); } to { opacity: 1; transform: translateX(-50%); } }
-@keyframes mfBannerOutFixed { from { transform: translateX(-50%); } to { opacity: 0; transform: translate(-50%, -6px); } }
+.mf-notices .msb-text { overflow-wrap: anywhere; }
+.mf-notices .msb-link { display: inline-block; margin-left: .7rem; }
+html.light .mf-notices .msb-link { color: color-mix(in srgb, var(--c) 55%, var(--text-primary)); }
+.mf-notices .msb-close { right: calc(.6rem + var(--safe-r, 0px)); }
 @media (max-width: 768px) {
-  body > .mf-site-banner { width: calc(100% - 1.5rem); margin-top: .6rem; font-size: .88rem; padding: .6rem 2.5rem .6rem .85rem; }
-  .mf-site-banner .msb-text { flex-basis: 100%; }
-  html.agent-page body > .mf-site-banner { width: calc(100% - 1.5rem); }
+  .mf-notices .mf-site-banner { font-size: .86rem; line-height: 1.4; }
+  .mf-notices .msb-inner { text-align: left; padding: .5rem calc(2.6rem + var(--safe-r, 0px)) .5rem calc(1rem + var(--safe-l, 0px)); }
+  .mf-notices .msb-link { margin-left: .5rem; }
+  .mf-notices .msb-close { right: calc(.35rem + var(--safe-r, 0px)); }
 }
+@media (max-width: 768px) {
+  .mf-site-banner .msb-text { flex-basis: 100%; }
+}
+/* Липкие панели разделов (их файлы стилей не знают о полосе) — ниже неё */
+html body .fx-toolbar { top: calc(var(--header-height) + var(--safe-t, 0px) + var(--mf-notice-h) + .5rem); }
+@media (max-width: 720px) { html body .fx-toolbar { top: auto; } }
+html body .adm-tabs { top: calc(var(--header-height, 68px) + var(--mf-notice-h) + 6px); }
+@media (max-width: 640px) { html body .adm-tabs { top: calc(var(--header-height, 68px) + var(--mf-notice-h) + 4px); } }
 
 /* Заглушка «Идут технические работы» */
 html.mf-maint-on, html.mf-maint-on body { overflow: hidden; }
@@ -1503,26 +1527,24 @@ html.mf-maint-on, html.mf-maint-on body { overflow: hidden; }
   .mf-maint-card h1 { font-size: 1.28rem; }
 }
 
-/* Плашка для администраторов: сайт закрыт для посетителей */
+/* Плашка для администраторов «сайт закрыт для посетителей» — узкая строка
+   в полосе уведомлений под шапкой (над баннером) */
 .mf-maint-badge {
-  position: fixed; z-index: 150;
-  left: calc(1rem + var(--safe-l, 0px)); bottom: calc(1rem + var(--safe-b, 0px));
-  display: inline-flex; align-items: center; gap: .5rem;
-  padding: .45rem .8rem .45rem .65rem; border-radius: 999px;
-  font-size: .8rem; font-weight: 600; line-height: 1.2; text-decoration: none;
-  color: var(--text-primary);
-  background: color-mix(in srgb, var(--accent-3) 16%, var(--bg-body));
-  border: 1px solid color-mix(in srgb, var(--accent-3) 45%, transparent);
-  box-shadow: 0 6px 18px rgba(0,0,0,.22);
-  animation: mfBannerIn 420ms var(--e-out) both;
+  text-align: center; font-size: .8rem; font-weight: 600; line-height: 1.2;
+  background: color-mix(in srgb, var(--accent-3) 15%, var(--bg-body));
+  box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--accent-3) 42%, transparent);
 }
-.mf-maint-badge::before {
+.mf-maint-badge .mmb-inner {
+  display: inline-flex; align-items: center; gap: .5rem;
+  padding: .4rem 1rem; color: var(--text-primary); text-decoration: none;
+}
+.mf-maint-badge .mmb-inner::before {
   content: ''; width: 8px; height: 8px; border-radius: 50%; flex: none;
   background: var(--accent-3); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-3) 25%, transparent);
 }
-a.mf-maint-badge:hover { border-color: var(--accent-3); }
-html.agent-page .mf-maint-badge { bottom: auto; top: calc(var(--header-height) + var(--safe-t, 0px) + .5rem); left: auto; right: calc(1rem + var(--safe-r, 0px)); }
+a.mmb-inner:hover { text-decoration: underline; text-underline-offset: 3px; }
+a.mmb-inner:focus-visible { outline: 2px solid var(--accent-3); outline-offset: -2px; border-radius: 4px; }
 /* Несворачиваемый баннер на странице AI-агента всё равно можно убрать — до
-   перезагрузки (плавающая карточка иначе навсегда закрывала бы верх чата) */
+   перезагрузки (полоса иначе навсегда отнимала бы высоту у чата) */
 .mf-site-banner .msb-close.is-temp { display: none; }
 html.agent-page .mf-site-banner .msb-close.is-temp { display: flex; }

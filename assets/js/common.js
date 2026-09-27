@@ -156,13 +156,73 @@ function mfIsAdminPage() {
     return /^\/(pages\/)?admin(\/|\.html|$)/.test(location.pathname);
 }
 
+// Полоса уведомлений под шапкой (#mf-notices, position: fixed — common.css,
+// раздел 22). Её высота уходит в CSS-переменную --mf-notice-h на <html>: на неё
+// опираются отступ body под шапкой, сайдбар справочника, высота чата AI-агента
+// и липкие панели. ResizeObserver обновляет переменную каждый кадр анимации
+// появления/закрытия, поэтому контент сдвигается плавно, без прыжка.
+function mfNoticesHost() {
+    let host = document.getElementById('mf-notices');
+    if (host) return host;
+    host = document.createElement('div');
+    host.id = 'mf-notices';
+    host.className = 'mf-notices';
+    const header = document.getElementById('app-header');
+    if (header && header.parentNode) header.insertAdjacentElement('afterend', host);
+    else document.body.insertBefore(host, document.body.firstChild);
+    const root = document.documentElement;
+    const sync = () => {
+        // Дробная высота как есть (с точностью до сотых): без зазора и нахлёста в 1px
+        const h = host.isConnected ? Math.round(host.getBoundingClientRect().height * 100) / 100 : 0;
+        root.style.setProperty('--mf-notice-h', h + 'px');
+        root.classList.toggle('mf-has-notice', h > 0);
+    };
+    if (window.ResizeObserver) new ResizeObserver(sync).observe(host);
+    else window.addEventListener('resize', sync);
+    host._mfSync = sync;
+    return host;
+}
+
+function mfNoticeSync() {
+    const host = document.getElementById('mf-notices');
+    if (host && host._mfSync) host._mfSync();
+}
+
+// Появление/уход элемента полосы: анимируется высота (вместе с ней — отступ
+// контента через --mf-notice-h). Без анимации — при reduced motion.
+function mfNoticeSlide(el, show, done) {
+    const fin = () => { el.style.overflow = ''; mfNoticeSync(); if (done) done(); };
+    let reduce = false;
+    try { reduce = matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
+    if (reduce || typeof el.animate !== 'function') { fin(); return; }
+    const h = el.getBoundingClientRect().height;
+    if (!h) { fin(); return; }
+    el.style.overflow = 'hidden';
+    const kf = [{ height: '0px', opacity: 0 }, { height: h + 'px', opacity: 1 }];
+    const a = el.animate(show ? kf : [kf[1], kf[0]], {
+        duration: show ? 380 : 260,
+        easing: show ? 'cubic-bezier(.2,.8,.2,1)' : 'cubic-bezier(.4,0,1,1)',
+        fill: show ? 'none' : 'forwards',
+    });
+    let ended = false;
+    const end = () => { if (!ended) { ended = true; fin(); } };
+    a.onfinish = end; a.oncancel = end;
+    setTimeout(end, (show ? 380 : 260) + 200);
+}
+
+function mfNoticeRemove(el) {
+    if (!el || el.classList.contains('is-leaving')) return;
+    el.classList.add('is-leaving');
+    mfNoticeSlide(el, false, () => { el.remove(); mfNoticeSync(); });
+}
+
 function mfRenderSiteBanner(b) {
     const old = document.getElementById('mf-site-banner');
     const now = Date.now();
     let closed = null;
     try { closed = localStorage.getItem(MF_BANNER_CLOSED_KEY); } catch (e) {}
     const live = b && b.enabled && b.text && !(b.expiresAt && b.expiresAt <= now) && closed !== b.version;
-    if (!live) { if (old) old.remove(); return; }
+    if (!live) { if (old) mfNoticeRemove(old); return; }
     const url = mfSafeBannerUrl(b.linkUrl);
     const sig = JSON.stringify([b.text, b.kind, url, b.linkText, b.dismissible, b.version]);
     if (old && old.dataset.sig === sig) return;
@@ -173,17 +233,21 @@ function mfRenderSiteBanner(b) {
     el.setAttribute('role', 'region');
     el.setAttribute('aria-label', 'Объявление');
     el.dataset.sig = sig;
+    // .msb-inner — отступы и рамка строки; у самой полосы их нет, чтобы её
+    // высоту можно было плавно свести к нулю
+    const inner = document.createElement('div');
+    inner.className = 'msb-inner';
     const text = document.createElement('span');
     text.className = 'msb-text';
     text.textContent = b.text;
-    el.appendChild(text);
+    inner.appendChild(text);
     if (url) {
         const a = document.createElement('a');
         a.className = 'msb-link';
         a.href = url;
         a.textContent = b.linkText || 'Подробнее';
         if (/^https:/i.test(url)) { a.target = '_blank'; a.rel = 'noopener noreferrer'; }
-        el.appendChild(a);
+        inner.appendChild(a);
     }
     const close = document.createElement('button');
     close.type = 'button';
@@ -192,18 +256,16 @@ function mfRenderSiteBanner(b) {
     close.textContent = '×';
     close.addEventListener('click', () => {
         if (b.dismissible) { try { localStorage.setItem(MF_BANNER_CLOSED_KEY, b.version); } catch (e) {} }
-        el.classList.add('is-leaving');
-        let gone = false;
-        const rm = () => { if (!gone) { gone = true; el.remove(); } };
-        el.addEventListener('animationend', rm, { once: true });
-        setTimeout(rm, 400);
+        mfNoticeRemove(el);
     });
-    el.appendChild(close);
+    inner.appendChild(close);
+    el.appendChild(inner);
 
-    if (old) { old.replaceWith(el); return; }
-    const header = document.getElementById('app-header');
-    if (header && header.parentNode) header.insertAdjacentElement('afterend', el);
-    else document.body.insertBefore(el, document.body.firstChild);
+    if (old && !old.classList.contains('is-leaving')) { old.replaceWith(el); mfNoticeSync(); return; }
+    if (old) old.remove();
+    mfNoticesHost().appendChild(el);
+    mfNoticeSync();
+    mfNoticeSlide(el, true);
 }
 
 function mfRemoveMaintenance() {
@@ -256,15 +318,23 @@ function mfShowMaintenance(m) {
 
 function mfShowMaintenanceBadge(show) {
     let el = document.getElementById('mf-maint-badge');
-    if (!show) { if (el) el.remove(); return; }
-    if (el) return;
-    el = document.createElement(mfIsAdminPage() ? 'div' : 'a');
+    if (!show) { if (el) mfNoticeRemove(el); return; }
+    if (el && !el.classList.contains('is-leaving')) return;
+    if (el) el.remove();
+    // Строка в полосе уведомлений под шапкой, над баннером
+    el = document.createElement('div');
     el.id = 'mf-maint-badge';
     el.className = 'mf-maint-badge';
     el.setAttribute('role', 'status');
-    el.textContent = 'Включён режим техработ';
-    if (el.tagName === 'A') { el.href = '/admin/#site'; el.title = 'Посетители видят заглушку. Выключить — в админ-панели, вкладка «Сайт»'; }
-    document.body.appendChild(el);
+    const inner = document.createElement(mfIsAdminPage() ? 'span' : 'a');
+    inner.className = 'mmb-inner';
+    inner.textContent = 'Включён режим техработ';
+    if (inner.tagName === 'A') { inner.href = '/admin/#site'; inner.title = 'Посетители видят заглушку. Выключить — в админ-панели, вкладка «Сайт»'; }
+    el.appendChild(inner);
+    const host = mfNoticesHost();
+    host.insertBefore(el, host.firstChild);
+    mfNoticeSync();
+    mfNoticeSlide(el, true);
 }
 
 function mfApplySiteNotices() {
@@ -1554,7 +1624,7 @@ function mfStartPageLeave(a, e, page) {
 function mfOnNavClick(e) {
     if (e.defaultPrevented || e.button !== 0) return;
     if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-    const a = e.target.closest && e.target.closest('#app-header a[href][data-nav-page]');
+    const a = e.target.closest && e.target.closest('a[href][data-nav-page]');
     if (!a) return;
     if (mfLeaving) { e.preventDefault(); return; }       // двойной клик во время перехода
     if (a.target && a.target !== '_self') return;
