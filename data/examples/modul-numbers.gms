@@ -3,7 +3,7 @@ description = "{info}"
 
 field width = 20;
 field height = 10;
-show boundary = true;
+camera type = fixed;
 show axis x = true;
 
 // ---- Числовая прямая: невидимая направляющая, по которой ходят точки ----
@@ -13,16 +13,17 @@ new Line { name = "axisLine"; pos = (L1, L2); active = false; interact = false }
 
 new Point { name = "O"; pos = (0, 0); dynamic = false; size = 0.6; collision = false }
 
-// ---- Вкладка 1: модуль — расстояние до нуля; |x| = |−x| ----
-// X и NX — пара противоположных чисел. Обе точки перетаскиваются, вторая
-// зеркалится относительно нуля в Update.
-new Point { name = "X"; line = "axisLine"; t = 0.6789; text = true("x"); pauseOnDrag = false; collideWithPoints = false }
-new Point { name = "NX"; line = "axisLine"; t = 0.3211; text = true("−x"); pauseOnDrag = false; collideWithPoints = false }
+// ---- Вкладка 1: модуль — расстояние до нуля; у противоположных чисел модули равны ----
+// Пара противоположных чисел: обе точки перетаскиваются, вторая зеркалится относительно
+// нуля в Update. Подписи — сами значения чисел (буквенные «x» и «−x» путали бы: при
+// отрицательном x точка «−x» оказывается справа).
+new Point { name = "X"; line = "axisLine"; t = 0.6789; pauseOnDrag = false; collideWithPoints = false }
+new Point { name = "NX"; line = "axisLine"; t = 0.3211; pauseOnDrag = false; collideWithPoints = false }
 new Line { name = "ox"; pos = (O, X); color = #3b82f6; thickness = 4; interact = false; layer = 12 }
 new Line { name = "onx"; pos = (O, NX); color = #3b82f6; thickness = 4; interact = false; layer = 12 }
 draw EquallySing { name = "eqOx"; edges = (ox, onx); type = 1 }
-draw Text { name = "lblX"; pos = (X.pos.x / 2, 0.8); text = "|x|" }
-draw Text { name = "lblNX"; pos = (NX.pos.x / 2, 0.8); text = "|−x|" }
+draw Text { name = "lblX"; pos = (X.pos.x, 0.7); text = num(X.pos.x) }
+draw Text { name = "lblNX"; pos = (NX.pos.x, 0.7); text = num(NX.pos.x) }
 
 new Claster { name = "tabAbs"; elements = (X, NX, ox, onx, eqOx, lblX, lblNX); active = true }
 
@@ -88,7 +89,7 @@ Update {
   Py.pos.x = 0; Py.pos.y = P.pos.y;
 
   if (tab == 1) {
-    info = "**Модуль числа** — расстояние от нуля до соответствующей точки числовой прямой, поэтому он никогда не отрицателен.\n\nx = " + num(X.pos.x) + ", |x| = " + num(abs(X.pos.x)) + ".\n\n**Противоположные числа имеют равные модули:** |" + num(X.pos.x) + "| = |" + num(NX.pos.x) + "| = " + num(abs(X.pos.x)) + ".";
+    info = "**Модуль числа** — расстояние от нуля до соответствующей точки числовой прямой, поэтому он никогда не отрицателен.\n\n**Противоположные числа имеют равные модули:** |" + num(X.pos.x) + "| = |" + num(NX.pos.x) + "| = " + num(abs(X.pos.x)) + ".";
   } else if (tab == 2) {
     info = "**Модуль разности |a − b|** — расстояние между точками a и b на числовой прямой; порядок не важен: |a − b| = |b − a|.\n\n|a − b| = |" + num(Pa.pos.x) + " − " + numP(Pb.pos.x) + "| = " + num(abs(Pa.pos.x - Pb.pos.x)) + ".";
   } else {

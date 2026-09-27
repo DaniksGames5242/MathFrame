@@ -3,7 +3,7 @@ description = "{info}"
 
 field width = 20;
 field height = 12;
-show boundary = true;
+camera type = fixed;
 
 // ---- Вершины: все четыре перетаскиваются. Условие «ABCD — параллелограмм»
 // поддерживается в Update: у перетаскиваемой вершины соседние остаются на месте,

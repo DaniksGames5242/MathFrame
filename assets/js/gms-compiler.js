@@ -10405,8 +10405,15 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '            ctx.fillStyle = p.textColor || __gcDefaultColor();\n',
             '            ctx.font = (14 * (p.textSize || 1)) + \'px sans-serif\';\n',
             '            ctx.textAlign = \'center\';\n',
-            '            ctx.textBaseline = \'bottom\';\n',
-            '            ctx.fillText(p.textValue, pos.x - 10, pos.y - 8 - r + VERTEX_RADIUS);\n',
+            // Подпись не должна обрезаться краем холста: у верхнего края она переносится
+            // под точку, у боковых — сдвигается внутрь (раньше у точки, прижатой к краю,
+            // подпись просто пропадала за границей).
+            '            const fsz = 14 * (p.textSize || 1);\n',
+            '            const tw = ctx.measureText(p.textValue).width;\n',
+            '            let lx = pos.x - 10, ly = pos.y - 8 - r + VERTEX_RADIUS;\n',
+            '            if (ly - fsz < 2) { ctx.textBaseline = \'top\'; ly = pos.y + 8 + r - VERTEX_RADIUS; } else { ctx.textBaseline = \'bottom\'; }\n',
+            '            lx = Math.min(Math.max(lx, tw / 2 + 2), width - tw / 2 - 2);\n',
+            '            ctx.fillText(p.textValue, lx, ly);\n',
             '          }\n',
             '        });\n',
             '      }\n',
@@ -11272,16 +11279,23 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '    // мыши) значением, при котором позиция ещё не сталкивается — т.е. точка плавно\n',
             '    // скользит вдоль своей кривой/линии/окружности до самого препятствия и там\n',
             '    // останавливается, а не замирает заранее и не "прилипает".\n',
+            // Точка на объекте (прямая/окружность/кривая/график/дуга) тоже не выходит за поле:
+            // раньше, например, точку на графике y = |x| можно было увести далеко за верхний
+            // край. Граница — та же, что у обычных точек (с отступом в радиус точки).
+            '    function gcOutOfFieldPos(p, q) {\n',
+            '      if (p && p.collideWithBoundary === false) return false;\n',
+            '      return Math.abs(q.x) > gcFieldHalfW() + 1e-9 || Math.abs(q.y) > gcFieldHalfH() + 1e-9;\n',
+            '    }\n',
             '    function slideTAvoidingCollision(p, oldT, newT, posFromT) {\n',
             '      const newPos = posFromT(newT);\n',
-            '      if (newPos && !objectViolatesCollision(p, [newPos])) return { t: newT, pos: newPos };\n',
+            '      if (newPos && !objectViolatesCollision(p, [newPos]) && !gcOutOfFieldPos(p, newPos)) return { t: newT, pos: newPos };\n',
             '      const oldPos = posFromT(oldT);\n',
-            '      if (!oldPos || objectViolatesCollision(p, [oldPos])) return null;\n',
+            '      if (!oldPos || objectViolatesCollision(p, [oldPos]) || gcOutOfFieldPos(p, oldPos)) return null;\n',
             '      let lo = oldT, hi = newT, loPos = oldPos;\n',
             '      for (let iter = 0; iter < 20; iter++) {\n',
             '        const mid = (lo + hi) / 2;\n',
             '        const midPos = posFromT(mid);\n',
-            '        if (midPos && !objectViolatesCollision(p, [midPos])) { lo = mid; loPos = midPos; } else { hi = mid; }\n',
+            '        if (midPos && !objectViolatesCollision(p, [midPos]) && !gcOutOfFieldPos(p, midPos)) { lo = mid; loPos = midPos; } else { hi = mid; }\n',
             '      }\n',
             '      return { t: lo, pos: loPos };\n',
             '    }\n',
@@ -23438,6 +23452,11 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
                     if (key === 'theme') {
                         if (value === 'light' || value === 'dark') parsedValue = value;
                         else { errors.push({ line: lineNum, message: `theme должно быть "light" или "dark"` }); continue; }
+                    } else if (key === 'camera type') {
+                        // Как и theme — ключевое слово без кавычек (camera type = fixed;).
+                        // Раньше принималось только в кавычках, а без них — ошибка компиляции.
+                        if (value === 'fixed' || value === 'pan' || value === 'orbit') parsedValue = value;
+                        else { errors.push({ line: lineNum, message: `camera type должно быть "fixed", "pan" или "orbit"` }); continue; }
                     } else if (key === 'description align') {
                         if (value === 'left' || value === 'center' || value === 'right') parsedValue = value;
                         else { errors.push({ line: lineNum, message: `description align должно быть "left", "center" или "right"` }); continue; }
