@@ -838,6 +838,10 @@
       box-shadow: var(--shadow);
       transition: border-color 0.3s, box-shadow 0.3s;
     }
+    /* После загрузки высота задаётся из содержимого iframe (JS, см. fitExampleFrame) —
+       весь пример (сцена + текст описания под ней) виден целиком, без внутренней
+       прокрутки внутри рамки, даже если он выше «типового» соотношения 4:3. */
+    .spr-example-frame-wrap.spr-sized { aspect-ratio: unset; }
     .spr-example-frame-wrap:hover {
       border-color: var(--accent);
       box-shadow: 0 0 0 3px rgba(99,102,241,0.1), var(--shadow);
@@ -7191,6 +7195,39 @@
       // полем step в кластерах GMS-сцены.
       function sendStepToFrame(frame, step) {
         try { frame.contentWindow.postMessage({ type: 'geocompiler-set-step', step: step }, '*'); } catch (e) {}
+        fitExampleFrame(frame);
+      }
+
+      // Подгоняет высоту рамки примера под фактическое содержимое iframe (сцена +
+      // текст описания под ней), чтобы всё было видно целиком без внутренней
+      // прокрутки (у самого документа внутри iframe нет overflow:hidden — он
+      // сколько угодно высокий, но раньше рамка снаружи жёстко резалась под 4:3).
+      // srcdoc + allow-same-origin => iframe того же происхождения, что и страница,
+      // поэтому contentDocument доступен напрямую, без postMessage.
+      let exampleFrameRO = null;
+      function fitExampleFrame(frame) {
+        try {
+          const doc = frame.contentDocument;
+          const wrap = frame.closest('.spr-example-frame-wrap');
+          if (!doc || !doc.documentElement || !wrap) return;
+          const h = Math.ceil(doc.documentElement.getBoundingClientRect().height);
+          if (h > 0 && Math.abs(h - (parseFloat(wrap.style.height) || 0)) > 1) {
+            wrap.style.height = h + 'px';
+          }
+          wrap.classList.add('spr-sized');
+        } catch (e) {}
+      }
+      // Отслеживаем изменения высоты содержимого (шрифты догрузились, поменялась
+      // ширина колонки при resize/перетаскивании разделителя сайдбара, поменялся
+      // шаг доказательства и т.п.) и подгоняем рамку заново.
+      function watchExampleFrame(frame) {
+        if (exampleFrameRO) { try { exampleFrameRO.disconnect(); } catch (e) {} }
+        try {
+          exampleFrameRO = new ResizeObserver(() => fitExampleFrame(frame));
+          exampleFrameRO.observe(frame.contentDocument.documentElement);
+          const wrap = frame.closest('.spr-example-frame-wrap');
+          if (wrap) exampleFrameRO.observe(wrap);
+        } catch (e) {}
       }
 
       async function renderExample(topic) {
@@ -7265,6 +7302,8 @@
             frame.classList.add('loaded');
             sendThemeToFrame(frame);
             if (topic.type === 'proof') sendStepToFrame(frame, currentProofStepIndex + 1);
+            fitExampleFrame(frame);
+            watchExampleFrame(frame);
           }, { once: true });
           frame.srcdoc = result.html;
         } catch (e) {
