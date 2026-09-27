@@ -10,7 +10,7 @@ camera type = fixed;
 // Оранжевые кольца — диагональ (x ∈ f(x)?); нижняя строка — диагональное множество
 // D = {x : x ∉ f(x)}: диагональ, взятая наоборот. ----
 draw Graph { name = "gDiag"; graph = "gd"; nodeColor = #f59e0b; nodeRadius = 21; labels = false; interactive = false; showWeights = false; layer = 5 }
-draw Graph { name = "gOff"; graph = "g0"; nodeColor = #374151; nodeRadius = 16; labels = false; interactive = false; showWeights = false; layer = 10 }
+draw Graph { name = "gOff"; graph = "g0"; nodeColor = #6b7280; nodeRadius = 16; labels = false; interactive = false; showWeights = false; layer = 10 }
 draw Graph { name = "gOn"; graph = "g1"; nodeColor = #3b82f6; nodeRadius = 16; labels = false; interactive = false; showWeights = false; layer = 10 }
 draw Graph { name = "gDOn"; graph = "h1"; nodeColor = #22c55e; nodeRadius = 16; labels = false; interactive = false; showWeights = false; layer = 10 }
 draw Graph { name = "gMis"; graph = "gx"; nodeColor = #ef4444; nodeRadius = 6; labels = false; interactive = false; showWeights = false; layer = 12 }
