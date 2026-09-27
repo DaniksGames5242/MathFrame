@@ -84,13 +84,14 @@ html.light [data-page="services"] { --svc-err: #dc2626; }
 .mf-copy.done .ic-copy { display: none; }
 .mf-copy.done .ic-ok { display: block; }
 .mf-copy-tip {
-  position: absolute; right: 0; bottom: calc(100% + 6px); white-space: nowrap;
+  position: absolute; right: calc(100% + 6px); top: 50%; margin-top: -.6rem; white-space: nowrap;
   font: 600 .72rem/1 var(--font-body, inherit); letter-spacing: .02em;
   color: #fff; background: var(--svc-c); padding: .35rem .55rem; border-radius: 8px;
   pointer-events: none; opacity: 0;
 }
 .mf-copy.done .mf-copy-tip { opacity: 1; }
 .calc-display:has(.mf-copy) .calc-trace { padding-right: 2.2rem; }
+.plot-wrap ~ .out:empty, .alg-badge:empty { display: none; }
 
 /* ============================================================== движение */
 @media (prefers-reduced-motion: no-preference) {
@@ -241,10 +242,10 @@ html.light [data-page="services"] { --svc-err: #dc2626; }
   @keyframes mfsDraw { to { stroke-dashoffset: 0; } }
   html:not(.mf-no-motion) .mf-copy.done .mf-copy-tip { animation: mfsTip 1.4s var(--e-out) both; }
   @keyframes mfsTip {
-    0%   { opacity: 0; transform: translateY(6px) scale(.9); }
+    0%   { opacity: 0; transform: translateX(8px) scale(.9); }
     15%  { opacity: 1; transform: none; }
     75%  { opacity: 1; transform: none; }
-    100% { opacity: 0; transform: translateY(-4px); }
+    100% { opacity: 0; transform: translateX(-4px); }
   }
   html:not(.mf-no-motion) .mf-copy.done { animation: mfsCopyRing .6s var(--e-out); }
   @keyframes mfsCopyRing { 0% { box-shadow: 0 0 0 0 var(--svc-glow); } 100% { box-shadow: 0 0 0 10px transparent; } }

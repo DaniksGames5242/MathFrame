@@ -134,17 +134,18 @@
         skeletonGrid(body, 4);
         isCurrent = isCurrent || function () { return true; };
         ensureFirestore().then(function (db) {
-          return db.collection('forumArticles').orderBy('views', 'desc').limit(4).get();
+          return db.collection('forumArticles').orderBy('views', 'desc').limit(12).get(); // с запасом: скрытые (hidden) ниже отбрасываются
         }).then(function (snap) {
           // пока грузились статьи, панель могли закрыть или открыть другой инструмент
           if (!isCurrent()) return;
-          if (snap.empty) {
+          var docs = snap.docs.filter(function (d) { return !d.data().hidden; }).slice(0, 4);
+          if (!docs.length) {
             body.innerHTML = '<p class="tool-empty">Пока нет статей — станьте первым, кто откроет обсуждение.</p>';
             onSettle && onSettle();
             return;
           }
           var items = [];
-          snap.forEach(function (doc) {
+          docs.forEach(function (doc) {
             var a = doc.data();
             var views = a.views || 0;
             items.push(itemNode('👁', a.title || 'Без названия', views + (views === 1 ? ' просмотр' : ' просмотров'), '/forum/#article/' + doc.id));

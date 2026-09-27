@@ -8,10 +8,10 @@
      home      — «небо математики»: плавающие формулы (мини-вёрстка шрифтами
                  KaTeX), крупные символы, каркасные многогранники, окружности с
                  построениями, единичная окружность, графики, фрагменты
-                 координатной сетки, золотая спираль. Параллакс по глубине.
+                 координатной сетки, золотая спираль.
      reference — «чертёжная доска»: построения циркулем и линейкой (треугольник,
                  серединные перпендикуляры, описанная окружность) проявляются
-                 шаг за шагом; дрейфуют полупрозрачные «страницы знаний».
+                 шаг за шагом; покачиваются полупрозрачные «страницы знаний».
      services  — «графопостроитель»: панели с осями, кривая чертится и
                  перетекает в следующую функцию, точка с касательной бежит по
                  графику (под курсором — следует за ним); подписи y = f(x).
@@ -20,6 +20,10 @@
      ai-agent  — «нейросеть»: слои нейронов, прямые проходы сигналов, из выхода
                  вылетают «токены»-символы.
 
+   Всё закреплено на странице (см. «МИР СТРАНИЦЫ»): якорь элемента неподвижен
+   относительно контента и прокручивается вместе с ним (глубже — чуть
+   медленнее, в пределах 14%), вокруг якоря — ограниченное покачивание и
+   пружина; ничего не уплывает со временем.
    Общий интерактив с полем: состояние курсора/тача (I.sx, I.sy, I.pres) и
    кольца от кликов (I.pulses) берутся из mathframe-ui.js, поэтому элементы
    мягко расступаются у курсора и подпрыгивают на той же волне, что и линии.
@@ -1276,13 +1280,12 @@
       // крайние слои — у самых краёв: на AI-странице контент почти во всю
       // ширину, и вход/выход сети остаются видны на полях
       var W = L.W, H = L.H, mx = W < 700 ? 0.08 : 0.04, top = H * (W < 700 ? 0.22 : 0.16), hh = H * (W < 700 ? 0.56 : 0.70);
-      var sy = (window.scrollY || 0) * 0.03;
       for (var li = 0; li < layers.length; li++) {
         var col = layers[li], x = W * (mx + (1 - 2 * mx) * li / (layers.length - 1));
         for (var i = 0; i < col.length; i++) {
           var nd = col[i], y = top + hh * (i + 0.5) / col.length;
           nd.x = x + Math.sin(time * 0.23 + nd.ph) * 7;
-          nd.y = y + Math.sin(time * 0.31 + nd.ph * 1.3) * 9 - sy;
+          nd.y = y + Math.sin(time * 0.31 + nd.ph * 1.3) * 9;
         }
       }
     }
@@ -1304,10 +1307,65 @@
         sig.push({ e: cand[i], t: 0, d: rnd(0.7, 1.1), s: strength * (0.6 + 0.4 * Math.abs(cand[i].w)) });
       }
     }
-    var lastPulse = 0, cursorCd = 0;
-    return function (time, dt) {
+    // Сеть закреплена на странице: раскладка в координатах «полосы» высотой
+    // Hp = 1.25 экрана, копии идут друг за другом вниз по странице (у всех
+    // копий общее состояние — сигналы и токены). Взаимодействие считаем в
+    // координатах полосы для копии, ближайшей к центру экрана.
+    var lastPulse = 0, cursorCd = 0, PFa = 0.95;
+    function paint(c, o, W, H, base) {
+      // связи: цвет по знаку веса, яркость по модулю
+      c.lineWidth = 1;
+      for (var ei = 0; ei < edges.length; ei++) {
+        var e = edges[ei], aw = Math.abs(e.w);
+        var mxp = (e.a.x + e.b.x) / 2, myp = (e.a.y + e.b.y) / 2;
+        var al = base * (0.12 + 0.35 * aw) * readMask(mxp, myp + o, W, H) * (1 + 1.2 * Math.max(e.a.act, e.b.act));
+        if (al < 0.004) continue;
+        c.strokeStyle = rgba(e.w > 0 ? 'a' : 'b', al);
+        c.beginPath(); c.moveTo(e.a.x, e.a.y); c.lineTo(e.b.x, e.b.y); c.stroke();
+      }
+      // сигналы
+      for (var si = 0; si < sig.length; si++) {
+        var s = sig[si];
+        var p = easeIO(s.t), x = s.e.a.x + (s.e.b.x - s.e.a.x) * p, y = s.e.a.y + (s.e.b.y - s.e.a.y) * p;
+        var pt = Math.max(0, p - 0.1), tx = s.e.a.x + (s.e.b.x - s.e.a.x) * pt, ty = s.e.a.y + (s.e.b.y - s.e.a.y) * pt;
+        var am = base * 1.7 * s.s * readMask(x, y + o, W, H);
+        c.strokeStyle = rgba('c', am * 0.7); c.lineWidth = 1.6;
+        c.beginPath(); c.moveTo(tx, ty); c.lineTo(x, y); c.stroke();
+        c.fillStyle = rgba('c', am);
+        c.beginPath(); c.arc(x, y, 2, 0, 6.2832); c.fill();
+      }
+      c.lineWidth = 1;
+      // нейроны
+      for (var lk = 0; lk < layers.length; lk++) for (var k = 0; k < layers[lk].length; k++) {
+        var nn = layers[lk][k];
+        var an = base * readMask(nn.x, nn.y + o, W, H) * (1 + 1.4 * nn.act), rr = (3.4 + 2.2 * nn.act) * Math.max(0.8, us0);
+        c.fillStyle = rgba('a', an * 0.35);
+        c.beginPath(); c.arc(nn.x, nn.y, rr, 0, 6.2832); c.fill();
+        c.strokeStyle = rgba('a', an);
+        c.beginPath(); c.arc(nn.x, nn.y, rr, 0, 6.2832); c.stroke();
+        if (nn.act > 0.05) {
+          c.strokeStyle = rgba('c', an * nn.act * 0.5);
+          c.beginPath(); c.arc(nn.x, nn.y, rr + 3 + (1 - nn.act) * 10, 0, 6.2832); c.stroke();
+        }
+      }
+      // токены: выход «печатает» математику, она отплывает ВНУТРЬ экрана
+      // (выходной слой у правого края — вправо ей некуда)
+      c.font = TS.font(14 * us0 + 2, true);
+      c.textAlign = 'right';
+      for (var ti = 0; ti < toks.length; ti++) {
+        var tk = toks[ti];
+        var tx2 = tk.x - 12 - ease(tk.t) * (W < 700 ? 26 : 56), ty2 = tk.y + tk.vy * tk.t;
+        c.fillStyle = rgba('b', base * 1.6 * readMask(tx2, ty2 + o, W, H) * Math.sin(tk.t * Math.PI));
+        c.fillText(tk.s, tx2, ty2 + 4);
+      }
+      c.textAlign = 'start';
+    }
+    var draw = function (time, dt) {
       var W = L.W, H = L.H, c = L.ctx, R = rings(W, H), base = 0.44 * L.fade * themeGain();
+      var Hp = H * 1.25, sy = scrollY() * PFa;
       layout(time);
+      // смещение копии, ближайшей к центру экрана (центр сети ≈ 0.5 H полосы)
+      var kP = Math.round(sy / Hp), off = kP * Hp - sy;
       // прямой проход: раз в ~2.4 с зажигаются входы
       since -= dt;
       if (since <= 0) {
@@ -1318,68 +1376,42 @@
       cursorCd -= dt;
       if (cursorOn() && cursorCd <= 0) {
         for (var li = 0; li < layers.length; li++) for (var i = 0; i < layers[li].length; i++) {
-          var nd = layers[li][i], dx = nd.x - I.sx, dy = nd.y - I.sy;
+          var nd = layers[li][i], dx = nd.x - I.sx, dy = nd.y + off - I.sy;
           if (dx * dx + dy * dy < 110 * 110 * I.pres) { fire(nd, 0.7); cursorCd = 0.5; }
         }
       }
       // клик: волна будит нейроны на своём фронте
       for (var r = 0; r < R.length; r++) {
         for (var lj = 0; lj < layers.length; lj++) for (var j = 0; j < layers[lj].length; j++) {
-          var n2 = layers[lj][j], rx = n2.x - R[r].x, ry = n2.y - R[r].y, rd = Math.sqrt(rx * rx + ry * ry);
+          var n2 = layers[lj][j], rx = n2.x - R[r].x, ry = n2.y + off - R[r].y, rd = Math.sqrt(rx * rx + ry * ry);
           var wv = (rd - R[r].r) / 50, w = Math.exp(-wv * wv) * R[r].e;
           if (w > 0.5 && n2.act < 0.4) fire(n2, 0.9);
         }
       }
-      // связи: цвет по знаку веса, яркость по модулю
-      c.lineWidth = 1;
-      for (var ei = 0; ei < edges.length; ei++) {
-        var e = edges[ei], aw = Math.abs(e.w);
-        var mxp = (e.a.x + e.b.x) / 2, myp = (e.a.y + e.b.y) / 2;
-        var al = base * (0.12 + 0.35 * aw) * readMask(mxp, myp, W, H) * (1 + 1.2 * Math.max(e.a.act, e.b.act));
-        if (al < 0.004) continue;
-        c.strokeStyle = rgba(e.w > 0 ? 'a' : 'b', al);
-        c.beginPath(); c.moveTo(e.a.x, e.a.y); c.lineTo(e.b.x, e.b.y); c.stroke();
-      }
-      // сигналы
+      // шаг состояния (общий для всех копий)
       for (var si = sig.length - 1; si >= 0; si--) {
         var s = sig[si];
         s.t += dt / s.d;
-        if (s.t >= 1) { fire(s.e.b, Math.min(1, s.s * 1.05)); sig.splice(si, 1); continue; }
-        var p = easeIO(s.t), x = s.e.a.x + (s.e.b.x - s.e.a.x) * p, y = s.e.a.y + (s.e.b.y - s.e.a.y) * p;
-        var pt = Math.max(0, p - 0.1), tx = s.e.a.x + (s.e.b.x - s.e.a.x) * pt, ty = s.e.a.y + (s.e.b.y - s.e.a.y) * pt;
-        var am = base * 1.7 * s.s * readMask(x, y, W, H);
-        c.strokeStyle = rgba('c', am * 0.7); c.lineWidth = 1.6;
-        c.beginPath(); c.moveTo(tx, ty); c.lineTo(x, y); c.stroke();
-        c.fillStyle = rgba('c', am);
-        c.beginPath(); c.arc(x, y, 2, 0, 6.2832); c.fill();
+        if (s.t >= 1) { fire(s.e.b, Math.min(1, s.s * 1.05)); sig.splice(si, 1); }
       }
-      c.lineWidth = 1;
-      // нейроны
       for (var lk = 0; lk < layers.length; lk++) for (var k = 0; k < layers[lk].length; k++) {
         var nn = layers[lk][k];
         nn.act *= Math.exp(-dt * 1.4);
         if (nn.rf > 0) nn.rf -= dt;
-        var an = base * readMask(nn.x, nn.y, W, H) * (1 + 1.4 * nn.act), rr = (3.4 + 2.2 * nn.act) * Math.max(0.8, us0);
-        c.fillStyle = rgba('a', an * 0.35);
-        c.beginPath(); c.arc(nn.x, nn.y, rr, 0, 6.2832); c.fill();
-        c.strokeStyle = rgba('a', an);
-        c.beginPath(); c.arc(nn.x, nn.y, rr, 0, 6.2832); c.stroke();
-        if (nn.act > 0.05) {
-          c.strokeStyle = rgba('c', an * nn.act * 0.5);
-          c.beginPath(); c.arc(nn.x, nn.y, rr + 3 + (1 - nn.act) * 10, 0, 6.2832); c.stroke();
-        }
       }
-      // токены: выход «печатает» математику и она уплывает вправо
-      c.font = TS.font(14 * us0 + 2, true);
       for (var ti = toks.length - 1; ti >= 0; ti--) {
-        var tk = toks[ti];
-        tk.t += dt / 3.2;
-        if (tk.t >= 1) { toks.splice(ti, 1); continue; }
-        var tx2 = tk.x + 14 + ease(tk.t) * (W < 700 ? 30 : 70), ty2 = tk.y + tk.vy * tk.t;
-        c.fillStyle = rgba('b', base * 1.6 * readMask(tx2, ty2, W, H) * Math.sin(tk.t * Math.PI));
-        c.fillText(tk.s, tx2, ty2 + 4);
+        toks[ti].t += dt / 3.2;
+        if (toks[ti].t >= 1) toks.splice(ti, 1);
+      }
+      // рисуем видимые копии
+      for (var o = off - Hp; o <= off + Hp; o += Hp) {
+        if (o + H * 0.9 < 0 || o + H * 0.1 > H) continue;
+        c.save(); c.translate(0, o);
+        paint(c, o, W, H, base);
+        c.restore();
       }
     };
+    return { draw: draw, dbg: { layers: layers } };
   }
 
   /* ------------------------------------------------------------ запуск */
@@ -1392,7 +1424,14 @@
     var L = Layer();
     if (!L) return null;
     var draw = null, builtW = 0, builtH = 0, rebuildAt = 0;
-    function build() { draw = make(L); builtW = L.W; builtH = L.H; }
+    // сцена возвращает draw(time, dt) или { draw, dbg } (dbg — состояние для
+    // отладки/проверок: MathFrameUI.bg.scene)
+    function build() {
+      var sc = make(L);
+      draw = typeof sc === 'function' ? sc : sc.draw;
+      api.scene = sc.dbg || null;
+      builtW = L.W; builtH = L.H;
+    }
     build();
     return {
       draw: function (time, I_, dt) {

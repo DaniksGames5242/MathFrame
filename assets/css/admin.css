@@ -194,28 +194,9 @@ html.light .adm-field input[type="datetime-local"] { color-scheme: light; }
 .adm-form .cap { font-family: var(--font-mono); font-size: .64rem; letter-spacing: .13em; text-transform: uppercase; color: var(--text-tertiary); margin-bottom: -.4rem; }
 .muted { color: var(--text-tertiary); }
 
-/* ===== баннер (предпросмотр; те же классы стоит использовать в common.js) ===== */
+/* ===== баннер: предпросмотр. Сами стили .mf-site-banner — в common.css (раздел 22) ===== */
 .banner-preview { min-height: 3rem; }
-.mf-site-banner {
-  --c: var(--accent);
-  display: flex; align-items: center; gap: .6rem .9rem; flex-wrap: wrap;
-  padding: .7rem 2.6rem .7rem 1rem; position: relative;
-  border: 1px solid color-mix(in srgb, var(--c) 40%, transparent);
-  background: color-mix(in srgb, var(--c) 12%, var(--bg-raised));
-  border-radius: var(--r); color: var(--text-primary); font-size: .92rem; line-height: 1.45;
-}
-.mf-site-banner.kind-warn { --c: var(--accent-3); }
-.mf-site-banner.kind-success { --c: var(--accent-2); }
 .mf-site-banner.is-off { opacity: .5; }
-.mf-site-banner .msb-text { flex: 1 1 16rem; min-width: 0; overflow-wrap: anywhere; }
-.mf-site-banner .msb-link { color: var(--c); font-weight: 600; text-decoration: none; white-space: nowrap; }
-html.light .mf-site-banner .msb-link { color: color-mix(in srgb, var(--c) 70%, var(--text-primary)); }
-.mf-site-banner .msb-link:hover { text-decoration: underline; }
-.mf-site-banner .msb-close {
-  position: absolute; top: 50%; right: .5rem; transform: translateY(-50%);
-  width: 28px; height: 28px; border-radius: 50%; border: 0; background: transparent;
-  color: var(--text-secondary); font-size: 1.2rem; line-height: 1; cursor: pointer;
-}
 
 /* ===== быстрые ссылки, экспорт ===== */
 .links-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr)); gap: .7rem; }
@@ -308,3 +289,15 @@ html.light .mf-site-banner .msb-link { color: color-mix(in srgb, var(--c) 70%, v
   .panel-head .actions-row .seg .chip { flex: 1 1 auto; }
   .panel-foot .btn { flex: 1 1 auto; }
 }
+
+/* ===== ссылки внутри панелей: без «карточной» стрелки и крупного шрифта из common.css (.mf-card a) ===== */
+.admin-panel .admin-table a, .admin-panel .ev-text a, .admin-panel .link-row a, .admin-panel .quick-link {
+  display: inline; font-size: inherit; font-weight: inherit; gap: 0;
+}
+.admin-panel .admin-table .title-cell > a { font-weight: 600; }
+.admin-panel .quick-link { display: flex; }
+.admin-panel .admin-table a::after, .admin-panel .ev-text a::after, .admin-panel .link-row a::after,
+.admin-panel .quick-link::after { content: none; display: none; }
+.admin-panel p.adm-note { margin-bottom: 0; font-size: .84rem; }
+.mf-site-banner .msb-link { display: inline; font-size: inherit; }
+.mf-site-banner .msb-link::after { content: none; display: none; }
