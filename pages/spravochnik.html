@@ -6,21 +6,6 @@
   <script>/* MathFrame: тема до первого кадра + маска перехода между страницами (см. common.js › PAGE TRANSITIONS) */(function(){var d=document.documentElement;try{var t=localStorage.getItem('theme');if(t==='light'||(t!=='dark'&&!matchMedia('(prefers-color-scheme: dark)').matches))d.classList.add('light');}catch(e){}try{var s=sessionStorage.getItem('mf-veil');if(!s)return;sessionStorage.removeItem('mf-veil');var v=JSON.parse(s),n=performance.getEntriesByType&&performance.getEntriesByType('navigation')[0];if(!v||!v.fill||Date.now()-v.t>8000||(n&&n.type&&n.type!=='navigate'))return;window.__mfVeil=v;d.style.setProperty('--mf-veil-fill',v.fill);d.classList.add('mf-veil-on');setTimeout(function(){d.classList.remove('mf-veil-on')},4000);}catch(e){}})();</script>
   <title>Справочник — MathFrame</title>
 
-  <style>
-    @font-face {
-      font-family: 'BodyFont';
-      src: url('/assets/fonts/body-font.otf') format('opentype'); 
-      font-weight: 400;
-      font-style: normal;
-    }
-    @font-face { 
-      font-family: 'BodyFont';
-      src: url('/assets/fonts/body-font-bold.otf') format('opentype');
-      font-weight: 700;
-      font-style: normal;
-    }
-  </style>
-
   <link rel="stylesheet" href="/assets/css/common.css" />
 
   <!-- ===== INLINE СПРАВОЧНИК CSS ===== -->
@@ -101,10 +86,10 @@
     /* ===== САЙДБАР ===== */
     .spr-sidebar {
       position: fixed;
-      top: var(--header-height);
+      top: calc(var(--header-height) + var(--mf-notice-h, 0px));  /* ниже полосы уведомлений (common.css, раздел 22) */
       left: 0;
       width: var(--spr-sidebar-width);
-      height: calc(100vh - var(--header-height));
+      height: calc(100vh - var(--header-height) - var(--mf-notice-h, 0px));
       overflow: hidden;
       background: var(--bg-card);
       backdrop-filter: blur(20px);
@@ -228,6 +213,44 @@
       animation: fadeIn 0.3s ease;
     }
     .spr-search-empty.visible { display: block; }
+
+    /* ===== ВЫПАДАЮЩИЙ СПИСОК СОВПАДЕНИЙ (как в поиске AI-агента) ===== */
+    .spr-search-list {
+      position: absolute;
+      left: 0; right: 0; top: calc(100% + 6px);
+      z-index: 20;
+      list-style: none;
+      margin: 0; padding: 0.35rem;
+      max-height: min(360px, 60vh);
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      background: var(--bg-raised);
+      border: 1px solid var(--border-strong);
+      border-radius: var(--r-lg, 0.9rem);
+      box-shadow: var(--shadow-lg, 0 20px 50px rgba(0,0,0,.45));
+      -webkit-backdrop-filter: blur(20px) saturate(150%);
+      backdrop-filter: blur(20px) saturate(150%);
+      animation: sprSearchDrop 0.18s ease backwards;
+    }
+    .spr-search-list[hidden] { display: none; }
+    .spr-search-list li { margin: 0; opacity: 1; animation: none; }
+    .spr-search-list li button {
+      display: flex; align-items: baseline; gap: 0.5rem;
+      width: 100%; text-align: left; font: inherit; font-size: 0.9rem;
+      padding: 0.5rem 0.65rem; border: 0; border-radius: var(--r-sm, 6px);
+      background: transparent; color: var(--text-primary); cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+    .spr-search-list li button:hover,
+    .spr-search-list li button:focus-visible { background: var(--accent-soft); color: var(--accent); outline: none; }
+    .spr-search-list li .spr-search-list-path {
+      font-size: 0.76rem; color: var(--text-tertiary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .spr-search-list li mark {
+      background: none; color: var(--accent); font-weight: 700;
+    }
+    .spr-search-list .spr-search-list-empty { color: var(--text-tertiary); font-size: 0.85rem; padding: 0.55rem 0.7rem; }
+    @keyframes sprSearchDrop { from { opacity: 0; transform: translateY(-4px); } }
 
     /* ===== ДЕРЕВО ТЕМ (занимает всё свободное место) ===== */
     .spr-tree {
@@ -800,7 +823,7 @@
       min-width: 0;
       order: 2;
       position: sticky;
-      top: calc(var(--header-height) + 1.5rem);
+      top: calc(var(--header-height) + var(--mf-notice-h, 0px) + 1.5rem);
     }
     .spr-example[hidden] { display: none; }
 
@@ -947,7 +970,7 @@
     .spr-menu-toggle {
       display: none;
       position: fixed;
-      top: calc(var(--header-height) + 0.75rem);
+      top: calc(var(--header-height) + var(--mf-notice-h, 0px) + 0.75rem);
       left: 0.9rem;
       z-index: 80;
       width: 42px;
@@ -988,7 +1011,7 @@
       display: none;
       position: fixed;
       inset: 0;
-      top: var(--header-height);
+      top: calc(var(--header-height) + var(--mf-notice-h, 0px));
       background: rgba(0,0,0,0.55);
       z-index: 55;
       opacity: 0;
@@ -1022,10 +1045,10 @@
       .spr-menu-toggle { display: flex; }
       .spr-sidebar {
         position: fixed;
-        top: var(--header-height);
+        top: calc(var(--header-height) + var(--mf-notice-h, 0px));
         left: 0;
         width: var(--spr-sidebar-width);
-        height: calc(100vh - var(--header-height));
+        height: calc(100vh - var(--header-height) - var(--mf-notice-h, 0px));
         transform: translateX(-105%);
         box-shadow: var(--shadow);
         border-right: none;
@@ -5331,6 +5354,7 @@
                       <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16" y1="16" x2="22" y2="22"/></svg>
                     </span>
                     <button type="button" class="spr-search-clear" id="sprSearchClear">✕</button>
+                    <ul class="spr-search-list" id="sprSearchList" hidden></ul>
                   </div>
                   <div class="spr-search-empty" id="sprSearchEmpty">Ничего не найдено</div>
                 </div>
@@ -5376,7 +5400,7 @@
                   </div>
 
                   <!-- Кнопка скачивания (только админам) -->
-                  <div class="spr-admin-actions" id="sprAdminActions">
+                  <div class="spr-admin-actions hidden" id="sprAdminActions">
                     <button class="btn primary small" id="sprDownloadBtn">Скачать все темы</button>
                   </div>
 
@@ -5466,6 +5490,7 @@
           optFuzzy: document.getElementById('sprOptFuzzy'),
           optHighlight: document.getElementById('sprOptHighlight'),
           searchEmpty: document.getElementById('sprSearchEmpty'),
+          searchList: document.getElementById('sprSearchList'),
           tree: document.getElementById('sprTree'),
           content: document.getElementById('sprContent'),
           contentInner: document.getElementById('sprContentInner'),
@@ -5540,6 +5565,19 @@
           els.searchInput.value = '';
           els.searchWrap.classList.remove('has-value');
           runSearch();
+        });
+        els.searchInput.addEventListener('keydown', (e) => {
+          if (e.key === 'Escape') {
+            if (els.searchList && !els.searchList.hidden) { els.searchList.hidden = true; e.stopPropagation(); }
+          }
+        });
+        document.addEventListener('click', (e) => {
+          if (!els.searchList || els.searchList.hidden) return;
+          if (e.target.closest('.spr-search-input-wrap')) return;
+          els.searchList.hidden = true;
+        });
+        els.searchInput.addEventListener('focus', () => {
+          if (lastQuery && els.searchList && els.searchList.innerHTML) els.searchList.hidden = false;
         });
         [els.optKeywords, els.optDescription, els.optFuzzy].forEach(cb => cb.addEventListener('change', runSearch));
         els.optHighlight.addEventListener('change', () => {
@@ -6010,7 +6048,72 @@
       function runSearch() {
         lastQuery = els.searchInput.value.trim();
         renderTree();
+        renderSearchList();
         if (currentId) renderTopic(currentId, { skipScroll: true, noHistory: true });
+      }
+
+      // Путь к теме («Алгебра › Уравнения») — подпись под названием в
+      // выпадающем списке поиска, чтобы отличать одноимённые темы в разных разделах.
+      function topicPathTitle(id) {
+        const chain = [];
+        let t = topicsById.get(id);
+        t = t && t.parent ? topicsById.get(t.parent) : null;
+        while (t) { chain.unshift(t.title); t = t.parent ? topicsById.get(t.parent) : null; }
+        return chain.join(' › ');
+      }
+
+      // Выпадающий список подходящих тем под строкой поиска — как на странице
+      // AI-агента (§ выбор темы), вместо одного лишь выделения цветом в дереве.
+      function renderSearchList() {
+        const list = els.searchList;
+        if (!list) return;
+        const query = lastQuery;
+        if (!query) { list.hidden = true; list.innerHTML = ''; return; }
+        const opts = currentSearchOptions();
+        const matches = [];
+        for (const topic of topicsById.values()) {
+          if (topic.type === 'folder') continue;
+          if (matchesTopic(topic, query, opts)) {
+            matches.push(topic);
+            if (matches.length >= 30) break;
+          }
+        }
+        list.innerHTML = '';
+        if (!matches.length) {
+          const li = document.createElement('li');
+          li.className = 'spr-search-list-empty';
+          li.textContent = 'Ничего не найдено';
+          list.appendChild(li);
+          list.hidden = false;
+          return;
+        }
+        matches.forEach(topic => {
+          const li = document.createElement('li');
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          const titleSpan = document.createElement('span');
+          titleSpan.textContent = topic.title;
+          if (opts.highlight) highlightTextInElement(titleSpan, query);
+          btn.appendChild(titleSpan);
+          const path = topicPathTitle(topic.id);
+          if (path) {
+            const pathSpan = document.createElement('span');
+            pathSpan.className = 'spr-search-list-path';
+            pathSpan.textContent = path;
+            btn.appendChild(pathSpan);
+          }
+          btn.addEventListener('click', () => {
+            els.searchInput.value = '';
+            els.searchWrap.classList.remove('has-value');
+            lastQuery = '';
+            list.hidden = true; list.innerHTML = '';
+            renderTree();
+            navigate(topic.id);
+          });
+          li.appendChild(btn);
+          list.appendChild(li);
+        });
+        list.hidden = false;
       }
 
       function applySearchFilterToDom() {
