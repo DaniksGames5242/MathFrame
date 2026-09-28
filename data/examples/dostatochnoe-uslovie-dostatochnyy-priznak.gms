@@ -23,8 +23,8 @@ new UI { name = "sN"; type = slider; label = "n"; variable = n; min = 0; max = 4
 
 float n = 8;
 float c1 = 0; float c2 = 0; float c3 = 0;
-string col1 = "#6b7280"; string col2 = "#6b7280"; string col3 = "#6b7280";
-string noteText = ""; string noteCol = "#6b7280";
+string col1 = "#3b82f6"; string col2 = "#3b82f6"; string col3 = "#3b82f6";
+string noteText = ""; string noteCol = "#3b82f6";
 string info = "";
 
 Function md(a, b) { return a - floor(a / b) * b; }
@@ -34,16 +34,16 @@ Update {
   c1 = 0; if (md(n, 4) == 0) { c1 = 1; }
   c2 = 0; if (md(n, 6) == 0) { c2 = 1; }
   c3 = 0; if (md(n, 2) == 0) { c3 = 1; }
-  col1 = "#6b7280"; if (c1 > 0.5) { col1 = "#3b82f6"; }
-  col2 = "#6b7280"; if (c2 > 0.5) { col2 = "#3b82f6"; }
-  col3 = "#6b7280"; if (c3 > 0.5) { col3 = "#3b82f6"; }
+  col1 = "#3b82f6"; if (c1 > 0.5) { col1 = "#3b82f6"; }
+  col2 = "#3b82f6"; if (c2 > 0.5) { col2 = "#3b82f6"; }
+  col3 = "#3b82f6"; if (c3 > 0.5) { col3 = "#3b82f6"; }
 
   if (c1 > 0.5 || c2 > 0.5) {
     noteText = "хотя бы одно достаточное условие выполнено — заключение гарантировано"; noteCol = "#22c55e";
   } else if (c3 > 0.5) {
-    noteText = "ни одно из двух условий не выполнено, а заключение всё же верно — оно не единственный путь"; noteCol = "#6b7280";
+    noteText = "ни одно из двух условий не выполнено, а заключение всё же верно — оно не единственный путь"; noteCol = "#3b82f6";
   } else {
-    noteText = "ни условия, ни заключения нет"; noteCol = "#6b7280";
+    noteText = "ни условия, ни заключения нет"; noteCol = "#3b82f6";
   }
 
   info = "**Достаточное условие:** из «n делится на 4» следует «n делится на 2» — но не наоборот. Заключение может быть верным и без этого условия, например через другое, независимое достаточное условие («n делится на 6»), или вовсе по иной причине.\n\nn = " + format(n, 0) + ": «делится на 4» — " + mark(c1) + ", «делится на 6» — " + mark(c2) + ", «делится на 2» — " + mark(c3) + ".";

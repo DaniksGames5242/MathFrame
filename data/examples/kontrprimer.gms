@@ -16,7 +16,7 @@ new UI { name = "sS"; type = select; label = "утверждение"; variable 
 new UI { name = "sN"; type = slider; label = "n"; variable = n; min = 2; max = 30; step = 1; default = 2 }
 
 string st = "odd"; float n = 2;
-string stText = ""; string checkText = ""; string checkCol = "#6b7280";
+string stText = ""; string checkText = ""; string checkCol = "#3b82f6";
 string info = "";
 
 Function md(a, b) { return a - floor(a / b) * b; }

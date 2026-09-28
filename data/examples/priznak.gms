@@ -22,7 +22,7 @@ new UI { name = "sN"; type = slider; label = "n"; variable = n; min = 1; max = 4
 string kind = "suf"; float n = 8;
 float cond = 0; float concl = 0;
 string condText = ""; string conclText = ""; string arrText = "";
-string cCond = "#6b7280"; string cConcl = "#6b7280"; string cCheck = "#6b7280"; string checkText = "";
+string cCond = "#3b82f6"; string cConcl = "#3b82f6"; string cCheck = "#3b82f6"; string checkText = "";
 string info = "";
 
 Function md(a, b) { return a - floor(a / b) * b; }
@@ -49,17 +49,17 @@ Update {
     cond = 0; if (md(s, 3) == 0) { cond = 1; }
     concl = 0; if (md(n, 3) == 0) { concl = 1; }
   }
-  cCond = "#6b7280"; if (cond > 0.5) { cCond = "#3b82f6"; }
-  cConcl = "#6b7280"; if (concl > 0.5) { cConcl = "#3b82f6"; }
+  cCond = "#3b82f6"; if (cond > 0.5) { cCond = "#3b82f6"; }
+  cConcl = "#3b82f6"; if (concl > 0.5) { cConcl = "#3b82f6"; }
 
   if (kind == "suf") {
     if (cond > 0.5) { checkText = "условие выполнено — заключение обязано быть верным"; cCheck = "#22c55e"; }
-    else if (concl > 0.5) { checkText = "заключение верно и без условия — это лишь один из достаточных путей"; cCheck = "#6b7280"; }
-    else { checkText = "ни условие, ни заключение не выполнены"; cCheck = "#6b7280"; }
+    else if (concl > 0.5) { checkText = "заключение верно и без условия — это лишь один из достаточных путей"; cCheck = "#3b82f6"; }
+    else { checkText = "ни условие, ни заключение не выполнены"; cCheck = "#3b82f6"; }
   } else if (kind == "nec") {
     if (concl > 0.5) { checkText = "заключение выполнено — условие обязано быть верным"; cCheck = "#22c55e"; }
-    else if (cond > 0.5) { checkText = "условие верно, но заключения нет — оно не гарантирует его"; cCheck = "#6b7280"; }
-    else { checkText = "ни условие, ни заключение не выполнены"; cCheck = "#6b7280"; }
+    else if (cond > 0.5) { checkText = "условие верно, но заключения нет — оно не гарантирует его"; cCheck = "#3b82f6"; }
+    else { checkText = "ни условие, ни заключение не выполнены"; cCheck = "#3b82f6"; }
   } else {
     checkText = "стороны совпадают всегда — это критерий"; cCheck = "#22c55e";
   }

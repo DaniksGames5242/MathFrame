@@ -21,7 +21,7 @@ new UI { name = "sN"; type = slider; label = "n"; variable = n; min = 1; max = 6
 
 float n = 12;
 float isEven = 0; float isPrime = 0; float isSquare = 0; float isCube = 0;
-string cEven = "#6b7280"; string cPrime = "#6b7280"; string cSquare = "#6b7280"; string cCube = "#6b7280";
+string cEven = "#3b82f6"; string cPrime = "#3b82f6"; string cSquare = "#3b82f6"; string cCube = "#3b82f6";
 string info = "";
 
 Function isPrimeF(v) {
@@ -31,7 +31,7 @@ Function isPrimeF(v) {
   return ok;
 }
 Function mark(b) { if (b > 0.5) { return "да"; } return "нет"; }
-Function col(b) { if (b > 0.5) { return "#22c55e"; } return "#6b7280"; }
+Function col(b) { if (b > 0.5) { return "#22c55e"; } return "#3b82f6"; }
 
 Update {
   isEven = 0; if (n - floor(n / 2) * 2 == 0) { isEven = 1; }
@@ -39,10 +39,10 @@ Update {
   float r = round(sqrt(n)); isSquare = 0; if (r * r == n) { isSquare = 1; }
   float c = round(pow(n, 1 / 3)); isCube = 0; if (c * c * c == n) { isCube = 1; }
 
-  cEven = "#6b7280"; if (isEven > 0.5) { cEven = "#22c55e"; }
-  cPrime = "#6b7280"; if (isPrime > 0.5) { cPrime = "#22c55e"; }
-  cSquare = "#6b7280"; if (isSquare > 0.5) { cSquare = "#22c55e"; }
-  cCube = "#6b7280"; if (isCube > 0.5) { cCube = "#22c55e"; }
+  cEven = "#3b82f6"; if (isEven > 0.5) { cEven = "#22c55e"; }
+  cPrime = "#3b82f6"; if (isPrime > 0.5) { cPrime = "#22c55e"; }
+  cSquare = "#3b82f6"; if (isSquare > 0.5) { cSquare = "#22c55e"; }
+  cCube = "#3b82f6"; if (isCube > 0.5) { cCube = "#22c55e"; }
 
   string yes = ""; float any = 0;
   if (isEven > 0.5) { if (any > 0.5) { yes = yes + ", "; } yes = yes + "чётное"; any = 1; }

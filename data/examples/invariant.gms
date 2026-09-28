@@ -26,7 +26,7 @@ new UI { name = "sK"; type = slider; label = "k"; variable = k; min = 0.3; max =
 
 string tr = "rot"; float ang = 60; float k = 1.2;
 float rMax = 3.4;
-string resText = ""; string resCol = "#6b7280";
+string resText = ""; string resCol = "#3b82f6";
 string info = "";
 
 Function info2() {

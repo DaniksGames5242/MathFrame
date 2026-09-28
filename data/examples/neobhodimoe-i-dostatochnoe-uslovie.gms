@@ -20,7 +20,7 @@ new UI { name = "sN"; type = slider; label = "n"; variable = n; min = 0; max = 2
 
 float n = 27; float s = 0;
 float cond = 0; float concl = 0;
-string colCond = "#6b7280"; string colConcl = "#6b7280"; string noteText = "";
+string colCond = "#3b82f6"; string colConcl = "#3b82f6"; string noteText = "";
 string info = "";
 
 Function md(a, b) { return a - floor(a / b) * b; }
@@ -30,8 +30,8 @@ Update {
   s = 0; float m = n; repeat (8) { if (m > 0) { s = s + md(m, 10); m = floor(m / 10); } }
   cond = 0; if (md(s, 3) == 0) { cond = 1; }
   concl = 0; if (md(n, 3) == 0) { concl = 1; }
-  colCond = "#6b7280"; if (cond > 0.5) { colCond = "#3b82f6"; }
-  colConcl = "#6b7280"; if (concl > 0.5) { colConcl = "#3b82f6"; }
+  colCond = "#3b82f6"; if (cond > 0.5) { colCond = "#3b82f6"; }
+  colConcl = "#3b82f6"; if (concl > 0.5) { colConcl = "#3b82f6"; }
   if (cond == concl) { noteText = "стороны совпадают — так для любого n, это и есть критерий"; }
   else { noteText = "если здесь стороны разошлись — это баг, а не критерий"; }
 

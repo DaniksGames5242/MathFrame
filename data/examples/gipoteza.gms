@@ -16,7 +16,7 @@ draw Text { name = "tc"; pos = (0, 3.7); text = checkText; size = 1.05; color = 
 new UI { name = "sN"; type = slider; label = "n"; variable = n; min = 0; max = 45; step = 1; default = 39 }
 
 float n = 39; float val = 0;
-string checkText = ""; string checkCol = "#6b7280";
+string checkText = ""; string checkCol = "#3b82f6";
 string info = "";
 
 Function md(a, b) { return a - floor(a / b) * b; }
