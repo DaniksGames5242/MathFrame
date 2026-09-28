@@ -1,0 +1,110 @@
+[
+description = "{info}"
+
+field width = 20;
+field height = 13;
+camera type = fixed;
+
+// ---- Треугольник ABC: все три вершины перетаскиваются, треугольник не вырождается. ----
+new Point { name = "A"; pos = (-7, -5); text = true("A"); pauseOnDrag = false }
+new Point { name = "B"; pos = (7, -5.5); text = true("B"); pauseOnDrag = false }
+new Point { name = "C"; pos = (1, 4.5); text = true("C"); pauseOnDrag = false }
+
+new Line { name = "ab"; pos = (A, B) }
+new Line { name = "bc"; pos = (B, C) }
+new Line { name = "ca"; pos = (C, A) }
+new Figure { name = "abc"; elements = (ab, bc, ca) }
+
+// ---- Описанная окружность: центр O — пересечение серединных перпендикуляров, R = OA. ----
+new Point { name = "O"; pos = (0, 0); dynamic = false; collision = false; text = true("O") }
+float R = 1;
+new Circle { name = "w"; center = "O"; radius = R; interact = false }
+
+// ---- Логика ----
+string info = "";
+float pax = 0; float pay = 0; float pbx = 0; float pby = 0; float pcx = 0; float pcy = 0;
+float sx = 0; float sy = 0;
+
+Function inField(x, y) {
+  return abs(x) <= fieldMaxX + 0.000001 && abs(y) <= fieldMaxY + 0.000001;
+}
+
+Function ok(x, y, ax, ay, bx, by) {
+  if (!inField(x, y)) { return false; }
+  float ux = ax - x; float uy = ay - y;
+  float vx = bx - x; float vy = by - y;
+  float lu = sqrt(ux * ux + uy * uy);
+  float lv = sqrt(vx * vx + vy * vy);
+  if (lu < 0.4 || lv < 0.4) { return false; }
+  return abs(ux * vy - uy * vx) / 2 >= 0.5;
+}
+
+Function reach(x0, y0, dx, dy, ax, ay, bx, by) {
+  float good = 0; float bad = 2;
+  repeat (16) {
+    if (bad > 1) {
+      if (ok(x0 + dx * (i + 1) / 16, y0 + dy * (i + 1) / 16, ax, ay, bx, by)) { good = (i + 1) / 16; } else { bad = (i + 1) / 16; }
+    }
+  }
+  if (bad > 1) { return 1; }
+  repeat (12) {
+    float mid = (good + bad) / 2;
+    if (ok(x0 + dx * mid, y0 + dy * mid, ax, ay, bx, by)) { good = mid; } else { bad = mid; }
+  }
+  return good;
+}
+
+Function slide(px, py, nx, ny, ax, ay, bx, by) {
+  float t = reach(px, py, nx - px, ny - py, ax, ay, bx, by);
+  float cx = px + (nx - px) * t; float cy = py + (ny - py) * t;
+  float rx = nx - cx; float ry = ny - cy;
+  if (t < 1) {
+    cx = cx + rx * reach(cx, cy, rx, 0, ax, ay, bx, by);
+    cy = cy + ry * reach(cx, cy, 0, ry, ax, ay, bx, by);
+  }
+  sx = cx; sy = cy;
+  return 0;
+}
+
+Function dist(x1, y1, x2, y2) { return sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1)); }
+Function num(x, d) { if (x < 0) { return "−" + format(-x, d); } return format(x, d); }
+
+Start {
+  pax = A.pos.x; pay = A.pos.y; pbx = B.pos.x; pby = B.pos.y; pcx = C.pos.x; pcy = C.pos.y;
+}
+
+Update {
+  float mA = abs(A.pos.x - pax) + abs(A.pos.y - pay);
+  float mB = abs(B.pos.x - pbx) + abs(B.pos.y - pby);
+  float mC = abs(C.pos.x - pcx) + abs(C.pos.y - pcy);
+  float m = max(mA, mB, mC);
+  if (m < 0.000001) {
+  } else if (mA == m) {
+    slide(pax, pay, A.pos.x, A.pos.y, pbx, pby, pcx, pcy);
+    A.pos.x = sx; A.pos.y = sy; B.pos.x = pbx; B.pos.y = pby; C.pos.x = pcx; C.pos.y = pcy;
+  } else if (mB == m) {
+    slide(pbx, pby, B.pos.x, B.pos.y, pcx, pcy, pax, pay);
+    B.pos.x = sx; B.pos.y = sy; A.pos.x = pax; A.pos.y = pay; C.pos.x = pcx; C.pos.y = pcy;
+  } else {
+    slide(pcx, pcy, C.pos.x, C.pos.y, pax, pay, pbx, pby);
+    C.pos.x = sx; C.pos.y = sy; A.pos.x = pax; A.pos.y = pay; B.pos.x = pbx; B.pos.y = pby;
+  }
+  if (!inField(A.pos.x, A.pos.y) || !inField(B.pos.x, B.pos.y) || !inField(C.pos.x, C.pos.y)
+      || abs((B.pos.x - A.pos.x) * (C.pos.y - A.pos.y) - (C.pos.x - A.pos.x) * (B.pos.y - A.pos.y)) / 2 < 0.4) {
+    A.pos.x = pax; A.pos.y = pay; B.pos.x = pbx; B.pos.y = pby; C.pos.x = pcx; C.pos.y = pcy;
+  }
+  pax = A.pos.x; pay = A.pos.y; pbx = B.pos.x; pby = B.pos.y; pcx = C.pos.x; pcy = C.pos.y;
+
+  float ax = A.pos.x; float ay = A.pos.y; float bx = B.pos.x; float by = B.pos.y; float cx = C.pos.x; float cy = C.pos.y;
+  float d = 2 * (ax * (by - cy) + bx * (cy - ay) + cx * (ay - by));
+  if (abs(d) < 0.0001) { d = 0.0001; }
+  float aa = ax * ax + ay * ay; float bb = bx * bx + by * by; float cc = cx * cx + cy * cy;
+  float ux = (aa * (by - cy) + bb * (cy - ay) + cc * (ay - by)) / d;
+  float uy = (aa * (cx - bx) + bb * (ax - cx) + cc * (bx - ax)) / d;
+  O.pos.x = ux; O.pos.y = uy;
+  R = dist(ux, uy, ax, ay);
+
+  float a = dist(bx, by, cx, cy);
+  info = "**Описанная окружность** проходит через все три вершины. Её центр O — точка пересечения серединных перпендикуляров к сторонам, равноудалённая от вершин: OA = OB = OC = R = " + format(R, 2) + ".\n\n**Радиус через сторону и противолежащий угол** (теорема синусов): R = a / (2 sin A), где a = BC = " + format(a, 2) + ".";
+}
+]
