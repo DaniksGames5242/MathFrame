@@ -37,7 +37,7 @@ Function deg(x) { return x * 180 / 3.14159265; }
 Function norm(a) { float m = a - 360 * floor(a / 360); return m; }
 
 Start {
-  newGraph("gg");
+  gg = newGraph();
   // Окружности r = 1…4 и лучи через 30°
   repeat (4) {
     float ring = i + 1;
