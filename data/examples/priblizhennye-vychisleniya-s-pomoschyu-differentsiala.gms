@@ -18,8 +18,8 @@ draw Text { name = "l0"; pos = (px0, -4.6); text = "x₀"; size = 0.9 }
 draw Text { name = "l1"; pos = (px1, -4.1); text = "x₀ + Δx"; size = 0.9 }
 
 new UI { name = "sF"; type = select; label = "f(x)"; variable = cs; options = ("sin", "exp", "log", "sqrt"); labels = ("sin x", "eˣ", "ln x", "√x"); default = "sin" }
-new UI { name = "sX"; type = slider; label = "x₀"; variable = x0; min = lo() + 0.3; max = hi() - 0.3; step = 0.05; default = 2 }
-new UI { name = "sD"; type = slider; label = "Δx"; variable = dx; min = max(-1, lo() - x0); max = min(1, hi() - x0); step = 0.05; default = 0.5 }
+new UI { name = "sX"; type = slider; label = "x₀"; variable = x0; min = ceil((lo() + 0.3) * 20) / 20; max = floor((hi() - 0.3) * 20) / 20; step = 0.05; default = 2 }
+new UI { name = "sD"; type = slider; label = "Δx"; variable = dx; min = max(-1, ceil((lo() - x0) * 20) / 20); max = min(1, floor((hi() - x0) * 20) / 20); step = 0.05; default = 0.5 }
 
 // ---- Логика ----
 string cs = "sin"; float x0 = 2; float dx = 0.5; float px0 = 0; float px1 = 0;
@@ -31,7 +31,7 @@ Function sx() { if (cs == "sin") { return 0.4; } if (cs == "exp") { return 0.25;
 Function yc() { if (cs == "sin") { return 0; } if (cs == "exp") { return 3; } if (cs == "log") { return 0.3; } return 1.4; }
 Function ky() { if (cs == "sin") { return 0.25; } if (cs == "exp") { return 1; } if (cs == "log") { return 0.55; } return 0.5; }
 Function lo() { if (cs == "sin") { return 0.1; } if (cs == "exp") { return -1.9; } if (cs == "log") { return 0.1; } return 0.1; }
-Function hi() { if (cs == "sin") { return 6.3; } if (cs == "exp") { return 1.9; } if (cs == "log") { return 4; } return 7.9; }
+Function hi() { if (cs == "sin") { return 6.2; } if (cs == "exp") { return 1.9; } if (cs == "log") { return 4; } return 7.8; }
 Function F(t) { if (cs == "sin") { return sin(t); } if (cs == "exp") { return exp(t); } if (cs == "log") { return log(t); } return sqrt(t); }
 Function F1(t) { if (cs == "sin") { return cos(t); } if (cs == "exp") { return exp(t); } if (cs == "log") { return 1 / t; } return 0.5 / sqrt(t); }
 Function F2(t) { if (cs == "sin") { return -sin(t); } if (cs == "exp") { return exp(t); } if (cs == "log") { return -1 / (t * t); } return -0.25 / (t * sqrt(t)); }

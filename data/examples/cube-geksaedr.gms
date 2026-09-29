@@ -6,14 +6,14 @@ show grid = false; show axes = false;
 camera start rot = (30, 62);
 camera start zoom = 1.6;
 
-new Point3D { name = "A"; pos = (0, 0, 0); dynamic = false; collision = false; text = true("A") }
-new Point3D { name = "B"; pos = (0, 0, 0); dynamic = false; collision = false; text = true("B") }
-new Point3D { name = "C"; pos = (0, 0, 0); dynamic = false; collision = false; text = true("C") }
-new Point3D { name = "D"; pos = (0, 0, 0); dynamic = false; collision = false; text = true("D") }
-new Point3D { name = "E"; pos = (0, 0, 0); dynamic = false; collision = false; text = true("E") }
-new Point3D { name = "F"; pos = (0, 0, 0); dynamic = false; collision = false; text = true("F") }
-new Point3D { name = "G"; pos = (0, 0, 0); dynamic = false; collision = false; text = true("G") }
-new Point3D { name = "H"; pos = (0, 0, 0); dynamic = false; collision = false; text = true("H") }
+new Point3D { name = "N0"; pos = (0, 0, 0); dynamic = false; collision = false; text = true("A") }
+new Point3D { name = "N1"; pos = (0, 0, 0); dynamic = false; collision = false; text = true("B") }
+new Point3D { name = "N2"; pos = (0, 0, 0); dynamic = false; collision = false; text = true("C") }
+new Point3D { name = "N3"; pos = (0, 0, 0); dynamic = false; collision = false; text = true("D") }
+new Point3D { name = "N4"; pos = (0, 0, 0); dynamic = false; collision = false; text = true("E") }
+new Point3D { name = "N5"; pos = (0, 0, 0); dynamic = false; collision = false; text = true("F") }
+new Point3D { name = "N6"; pos = (0, 0, 0); dynamic = false; collision = false; text = true("G") }
+new Point3D { name = "N7"; pos = (0, 0, 0); dynamic = false; collision = false; text = true("H") }
 new Point3D { name = "O"; pos = (0, 0, 0); dynamic = false; collision = false; text = true("O") }
 new Point3D { name = "V"; pos = (0, 0, 0); dynamic = false; collision = false; active = false }
 new Point3D { name = "Q1"; pos = (0, 0, 0); dynamic = false; collision = false; active = false }
@@ -21,18 +21,18 @@ new Point3D { name = "Q2"; pos = (0, 0, 0); dynamic = false; collision = false; 
 new Point3D { name = "Q3"; pos = (0, 0, 0); dynamic = false; collision = false; active = false }
 new Point3D { name = "W"; pos = (0, 0, 0); dynamic = false; collision = false; active = false }
 
-new Line3D { name = "e01"; pos = (A, B); interact = false; thickness = 3 }
-new Line3D { name = "e02"; pos = (A, C); interact = false; thickness = 3 }
-new Line3D { name = "e04"; pos = (A, E); interact = false; thickness = 3 }
-new Line3D { name = "e13"; pos = (B, D); interact = false; thickness = 3 }
-new Line3D { name = "e15"; pos = (B, F); interact = false; thickness = 3 }
-new Line3D { name = "e23"; pos = (C, D); interact = false; thickness = 3 }
-new Line3D { name = "e26"; pos = (C, G); interact = false; thickness = 3 }
-new Line3D { name = "e37"; pos = (D, H); interact = false; thickness = 3 }
-new Line3D { name = "e45"; pos = (E, F); interact = false; thickness = 3 }
-new Line3D { name = "e46"; pos = (E, G); interact = false; thickness = 3 }
-new Line3D { name = "e57"; pos = (F, H); interact = false; thickness = 3 }
-new Line3D { name = "e67"; pos = (G, H); interact = false; thickness = 3 }
+new Line3D { name = "e01"; pos = (N0, N1); interact = false; thickness = 3 }
+new Line3D { name = "e02"; pos = (N0, N2); interact = false; thickness = 3 }
+new Line3D { name = "e04"; pos = (N0, N4); interact = false; thickness = 3 }
+new Line3D { name = "e13"; pos = (N1, N3); interact = false; thickness = 3 }
+new Line3D { name = "e15"; pos = (N1, N5); interact = false; thickness = 3 }
+new Line3D { name = "e23"; pos = (N2, N3); interact = false; thickness = 3 }
+new Line3D { name = "e26"; pos = (N2, N6); interact = false; thickness = 3 }
+new Line3D { name = "e37"; pos = (N3, N7); interact = false; thickness = 3 }
+new Line3D { name = "e45"; pos = (N4, N5); interact = false; thickness = 3 }
+new Line3D { name = "e46"; pos = (N4, N6); interact = false; thickness = 3 }
+new Line3D { name = "e57"; pos = (N5, N7); interact = false; thickness = 3 }
+new Line3D { name = "e67"; pos = (N6, N7); interact = false; thickness = 3 }
 
 // из выбранной вершины: диагонали трёх граней (жёлтые) и пространственная диагональ (синяя)
 new Line3D { name = "d1"; pos = (V, Q1); interact = false; thickness = 5; color = #f59e0b }
@@ -58,7 +58,7 @@ Update {
   float ky = sel * 1000 + a * 10;
   if (ky != key) {
     key = ky;
-    put(A, 0); put(B, 1); put(C, 2); put(D, 3); put(E, 4); put(F, 5); put(G, 6); put(H, 7);
+    put(N0, 0); put(N1, 1); put(N2, 2); put(N3, 3); put(N4, 4); put(N5, 5); put(N6, 6); put(N7, 7);
     O.pos.x = 0; O.pos.y = 0; O.pos.z = 0;
     put(V, k); flip(Q1, k, -1, -1, 1); flip(Q2, k, -1, 1, -1); flip(Q3, k, 1, -1, -1); flip(W, k, -1, -1, -1);
   }
