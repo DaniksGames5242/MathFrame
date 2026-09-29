@@ -9,7 +9,7 @@ camera type = fixed;
 // Внизу плитки суммы: противоположные плитки взаимно уничтожаются. ----
 draw Graph { name = "gP"; graph = "gp"; nodeColor = #3b82f6; nodeRadius = 14; labels = false; interactive = false; showWeights = false; layer = 10 }
 draw Graph { name = "gN"; graph = "gn"; nodeColor = #f59e0b; nodeRadius = 14; labels = false; interactive = false; showWeights = false; layer = 10 }
-draw Graph { name = "gX"; graph = "gx"; edgeColor = #6b728088; edgeWidth = 1; nodeRadius = 0; labels = false; interactive = false; showWeights = false; layer = 5 }
+draw Graph { name = "gX"; graph = "gx"; edgeColor = #3b82f688; edgeWidth = 1; nodeRadius = 0; labels = false; interactive = false; showWeights = false; layer = 5 }
 draw Text { name = "t1"; pos = (-7.6, 3.6); text = mono(c1, part); size = 1.2; align = left }
 draw Text { name = "t2"; pos = (-7.6, 2.3); text = mono(c2, part); size = 1.2; align = left }
 draw Text { name = "t3"; pos = (-7.6, 1); text = mono(c3, p3); size = 1.2; align = left }
@@ -60,7 +60,8 @@ Update {
   }
   if (sim == "non") {
     string tail = "";
-    if (c3 < 0) { tail = " − " + mono(-c3, p3); } else { tail = " + " + mono(c3, p3); }
+    if (c3 < 0) { tail = " − " + mono(-c3, p3); }
+    if (c3 > 0) { tail = " + " + mono(c3, p3); }
     if (sS == 0) { res1 = mono(c3, p3); } else { res1 = mono(sS, part) + tail; }
     info = "**Неподобные одночлены.** У " + part + " и " + p3 + " буквенные части разные, поэтому третий одночлен сливать с первыми нельзя: сумма подобных первых двух равна " + mono(sS, part) + ", а третье слагаемое остаётся отдельным.";
     if (sS == 0) { info = info + " Остаётся " + res1 + "."; } else { info = info + " Результат — " + res1 + ": двучлен, а не одночлен того же вида."; }

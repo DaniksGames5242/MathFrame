@@ -6,7 +6,7 @@ field height = 10;
 camera type = fixed;
 
 // ---- Четыре разряда основания 8: цифры, веса, двоичные группы по 3 бита, вклад каждой цифры. ----
-draw Text { name = "cp0"; pos = (-7.8, 2.6); text = "цифры"; size = 0.9; align = left }
+draw Text { name = "cp0"; pos = (-7.8, 2.6); text = "цифры (осн. 8)"; size = 0.9; align = left }
 draw Text { name = "cp1"; pos = (-7.8, 1.1); text = "вес разряда"; size = 0.9; align = left }
 draw Text { name = "cp2"; pos = (-7.8, -0.4); text = "двоичная запись"; size = 0.9; align = left }
 draw Text { name = "cp3"; pos = (-7.8, -1.9); text = "вклад цифры"; size = 0.9; align = left }
@@ -26,13 +26,12 @@ draw Text { name = "dg3"; pos = (-3.9, 2.6); text = hx(d3); size = 2.4; color = 
 draw Text { name = "w3"; pos = (-3.9, 1.1); text = "8³"; size = 1.1 }
 draw Text { name = "bt3"; pos = (-3.9, -0.4); text = bin(d3); size = 1.5 }
 draw Text { name = "ct3"; pos = (-3.9, -1.9); text = hx(d3) + " · " + format(pow(8, 3), 0) + " = " + format(d3 * pow(8, 3), 0); size = 0.95 }
-draw Text { name = "sub"; pos = (6.3, 2.35); text = "₈"; size = 1.4 }
 draw Text { name = "res"; pos = (0, -3.7); text = "= " + format(val, 0) + "₁₀"; size = 2; color = #f59e0b }
 
-new UI { name = "s0"; type = slider; label = "цифра при 8⁰"; variable = d0; min = 0; max = 7; step = 1; default = 7 }
-new UI { name = "s1"; type = slider; label = "цифра при 8¹"; variable = d1; min = 0; max = 7; step = 1; default = 3 }
-new UI { name = "s2"; type = slider; label = "цифра при 8²"; variable = d2; min = 0; max = 7; step = 1; default = 2 }
 new UI { name = "s3"; type = slider; label = "цифра при 8³"; variable = d3; min = 0; max = 7; step = 1; default = 1 }
+new UI { name = "s2"; type = slider; label = "цифра при 8²"; variable = d2; min = 0; max = 7; step = 1; default = 2 }
+new UI { name = "s1"; type = slider; label = "цифра при 8¹"; variable = d1; min = 0; max = 7; step = 1; default = 3 }
+new UI { name = "s0"; type = slider; label = "цифра при 8⁰"; variable = d0; min = 0; max = 7; step = 1; default = 7 }
 
 // ---- Логика ----
 float d0 = 7; float d1 = 3; float d2 = 2; float d3 = 1;

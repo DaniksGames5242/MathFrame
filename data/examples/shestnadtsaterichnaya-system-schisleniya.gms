@@ -6,7 +6,7 @@ field height = 10;
 camera type = fixed;
 
 // ---- Четыре разряда основания 16: цифры, веса, двоичные группы по 4 бита, вклад каждой цифры. ----
-draw Text { name = "cp0"; pos = (-7.8, 2.6); text = "цифры"; size = 0.9; align = left }
+draw Text { name = "cp0"; pos = (-7.8, 2.6); text = "цифры (осн. 16)"; size = 0.9; align = left }
 draw Text { name = "cp1"; pos = (-7.8, 1.1); text = "вес разряда"; size = 0.9; align = left }
 draw Text { name = "cp2"; pos = (-7.8, -0.4); text = "двоичная запись"; size = 0.9; align = left }
 draw Text { name = "cp3"; pos = (-7.8, -1.9); text = "вклад цифры"; size = 0.9; align = left }
@@ -26,14 +26,14 @@ draw Text { name = "dg3"; pos = (-3.9, 2.6); text = hx(d3); size = 2.4; color = 
 draw Text { name = "w3"; pos = (-3.9, 1.1); text = "16³"; size = 1.1 }
 draw Text { name = "bt3"; pos = (-3.9, -0.4); text = bin(d3); size = 1.5 }
 draw Text { name = "ct3"; pos = (-3.9, -1.9); text = hx(d3) + " · " + format(pow(16, 3), 0) + " = " + format(d3 * pow(16, 3), 0); size = 0.95 }
-draw Text { name = "sub"; pos = (6.3, 2.35); text = "₁₆"; size = 1.4 }
 draw Text { name = "res"; pos = (0, -3.7); text = "= " + format(val, 0) + "₁₀"; size = 2; color = #f59e0b }
-draw Text { name = "by1"; pos = (-2.6, -0.4 + 3.1); text = ""; size = 1; active = false }
+draw Text { name = "by1"; pos = (-2.6, 3.9); text = "старший байт"; size = 0.9; color = #f59e0b }
+draw Text { name = "by0"; pos = (2.6, 3.9); text = "младший байт"; size = 0.9; color = #f59e0b }
 
-new UI { name = "s0"; type = slider; label = "цифра при 16⁰"; variable = d0; min = 0; max = 15; step = 1; default = 15 }
-new UI { name = "s1"; type = slider; label = "цифра при 16¹"; variable = d1; min = 0; max = 15; step = 1; default = 3 }
-new UI { name = "s2"; type = slider; label = "цифра при 16²"; variable = d2; min = 0; max = 15; step = 1; default = 10 }
 new UI { name = "s3"; type = slider; label = "цифра при 16³"; variable = d3; min = 0; max = 15; step = 1; default = 1 }
+new UI { name = "s2"; type = slider; label = "цифра при 16²"; variable = d2; min = 0; max = 15; step = 1; default = 10 }
+new UI { name = "s1"; type = slider; label = "цифра при 16¹"; variable = d1; min = 0; max = 15; step = 1; default = 3 }
+new UI { name = "s0"; type = slider; label = "цифра при 16⁰"; variable = d0; min = 0; max = 15; step = 1; default = 15 }
 
 // ---- Логика ----
 float d0 = 15; float d1 = 3; float d2 = 10; float d3 = 1;
