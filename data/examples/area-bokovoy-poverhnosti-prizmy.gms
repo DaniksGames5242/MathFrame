@@ -1,0 +1,171 @@
+[
+description = "{info}"
+
+field width = 12; field height = 10; field depth = 12;
+show grid = false; show axes = false;
+camera start rot = (30, 62);
+camera start zoom = 1.25;
+
+
+// Призма с боковыми гранями-параллелограммами. Зелёным — перпендикулярное сечение
+// (плоскость через центр призмы, перпендикулярная боковым рёбрам), если оно целиком
+// лежит на боковой поверхности.
+new Point3D { name = "B0"; pos = (0, 0, 0); dynamic = false; collision = false; active = e0 }
+new Point3D { name = "T0"; pos = (0, 0, 0); dynamic = false; collision = false; active = e0 }
+new Point3D { name = "B1"; pos = (0, 0, 0); dynamic = false; collision = false; active = e1 }
+new Point3D { name = "T1"; pos = (0, 0, 0); dynamic = false; collision = false; active = e1 }
+new Point3D { name = "B2"; pos = (0, 0, 0); dynamic = false; collision = false; active = e2 }
+new Point3D { name = "T2"; pos = (0, 0, 0); dynamic = false; collision = false; active = e2 }
+new Point3D { name = "B3"; pos = (0, 0, 0); dynamic = false; collision = false; active = e3 }
+new Point3D { name = "T3"; pos = (0, 0, 0); dynamic = false; collision = false; active = e3 }
+new Point3D { name = "B4"; pos = (0, 0, 0); dynamic = false; collision = false; active = e4 }
+new Point3D { name = "T4"; pos = (0, 0, 0); dynamic = false; collision = false; active = e4 }
+new Point3D { name = "B5"; pos = (0, 0, 0); dynamic = false; collision = false; active = e5 }
+new Point3D { name = "T5"; pos = (0, 0, 0); dynamic = false; collision = false; active = e5 }
+new Point3D { name = "B6"; pos = (0, 0, 0); dynamic = false; collision = false; active = e6 }
+new Point3D { name = "T6"; pos = (0, 0, 0); dynamic = false; collision = false; active = e6 }
+new Point3D { name = "B7"; pos = (0, 0, 0); dynamic = false; collision = false; active = e7 }
+new Point3D { name = "T7"; pos = (0, 0, 0); dynamic = false; collision = false; active = e7 }
+new Point3D { name = "X"; pos = (0, 0, 0); dynamic = false; collision = false; active = false }
+new Point3D { name = "Y"; pos = (0, 0, 0); dynamic = false; collision = false; active = false }
+new Point3D { name = "U"; pos = (0, 0, 0); dynamic = false; collision = false; active = false }
+new Point3D { name = "V"; pos = (0, 0, 0); dynamic = false; collision = false; active = false }
+new Line3D { name = "b0"; pos = (B0, B1); interact = false; thickness = 3; active = e1 }
+new Line3D { name = "t0"; pos = (T0, T1); interact = false; thickness = 3; active = e1 }
+new Line3D { name = "b1"; pos = (B1, B2); interact = false; thickness = 3; active = e2 }
+new Line3D { name = "t1"; pos = (T1, T2); interact = false; thickness = 3; active = e2 }
+new Line3D { name = "b2"; pos = (B2, B3); interact = false; thickness = 3; active = e3 }
+new Line3D { name = "t2"; pos = (T2, T3); interact = false; thickness = 3; active = e3 }
+new Line3D { name = "b3"; pos = (B3, B4); interact = false; thickness = 3; active = e4 }
+new Line3D { name = "t3"; pos = (T3, T4); interact = false; thickness = 3; active = e4 }
+new Line3D { name = "b4"; pos = (B4, B5); interact = false; thickness = 3; active = e5 }
+new Line3D { name = "t4"; pos = (T4, T5); interact = false; thickness = 3; active = e5 }
+new Line3D { name = "b5"; pos = (B5, B6); interact = false; thickness = 3; active = e6 }
+new Line3D { name = "t5"; pos = (T5, T6); interact = false; thickness = 3; active = e6 }
+new Line3D { name = "b6"; pos = (B6, B7); interact = false; thickness = 3; active = e7 }
+new Line3D { name = "t6"; pos = (T6, T7); interact = false; thickness = 3; active = e7 }
+new Line3D { name = "bc"; pos = (X, Y); interact = false; thickness = 3 }
+new Line3D { name = "tc"; pos = (U, V); interact = false; thickness = 3 }
+new Line3D { name = "l0"; pos = (B0, T0); interact = false; thickness = 3; color = #f59e0b; active = e0 }
+new Line3D { name = "l1"; pos = (B1, T1); interact = false; thickness = 3; color = #f59e0b; active = e1 }
+new Line3D { name = "l2"; pos = (B2, T2); interact = false; thickness = 3; color = #f59e0b; active = e2 }
+new Line3D { name = "l3"; pos = (B3, T3); interact = false; thickness = 3; color = #f59e0b; active = e3 }
+new Line3D { name = "l4"; pos = (B4, T4); interact = false; thickness = 3; color = #f59e0b; active = e4 }
+new Line3D { name = "l5"; pos = (B5, T5); interact = false; thickness = 3; color = #f59e0b; active = e5 }
+new Line3D { name = "l6"; pos = (B6, T6); interact = false; thickness = 3; color = #f59e0b; active = e6 }
+new Line3D { name = "l7"; pos = (B7, T7); interact = false; thickness = 3; color = #f59e0b; active = e7 }
+
+new Point3D { name = "Q0"; pos = (0, 0, 0); dynamic = false; collision = false; active = f0 }
+new Point3D { name = "Q1"; pos = (0, 0, 0); dynamic = false; collision = false; active = f1 }
+new Point3D { name = "Q2"; pos = (0, 0, 0); dynamic = false; collision = false; active = f2 }
+new Point3D { name = "Q3"; pos = (0, 0, 0); dynamic = false; collision = false; active = f3 }
+new Point3D { name = "Q4"; pos = (0, 0, 0); dynamic = false; collision = false; active = f4 }
+new Point3D { name = "Q5"; pos = (0, 0, 0); dynamic = false; collision = false; active = f5 }
+new Point3D { name = "Q6"; pos = (0, 0, 0); dynamic = false; collision = false; active = f6 }
+new Point3D { name = "Q7"; pos = (0, 0, 0); dynamic = false; collision = false; active = f7 }
+new Point3D { name = "QX"; pos = (0, 0, 0); dynamic = false; collision = false; active = false }
+new Point3D { name = "QY"; pos = (0, 0, 0); dynamic = false; collision = false; active = false }
+new Line3D { name = "c0"; pos = (Q0, Q1); interact = false; thickness = 4; color = #22c55e; active = f1 }
+new Line3D { name = "c1"; pos = (Q1, Q2); interact = false; thickness = 4; color = #22c55e; active = f2 }
+new Line3D { name = "c2"; pos = (Q2, Q3); interact = false; thickness = 4; color = #22c55e; active = f3 }
+new Line3D { name = "c3"; pos = (Q3, Q4); interact = false; thickness = 4; color = #22c55e; active = f4 }
+new Line3D { name = "c4"; pos = (Q4, Q5); interact = false; thickness = 4; color = #22c55e; active = f5 }
+new Line3D { name = "c5"; pos = (Q5, Q6); interact = false; thickness = 4; color = #22c55e; active = f6 }
+new Line3D { name = "c6"; pos = (Q6, Q7); interact = false; thickness = 4; color = #22c55e; active = f7 }
+new Line3D { name = "cc"; pos = (QX, QY); interact = false; thickness = 4; color = #22c55e; active = okc > 0.5 }
+
+new UI { name = "s_n"; type = slider; label = "число сторон основания n"; variable = n; min = 3; max = 8; step = 1; default = 5 }
+new UI { name = "s_R"; type = slider; label = "размер основания"; variable = R; min = 1.2; max = 2.6; step = 0.1; default = 2.2 }
+new UI { name = "s_sx"; type = slider; label = "вытянутость основания"; variable = sx; min = 0.5; max = 1.2; step = 0.05; default = 1 }
+new UI { name = "s_h"; type = slider; label = "высота h"; variable = h; min = 2; max = 5; step = 0.1; default = 3.5 }
+new UI { name = "s_phi"; type = slider; label = "наклон боковых рёбер φ, °"; variable = phi; min = 0; max = 50; step = 1; default = 25 }
+new UI { name = "s_psi"; type = slider; label = "направление наклона, °"; variable = psi; min = 0; max = 360; step = 1; default = 30 }
+
+string info = "";
+float n = 5; float R = 2.2; float sx = 1; float h = 3.5; float phi = 25; float psi = 30;
+float dx = 0; float dz = 0;
+float e0 = 1; float e1 = 1; float e2 = 1; float e3 = 1; float e4 = 1; float e5 = 1; float e6 = 1; float e7 = 1;
+float okc = 1; float f0 = 1; float f1 = 1; float f2 = 1; float f3 = 1; float f4 = 1; float f5 = 1; float f6 = 1; float f7 = 1;
+Function qx(k) { return R * sx * cos(6.283185 * k / n); }
+Function qz(k) { return R * sin(6.283185 * k / n); }
+Function put(P, Q, k) {
+  P.pos.x = qx(k) - dx / 2; P.pos.y = -h / 2; P.pos.z = qz(k) - dz / 2;
+  Q.pos.x = P.pos.x + dx; Q.pos.y = h / 2; Q.pos.z = P.pos.z + dz;
+}
+Function side(k) { return sqrt((qx(k + 1) - qx(k)) * (qx(k + 1) - qx(k)) + (qz(k + 1) - qz(k)) * (qz(k + 1) - qz(k))); }
+Function face(k) {
+  float ax = qx(k + 1) - qx(k); float az = qz(k + 1) - qz(k);
+  float c1 = -az * h; float c2 = az * dx - ax * dz; float c3 = ax * h;
+  return sqrt(c1 * c1 + c2 * c2 + c3 * c3);
+}
+Function perp(k) {
+  float ax = qx(k + 1) - qx(k); float az = qz(k + 1) - qz(k);
+  float sc = ax * dx + az * dz;
+  return sqrt(max(0, ax * ax + az * az - sc * sc / (dx * dx + h * h + dz * dz)));
+}
+Function area() { float s = 0; repeat (n) { s = s + qx(i) * qz(i + 1) - qx(i + 1) * qz(i); } return abs(s) / 2; }
+Function per() { float s = 0; repeat (n) { s = s + side(i); } return s; }
+Function lat() { float s = 0; repeat (n) { s = s + face(i); } return s; }
+Function pper() { float s = 0; repeat (n) { s = s + perp(i); } return s; }
+Function num(x, d) { if (x < 0) { return "−" + format(-x, d); } return format(x, d); }
+Function tq(k) { return 0.5 - (qx(k) * dx + qz(k) * dz) / (dx * dx + h * h + dz * dz); }
+Function putq(P, k) {
+  float t = tq(k);
+  P.pos.x = qx(k) - dx / 2 + t * dx; P.pos.y = -h / 2 + t * h; P.pos.z = qz(k) - dz / 2 + t * dz;
+}
+
+Update {
+  float g = radians(phi); float a = radians(psi);
+  dx = h * tan(g) * cos(a); dz = h * tan(g) * sin(a);
+  float o = round(n); n = o;
+  e0 = 0; if (n > 0.5) { e0 = 1; }
+  e1 = 0; if (n > 1.5) { e1 = 1; }
+  e2 = 0; if (n > 2.5) { e2 = 1; }
+  e3 = 0; if (n > 3.5) { e3 = 1; }
+  e4 = 0; if (n > 4.5) { e4 = 1; }
+  e5 = 0; if (n > 5.5) { e5 = 1; }
+  e6 = 0; if (n > 6.5) { e6 = 1; }
+  e7 = 0; if (n > 7.5) { e7 = 1; }
+  put(B0, T0, 0);
+  put(B1, T1, 1);
+  put(B2, T2, 2);
+  put(B3, T3, 3);
+  put(B4, T4, 4);
+  put(B5, T5, 5);
+  put(B6, T6, 6);
+  put(B7, T7, 7);
+  put(X, U, n - 1); put(Y, V, 0);
+  putq(Q0, 0);
+  putq(Q1, 1);
+  putq(Q2, 2);
+  putq(Q3, 3);
+  putq(Q4, 4);
+  putq(Q5, 5);
+  putq(Q6, 6);
+  putq(Q7, 7);
+  putq(QX, n - 1); putq(QY, 0);
+  float tmin = 1; float tmax = 0;
+  repeat (n) { tmin = min(tmin, tq(i)); tmax = max(tmax, tq(i)); }
+  okc = 1; if (tmin < 0 || tmax > 1) { okc = 0; }
+  f0 = e0 * okc;
+  f1 = e1 * okc;
+  f2 = e2 * okc;
+  f3 = e3 * okc;
+  f4 = e4 * okc;
+  f5 = e5 * okc;
+  f6 = e6 * okc;
+  f7 = e7 * okc;
+  float l = sqrt(dx * dx + h * h + dz * dz);
+  float pp = per(); float pq = pper();
+  info = "**Площадь боковой поверхности призмы** — сумма площадей " + format(n, 0) + " боковых граней; каждая — параллелограмм, у которого одна сторона — боковое ребро l = " + format(l, 2) + ", а высота к нему — сторона перпендикулярного сечения.\n\n";
+  info = info + "Грани: ";
+  repeat (n) { if (i > 0) { info = info + " + "; } info = info + format(face(i), 2); }
+  info = info + " = **" + format(lat(), 2) + "**.\n\n";
+  if (phi == 0) {
+    info = info + "Призма прямая: грани — прямоугольники, и S_бок = P · l = " + format(pp, 2) + " · " + format(l, 2) + " = **" + format(pp * l, 2) + "**.";
+  } else {
+    info = info + "Призма наклонная: S_бок = P⊥ · l = " + format(pq, 2) + " · " + format(l, 2) + " = **" + format(pq * l, 2) + "**, где P⊥ — периметр перпендикулярного сечения. Формула P · l (P = " + format(pp, 2) + ") здесь дала бы " + format(pp * l, 2) + " — неверно.";
+  }
+  if (okc < 0.5) { info = info + "\n\nПри таком наклоне перпендикулярное сечение через центр выходит за боковую поверхность, поэтому не показано."; }
+}
+]
