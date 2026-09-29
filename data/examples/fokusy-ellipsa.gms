@@ -2,7 +2,7 @@
 description = "{info}"
 field width = 16; field height = 10;
 camera type = fixed;
-float a = 6; float c = 3; float b = 5; string info = "";
+float a = 5; float c = 3; float b = 5; string info = "";
 new Curve { name = "el"; type = parametric; x = "a * cos(t * 6.2832)"; y = "b * sin(t * 6.2832)"; color = #3b82f6; thickness = 3 }
 new Point { name = "F1"; pos = (0, 0); dynamic = false; collision = false; color = #f59e0b; text = true("F₁") }
 new Point { name = "F2"; pos = (0, 0); dynamic = false; collision = false; color = #f59e0b; text = true("F₂") }
@@ -14,7 +14,7 @@ new Line { name = "m2"; pos = (F2, P); color = #f59e0b }
 new Line { name = "ob"; pos = (O, B); color = #22c55e }
 new Line { name = "bf"; pos = (B, F2); color = #22c55e }
 new Line { name = "of"; pos = (O, F2); color = #22c55e }
-new UI { type = slider; label = "большая полуось a"; variable = a; min = 2; max = 7.5; step = 0.1; default = 6 }
+new UI { type = slider; label = "большая полуось a"; variable = a; min = 2; max = 7.5; step = 0.1; default = 5 }
 new UI { type = slider; label = "расстояние до фокуса c"; variable = c; min = 0; max = min(a - 0.5, 6.5); step = 0.1; default = 3 }
 Update {
   b = sqrt(a * a - c * c);

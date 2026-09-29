@@ -20,7 +20,7 @@ new UI { type = slider; label = "эксцентриситет ε"; variable = e;
 Update {
   c = a * e; b = a * sqrt(e * e - 1); dd = a / e;
   float z = 5.9 / b; float w = 9.8 / a;
-  sm = min(ln(z + sqrt(z * z + 1)), ln(w + sqrt(w * w - 1)));
+  sm = min(log(z + sqrt(z * z + 1)), log(w + sqrt(w * w - 1)));
   gd = newGraph();
   addNode(gd, "l1", [-dd, -6]); addNode(gd, "l2", [-dd, 6]); addEdge(gd, "l1", "l2");
   addNode(gd, "r1", [dd, -6]); addNode(gd, "r2", [dd, 6]); addEdge(gd, "r1", "r2");

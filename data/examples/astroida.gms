@@ -5,8 +5,8 @@ camera type = fixed;
 float R = 6; float r = 1.5; float ph = 0.6; float lastPh = 9; string info = "";
 new Point { name = "O"; pos = (0, 0); dynamic = false; collision = false; size = 0.2 }
 new Circle { name = "fix"; center = O; radius = R; color = #f59e0b; thickness = 1.5 }
-new Circle { name = "path"; center = O; radius = R - r; active = false }
-new Curve { name = "ast"; type = parametric; x = "R * cos(6.2832 * t) ^ 3"; y = "R * sin(6.2832 * t) ^ 3"; color = #3b82f6; thickness = 3 }
+new Circle { name = "path"; center = O; radius = 4.5; active = false }
+new Curve { name = "ast"; type = parametric; x = "R * cos(6.2832 * t) ^ 3"; y = "R * sin(6.2832 * t) ^ 3"; color = #3b82f6; thickness = 3; segments = 400 }
 new Point { name = "C"; circle = "path"; t = 0.1; pauseOnDrag = false; collideWithPoints = false; text = true("C") }
 new Circle { name = "roll"; center = C; radius = r; thickness = 1.5 }
 new Point { name = "T"; pos = (R, 0); dynamic = false; collision = false; size = 0.2; text = true("T") }

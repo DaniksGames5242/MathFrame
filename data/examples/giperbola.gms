@@ -23,10 +23,10 @@ Function dist(X, Y, U, V) { return sqrt((X - U) * (X - U) + (Y - V) * (Y - V)); 
 Update {
   c = sqrt(a * a + b * b);
   float z = 4.9 / b; float w = 7.9 / a;
-  sm = min(ln(z + sqrt(z * z + 1)), ln(w + sqrt(w * w - 1)));
+  sm = min(log(z + sqrt(z * z + 1)), log(w + sqrt(w * w - 1)));
   F1.pos.x = -c; F1.pos.y = 0; F2.pos.x = c; F2.pos.y = 0;
   float p1 = dist(P.pos.x, P.pos.y, -c, 0); float p2 = dist(P.pos.x, P.pos.y, c, 0);
   float q1 = dist(Q.pos.x, Q.pos.y, -c, 0); float q2 = dist(Q.pos.x, Q.pos.y, c, 0);
-  info = "**Гипербола** x²/a² − y²/b² = 1 — кривая второго порядка из двух ветвей, приближающихся к асимптотам y = ±(b/a)x (серые); у неё есть центр и две оси симметрии. Здесь a = " + format(a, 1) + ", b = " + format(b, 1) + ", фокусы F₁ и F₂ на расстоянии c = √(a² + b²) = " + format(c, 2) + " от центра.\n\nМодуль разности расстояний от точки кривой до фокусов постоянен и равен длине действительной оси 2a = " + format(2 * a, 1) + ": |MF₁ − MF₂| = |" + format(p1, 2) + " − " + format(p2, 2) + "| = " + format(abs(p1 - p2), 2) + ", |NF₁ − NF₂| = |" + format(q1, 2) + " − " + format(q2, 2) + "| = " + format(abs(q1 - q2), 2) + ".";
+  info = "**Гипербола** x²/a² − y²/b² = 1 — кривая второго порядка из двух ветвей, приближающихся к асимптотам y = ±(b/a)x; у неё есть центр и две оси симметрии. Здесь a = " + format(a, 1) + ", b = " + format(b, 1) + ", фокусы F₁ и F₂ на расстоянии c = √(a² + b²) = " + format(c, 2) + " от центра.\n\nМодуль разности расстояний от точки кривой до фокусов постоянен и равен длине действительной оси 2a = " + format(2 * a, 1) + ": |MF₁ − MF₂| = |" + format(p1, 2) + " − " + format(p2, 2) + "| = " + format(abs(p1 - p2), 2) + ", |NF₁ − NF₂| = |" + format(q1, 2) + " − " + format(q2, 2) + "| = " + format(abs(q1 - q2), 2) + ".";
 }
 ]

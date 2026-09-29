@@ -26,7 +26,7 @@ Function dist(X, Y, U, V) { return sqrt((X - U) * (X - U) + (Y - V) * (Y - V)); 
 Update {
   c = sqrt(a * a + b * b);
   float z = 4.9 / b; float w = 7.9 / a;
-  sm = min(ln(z + sqrt(z * z + 1)), ln(w + sqrt(w * w - 1)));
+  sm = min(log(z + sqrt(z * z + 1)), log(w + sqrt(w * w - 1)));
   F1.pos.x = -c; F1.pos.y = 0; F2.pos.x = c; F2.pos.y = 0;
   A.pos.x = a; A.pos.y = 0; K.pos.x = a; K.pos.y = b;
   float p1 = dist(P.pos.x, P.pos.y, -c, 0); float p2 = dist(P.pos.x, P.pos.y, c, 0);
