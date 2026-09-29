@@ -15,9 +15,9 @@ new Line { name = "ca"; pos = (C, A) }
 new Figure { name = "tri"; elements = (ab, bc, ca) }
 
 // ---- Эксцентры и экс-центральный треугольник IaIbIc ----
-new Point { name = "Ia"; pos = (0, 0); dynamic = false; collision = false; text = true("I_a") }
-new Point { name = "Ib"; pos = (0, 0); dynamic = false; collision = false; text = true("I_b") }
-new Point { name = "Ic"; pos = (0, 0); dynamic = false; collision = false; text = true("I_c") }
+new Point { name = "Ia"; pos = (0, 0); dynamic = false; collision = false; text = true("Ia") }
+new Point { name = "Ib"; pos = (0, 0); dynamic = false; collision = false; text = true("Ib") }
+new Point { name = "Ic"; pos = (0, 0); dynamic = false; collision = false; text = true("Ic") }
 new Point { name = "I"; pos = (0, 0); dynamic = false; collision = false; text = true("I") }
 new Line { name = "iab"; pos = (Ia, Ib); interact = false }
 new Line { name = "ibc"; pos = (Ib, Ic); interact = false }
