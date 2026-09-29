@@ -46,25 +46,25 @@ new Line3D { name = "d8"; pos = (Q, V8); interact = false; thickness = 3; active
 
 new UI { type = slider; label = "число вершин основания n"; variable = n; min = 3; max = 8; step = 1; default = 5 }
 new UI { type = slider; label = "радиус сферы R"; variable = Rs; min = 2.5; max = 4.5; step = 0.1; default = 3.5 }
-new UI { type = slider; label = "уровень основания y₀"; variable = e; min = -2; max = 2; step = 0.1; default = 0.8 }
+new UI { type = slider; label = "уровень основания y₀"; variable = hy; min = -2; max = 2; step = 0.1; default = 0.8 }
 new UI { type = slider; label = "сдвиг вершины Q по оси (ε)"; variable = eps; min = -1.5; max = 1.5; step = 0.1; default = 0 }
 
 string info = "";
-float n = 5; float Rs = 3.5; float e = 0.8; float eps = 0;
+float n = 5; float Rs = 3.5; float hy = 0.8; float eps = 0;
 Function num(x, d) { if (x < -0.0000001) { return "−" + format(-x, d); } return format(abs(x), d); }
 Function put(V, k, a) {
   float kk = k;
   if (kk > n) { kk = 1; }
-  V.pos.x = a * cos(2 * pi * (kk - 1) / n); V.pos.y = e; V.pos.z = a * sin(2 * pi * (kk - 1) / n);
+  V.pos.x = a * cos(2 * pi * (kk - 1) / n); V.pos.y = hy; V.pos.z = a * sin(2 * pi * (kk - 1) / n);
 }
 Update {
-  float a = sqrt(Rs * Rs - e * e);
+  float a = sqrt(Rs * Rs - hy * hy);
   put(V1, 1, a); put(V2, 2, a); put(V3, 3, a); put(V4, 4, a); put(V5, 5, a); put(V6, 6, a); put(V7, 7, a); put(V8, 8, a);
   P.pos.y = Rs; Q.pos.y = -(Rs + eps);
-  float h1 = Rs - e; float h2 = Rs + eps + e;
+  float h1 = Rs - hy; float h2 = Rs + eps + hy;
   float dq = Rs + eps;
-  info = "**Описанный многогранник** — многогранник, все вершины которого лежат на одной сфере. Здесь " + num(n, 0) + "-угольная бипирамида: основание ABC… радиуса " + format(a, 2) + " лежит в плоскости y = " + num(e, 1) + ", вершины P и Q — над и под ним. У неё " + num(n + 2, 0) + " вершин, " + num(3 * n, 0) + " рёбер, " + num(2 * n, 0) + " граней.\n\n";
-  info = info + "**Расстояния от центра O до вершин:** OA = … = " + format(sqrt(a * a + e * e), 2) + ", OP = " + format(Rs, 2) + ", OQ = " + format(dq, 2) + ".\n\n";
+  info = "**Описанный многогранник** — многогранник, все вершины которого лежат на одной сфере. Здесь " + num(n, 0) + "-угольная бипирамида: основание ABC… радиуса " + format(a, 2) + " лежит в плоскости y = " + num(hy, 1) + ", вершины P и Q — над и под ним. У неё " + num(n + 2, 0) + " вершин, " + num(3 * n, 0) + " рёбер, " + num(2 * n, 0) + " граней.\n\n";
+  info = info + "**Расстояния от центра O до вершин:** OA = … = " + format(sqrt(a * a + hy * hy), 2) + ", OP = " + format(Rs, 2) + ", OQ = " + format(dq, 2) + ".\n\n";
   if (abs(eps) < 0.05) {
     info = info + "Все вершины на сфере с центром O и радиусом R = " + format(Rs, 2) + ": сфера описана около многогранника, её центр равноудалён от вершин. Условие существования для такой бипирамиды: h₁ · h₂ = a², где h₁ = " + format(h1, 2) + ", h₂ = " + format(h2, 2) + " — расстояния от P и Q до плоскости основания: " + format(h1 * h2, 2) + " = " + format(a * a, 2) + ".";
   } else {
