@@ -67,6 +67,7 @@ Function prodS() {
   repeat (6) { if (i < cnt) { float e = min(ea[i], eb[i]); if (e > 0) { if (first < 0.5) { s = s + " · "; } s = s + format(pr[i], 0) + sup(e); first = 0; } } }
   if (first > 0.5) { return "1"; } return s;
 }
+Function pt() { if (prodS() == "1") { return "1"; } return prodS() + " = " + format(prodV(), 0); }
 Function prodV() {
   float v = 1; repeat (6) { if (i < cnt) { v = v * pow(pr[i], min(ea[i], eb[i])); } } return v;
 }
@@ -89,8 +90,8 @@ Update {
     }
   }
   info = "**НОД по разложению на простые множители.** Разложения единственны, поэтому общие делители чисел " + format(a, 0) + " и " + format(b, 0) + " составлены из простых, входящих в оба разложения, в степенях не выше меньшей из двух. Берём каждый общий простой множитель в наименьшей степени (зелёный столбец):\n\n";
-  info = info + "**НОД(" + format(a, 0) + ", " + format(b, 0) + ") = " + prodS() + " = " + format(prodV(), 0) + "**.";
+  info = info + "**НОД(" + format(a, 0) + ", " + format(b, 0) + ") = " + pt() + "**.";
   if (prodV() == 1) { info = info + " Общих простых множителей нет — числа взаимно просты."; }
-  else { string only = ""; repeat (6) { if (i < cnt && (ea[i] == 0 || eb[i] == 0)) { if (only != "") { only = only + ", "; } only = only + format(pr[i], 0); } } if (only != "") { info = info + " Простые " + only + "есть лишь в одном числе (минимум 0), в НОД не входят."; } }
+  else { string only = ""; repeat (6) { if (i < cnt && (ea[i] == 0 || eb[i] == 0)) { if (only != "") { only = only + ", "; } only = only + format(pr[i], 0); } } if (only != "") { info = info + " Простые (" + only + ") есть лишь в одном числе (минимум 0), в НОД не входят."; } }
 }
 ]

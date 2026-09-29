@@ -50,12 +50,12 @@ Function subs(v) { if (v >= 10) { return subd(1) + subd(v - 10); } return subd(v
 Function supd(d) { if (d == 0) { return "⁰"; } if (d == 1) { return "¹"; } if (d == 2) { return "²"; } if (d == 3) { return "³"; } if (d == 4) { return "⁴"; } if (d == 5) { return "⁵"; } if (d == 6) { return "⁶"; } if (d == 7) { return "⁷"; } if (d == 8) { return "⁸"; } return "⁹"; }
 Function rowL(k) {
   if (mode == "div") { return format(nn[k], 0) + " = " + format(p, 0) + " · " + format(qq[k], 0) + " +"; }
-  float m = len - 1 - k;
+  float m = max(0, len - 1 - k);
   return hx(dg[m]) + " · " + format(pow(p, m), 0) + " =";
 }
 Function rowR(k) {
   if (mode == "div") { return hx(dg[k]); }
-  float m = len - 1 - k;
+  float m = max(0, len - 1 - k);
   return format(dg[m] * pow(p, m), 0);
 }
 

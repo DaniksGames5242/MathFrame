@@ -45,12 +45,12 @@ Update {
       if (p < np) {
         addNode(gf, "f" + format(p, 0) + "a", [-6.4, y - 1.1]); addNode(gf, "f" + format(p, 0) + "b", [6.4, y - 1.1]); addEdge(gf, "f" + format(p, 0) + "a", "f" + format(p, 0) + "b");
         if (d == 0) {
-          repeat (12) { float t0 = i * 0.5236; float t1 = (i + 1) * 0.5236; addNode(gz, "z" + format(p, 0) + "_" + format(i, 0), [-1 * 0 + 1.1 * cos(t0), y + 0.5 * sin(t0)]); addNode(gz, "y" + format(p, 0) + "_" + format(i, 0), [1.1 * cos(t1), y + 0.5 * sin(t1)]); addEdge(gz, "z" + format(p, 0) + "_" + format(i, 0), "y" + format(p, 0) + "_" + format(i, 0)); }
+          repeat (12) { float t0 = i * 0.5236; float t1 = (i + 1) * 0.5236; addNode(gz, "z" + format(p, 0) + "_" + format(i, 0), [1.1 * cos(t0), y + 0.5 * sin(t0)]); addNode(gz, "y" + format(p, 0) + "_" + format(i, 0), [1.1 * cos(t1), y + 0.5 * sin(t1)]); addEdge(gz, "z" + format(p, 0) + "_" + format(i, 0), "y" + format(p, 0) + "_" + format(i, 0)); }
           addNode(gz, "c" + format(p, 0) + "a", [-0.55, y]); addNode(gz, "c" + format(p, 0) + "b", [0.55, y]); addEdge(gz, "c" + format(p, 0) + "a", "c" + format(p, 0) + "b");
         } else {
           float nb = floor(d / 5); float nd = d - 5 * nb;
-          repeat (nb) { addNode(gb, "b" + format(p, 0) + "_" + format(i, 0) + "a", [-1.4, y + 0.55 - 0.42 * i]); addNode(gb, "b" + format(p, 0) + "_" + format(i, 0) + "b", [1.4, y + 0.55 - 0.42 * i]); addEdge(gb, "b" + format(p, 0) + "_" + format(i, 0) + "a", "b" + format(p, 0) + "_" + format(i, 0) + "b"); }
-          repeat (nd) { addNode(gd, "d" + format(p, 0) + "_" + format(i, 0), [(i - (nd - 1) / 2) * 0.7, y - 0.65 - 0.0 * i + 0.55 * 0 + (0.55 - 0.42 * nb) * 0 + 0.0]); }
+          repeat (nb) { addNode(gb, "b" + format(p, 0) + "_" + format(i, 0) + "a", [-1.4, y + 0.85 - 0.42 * i]); addNode(gb, "b" + format(p, 0) + "_" + format(i, 0) + "b", [1.4, y + 0.85 - 0.42 * i]); addEdge(gb, "b" + format(p, 0) + "_" + format(i, 0) + "a", "b" + format(p, 0) + "_" + format(i, 0) + "b"); }
+          repeat (nd) { addNode(gd, "d" + format(p, 0) + "_" + format(i, 0), [(i - (nd - 1) / 2) * 0.7, y - 0.55]); }
         }
       }
     }

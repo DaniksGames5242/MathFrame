@@ -67,6 +67,7 @@ Function prodS() {
   repeat (6) { if (i < cnt) { float e = max(ea[i], eb[i]); if (e > 0) { if (first < 0.5) { s = s + " · "; } s = s + format(pr[i], 0) + sup(e); first = 0; } } }
   if (first > 0.5) { return "1"; } return s;
 }
+Function pt() { if (prodS() == "1") { return "1"; } return prodS() + " = " + format(prodV(), 0); }
 Function prodV() {
   float v = 1; repeat (6) { if (i < cnt) { v = v * pow(pr[i], max(ea[i], eb[i])); } } return v;
 }
@@ -89,7 +90,7 @@ Update {
     }
   }
   info = "**НОК по разложению на простые множители.** Берём все простые множители, входящие хотя бы в одно из чисел " + format(a, 0) + " и " + format(b, 0) + ", каждый в наибольшей из встречающихся степеней (зелёный столбец):\n\n";
-  info = info + "**НОК(" + format(a, 0) + ", " + format(b, 0) + ") = " + prodS() + " = " + format(prodV(), 0) + "**.\n\n";
+  info = info + "**НОК(" + format(a, 0) + ", " + format(b, 0) + ") = " + pt() + "**.\n\n";
   info = info + "Результат делится на каждое число: " + format(prodV() / a, 0) + " · " + format(a, 0) + " = " + format(prodV() / b, 0) + " · " + format(b, 0) + ". Показатели НОД — минимумы, НОК — максимумы, а min + max = сумме двух показателей, поэтому НОД · НОК = a · b = " + format(a * b, 0) + ".";
 }
 ]

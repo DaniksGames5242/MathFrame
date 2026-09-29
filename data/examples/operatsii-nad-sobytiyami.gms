@@ -1,0 +1,65 @@
+[
+description = "{info}"
+
+field width = 16;
+field height = 10;
+camera type = fixed;
+
+// ---- Пространство исходов Ω — 135 равновозможных исходов (точки решётки 15 × 9).
+// События A и B — исходы внутри кругов; центры кругов перетаскиваются, радиусы — ползунки. ----
+string op = "u";
+float rA = 2.6; float rB = 2.3;
+float na = 0; float nb = 0; float nab = 0; float nr = 0; float nx = 0;
+string key = ""; string info = "";
+draw Graph { name = "gF"; graph = "gf"; edgeColor = #3b82f688; edgeWidth = 1; nodeRadius = 0; labels = false; interactive = false; layer = 1 }
+draw Graph { name = "g0"; graph = "g0"; nodeRadius = 3; labels = false; interactive = false; showWeights = false; layer = 5 }
+draw Graph { name = "dG"; graph = "gG"; nodeColor = #22c55e; nodeRadius = 6; labels = false; interactive = false; showWeights = false; layer = 8 }
+draw Text { name = "tOm"; pos = (-7.5, 4.8); text = "Ω"; size = 0.9; align = left }
+new Point { name = "A"; pos = (-1.7, 0.4); text = true("A"); pauseOnDrag = false; collideWithPoints = false }
+new Point { name = "B"; pos = (1.5, -0.4); text = true("B"); pauseOnDrag = false; collideWithPoints = false }
+new Circle { name = "cA"; center = A; radius = rA; color = #3b82f6 }
+new Circle { name = "cB"; center = B; radius = rB; color = #f59e0b }
+new UI { name = "sA"; type = slider; label = "радиус A"; variable = rA; min = 1; max = 4; step = 0.1; default = 2.6 }
+new UI { name = "sB"; type = slider; label = "радиус B"; variable = rB; min = 1; max = 4; step = 0.1; default = 2.3 }
+new UI { name = "sO"; type = select; label = "операция"; variable = op; options = ("u", "n", "c", "d", "s", "m"); labels = ("A ∪ B — объединение", "A ∩ B — пересечение", "Ā — дополнение", "A ∖ B — разность", "A △ B — симметрическая разность", "закон де Моргана"); default = "u" }
+
+Function num(x) { return format(x, 3); }
+Function frac(k) { return format(k, 0) + "/135"; }
+
+Update {
+  // круги остаются внутри Ω
+  if (A.pos.x < -7.5 + rA) { A.pos.x = -7.5 + rA; } if (A.pos.x > 7.5 - rA) { A.pos.x = 7.5 - rA; }
+  if (A.pos.y < -4.5 + rA) { A.pos.y = -4.5 + rA; } if (A.pos.y > 4.5 - rA) { A.pos.y = 4.5 - rA; }
+  if (B.pos.x < -7.5 + rB) { B.pos.x = -7.5 + rB; } if (B.pos.x > 7.5 - rB) { B.pos.x = 7.5 - rB; }
+  if (B.pos.y < -4.5 + rB) { B.pos.y = -4.5 + rB; } if (B.pos.y > 4.5 - rB) { B.pos.y = 4.5 - rB; }
+  string kk = format(A.pos.x, 3) + format(A.pos.y, 3) + format(B.pos.x, 3) + format(B.pos.y, 3) + format(rA, 2) + format(rB, 2) + op;
+  if (kk != key) {
+    key = kk;
+    gf = newGraph(); addNode(gf, "1", [-7.5, -4.5]); addNode(gf, "2", [7.5, -4.5]); addNode(gf, "3", [7.5, 4.5]); addNode(gf, "4", [-7.5, 4.5]); addEdge(gf, "1", "2"); addEdge(gf, "2", "3"); addEdge(gf, "3", "4"); addEdge(gf, "4", "1");
+    g0 = newGraph(); gG = newGraph();
+    na = 0; nb = 0; nab = 0; nr = 0; nx = 0;
+    repeat (15) { float ix = i;
+      repeat (9) { float x = ix - 7; float y = i - 4; string id = format(ix, 0) + "_" + format(i, 0);
+        float a = 0; float b = 0;
+        if ((x - A.pos.x) * (x - A.pos.x) + (y - A.pos.y) * (y - A.pos.y) <= rA * rA) { a = 1; }
+        if ((x - B.pos.x) * (x - B.pos.x) + (y - B.pos.y) * (y - B.pos.y) <= rB * rB) { b = 1; }
+        na = na + a; nb = nb + b; nab = nab + a * b;
+        float r = 0;
+        if (op == "u" && a + b > 0) { r = 1; } if (op == "n" && a * b > 0) { r = 1; } if (op == "c" && a == 0) { r = 1; }
+        if (op == "d" && a == 1 && b == 0) { r = 1; } if (op == "s" && a != b) { r = 1; } if (op == "m" && a + b == 0) { r = 1; }
+        nr = nr + r; if (a == 0 && b == 0) { nx = nx + 1; }
+        if (r == 1) { addNode(gG, id, [x, y]); } else { addNode(g0, id, [x, y]); }
+      }
+    }
+  }
+  float pa = na / 135; float pb = nb / 135; float pab = nab / 135; float pr = nr / 135;
+  string s = "";
+  if (op == "u") { s = "**Объединение A ∪ B** — событие «произошло хотя бы одно из A и B». Ему благоприятны " + format(nr, 0) + " исходов из 135 (зелёные): P(A ∪ B) = " + num(pr) + ".\n\nИсходы из A ∩ B при сложении посчитаны дважды, поэтому P(A ∪ B) = P(A) + P(B) − P(A ∩ B) = " + num(pa) + " + " + num(pb) + " − " + num(pab) + " = " + num(pa + pb - pab) + "."; }
+  if (op == "n") { s = "**Пересечение A ∩ B** — событие «произошли и A, и B». Ему благоприятны " + format(nr, 0) + " исходов из 135 (зелёные): P(A ∩ B) = " + num(pr) + ".\n\n"; if (nab == 0) { s = s + "Общих исходов нет: A ∩ B = ∅, события **несовместны**."; } else { s = s + "События совместны: P(A ∩ B) = P(A) · P(B | A) = " + num(pa) + " · " + num(nab / na) + " = " + num(pab) + "."; } }
+  if (op == "c") { s = "**Дополнение Ā** — событие «A не произошло». Ему благоприятны " + format(nr, 0) + " исходов из 135 (зелёные): P(Ā) = " + num(pr) + ".\n\nA и Ā несовместны, а вместе дают всё Ω, поэтому P(Ā) = 1 − P(A) = 1 − " + num(pa) + " = " + num(1 - pa) + "."; }
+  if (op == "d") { s = "**Разность A ∖ B** — событие «A произошло, а B — нет», то есть A ∩ B̄. Ему благоприятны " + format(nr, 0) + " исходов из 135 (зелёные): P(A ∖ B) = " + num(pr) + ".\n\nP(A ∖ B) = P(A) − P(A ∩ B) = " + num(pa) + " − " + num(pab) + " = " + num(pa - pab) + "."; }
+  if (op == "s") { s = "**Симметрическая разность A △ B** — событие «произошло ровно одно из A и B», то есть (A ∪ B) ∖ (A ∩ B). Ему благоприятны " + format(nr, 0) + " исходов из 135 (зелёные): P(A △ B) = " + num(pr) + ".\n\nP(A △ B) = P(A) + P(B) − 2P(A ∩ B) = " + num(pa) + " + " + num(pb) + " − 2 · " + num(pab) + " = " + num(pa + pb - 2 * pab) + "."; }
+  if (op == "m") { s = "**Закон де Моргана:** дополнение объединения равно пересечению дополнений, (A ∪ B)‾ = Ā ∩ B̄. В зелёных исходах A и B не произошли одновременно: их " + format(nr, 0) + " = 135 − " + format(135 - nr, 0) + ", P = " + num(pr) + " = 1 − P(A ∪ B).\n\nВторой закон: (A ∩ B)‾ = Ā ∪ B̄ — выберите пересечение и сравните: в дополнении к нему " + format(135 - nab, 0) + " исходов."; }
+  info = s;
+}
+]
