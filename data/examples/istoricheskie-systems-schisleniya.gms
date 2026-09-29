@@ -8,15 +8,15 @@ camera type = fixed;
 // ---- Число записывается набором знаков; его значение — просто сумма значений знаков (позиция не важна).
 // Слева — знаки по группам, справа — вклад группы. ----
 draw Text { name = "g0"; pos = (-7.5, 3.6); text = grow(0); size = 1.9; color = #3b82f6; align = left; active = 0 < nr }
-draw Text { name = "v0"; pos = (1.5, 3.6); text = vrow(0); size = 1.1; align = left; active = 0 < nr }
+draw Text { name = "v0"; pos = (-0.5, 3.6); text = vrow(0); size = 1.1; align = left; active = 0 < nr }
 draw Text { name = "g1"; pos = (-7.5, 2.1); text = grow(1); size = 1.9; color = #3b82f6; align = left; active = 1 < nr }
-draw Text { name = "v1"; pos = (1.5, 2.1); text = vrow(1); size = 1.1; align = left; active = 1 < nr }
+draw Text { name = "v1"; pos = (-0.5, 2.1); text = vrow(1); size = 1.1; align = left; active = 1 < nr }
 draw Text { name = "g2"; pos = (-7.5, 0.6); text = grow(2); size = 1.9; color = #3b82f6; align = left; active = 2 < nr }
-draw Text { name = "v2"; pos = (1.5, 0.6); text = vrow(2); size = 1.1; align = left; active = 2 < nr }
+draw Text { name = "v2"; pos = (-0.5, 0.6); text = vrow(2); size = 1.1; align = left; active = 2 < nr }
 draw Text { name = "g3"; pos = (-7.5, -0.9); text = grow(3); size = 1.9; color = #3b82f6; align = left; active = 3 < nr }
-draw Text { name = "v3"; pos = (1.5, -0.9); text = vrow(3); size = 1.1; align = left; active = 3 < nr }
+draw Text { name = "v3"; pos = (-0.5, -0.9); text = vrow(3); size = 1.1; align = left; active = 3 < nr }
 draw Text { name = "g4"; pos = (-7.5, -2.4); text = grow(4); size = 1.9; color = #3b82f6; align = left; active = 4 < nr }
-draw Text { name = "v4"; pos = (1.5, -2.4); text = vrow(4); size = 1.1; align = left; active = 4 < nr }
+draw Text { name = "v4"; pos = (-0.5, -2.4); text = vrow(4); size = 1.1; align = left; active = 4 < nr }
 draw Text { name = "tot"; pos = (0, -3.9); text = "сумма значений = " + format(N, 0); size = 1.6; color = #f59e0b }
 
 new UI { name = "sS"; type = select; label = "система"; variable = sys; options = ("egypt", "attic", "ionic"); labels = ("египетская (условные знаки)", "аттическая (без знаков 50, 500)", "ионийская (буквенная)"); default = "egypt" }

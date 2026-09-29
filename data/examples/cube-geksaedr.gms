@@ -41,10 +41,10 @@ new Line3D { name = "d3"; pos = (V, Q3); interact = false; thickness = 5; color 
 new Line3D { name = "dd"; pos = (V, W); interact = false; thickness = 5; color = #3b82f6 }
 
 new UI { name = "s_a"; type = slider; label = "ребро a"; variable = a; min = 2; max = 6; step = 0.1; default = 4 }
-new UI { name = "s_v"; type = slider; label = "вершина, из которой проведены диагонали (1 — A … 8 — H)"; variable = sel; min = 1; max = 8; step = 1; default = 1 }
+new UI { name = "s_v"; type = slider; label = "вершина, из которой проведены диагонали (1 — A … 8 — H)"; variable = sel; min = 1; max = 8; step = 1; default = 2 }
 
 string info = "";
-float a = 4; float sel = 1; float key = -1;
+float a = 4; float sel = 2; float key = -1;
 Function sx(i) { if (i - 2 * floor(i / 2) > 0.5) { return 1; } return -1; }
 Function sy(i) { if (floor(i / 2) - 2 * floor(i / 4) > 0.5) { return 1; } return -1; }
 Function sz(i) { if (i > 3.5) { return 1; } return -1; }

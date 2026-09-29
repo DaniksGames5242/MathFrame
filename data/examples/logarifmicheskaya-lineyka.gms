@@ -30,8 +30,8 @@ draw Text { name = "c7"; pos = (px(7) + sh, 1.3); text = "7"; size = 0.95; activ
 draw Text { name = "c8"; pos = (px(8) + sh, 1.3); text = "8"; size = 0.95; active = abs(px(8) + sh) < 9.5 }
 draw Text { name = "c9"; pos = (px(9) + sh, 1.3); text = "9"; size = 0.95; active = abs(px(9) + sh) < 9.5 }
 draw Text { name = "c10"; pos = (px(10) + sh, 1.3); text = "10"; size = 0.95; active = abs(px(10) + sh) < 9.5 }
-draw Text { name = "nD"; pos = (-9.4, -0.55); text = "D"; size = 1.1; align = left }
-draw Text { name = "nC"; pos = (-9.4, 0.6); text = "C"; size = 1.1; align = left }
+draw Text { name = "nD"; pos = (-9.4, -1.5); text = "D"; size = 1.1; align = left }
+draw Text { name = "nC"; pos = (-9.4, 1.3); text = "C"; size = 1.1; align = left }
 
 new UI { name = "sO"; type = select; label = "действие"; variable = op; options = ("mul", "div"); labels = ("x · y", "x : y"); default = "mul" }
 new UI { name = "sX"; type = slider; label = "x"; variable = X; min = 1; max = 9.95; step = 0.05; default = 2 }
@@ -51,7 +51,7 @@ Update {
     // сдвиг движка и результат
     float res = X * Y; float rp = 0;
     if (op == "mul") { sh = 16 * lg(X); if (X * Y > 10) { sh = sh - 16; } res = X * Y; }
-    else { sh = 16 * (lg(X) - lg(Y)); if (X < Y) { sh = sh + 16; } res = X / Y; }
+    else { sh = 16 * (lg(X) - lg(Y)); res = X / Y; }
     gd = newGraph(); gc = newGraph(); gv = newGraph();
     addNode(gd, "d0", [-8, -0.6]); addNode(gd, "d1", [8, -0.6]); addEdge(gd, "d0", "d1");
     float cl = -8 + sh; float cr = 8 + sh; if (cl < -9.8) { cl = -9.8; } if (cr > 9.8) { cr = 9.8; }

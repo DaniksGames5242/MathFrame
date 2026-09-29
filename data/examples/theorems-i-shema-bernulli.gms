@@ -8,7 +8,7 @@ camera type = fixed;
 // ---- Схема Бернулли: n независимых испытаний, успех с вероятностью p. Столбики — Pₙ(k) = C(n, k) pᵏ qⁿ⁻ᵏ,
 // зелёный — выбранное k. Оранжевая ломаная — предельное приближение при большом n (Пуассона или Муавра — Лапласа). ----
 float n = 20; float p = 0.3; float k = 6; string ap = "none";
-float top = 0.2; float st = 0.05; float kx = 2; float mo = 0;
+float ym = 0.2; float st = 0.05; float kx = 2; float mo = 0;
 string key = ""; string info = "";
 
 draw Graph { name = "gGr"; graph = "gg"; edgeColor = #3b82f655; edgeWidth = 1; nodeRadius = 0; labels = false; interactive = false; showWeights = false; layer = 1 }
@@ -19,13 +19,13 @@ draw Graph { name = "gB3"; graph = "gb"; edgeCap = butt; edgeWidth = 22; nodeRad
 draw Graph { name = "gB4"; graph = "gb"; edgeCap = butt; edgeWidth = 14; nodeRadius = 0; labels = false; interactive = false; showWeights = false; layer = 5; active = n + 1 > 32 && n + 1 <= 48 }
 draw Graph { name = "gB5"; graph = "gb"; edgeCap = butt; edgeWidth = 10; nodeRadius = 0; labels = false; interactive = false; showWeights = false; layer = 5; active = n + 1 > 48 && n + 1 <= 61 }
 draw Graph { name = "gApp"; graph = "ga"; nodeColor = #f59e0b; edgeColor = #f59e0b; nodeRadius = 4; edgeWidth = 2; labels = false; interactive = false; showWeights = false; layer = 8; active = ap != "none" }
-draw Text { name = "ty1"; pos = (-6.8, py(1 * st)); text = tl(1 * st); size = 0.75; align = right; active = 1 * st <= top }
-draw Text { name = "ty2"; pos = (-6.8, py(2 * st)); text = tl(2 * st); size = 0.75; align = right; active = 2 * st <= top }
-draw Text { name = "ty3"; pos = (-6.8, py(3 * st)); text = tl(3 * st); size = 0.75; align = right; active = 3 * st <= top }
-draw Text { name = "ty4"; pos = (-6.8, py(4 * st)); text = tl(4 * st); size = 0.75; align = right; active = 4 * st <= top }
-draw Text { name = "ty5"; pos = (-6.8, py(5 * st)); text = tl(5 * st); size = 0.75; align = right; active = 5 * st <= top }
-draw Text { name = "ty6"; pos = (-6.8, py(6 * st)); text = tl(6 * st); size = 0.75; align = right; active = 6 * st <= top }
-draw Text { name = "ty7"; pos = (-6.8, py(7 * st)); text = tl(7 * st); size = 0.75; align = right; active = 7 * st <= top }
+draw Text { name = "ty1"; pos = (-6.8, py(1 * st)); text = tl(1 * st); size = 0.75; align = right; active = 1 * st <= ym }
+draw Text { name = "ty2"; pos = (-6.8, py(2 * st)); text = tl(2 * st); size = 0.75; align = right; active = 2 * st <= ym }
+draw Text { name = "ty3"; pos = (-6.8, py(3 * st)); text = tl(3 * st); size = 0.75; align = right; active = 3 * st <= ym }
+draw Text { name = "ty4"; pos = (-6.8, py(4 * st)); text = tl(4 * st); size = 0.75; align = right; active = 4 * st <= ym }
+draw Text { name = "ty5"; pos = (-6.8, py(5 * st)); text = tl(5 * st); size = 0.75; align = right; active = 5 * st <= ym }
+draw Text { name = "ty6"; pos = (-6.8, py(6 * st)); text = tl(6 * st); size = 0.75; align = right; active = 6 * st <= ym }
+draw Text { name = "ty7"; pos = (-6.8, py(7 * st)); text = tl(7 * st); size = 0.75; align = right; active = 7 * st <= ym }
 draw Text { name = "tx0"; pos = (px(0 * kx), -4.15); text = format(0 * kx, 0); size = 0.75; active = 0 * kx <= n }
 draw Text { name = "tx1"; pos = (px(1 * kx), -4.15); text = format(1 * kx, 0); size = 0.75; active = 1 * kx <= n }
 draw Text { name = "tx2"; pos = (px(2 * kx), -4.15); text = format(2 * kx, 0); size = 0.75; active = 2 * kx <= n }
@@ -48,7 +48,7 @@ new UI { name = "sK"; type = slider; label = "k"; variable = k; min = 0; max = n
 new UI { name = "sA"; type = select; label = "приближение"; variable = ap; options = ("none", "poi", "nrm"); labels = ("нет", "Пуассона", "Муавра — Лапласа"); default = "none" }
 
 Function px(j) { return -6.6 + 14 * (j + 0.5) / (n + 1); }
-Function py(v) { return -3.6 + 7.5 * v / top; }
+Function py(v) { return -3.6 + 7.5 * v / ym; }
 Function tl(v) { if (st < 0.01) { return format(v, 3); } if (st < 0.1) { return format(v, 2); } return format(v, 1); }
 Function lc(m, j) { float s = 0; repeat (j) { s = s + log((m - i) / (i + 1)); } return s; }
 Function pk(m, j) { return exp(lc(m, j) + j * log(p) + (m - j) * log(1 - p)); }
@@ -66,10 +66,10 @@ Update {
     gb = newGraph(); ga = newGraph(); gg = newGraph();
     float pm = 0; float am = 0;
     repeat (n + 1) { pm = max(pm, pk(n, i)); if (ap != "none") { am = max(am, appr(i)); } }
-    top = max(pm, am) * 1.05;
-    st = 0.005; if (top > 0.03) { st = 0.01; } if (top > 0.06) { st = 0.02; } if (top > 0.15) { st = 0.05; } if (top > 0.35) { st = 0.1; } if (top > 0.7) { st = 0.2; }
+    ym = max(pm, am) * 1.05;
+    st = 0.005; if (ym > 0.03) { st = 0.01; } if (ym > 0.06) { st = 0.02; } if (ym > 0.15) { st = 0.05; } if (ym > 0.35) { st = 0.1; } if (ym > 0.7) { st = 0.2; }
     kx = 1; if (n > 12) { kx = 2; } if (n > 24) { kx = 5; }
-    repeat (8) { if (i * st <= top) { addNode(gg, "a" + format(i, 0), [-6.6, py(i * st)]); addNode(gg, "b" + format(i, 0), [7.4, py(i * st)]); addEdge(gg, "a" + format(i, 0), "b" + format(i, 0)); } }
+    repeat (8) { if (i * st <= ym) { addNode(gg, "a" + format(i, 0), [-6.6, py(i * st)]); addNode(gg, "b" + format(i, 0), [7.4, py(i * st)]); addEdge(gg, "a" + format(i, 0), "b" + format(i, 0)); } }
     repeat (n + 1) {
       string c = "#3b82f6"; if (i == k) { c = "#22c55e"; }
       addNode(gb, "p" + format(i, 0), [px(i), py(0)]); addNode(gb, "q" + format(i, 0), [px(i), py(pk(n, i))]); addEdge(gb, "p" + format(i, 0), "q" + format(i, 0), 1, c);
