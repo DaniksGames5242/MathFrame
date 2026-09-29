@@ -25,8 +25,9 @@ Function md(a, b) { return a - floor(a / b) * b; }
 Function fx(m) { float x = -6 + 12 * m / (n - 1); return x; }
 
 Update {
-  if (key != n * 10000 + p) {
-    float f = p - 1;
+  float pp = min(p, fact(n));
+  if (key != n * 10000 + pp) {
+    float f = pp - 1;
     repeat (7) { rem[i] = i; }
     repeat (n) {
       float j = i; float fc = fact(n - 1 - j); float q = floor(f / fc); f = f - q * fc;
@@ -41,11 +42,11 @@ Update {
       repeat (n) { if (i > j && pi[i] < pi[j]) { inv = inv + 1; } }
     }
     repeat (n) { addNode(gp, "t" + format(i, 0), [fx(i), 2.5]); addNode(gp, "b" + format(i, 0), [fx(pi[i]), -2.5]); addEdge(gp, "t" + format(i, 0), "b" + format(i, 0)); }
-    key = n * 10000 + p;
+    key = n * 10000 + pp;
   }
   string w = ""; repeat (n) { w = w + format(pi[i] + 1, 0); if (i < n - 1) { w = w + " "; } }
   string prod = ""; repeat (n) { prod = prod + format(n - i, 0); if (i < n - 1) { prod = prod + " · "; } }
-  info = "**Перестановка без повторений** из n = " + format(n, 0) + " различимых элементов — упорядоченный набор из всех элементов, каждый ровно один раз. Выбранная (№ " + format(p, 0) + "): **" + w + "**; все элементы использованы, ни один не повторяется.\n\n";
+  info = "**Перестановка без повторений** из n = " + format(n, 0) + " различимых элементов — упорядоченный набор из всех элементов, каждый ровно один раз. Выбранная (№ " + format(pp, 0) + "): **" + w + "**; все элементы использованы, ни один не повторяется.\n\n";
   info = info + "**Сколько их:** на первую позицию — " + format(n, 0) + " элементов, на вторую — на один меньше, и так далее, по правилу произведения n! = " + prod + " = **" + format(fact(n), 0) + "**. Инверсий (пар, стоящих не по порядку) в выбранной перестановке: " + format(inv, 0) + ".";
 }
 ]

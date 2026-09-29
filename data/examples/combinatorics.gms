@@ -38,6 +38,7 @@ Function fl() { float o = 0; if (ord == "ord") { o = 1; } if (rep == "yes") { o 
 Function word() { string w = ""; repeat (k) { w = w + letter(dg[i]); } return w; }
 Function prod(a, m) { float p = 1; repeat (m) { p = p * (a - i); } return p; }
 Function fact(m) { float p = 1; repeat (m) { p = p * (i + 1); } return p; }
+Function rp(a, m) { string s = format(a, 0); repeat (m - 1) { s = s + " · " + format(a, 0); } return s; }
 Function fs(a, m) { string s = format(a, 0); repeat (m - 1) { s = s + " · " + format(a - i - 1, 0); } return s; }
 
 Update {
@@ -54,7 +55,7 @@ Update {
   }
   info = "**Комбинаторика** считает, сколько способов выбрать k элементов из n при заданных условиях. Здесь выписаны все выборки для n = " + format(n, 0) + ", k = " + format(k, 0) + ": **" + format(total, 0) + "**.\n\n";
   if (ord == "ord" && rep == "no") { info = info + "**Размещения без повторений** (порядок важен): по правилу произведения " + fs(n, k) + " = **" + format(prod(n, k), 0) + "** (n!/(n − k)!). Первую позицию можно занять n способами, вторую — n − 1, и так далее."; }
-  if (ord == "ord" && rep == "yes") { info = info + "**Размещения с повторениями:** каждая из k позиций выбирается независимо, по правилу произведения n · … · n = " + format(n, 0) + "^" + format(k, 0) + " = **" + format(pow(n, k), 0) + "**."; }
+  if (ord == "ord" && rep == "yes") { info = info + "**Размещения с повторениями:** каждая из k позиций выбирается независимо, по правилу произведения " + rp(n, k) + " = **" + format(pow(n, k), 0) + "**."; }
   if (ord == "unord" && rep == "no") { info = info + "**Сочетания без повторений** (порядок не важен): каждой выборке отвечают k! = " + format(fact(k), 0) + " слов с разным порядком, поэтому " + format(prod(n, k), 0) + " / " + format(fact(k), 0) + " = **" + format(prod(n, k) / fact(k), 0) + "** (Cₙᵏ = n!/(k!(n − k)!))."; }
   if (ord == "unord" && rep == "yes") { info = info + "**Сочетания с повторениями:** Cₙ₊ₖ₋₁ᵏ = C(" + format(n + k - 1, 0) + ", " + format(k, 0) + ") = " + format(prod(n + k - 1, k) / fact(k), 0) + " = **" + format(total, 0) + "**."; }
 }
