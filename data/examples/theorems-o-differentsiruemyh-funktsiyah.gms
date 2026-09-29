@@ -52,7 +52,7 @@ float tab = 1; string fv = "w"; string tf = "sin"; bool ro = false;
 float x0 = 1; float a = -4; float b = 4; float ta = 0; float tn = 3; float tx = 2;
 float ax = 0; float ay = 0; float bx = 0; float by = 0;
 float c0 = 0; float c1 = 0; float c2 = 0; float c3 = 0; float c4 = 0; float c5 = 0; float c6 = 0; float c7 = 0; float c8 = 0;
-string key = ""; string info = "";
+string key = ""; string info = ""; float rfound = 1;
 Function num(x, d) { if (x < 0) { return "−" + format(-x, d); } return format(x, d); }
 Function amin() { if (tf == "ln") { return -0.5; } return -3; }
 Function fx(x) { if (fv == "w") { return 2.2 * sin(0.55 * x) + 0.12 * x; } return 0.01 * x * x * x; }
@@ -104,7 +104,7 @@ Function rootsText(mode) {
 
 Update {
   if (ro && tab == 2) {
-    float fa = fx(a); float st = a + 0.3; float prev = fx(st) - fa; float found = 0;
+    float fa = fx(a); float st = a + 0.3; float prev = fx(st) - fa; float found = 0; rfound = 0;
     repeat (240) {
       float xn = a + 0.3 + 0.05 * (i + 1);
       if (found == 0 && xn <= 6) {
@@ -112,7 +112,7 @@ Update {
         if (prev * cur < 0) {
           float l = xn - 0.05; float r = xn;
           repeat (30) { float m = (l + r) / 2; if ((fx(l) - fa) * (fx(m) - fa) <= 0) { r = m; } if ((fx(l) - fa) * (fx(m) - fa) > 0) { l = m; } }
-          b = (l + r) / 2; found = 1;
+          b = (l + r) / 2; found = 1; rfound = 1;
         }
         prev = cur;
       }
@@ -143,7 +143,7 @@ Update {
       info = "**Теорема Лагранжа.** Если f непрерывна на отрезке [a; b] и дифференцируема на (a; b), то существует c ∈ (a; b), для которого f(b) − f(a) = f′(c)·(b − a): касательная в точке c параллельна хорде (оранжевая линия). При f(a) = f(b) это **теорема Ролля**: хорда горизонтальна, f′(c) = 0.\n\n";
       info = info + "**a = " + num(a, 2) + ", b = " + num(b, 2) + ":** f(a) = " + num(fx(a), 3) + ", f(b) = " + num(fx(b) , 3) + ", (f(b) − f(a))/(b − a) = " + num(K, 4) + ". Точки c (f′(c) = " + num(K, 3) + "): " + rootsText(1) + ".";
       if (abs(fx(b) - fx(a)) < 0.03) { info = info + "\n\nЗдесь f(b) ≈ f(a) — случай теоремы Ролля: в точках c производная равна нулю."; }
-      if (ro && fv == "c") { info = info + "\n\nФункция x³/100 монотонна, поэтому f(b) = f(a) при b > a невозможно — условие теоремы Ролля не выполнено (рассматривается последнее b)."; }
+      if (ro && rfound == 0) { info = info + "\n\nДля такого a нет b ∈ (a; 6] с f(b) = f(a) (например, функция x³/100 монотонна), поэтому условие теоремы Ролля не выполнено; показана хорда для прежнего b."; }
     }
     if (tab == 3) {
       cv = newGraph(); ch3 = newGraph(); tg3 = newGraph();
