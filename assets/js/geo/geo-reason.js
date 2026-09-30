@@ -19,7 +19,7 @@
 // Если вывод «в лоб» не дошёл до ответа, пробуется введение неизвестной x
 // (задачи на отношения и периметр), а в крайнем случае — метод координат.
 
-import { V2, angleAt } from './geo-model.js';
+import { V2, angleAt, triCircles } from './geo-model.js';
 
 const EPS = 1e-6;
 const FIG_RU = {
@@ -232,7 +232,18 @@ export function solveProblem(ir, model) {
     if (q.kind === 'angle') return q.angle.length === 3 ? Q.ang(q.angle[0], q.angle[1], q.angle[2]) : angV(q.angle);
     if (q.kind === 'perimeter') return Q.per(q.of || V.join(''));
     if (q.kind === 'area') return Q.area(q.of || V.join(''));
+    if (q.kind === 'inradius' || q.kind === 'circumradius' || q.kind === 'centersDist') return circVar(q.kind);
     return null;
+  };
+  // Вписанная (центр I, радиус r) и описанная (центр O, радиус R) окружности треугольника.
+  const CIRC = { inradius: 'r', circumradius: 'R', centersDist: 'OI' };
+  const circVar = kind => {
+    const k = 'C:' + kind;
+    if (!Q.vars.has(k) && V.length === 3) {
+      const c = triCircles(G.pts[V[0]], G.pts[V[1]], G.pts[V[2]]);
+      Q.vars.set(k, { key: k, type: 'len', name: CIRC[kind], value: kind === 'inradius' ? c.r : kind === 'circumradius' ? c.R : V2.dist(c.I, c.O), circ: true });
+    }
+    return k;
   };
   for (const g of ir.given) {
     if (['length', 'angle', 'perimeter', 'area'].includes(g.kind)) {
@@ -293,7 +304,7 @@ export function solveProblem(ir, model) {
   if (t === 'rectangle' || t === 'square') V.forEach(v => setVal(angV(v), 90, 'все углы ' + figRu + ' прямые'));
   if (t === 'triangle') {
     const k = [angV(V[0]), angV(V[1]), angV(V[2])];
-    if (fig.rightAngle) setVal(angV(fig.rightAngle), 90, 'по условию угол ' + fig.rightAngle + ' прямой');
+    if (fig.rightAngle) setVal(angV(fig.rightAngle), 90, fig.rightWhy || ('по условию угол ' + fig.rightAngle + ' прямой'));
     else if (fig.right) setVal(angV(V[2]), 90, 'треугольник прямоугольный');
     if (fig.isosceles || fig.base || fig.isoRight) {
       const base = fig.base || (fig.isoRight ? V.filter(x => x !== (fig.rightAngle || V[2])).join('') : V[0] + V[2]);
@@ -490,6 +501,24 @@ export function solveProblem(ir, model) {
     }
     add(fn([Q.area(tri), ab, bc, ca], x => { const s = (x[1] + x[2] + x[3]) / 2; return x[0] - Math.sqrt(Math.max(0, s * (s - x[1]) * (s - x[2]) * (s - x[3]))); }, { kind: 'heron', tri, cost: 5 }));
     add(lin([[Q.per(tri), 1], [ab, -1], [bc, -1], [ca, -1]], 0, { kind: 'perimeter', why: 'периметр треугольника ' + tri + ' — сумма сторон', cost: 1 }));
+  }
+  // Радиусы вписанной и описанной окружностей, расстояние между центрами (Эйлер).
+  if (V.length === 3 && ir.find.some(f => CIRC[f.kind])) {
+    const r = circVar('inradius'), R = circVar('circumradius'), d = circVar('centersDist');
+    const S0 = Q.area(V.join('')), P0 = Q.per(V.join(''));
+    const [a, b, c] = [Q.len(V[1], V[2]), Q.len(V[0], V[2]), Q.len(V[0], V[1])];
+    add(fn([r, S0, P0], x => x[0] * x[2] - 2 * x[1], { kind: 'inr', cost: 2 }));
+    add(fn([R, a, b, c, S0], x => 4 * x[0] * x[4] - x[1] * x[2] * x[3], { kind: 'circR', cost: 2 }));
+    add(fn([d, R, r], x => x[0] * x[0] - x[1] * x[1] + 2 * x[1] * x[2], { kind: 'euler', cost: 2 }));
+    for (const T of triInfo) if (T.tri.split('').sort().join('') === V.slice().sort().join('')) {
+      for (const [v, s2] of [[T.a, T.bc], [T.b, T.ca], [T.c, T.ab]]) {
+        const ang = { [T.a]: T.A, [T.b]: T.B, [T.c]: T.C }[v];
+        if (Math.abs(Q.vars.get(ang).value - 90) > 1e-6) continue;
+        const legs = [T.ab, T.bc, T.ca].filter(x => x !== s2);
+        add(lin([[R, 2], [s2, -1]], 0, { kind: 'half', why: 'центр описанной около прямоугольного треугольника окружности — середина гипотенузы', requires: [ang], cost: 1 }));
+        add(lin([[r, 2], [legs[0], -1], [legs[1], -1], [s2, 1]], 0, { kind: 'half', why: 'радиус вписанной в прямоугольный треугольник окружности r = (a + b − c) / 2', requires: [ang], cost: 1 }));
+      }
+    }
   }
   // площадь через высоты (любая построенная высота к стороне фигуры/треугольника)
   for (const c of ir.constructions) {
@@ -1028,6 +1057,18 @@ function renderFormula(k, e, known, Q, unit) {
       const [S, a, b, ang] = V;
       if (k === S) return 'Площадь ' + (e.figRu || 'параллелограмма') + ': ' + nm(S) + ' = ' + nm(a) + ' · ' + nm(b) + ' · sin ' + nm(ang) + ' = ' + n(a) + ' · ' + n(b) + ' · sin ' + n(ang) + '° ' + approx + ' ' + ans + '.';
       return 'Из формулы ' + nm(S) + ' = ' + nm(a) + ' · ' + nm(b) + ' · sin ' + nm(ang) + ' находим ' + nm(k) + ' ' + approx + ' ' + ans + '.';
+    }
+    case 'inr': {
+      const [r, S, P] = V;
+      return 'Радиус вписанной окружности равен отношению площади к полупериметру: ' + nm(r) + ' = ' + nm(S) + ' / p = ' + n(S) + ' / ' + num(vv(P) / 2) + ' ' + approx + ' ' + ans + '.';
+    }
+    case 'circR': {
+      const [R, a, b, c, S] = V;
+      return 'Радиус описанной окружности: ' + nm(R) + ' = abc / (4S) = ' + n(a) + ' · ' + n(b) + ' · ' + n(c) + ' / (4 · ' + n(S) + ') ' + approx + ' ' + ans + '.';
+    }
+    case 'euler': {
+      const [d, R, r] = V;
+      return 'По формуле Эйлера расстояние между центрами описанной и вписанной окружностей ' + nm(d) + ' = √(R² − 2Rr) = √(' + n(R) + '² − 2 · ' + n(R) + ' · ' + n(r) + ') = √' + num(vv(R) ** 2 - 2 * vv(R) * vv(r)) + ' ' + approx + ' ' + ans + '.';
     }
     case 'medianLen': {
       const [m, a, b, c] = V;

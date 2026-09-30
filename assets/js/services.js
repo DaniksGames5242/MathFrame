@@ -2268,6 +2268,33 @@
     return btn;
   }
 
+  // Формулы в шагах решения: корни √(…) и √n — через KaTeX (с чертой), дроби ½.
+  function geoFormulas(html) {
+    function tex(inner) {
+      return inner.replace(/<[^>]+>/g, '').replace(/²/g, '^2').replace(/³/g, '^3').replace(/·/g, '\\cdot ').replace(/−/g, '-').replace(/,/g, '{,}');
+    }
+    var out = '', i = 0;
+    while (i < html.length) {
+      var ch = html[i];
+      if (ch === '√' && html[i + 1] === '(') {
+        var d = 0, j = i + 1;
+        for (; j < html.length; j++) { if (html[j] === '(') d++; else if (html[j] === ')') { d--; if (d === 0) break; } }
+        out += texToHtml('\\sqrt{' + tex(html.slice(i + 2, j)) + '}');
+        i = j + 1; continue;
+      }
+      if (ch === '√') {
+        var m = html.slice(i + 1).match(/^\d+(?:,\d+)?/);
+        if (m) { out += texToHtml('\\sqrt{' + tex(m[0]) + '}'); i += 1 + m[0].length; continue; }
+      }
+      out += ch; i++;
+    }
+    return out.replace(/½/g, texToHtml('\\tfrac12'));
+  }
+  // LaTeX от нейросети: $$…$$ → $…$, \dfrac → \frac, без \displaystyle.
+  function aiTex(s) {
+    return richText(String(s).replace(/\$\$([\s\S]+?)\$\$/g, '$$$1$').replace(/\\\(([\s\S]+?)\\\)/g, '$$$1$').replace(/\\dfrac/g, '\\frac').replace(/\\displaystyle\s*/g, ''));
+  }
+
   function buildProblemUI(c) {
     var box = el('div', 'gp', c);
     var ta = el('textarea', 'more-textarea gp-input', box);
@@ -2344,12 +2371,12 @@
       // решение
       el('div', 'gp-h', out, 'Решение');
       var ol = el('ol', 'gp-steps', out);
-      if (r.stepsMd) r.stepsMd.forEach(function (s) { el('li', null, ol, richText(s)); });
-      else r.steps.forEach(function (s) { el('li', null, ol, s.html); });
+      if (r.stepsMd) r.stepsMd.forEach(function (s) { el('li', null, ol, aiTex(s)); });
+      else r.steps.forEach(function (s) { el('li', null, ol, geoFormulas(s.html)); });
       // ответ
       var ans = el('div', 'gp-answer', out);
       el('span', 'gp-answer-lbl', ans, 'Ответ');
-      el('span', 'gp-answer-val', ans, r.answerMd !== undefined ? richText(r.answerMd) : r.answers.map(gp.answerText).join('; '));
+      el('span', 'gp-answer-val', ans, r.answerMd !== undefined ? aiTex(r.answerMd) : geoFormulas(r.answers.map(gp.answerText).join('; ')));
       if (r.method === 'coords') el('div', 'gp-note', out, 'Решение методом координат: подходящей цепочки школьных теорем решатель не нашёл.');
     }
     if (ta.value.trim()) solve();

@@ -93,6 +93,16 @@ const OCR_PROMPTS = {
   geometry: `На фото — условие геометрической задачи (возможно, с чертежом). Перепиши текст условия дословно по-русски, одной строкой, обозначения точек — латинскими заглавными буквами, знаки: ∠ для угла, ° для градусов, √ для корня. Если на чертеже есть данные, которых нет в тексте (длины, углы, отмеченные равенства), допиши их в конец условия короткими фразами. Верни ТОЛЬКО текст условия, без решения и пояснений. Если задачи на фото нет — верни пустую строку.`,
 };
 
+// Грубая проверка «это вообще геометрическая задача?» — чтобы не тратить лимит
+// нейросети на произвольный текст (то же правило, что в geo-problem.js).
+const GEO_WORDS = /треуг|параллелограм|ромб|квадрат|прямоугольн|трапец|четырехуг|многоуг|окружн|круг|угол|угл[аоуы]|сторон|отрез|точк|прям[аоуы]|биссектр|медиан|высот|диагонал|радиус|диаметр|хорд|касател|секущ|площад|периметр|вектор|плоскост|куб|пирамид|призм|шар|сфер|конус|цилиндр|параллелепип|тетраэдр|катет|гипотенуз|основани|вершин|перпендикул|параллельн|∠|△/;
+function invalidProblem(text) {
+  const t = String(text || '').toLowerCase();
+  if (t.replace(/[^a-zа-яё0-9]/g, '').length < 12) return 'Слишком короткое условие.';
+  if (!GEO_WORDS.test(t)) return 'Некорректная задача: это не похоже на условие геометрической задачи.';
+  return null;
+}
+
 function clientIp(req) {
   const xf = String((req.headers && (req.headers['x-forwarded-for'] || req.headers['x-real-ip'])) || '');
   return xf.split(',')[0].trim() || (req.socket && req.socket.remoteAddress) || 'unknown';
@@ -198,12 +208,14 @@ async function handler(req, res) {
   let messages, json = false;
   if (task === 'solve') {
     const text = String(body.text || '').replace(/\r/g, '').trim().slice(0, MAX_TEXT);
-    if (text.length < 10) { res.status(400).json({ error: 'Слишком короткое условие.', code: 'bad' }); return; }
+    const bad = invalidProblem(text);
+    if (bad) { res.status(422).json({ error: bad, code: 'invalid' }); return; }
     messages = [{ role: 'system', content: SOLVE_PROMPT }, { role: 'user', content: '<<<\n' + text + '\n>>>' }];
     json = true;
   } else if (task === 'geometry') {
     const text = String(body.text || '').replace(/\r/g, '').trim().slice(0, MAX_TEXT);
-    if (text.length < 10) { res.status(400).json({ error: 'Слишком короткое условие.', code: 'bad' }); return; }
+    const bad = invalidProblem(text);
+    if (bad) { res.status(422).json({ error: bad, code: 'invalid' }); return; }
     let user = 'Условие задачи:\n<<<\n' + text + '\n>>>';
     if (body.draft && typeof body.draft === 'object') {
       user += '\n\nЧерновой разбор (может быть неполным или ошибочным, используй как подсказку):\n' + JSON.stringify(body.draft).slice(0, 3000);

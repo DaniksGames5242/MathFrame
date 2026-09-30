@@ -310,6 +310,14 @@ export function parseProblem(src) {
     ir.given.push({ kind: 'length', seg: V[1] + V[2], value: parseNumber(m[3]) });
     ir.given.push({ kind: 'length', seg: V[0] + V[2], value: parseNumber(m[5]) });
   });
+  // «прямоугольный треугольник с катетами 9 и 12», «с гипотенузой 10»
+  each(new RegExp('с\\s+катетами\\s+' + NUM + UNIT + '\\s+и\\s+' + NUM + UNIT), m => {
+    if (!fig || fig.type !== 'triangle') return false;
+    const r = fig.rightAngle || V[2]; fig.rightAngle = r; fig.right = true;
+    const o = V.filter(x => x !== r);
+    ir.given.push({ kind: 'length', seg: o[0] + r, value: parseNumber(m[1]) });
+    ir.given.push({ kind: 'length', seg: o[1] + r, value: parseNumber(m[3]) });
+  });
   // «параллелограмм со сторонами 4 и 6 (и углом 30°)»
   each(new RegExp('со\\s+сторонами\\s+' + NUM + UNIT + '\\s+и\\s+' + NUM + UNIT + '(?:\\s*(?:,|и)\\s*(?:углом|острым\\s+углом)(?:\\s+между\\s+ними)?\\s+' + NUM + DEG + ')?'), m => {
     if (!fig || V.length !== 4) return false;
@@ -362,6 +370,33 @@ export function parseProblem(src) {
   // «AB = CD» (как отдельное утверждение) — равенство отрезков
   each(new RegExp(SEG + '\\s*=\\s*' + SEG + '(?![A-Z0-9])'), m => { ir.given.push({ kind: 'mult', a: m[1], b: m[2], k: 1 }); });
 
+  // ---------- окружности ----------
+  // «окружность вписана в треугольник», «около треугольника описана окружность» — сами
+  // по себе ничего не задают, важны искомые радиусы (ниже, в parseFindList).
+  each(/(?:в\s+(?:сам\s+|этот\s+|него\s+)?(?:треугольник[а-я]*\s+)?(?:[A-Z]{3}\s+)?)?(?:вписан[а-я]*|описан[а-я]*)\s+(?:другая\s+|ещё\s+одна\s+|еще\s+одна\s+)?окружност[а-я]*(?:\s+с\s+центром\s+[A-Z])?|окружност[а-я]*(?:\s+с\s+центром\s+[A-Z])?\s+(?:вписан[а-я]*|описан[а-я]*)(?:\s+(?:в|около)\s+(?:треугольник[а-я]*\s*)?(?:[A-Z]{3})?)?|около\s+(?:прямоугольного\s+|этого\s+)?треугольник[а-я]*(?:\s+[A-Z]{3})?(?=.{0,40}описан)/, () => {});
+  // Касательная и секущая из внешней точки: «из точки P, лежащей вне окружности радиуса 5,
+  // проведены касательная PA и секущая PB, проходящая через центр… расстояние от P до центра 13»
+  const tan = text.match(/касательн[а-я]*\s+([A-Z])([A-Z])/);
+  const rad = text.match(new RegExp('окружност[а-я]*\\s+(?:с\\s+центром\\s+([A-Z])\\s+(?:и\\s+)?)?радиус[а-я]*\\s+(?:равн[а-я]*\\s+)?' + NUM));
+  const dist = text.match(new RegExp('расстояние\\s+от\\s+(?:точки\\s+)?([A-Z])\\s+до\\s+центра(?:\\s+окружности)?(?:\\s+([A-Z]))?' + EQ + NUM));
+  if (!fig && tan && rad && dist) {
+    const P = tan[1], A = tan[2];
+    const used = new Set(text.match(/[A-Z]/g) || []);
+    const O = rad[1] || dist[2] || ['O', 'Q', 'Z'].find(x => !used.has(x));
+    ir.figure = { type: 'triangle', vertices: [O, A, P], rightAngle: A, right: true, rightWhy: 'радиус ' + O + A + ' перпендикулярен касательной ' + P + A };
+    ir.circles = [{ center: O, through: A }];
+    ir.given.push({ kind: 'length', seg: O + A, value: parseNumber(rad[2]) });
+    ir.given.push({ kind: 'length', seg: O + P, value: parseNumber(dist[3]) });
+    const sec = text.match(/секущ[а-я]*\s+([A-Z])([A-Z])/);
+    const nearName = ['C', 'K', 'M', 'N', 'T'].find(x => !used.has(x) && x !== O);
+    ir.constructions.push({ kind: 'pointOn', seg: O + P, point: nearName, radiusOf: O });
+    ir.given.push({ kind: 'length', seg: O + nearName, value: parseNumber(rad[2]), why: 'радиус' });
+    if (/внешн[а-я]*\s+част[а-я]*\s+секущ/.test(text)) ir.find.push({ kind: 'length', seg: nearName + P, label: 'внешняя часть секущей' });
+    if (/касательн/.test(text) && /найд|вычисл|чему/.test(text)) ir.find.push({ kind: 'length', seg: P + A });
+    mask = mask.replace(/[^\s]/g, ' ');   // условие целиком понято этим шаблоном
+    void sec;
+  }
+
   // ---------- что найти ----------
   const findRe = /(?:найд[а-яА-Я]*|вычисл[а-яА-Я]*|определ[а-яА-Я]*|чему\s+(?:равен|равн[а-яА-Я]*)|докаж[а-яА-Я]*,?\s+что)[:\s]+([^.?!]*)/g;
   let fm;
@@ -397,7 +432,7 @@ export function parseProblem(src) {
     for (const g of ir.given) if (g.kind === 'angle' && g.value === 90 && g.angle.length === 1 && !fig.rightAngle) { fig.rightAngle = g.angle; fig.right = true; }
   }
 
-  const ok = !!(fig && ir.find.length);
+  const ok = !!(ir.figure && ir.find.length);
   return { ir, ok, unknown: unknown.filter(Boolean), normalized: text };
 }
 
@@ -439,6 +474,10 @@ function parseFindList(body, ir, V) {
   s = s.replace(/(?:его|ее|их)?\s*площад[а-яА-Я]*(?:\s+(?:[а-я]+\s+)?([A-Z]{3,4}))?/g, (w, of) => { push({ kind: 'area', of: of || null }); return ' '; });
   s = s.replace(/(?:∠|угол\s+|угла\s+|величину\s+угла\s+|градусную\s+меру\s+угла\s+)([A-Z]{1,3})\b/g, (w, a) => { push({ kind: 'angle', angle: a }); return ' '; });
   s = s.replace(/(?:(?:длин[а-яА-Я]*\s+)?(?:отрез[а-яА-Я]*|сторон[а-яА-Я]*|основани[а-яА-Я]*|диагонал[а-яА-Я]*|высот[а-яА-Я]*|медиан[а-яА-Я]*|биссектрис[а-яА-Я]*|катет[а-яА-Я]*|гипотенуз[а-яА-Я]*)\s+)?([A-Z][0-9]?[A-Z][0-9]?)\b/g, (w, seg) => { push({ kind: 'length', seg }); return ' '; });
+  // Окружности треугольника
+  s = s.replace(/расстояни[а-я]*\s+между\s+(?:их\s+)?центрами(?:\s+(?:этих\s+)?(?:двух\s+)?(?:вписанной\s+и\s+описанной\s+)?окружностей)?/g, () => { push({ kind: 'centersDist' }); return ' '; });
+  s = s.replace(/радиус[а-я]*\s+вписанн[а-я]*\s+(?:в\s+(?:него|треугольник[а-я]*)\s+)?окружност[а-я]*/g, () => { push({ kind: 'inradius' }); return ' '; });
+  s = s.replace(/радиус[а-я]*\s+описанн[а-я]*\s+(?:около\s+(?:него|треугольник[а-я]*)\s+)?окружност[а-я]*/g, () => { push({ kind: 'circumradius' }); return ' '; });
   // Без обозначений: «высоту трапеции», «её диагональ», «гипотенузу»
   s = s.replace(/высот[а-яА-Я]*(?:\s+(?:трапеции|параллелограмма|ромба|треугольника))?/g, () => {
     if (V.length < 3) return ' ';

@@ -7,7 +7,7 @@
 // отрезки — засечками, прямые углы — квадратиками, данные длины и углы —
 // подписями, искомое — цветом и подписью «EF = ?». Под полем — подпись «Рис. 1».
 
-import { V2 } from './geo-model.js';
+import { V2, triCircles } from './geo-model.js';
 
 const ACCENT = '#ec4899';      // искомое (контрастно и на светлой, и на тёмной теме)
 const GIVEN = '#3b82f6';       // подписи данных
@@ -280,6 +280,20 @@ export function buildGms(ir, model, solution, opts) {
     // при одном отрезке «свободна» вся окружность — ставим напротив него
     return { x: Math.cos(at), y: Math.sin(at) };
   }
+
+  // ---- окружности: заданные в условии (касательная) и окружности треугольника ----
+  const circ = [];
+  (ir.circles || []).forEach(c => { if (P[c.center] && P[c.through]) circ.push({ center: c.center, r: V2.dist(P[c.center], P[c.through]) }); });
+  if (V.length === 3 && ir.find.some(f => /inradius|circumradius|centersDist/.test(f.kind))) {
+    const tc = triCircles(P[V[0]], P[V[1]], P[V[2]]);
+    const want = k => ir.find.some(f => f.kind === k || f.kind === 'centersDist');
+    const used = new Set(names);
+    const nmI = used.has('I') ? 'I1' : 'I', nmO = used.has('O') ? 'O1' : 'O';
+    if (want('inradius')) { pointsOut.push('new Point { name = ' + q(nmI) + '; pos = (' + fmt(tc.I.x) + ', ' + fmt(tc.I.y) + '); text = true(' + q(nmI) + '); dynamic = false; collision = false; interact = false }'); circ.push({ center: nmI, r: tc.r }); }
+    if (want('circumradius')) { pointsOut.push('new Point { name = ' + q(nmO) + '; pos = (' + fmt(tc.O.x) + ', ' + fmt(tc.O.y) + '); text = true(' + q(nmO) + '); dynamic = false; collision = false; interact = false }'); circ.push({ center: nmO, r: tc.R }); }
+    if (ir.find.some(f => f.kind === 'centersDist')) out.push('new Line { name = "f_OI"; pos = (' + nmO + ', ' + nmI + '); interact = false; color = ' + ACCENT + '; thickness = 4; layer = 30 }');
+  }
+  circ.forEach((c, i) => out.push('new Circle { name = ' + q('circ' + i) + '; center = ' + c.center + '; radius = ' + fmt(c.r) + ' }'));
 
   // ---- подпись ----
   const cap = [];

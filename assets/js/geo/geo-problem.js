@@ -10,12 +10,13 @@
 // когда локальный разбор не понял формулировку: возвращает IR от нейросети.
 
 import { parseProblem, freeName } from './geo-parse.js';
+import { normalizeMarkup } from './geo-markup.js';
 import { buildModel, evalQ, isDetermined, assumedQuantities } from './geo-model.js';
 import { solveProblem, coordinateSolution, num, I, ANG, italicNames } from './geo-reason.js';
 import { buildGms, sketchToGms } from './geo-gms.js';
 
 const FIG_TYPES = ['triangle', 'parallelogram', 'rhombus', 'rectangle', 'square', 'trapezoid', 'quadrilateral'];
-const RU_Q = { length: 'отрезок', angle: 'угол', area: 'площадь', perimeter: 'периметр' };
+const RU_Q = { length: 'отрезок', angle: 'угол', area: 'площадь', perimeter: 'периметр', inradius: 'радиус вписанной окружности', circumradius: 'радиус описанной окружности', centersDist: 'расстояние между центрами' };
 
 // Приводит IR (в том числе от ИИ) к виду, который понимает решатель.
 export function validateIr(ir) {
@@ -45,7 +46,7 @@ export function validateIr(ir) {
     return false;
   });
   ir.constructions = (ir.constructions || []).filter(c => c && typeof c === 'object' && typeof c.kind === 'string');
-  ir.find = (ir.find || []).filter(f => f && ['length', 'angle', 'area', 'perimeter'].includes(f.kind));
+  ir.find = (ir.find || []).filter(f => f && ['length', 'angle', 'area', 'perimeter', 'inradius', 'circumradius', 'centersDist'].includes(f.kind));
   if (!ir.find.length) throw new Error('не понятно, что нужно найти');
   // Все упомянутые точки должны быть вершинами фигуры или точками построений.
   const known = new Set(V.concat(ir.constructions.map(c => c.point).filter(Boolean)));
@@ -124,7 +125,7 @@ function auxText(cs) {
 export async function solveGeometryProblem(text, opts) {
   opts = opts || {};
   const r = await solveLocalOrIr(text, opts);
-  if (r.ok || !opts.aiSolve) return r;
+  if (r.ok || r.invalid || !opts.aiSolve) return r;
   // Задача вне модели решателя (окружности, ГМТ, преобразования, буквенные данные):
   // полное решение — нейросетью, чертёж — по её эскизу.
   try {
@@ -137,33 +138,49 @@ export async function solveGeometryProblem(text, opts) {
   }
 }
 
+// Похоже ли на геометрическую задачу: → null или текст ошибки.
+const GEO_WORDS = /треуг|параллелограм|ромб|квадрат|прямоугольн|трапец|четырехуг|многоуг|окружн|круг|угол|угл[аоуы]|сторон|отрез|точк|прям[аоуы]|биссектр|медиан|высот|диагонал|радиус|диаметр|хорд|касател|секущ|площад|периметр|вектор|плоскост|куб|пирамид|призм|шар|сфер|конус|цилиндр|параллелепип|тетраэдр|катет|гипотенуз|основани|вершин|перпендикул|параллельн|∠|△/;
+const TASK_WORDS = /найд|вычисл|докаж|определ|чему\s+равн|сколько|как[аоуи][йяем]|в\s+каком|постро|покаж|\?/;
+export function checkProblemText(text) {
+  const t = normalizeMarkup(text).toLowerCase().replace(/\s+/g, ' ').trim();
+  if (t.replace(/[^a-zа-я0-9]/g, '').length < 12) return 'Слишком короткое условие. Напишите задачу полностью: что дано и что нужно найти.';
+  if (!/[а-я]{3}/.test(t) || !GEO_WORDS.test(t)) return 'Некорректная задача: это не похоже на условие геометрической задачи. Опишите фигуру, данные и что нужно найти — например, «В треугольнике ABC AB = 5, BC = 7, угол B = 60°. Найдите AC».';
+  if (!TASK_WORDS.test(t)) return 'Некорректная задача: не указано, что нужно найти или доказать (добавьте, например, «Найдите AC»).';
+  return null;
+}
+
 async function solveLocalOrIr(text, opts) {
+  const bad = checkProblemText(text);
+  if (bad) return { ok: false, invalid: true, error: bad };
   const parsed = parseProblem(text);
   let ir = parsed.ir;
-  let source = 'local';
   const notes = [];
-  let partial = null;
-  const needAi = !parsed.ok || parsed.unknown.length > 0;
-  if (needAi) {
-    if (!opts.ai) {
-      if (!parsed.ok) return { ok: false, error: 'Не удалось понять условие задачи. Проверьте, что указаны фигура с обозначениями вершин (например, «в параллелограмме ABCD») и что нужно найти.', ir, parsed };
-      notes.push('Часть условия не распознана: «' + parsed.unknown.join('», «') + '». Решение построено по остальным данным.');
-      partial = parsed.unknown;
-    } else {
-      try {
-        const aiIr = await opts.ai(text, parsed.ir, parsed.unknown);
-        ir = validateIr(aiIr);
-        ir.text = parsed.ir.text;
-        source = 'ai';
-      } catch (e) {
-        if (!parsed.ok) return { ok: false, error: 'Не удалось разобрать условие: ' + (e && e.message ? e.message : e), ir, parsed };
-        notes.push('Часть условия не распознана («' + parsed.unknown.join('», «') + '»), а нейросеть недоступна: решение построено по остальным данным.');
-        partial = parsed.unknown;
-      }
+  // 1) Сначала всегда — локальный решатель, без нейросети. Нераспознанные обрывки
+  //    условия не мешают, если по понятой части ответ находится однозначно.
+  if (parsed.ok) {
+    let local = null;
+    try { validateIr(ir); local = solveIr(ir, Object.assign({}, opts, { source: 'local', notes: [], partial: parsed.unknown.length ? parsed.unknown : null })); } catch (e) { local = null; }
+    const clean = local && local.ok && local.method !== 'coords' && !local.undetermined;
+    const leftoverData = parsed.unknown.some(u => /\d/.test(u));
+    if (clean && (!leftoverData || !opts.ai)) {
+      if (parsed.unknown.length && leftoverData) local.notes.unshift('Часть условия не распознана: «' + parsed.unknown.join('», «') + '». Проверьте, что решение учитывает всё условие.');
+      return local;
     }
+    if (local && local.ok && !opts.ai) return local;
   }
+  // 2) Редкий случай: формулировку разбирает нейросеть (результат решает всё равно
+  //    локальный решатель — с чертежом и шагами).
+  if (opts.ai) {
+    try {
+      ir = validateIr(await opts.ai(text, parsed.ir, parsed.unknown));
+      ir.text = parsed.ir.text;
+      const r = solveIr(ir, Object.assign({}, opts, { source: 'ai', notes }));
+      if (r.ok && r.method !== 'coords') return r;
+    } catch (e) { /* дальше — полное решение нейросетью */ }
+  }
+  if (!parsed.ok) return { ok: false, error: 'Не удалось понять условие задачи: решатель знает треугольники, параллелограммы, ромбы, прямоугольники, квадраты и трапеции (с биссектрисами, медианами, высотами, диагоналями), вписанную и описанную окружности, касательные.', ir, parsed };
   try { validateIr(ir); } catch (e) { return { ok: false, error: 'Условие неполное: ' + e.message + '.', ir, parsed }; }
-  return solveIr(ir, Object.assign({}, opts, { source, notes, partial }));
+  return solveIr(ir, Object.assign({}, opts, { source: 'local', notes, partial: parsed.unknown.length ? parsed.unknown : null }));
 }
 
 export function solveIr(ir, opts) {
@@ -219,7 +236,7 @@ function solveIrUnsafe(ir, opts) {
   }
   let gms = '';
   try { gms = buildGms(usedIr, drawModel, sol, { theme: opts.theme, assumedText }); } catch (e) { notes.push('Чертёж не построен: ' + e.message); }
-  return { ok: true, ir: usedIr, source: opts.source || 'local', method, steps, answers, gms, notes, model: drawModel };
+  return { ok: true, ir: usedIr, source: opts.source || 'local', method, steps, answers, gms, notes, model: drawModel, undetermined: undetermined.length > 0 };
 }
 
 // Ответ одной строкой (для заголовка): «EF = 6 см».

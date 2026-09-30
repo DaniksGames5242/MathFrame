@@ -232,8 +232,25 @@ export function quantity(model, pts, q) {
       const names = (q.of || V.join('')).split('');
       return Math.abs(polyArea(names.map(P)));
     }
+    case 'inradius': case 'circumradius': case 'centersDist': {
+      const [A, B, C] = V.slice(0, 3).map(P);
+      const c = triCircles(A, B, C);
+      return q.kind === 'inradius' ? c.r : q.kind === 'circumradius' ? c.R : V2.dist(c.I, c.O);
+    }
     default: throw new Error('величина ' + q.kind);
   }
+}
+
+// Вписанная и описанная окружности треугольника: центры I, O и радиусы r, R.
+export function triCircles(A, B, C) {
+  const a = V2.dist(B, C), b = V2.dist(A, C), c = V2.dist(A, B);
+  const p = a + b + c;
+  const I = { x: (a * A.x + b * B.x + c * C.x) / p, y: (a * A.y + b * B.y + c * C.y) / p };
+  const S = Math.abs(V2.cross(V2.sub(B, A), V2.sub(C, A))) / 2;
+  const d = 2 * (A.x * (B.y - C.y) + B.x * (C.y - A.y) + C.x * (A.y - B.y));
+  const sq = P => P.x * P.x + P.y * P.y;
+  const O = { x: (sq(A) * (B.y - C.y) + sq(B) * (C.y - A.y) + sq(C) * (A.y - B.y)) / d, y: (sq(A) * (C.x - B.x) + sq(B) * (A.x - C.x) + sq(C) * (B.x - A.x)) / d };
+  return { I, O, r: 2 * S / p, R: a * b * c / (4 * S) };
 }
 
 /* ---------------- невязки ---------------- */
