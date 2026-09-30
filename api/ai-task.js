@@ -153,7 +153,12 @@ async function run(task, messages, json) {
   const signal = AbortSignal.timeout(TIMEOUT_MS);
   let last = { status: 503, error: 'Функции нейросети ещё не настроены администратором сайта.', code: 'config' };
   for (const { cfg, model } of chain(task)) {
-    const out = await callOnce(cfg, model, messages, json, signal);
+    let out = await callOnce(cfg, model, messages, json, signal);
+    // Бесплатные лимиты считаются по модели: упёрлись в «большую» — пробуем «среднюю».
+    const alt = AI.freeModel(cfg.providerId, 'medium');
+    if (out.code === 'busy' && alt && alt !== model) out = await callOnce(cfg, alt, messages, json, signal);
+    // Ответ без валидного JSON — одна повторная попытка.
+    if (json && typeof out.text === 'string' && !extractJson(out.text)) out = await callOnce(cfg, model, messages, json, signal);
     if (typeof out.text === 'string') return out;
     last = out;
     if (out.code === 'timeout') break;
