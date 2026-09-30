@@ -10,13 +10,12 @@ draw Graph { name = "gPr"; graph = "g2"; nodeColor = #22c55e; nodeRadius = 17; i
 draw Graph { name = "gCm"; graph = "g3"; nodeColor = #3b82f6; nodeRadius = 17; interactive = false; showWeights = false; layer = 10 }
 draw Graph { name = "gSel"; graph = "g5"; nodeColor = #3b82f655; nodeRadius = 26; labels = false; interactive = false; showWeights = false; layer = 4 }
 draw Graph { name = "gPoly"; graph = "g4"; edgeColor = #f59e0b; edgeWidth = 2; nodeRadius = 0; labels = false; interactive = false; showWeights = false; layer = 5 }
-draw Text { name = "tb"; pos = (-7.6, 4.5); text = "двоичная запись Fₙ: " + format(pow(2, n) + 1, 0) + " цифр"; size = 0.9; align = left }
+draw Text { name = "tb"; pos = (-7.6, 4.5); text = "двоичная запись F" + sb(n) + ": " + format(pow(2, n) + 1, 0) + " цифр"; size = 0.9; align = left }
 draw Text { name = "tn"; pos = (-7.6, 2.8); text = "F₀ … F₅: зелёные — простые, синие — составные"; size = 0.9; align = left }
-draw Text { name = "tp"; pos = (0, -4.6); text = ptxt; size = 0.9 }
-string ptxt = "";
 Function md(x, y) { return x - y * floor(x / y); }
 Function sd(d) { if (d == 0) { return "⁰"; } if (d == 1) { return "¹"; } if (d == 2) { return "²"; } if (d == 3) { return "³"; } if (d == 4) { return "⁴"; } if (d == 5) { return "⁵"; } if (d == 6) { return "⁶"; } if (d == 7) { return "⁷"; } if (d == 8) { return "⁸"; } return "⁹"; }
 Function sb(d) { if (d == 0) { return "₀"; } if (d == 1) { return "₁"; } if (d == 2) { return "₂"; } if (d == 3) { return "₃"; } if (d == 4) { return "₄"; } return "₅"; }
+Function sx(x) { if (x >= 10) { return sd(floor(x / 10)) + sd(md(x, 10)); } return sd(x); }
 Function fer(m) { return pow(2, pow(2, m)) + 1; }
 // наименьший делитель вида k·2ⁿ⁺² + 1 (по необходимому условию), не больше √m; 0 — такого нет
 Function smallf(m, nn) {
@@ -50,6 +49,11 @@ Update {
     key2 = n;
   }
   Fv = fer(n);
-  info = "**Числа Ферма** Fₙ = 2" + sd(0) + " + 1";
+  float ex = pow(2, n); float dd = fd(n);
+  info = "**Числа Ферма** F" + sb(n) + " = 2" + sx(ex) + " + 1 = **" + format(Fv, 0) + "**. Первые пять (F₀ … F₄: 3, 5, 17, 257, 65537) простые, что породило гипотезу Ферма о простоте всех чисел этого вида.\n\n";
+  if (n < 2) { info = info + "F" + sb(n) + " — простое число. Двоичная запись — единица, нули и единица: 2" + sx(ex) + " + 1."; }
+  else if (dd == 0) { info = info + "F" + sb(n) + " — **простое**: у него нет делителей вида k · 2" + sx(n + 2) + " + 1 = " + format(pow(2, n + 2), 0) + "k + 1 не выше √F" + sb(n) + " ≈ " + format(sqrt(Fv), 0) + " (необходимое условие для простого делителя)."; }
+  else { info = info + "F" + sb(n) + " — **составное**: делится на **" + format(dd, 0) + "** = " + format(pow(2, n + 2), 0) + " · " + format((dd - 1) / pow(2, n + 2), 0) + " + 1, F" + sb(n) + " = " + format(dd, 0) + " · " + format(Fv / dd, 0) + ". Это опровергает гипотезу Ферма (для F₅ — делитель 641, найденный Эйлером)."; }
+  if (n >= 1) { info = info + "\n\nF" + sb(n) + " = F₀ · … · F" + sb(n - 1) + " + 2, поэтому любые два числа Ферма взаимно просты."; }
 }
 ]
