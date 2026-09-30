@@ -89,7 +89,7 @@ Update {
     EZ = 0; repeat (6) { EZ = EZ + pr(i) * (ka * vx(i) + kb * vy(i)); }
     addNode(gex, "a", [-8, EX]); addNode(gex, "b", [8, EX]); addEdge(gex, "a", "b");
     addNode(gey, "a", [-8, EY]); addNode(gey, "b", [8, EY]); addEdge(gey, "a", "b");
-    addNode(gez, "a", [-8, EZ]); addNode(gez, "b", [8, EZ]); addEdge(gez, "a", "b");
+    float zc = max(-4.9, min(4.9, EZ)); addNode(gez, "a", [-8, zc]); addNode(gez, "b", [8, zc]); addEdge(gez, "a", "b");
     key = sx + 100 * sy + 10000 * ka + 100000 * kb;
   }
   info = "**Математическое ожидание** E(X) = Σ pₖ·X(ωₖ) — среднее значение с весами-вероятностями. Здесь E(X) = " + num(EX, 3) + " (синяя линия), E(Y) = " + num(EY, 3) + " (жёлтая).\n\n";

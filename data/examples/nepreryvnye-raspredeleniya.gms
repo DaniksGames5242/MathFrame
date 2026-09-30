@@ -35,8 +35,8 @@ Function num(x, d) { if (x < 0) { return "−" + format(-x, d); } return format(
 Function gs(x, m, s) { return exp(-(x - m) * (x - m) / (2 * s * s)) / (s * 2.5066283); }
 Function dens(x) {
   if (fam == "norm") { return gs(x, 0, 2); }
-  if (fam == "unif") { if (x >= -4 && x <= 5) { return 1 / 9; } return 0; }
-  if (fam == "expo") { if (x >= -6) { return 0.5 * exp(-0.5 * (x + 6)); } return 0; }
+  if (fam == "unif") { if (abs(x + 4) < 0.001 || abs(x - 5) < 0.001) { return 1 / 18; } if (x > -4 && x < 5) { return 1 / 9; } return 0; }
+  if (fam == "expo") { if (abs(x + 6) < 0.001) { return 0.25; } if (x > -6) { return 0.5 * exp(-0.5 * (x + 6)); } return 0; }
   return 0.5 * gs(x, -3, 1.2) + 0.5 * gs(x, 3.5, 1.8);
 }
 // интеграл плотности от −10 до x по таблице (шаг 0,05)
