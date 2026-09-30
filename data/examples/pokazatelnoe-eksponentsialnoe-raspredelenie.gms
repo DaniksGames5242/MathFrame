@@ -7,7 +7,7 @@ camera type = fixed;
 
 // Синяя кривая — плотность λe^(−λx). Синие столбики — «хвост» x > s. Жёлтая кривая — плотность
 // остаточного времени X − s при условии X > s: f(x)/P(X > s). Ось x: 1 единица = 2.4 поля.
-float lam = 1; float tt = 1; float sx = 2.4; float y0 = -4.5; float ky = 3;
+float lam = 1; float tt = 1; float sx = 2.4; float y0 = -4.5; float ky = 3.4;
 float key = -99; float sv = 1;
 string info = "";
 
