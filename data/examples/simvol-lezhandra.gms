@@ -15,7 +15,7 @@ draw Graph { name = "gR"; graph = "gr"; nodeColor = #22c55e; nodeRadius = 14; la
 draw Graph { name = "gN"; graph = "gn"; nodeColor = #f59e0b; nodeRadius = 14; labels = true; interactive = false; showWeights = false; layer = 10 }
 draw Graph { name = "gZ"; graph = "gz"; nodeRadius = 14; labels = true; interactive = false; showWeights = false; layer = 10 }
 
-new UI { type = slider; label = "простое p"; variable = pj; min = 0; max = 9; step = 1; default = 4; showValue = false }
+new UI { type = slider; label = "номер простого p"; variable = pj; min = 0; max = 9; step = 1; default = 4; showValue = false }
 new UI { type = slider; label = "a"; variable = a; min = 0; max = p - 1; step = 1; default = 3 }
 new UI { type = slider; label = "b"; variable = b; min = 1; max = p - 1; step = 1; default = 5 }
 
@@ -70,7 +70,7 @@ Update {
   if (la == 0) { info = info + "Число a делится на p."; }
   if (la == 1) { info = info + "Это квадратичный вычет: x² ≡ " + format(a, 0) + " (mod " + format(p, 0) + ") при x = " + xs + "— в вершину " + format(a, 0) + " ведут два ребра."; }
   if (la == -1) { info = info + "Это невычет: сравнение x² ≡ " + format(a, 0) + " (mod " + format(p, 0) + ") не имеет решений — в вершину " + format(a, 0) + " рёбер нет."; }
-  info = info + " По критерию Эйлера a^((p−1)/2) = " + format(a, 0) + "^" + format((p - 1) / 2, 0) + " ≡ " + format(e, 0) + (e == p - 1 ? " ≡ −1" : "") + " (mod " + format(p, 0) + ").\n\n";
+  info = info + " По критерию Эйлера a в степени (p−1)/2 = " + format(a, 0) + " в степени " + format((p - 1) / 2, 0) + " ≡ " + format(e, 0) + (e == p - 1 ? " ≡ −1" : "") + " (mod " + format(p, 0) + ").\n\n";
   info = info + "Вычеты (их (p−1)/2 = " + format((p - 1) / 2, 0) + "): " + rs + "\nНевычеты: " + ns + "\n\n";
   info = info + "Мультипликативность: (" + format(a, 0) + "/" + format(p, 0) + ")·(" + format(b, 0) + "/" + format(p, 0) + ") = " + sg(la) + "·(" + sg(lb) + ") = " + sg(la * lb) + " = (" + format(a * b, 0) + "/" + format(p, 0) + ") = (" + format(md(a * b, p), 0) + "/" + format(p, 0) + ") = " + sg(lab) + ".";
 }
