@@ -13,14 +13,14 @@ draw Graph { name = "gY"; graph = "gy"; nodeColor = #f59e0b; nodeRadius = 9; lab
 draw Graph { name = "gYs"; graph = "gys"; nodeColor = #f59e0b; nodeRadius = 4; labels = false; interactive = false; showWeights = false; layer = 10 }
 draw Graph { name = "gSel"; graph = "gsel"; nodeColor = #3b82f6; nodeRadius = 15; labels = false; interactive = false; showWeights = false; layer = 5 }
 draw Graph { name = "gAx"; graph = "gax"; nodeRadius = 0; labels = true; interactive = false; showWeights = false; layer = 6 }
-draw Text { name = "lA"; pos = (-2.2, 4.75); text = "a"; size = 1.1 }
-draw Text { name = "lB"; pos = (-7.75, -0.4); text = "b"; size = 1.1 }
+draw Text { name = "lA"; pos = (1.9, 4.75); text = "a"; size = 1.1 }
+draw Text { name = "lB"; pos = (-7.75, 4.75); text = "b"; size = 1.1 }
 draw Graph { name = "gLg"; graph = "glg"; nodeColor = #22c55e; nodeRadius = 9; labels = false; interactive = false; showWeights = false; layer = 10 }
 draw Graph { name = "gLy"; graph = "gly"; nodeColor = #f59e0b; nodeRadius = 9; labels = false; interactive = false; showWeights = false; layer = 10 }
 draw Text { name = "tLg"; pos = (3.6, 3.0); text = "f(ab) = f(a)·f(b)"; size = 1; align = left }
 draw Text { name = "tLy"; pos = (3.6, 2.2); text = "f(ab) ≠ f(a)·f(b)"; size = 1; align = left }
-draw Text { name = "tL1"; pos = (3.6, 1.0); text = "крупные клетки: НОД(a, b) = 1"; size = 0.95; align = left }
-draw Text { name = "tL2"; pos = (3.6, 0.3); text = "мелкие: НОД(a, b) > 1"; size = 0.95; align = left }
+draw Text { name = "tL1"; pos = (3.6, 1.2); text = "крупные клетки: НОД(a, b) = 1"; size = 0.95; align = left }
+draw Text { name = "tL2"; pos = (3.6, 0.5); text = "мелкие: НОД(a, b) > 1"; size = 0.95; align = left }
 
 new UI { name = "sF"; type = select; label = "функция f"; variable = fn; options = ("tau", "sig", "phi", "mu", "id", "sq", "omg", "p1"); labels = ("τ(n) — число делителей", "σ(n) — сумма делителей", "φ(n) — функция Эйлера", "μ(n) — функция Мёбиуса", "n", "n²", "ω(n) — число простых делителей", "n + 1"); default = "tau" }
 new UI { name = "sA"; type = slider; label = "a"; variable = a; min = 1; max = 36; step = 1; default = 4 }
@@ -28,9 +28,8 @@ new UI { name = "sB"; type = slider; label = "b"; variable = b; min = 1; max = 3
 
 // ---- Логика ----
 string fn = "tau"; float a = 4; float b = 9;
-float key = -1;
 string info = "";
-float nOk = 0; float nBad = 0; float nBadCo = 0;
+float gkey = -1;
 
 Function f(n) {
   if (fn == "tau") { return tau(n); }
@@ -51,11 +50,6 @@ Function gy(j) { return 3.9 - 0.72 * (j - 1); }
 Function fs(n) { if (fn == "id" || fn == "sq" || fn == "p1") { return "f(" + ni(n) + ")"; } return fnm() + "(" + ni(n) + ")"; }
 
 Update {
-  float k = a * 100 + b;
-  if (key != k) {
-    key = k;
-    // сетка пересчитывается при смене функции, а не только пары: ключ учитывает fn через nOk
-  }
   float fk = 0; if (fn == "sig") { fk = 1; } if (fn == "phi") { fk = 2; } if (fn == "mu") { fk = 3; } if (fn == "id") { fk = 4; } if (fn == "sq") { fk = 5; } if (fn == "omg") { fk = 6; } if (fn == "p1") { fk = 7; }
   if (gkey != fk) {
     gkey = fk;
@@ -90,7 +84,6 @@ Update {
   else { info = info + "Равенство не выполнено"; if (g > 1) { info = info + ": пара не взаимно проста, а для не полностью мультипликативной функции это допустимо."; } else { info = info + " при взаимно простых a и b — такая f не мультипликативна."; } }
   info = info + "\n\nВ сетке 12×12 у мультипликативной функции все крупные клетки зелёные (жёлтые мелкие возможны, если f не полностью мультипликативна). Если среди крупных есть жёлтая — f не мультипликативна. Значение на единице: f(1) = " + ni(f(1)) + ".";
 }
-float gkey = -1;
 Function md(a, b) { return a - floor(a / b) * b; }
 Function gd(a, b) { float x = abs(a); float y = abs(b); repeat (40) { if (y > 0) { float r = x - floor(x / y) * y; x = y; y = r; } } return x; }
 Function num(x, d) { if (x < 0) { return "−" + format(-x, d); } return format(x, d); }

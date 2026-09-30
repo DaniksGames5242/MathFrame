@@ -7,7 +7,7 @@ new UI { type = slider; label = "число n"; variable = n; min = 1; max = 100
 draw Graph { name = "gH"; graph = "g0"; nodeColor = #f59e0b; nodeRadius = 24; labels = false; interactive = false; showWeights = false; layer = 5 }
 draw Graph { name = "gP"; graph = "g1"; nodeColor = #22c55e; nodeRadius = 17; interactive = false; showWeights = false; layer = 10 }
 draw Graph { name = "gC"; graph = "g2"; nodeColor = #3b82f6; nodeRadius = 17; interactive = false; showWeights = false; layer = 10 }
-draw Graph { name = "gU"; graph = "g3"; nodeRadius = 17; interactive = false; showWeights = false; layer = 10 }
+draw Text { name = "t1"; pos = (-6.9, 4.3); text = "1"; size = 1.5; layer = 10 }
 Function md(x, y) { return x - y * floor(x / y); }
 Function spf(m) { float d = 2; repeat (10) { if (d * d <= m && md(m, d) != 0) { d = d + 1; } } if (d * d > m) { return m; } return d; }
 Function isp(m) { if (m < 2) { return 0; } if (spf(m) == m) { return 1; } return 0; }
@@ -16,11 +16,10 @@ Function gy(m) { return 4.3 - 0.95 * floor((m - 1) / 10); }
 Update {
   n = round(n);
   if (key < 0) {
-    g1 = newGraph(); g2 = newGraph(); g3 = newGraph();
+    g1 = newGraph(); g2 = newGraph();
     repeat (100) {
       float m = i + 1;
-      if (m == 1) { addNode(g3, "1", [gx(m), gy(m)], "1"); }
-      else { if (isp(m) == 1) { addNode(g1, format(m, 0), [gx(m), gy(m)], format(m, 0)); } else { addNode(g2, format(m, 0), [gx(m), gy(m)], format(m, 0)); } }
+      if (m > 1) { if (isp(m) == 1) { addNode(g1, format(m, 0), [gx(m), gy(m)], format(m, 0)); } else { addNode(g2, format(m, 0), [gx(m), gy(m)], format(m, 0)); } }
     }
     key = 0;
   }
