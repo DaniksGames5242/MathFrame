@@ -171,6 +171,7 @@ async function callModel(cfg, model, userText, signal) {
       const data = await r.json().catch(() => null);
       return { text: String(req.extract(data) || '') };
     }
+    console.warn('[api/simplify] ' + cfg.providerId + ' ' + model + ' → HTTP ' + r.status + ' ' + (await r.text().catch(() => '')).slice(0, 200));
     if (r.status === 401 || r.status === 403 || r.status === 429 || r.status >= 500) {
       if (r.status !== 429) allRate = false;
       last = r.status === 429

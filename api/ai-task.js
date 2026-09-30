@@ -139,6 +139,7 @@ async function callOnce(cfg, model, messages, json, signal) {
       else if (m && Array.isArray(m.content)) text = m.content.map(c => (c && c.text) || '').join('');
       return { text };
     }
+    console.warn('[api/ai-task] ' + cfg.providerId + ' ' + model + ' → HTTP ' + r.status + ' ' + (await r.text().catch(() => '')).slice(0, 200));
     // response_format поддерживают не все модели — повтор без него
     if (r.status === 400 && json) { json = false; i--; continue; }
     last = r.status === 429
