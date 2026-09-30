@@ -187,7 +187,7 @@ async function callModel(cfg, model, userText, signal) {
 
 // Strips a wrapping ```markdown fence and "Конечно!"-style openers some models add anyway.
 function tidyAnswer(s) {
-  let t = String(s || '').trim();
+  let t = String(s || '').replace(/<think>[\s\S]*?<\/think>/g, '').trim();
   const fence = t.match(/^```(?:markdown|md)?\s*\n([\s\S]*?)\n```$/i);
   if (fence) t = fence[1].trim();
   return t;

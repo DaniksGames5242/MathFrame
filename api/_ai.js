@@ -51,7 +51,7 @@ const TASK_MODELS = {
 // «Experiment» даёт все три модели, включая распознавание картинок.
 const FREE_TIERS = {
   mistral: { small: 'mistral-small-latest', medium: 'mistral-medium-latest', large: 'mistral-large-latest', vision: 'mistral-small-latest' },
-  groq: { small: 'llama-3.1-8b-instant', medium: 'llama-3.3-70b-versatile', large: 'llama-3.3-70b-versatile', vision: 'meta-llama/llama-4-scout-17b-16e-instruct' },
+  groq: { small: 'openai/gpt-oss-20b', medium: 'qwen/qwen3.8-27b', large: 'openai/gpt-oss-120b', vision: 'qwen/qwen3.8-27b' },
   openrouter: { small: 'meta-llama/llama-3.2-3b-instruct:free', medium: 'meta-llama/llama-3.3-70b-instruct:free', large: 'deepseek/deepseek-r1:free', vision: 'meta-llama/llama-3.2-11b-vision-instruct:free' },
 };
 function freeModel(provider, tier) {

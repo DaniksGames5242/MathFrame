@@ -162,7 +162,7 @@ async function run(task, messages, json) {
 }
 
 function extractJson(s) {
-  const t = String(s || '').trim().replace(/^```(?:json)?\s*/i, '').replace(/```$/, '');
+  const t = String(s || '').replace(/<think>[\s\S]*?<\/think>/g, '').trim().replace(/^```(?:json)?\s*/i, '').replace(/```$/, '');
   const a = t.indexOf('{'), b = t.lastIndexOf('}');
   if (a < 0 || b < a) return null;
   try { return JSON.parse(t.slice(a, b + 1)); } catch (e) { return null; }
@@ -243,7 +243,7 @@ async function handler(req, res) {
     res.status(200).json({ ir });
     return;
   }
-  const text = out.text.trim().replace(/^```[a-z]*\s*/i, '').replace(/```$/, '').replace(/^["«]|["»]$/g, '').trim();
+  const text = out.text.replace(/<think>[\s\S]*?<\/think>/g, '').trim().replace(/^```[a-z]*\s*/i, '').replace(/```$/, '').replace(/^["«]|["»]$/g, '').trim();
   res.status(200).json({ text: text.slice(0, MAX_TEXT) });
 }
 
