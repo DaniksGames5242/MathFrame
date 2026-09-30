@@ -14,7 +14,7 @@ draw Graph { name = "gStar"; graph = "gst"; edgeWidth = 3; nodeRadius = 4; label
 draw Graph { name = "gSide"; graph = "gsd"; edgeWidth = 5; edgeColor = #3b82f6; nodeRadius = 0; labels = false; interactive = false; showWeights = false; layer = 4 }
 
 new UI { name = "sN"; type = select; label = "n"; variable = nsel; options = ("5", "7", "8", "9", "10", "11", "12", "13"); default = "7" }
-new UI { name = "sK"; type = slider; label = "шаг k (по порядку допустимых)"; variable = jk; min = 1; max = cnt; step = 1; default = 1 }
+new UI { name = "sK"; type = slider; label = "номер шага k"; variable = jk; min = 1; max = cnt; step = 1; default = 1 }
 
 string nsel = "7"; float n = 7; float jk = 1; float cnt = 2; float k = 2;
 float rr = 5; float keyc = -1;
@@ -64,7 +64,7 @@ Update {
   }
   float cen = 360 * k / n;
   float side = 2 * rr * sin(pi * k / n);
-  float angV = 180 - cen;
-  info = "**Звёздчатый многоугольник {" + format(n, 0) + "/" + format(k, 0) + "}:** " + format(n, 0) + " вершин правильного " + format(n, 0) + "-угольника, вершина i соединена с вершиной i + " + format(k, 0) + " (k взаимно просто с n, 1 < k < n/2). Ломаная замыкается за один обход.\n\n**Центральный угол стороны** 2πk/n = " + format(cen, 1) + "°; **угол при вершине** π − 2πk/n = " + format(angV, 1) + "°.\n\n**Длина стороны** 2R·sin(πk/n) = " + format(side, 2) + " при R = " + format(rr, 2) + ". Сторон, пересекающих данную: 2(k − 1) = " + format(2 * (k - 1), 0) + ", пар пересекающихся сторон: n(k − 1) = " + format(n * (k - 1), 0) + ".";
+  float angV = 180 * (n - 2 * k) / n;
+  info = "**Звёздчатый многоугольник {" + format(n, 0) + "/" + format(k, 0) + "}:** " + format(n, 0) + " вершин правильного " + format(n, 0) + "-угольника, вершина i соединена с вершиной i + " + format(k, 0) + " (k взаимно просто с n, 1 < k < n/2). Ломаная замыкается за один обход.\n\n**Центральный угол стороны** 2πk/n = " + format(cen, 1) + "°; **угол при вершине** π(n − 2k)/n = " + format(angV, 1) + "°.\n\n**Длина стороны** 2R·sin(πk/n) = " + format(side, 2) + " при R = " + format(rr, 2) + ". Сторон, пересекающих данную: 2(k − 1) = " + format(2 * (k - 1), 0) + ", пар пересекающихся сторон: n(k − 1) = " + format(n * (k - 1), 0) + ".";
 }
 ]

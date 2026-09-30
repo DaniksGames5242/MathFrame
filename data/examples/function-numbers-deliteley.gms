@@ -48,7 +48,6 @@ Update {
           float sm = ii + jj + kk;
           if (sm == 0 || v == n) { addNode(gt, key3, [px, py], format(v, 0)); }
           else { if (sm == 1) { addNode(gp, key3, [px, py], format(v, 0)); } else { addNode(gb, key3, [px, py], format(v, 0)); } }
-          // рёбра к соседям (узел-сосед появится позже; addEdge вызываем после создания всех узлов)
         }
       }
     }
@@ -67,7 +66,6 @@ Update {
           string k0 = "e" + format(ii, 0) + "_" + format(jj, 0) + "_" + format(kk, 0);
           if (ii < b1) { addEdge(ge, k0, "e" + format(ii + 1, 0) + "_" + format(jj, 0) + "_" + format(kk, 0)); }
           if (jj < b2) { addEdge(ge, k0, "e" + format(ii, 0) + "_" + format(jj + 1, 0) + "_" + format(kk, 0)); }
-          if (kk < b3 && ii == b1 + 0 * jj && 1 == 0) { addEdge(ge, k0, k0); }
         }
       }
     }

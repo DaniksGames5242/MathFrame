@@ -8,9 +8,9 @@ camera start zoom = 1.5;
 
 // Единичная сфера показана радиусом 3. Рёбра трёхгранного угла — лучи OA, OB, OC; точки A, B, C перетаскиваются по сфере.
 draw Surface { name = "sph"; type = parametric; x = "3 * sin(pi * u) * cos(6.283185 * v)"; y = "3 * cos(pi * u)"; z = "3 * sin(pi * u) * sin(6.283185 * v)"; umin = 0; umax = 1; vmin = 0; vmax = 1; grid = 24; color = #3b82f6; opacity = 0.08 }
-draw InfPlane { name = "fa"; points = (O, B, C); size = 3.2; opacity = 0.10; color = #22c55e }
-draw InfPlane { name = "fb"; points = (O, C, A); size = 3.2; opacity = 0.10; color = #22c55e }
-draw InfPlane { name = "fc"; points = (O, A, B); size = 3.2; opacity = 0.10; color = #22c55e }
+draw InfPlane { name = "fa"; points = (O, B, C); size = 1.4; opacity = 0.12; color = #22c55e }
+draw InfPlane { name = "fb"; points = (O, C, A); size = 1.4; opacity = 0.12; color = #22c55e }
+draw InfPlane { name = "fc"; points = (O, A, B); size = 1.4; opacity = 0.12; color = #22c55e }
 new Point3D { name = "O"; pos = (0, 0, 0); dynamic = false; collision = false; text = true("O") }
 new Point3D { name = "A"; pos = (2.85, -0.5, 0.5); text = true("A"); pauseOnDrag = false }
 new Point3D { name = "B"; pos = (0.5, 2.85, -0.5); text = true("B"); pauseOnDrag = false }
