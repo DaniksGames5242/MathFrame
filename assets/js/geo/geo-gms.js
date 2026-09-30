@@ -363,3 +363,49 @@ function equalityGroups(ir, model, solution) {
   merged.forEach(m => m.segs.sort((a, b) => rank(a) - rank(b)));
   return merged;
 }
+
+// Эскиз от нейросети ({ points, segments, dashed, circles, highlight }) → GMS.
+// Используется, когда задачу решает нейросеть (окружности, ГМТ и т. п.).
+export function sketchToGms(sk, opts) {
+  opts = opts || {};
+  const P0 = {};
+  for (const [n, v] of Object.entries((sk && sk.points) || {})) {
+    if (/^[A-Za-z][A-Za-z0-9_']{0,3}$/.test(n) && Array.isArray(v) && v.length >= 2 && v.every(Number.isFinite)) P0[n.replace(/'/g, '_')] = { x: +v[0], y: +v[1] };
+  }
+  const names = Object.keys(P0);
+  if (names.length < 2) return '';
+  const circles = ((sk && sk.circles) || []).map(c => {
+    const ctr = typeof c.center === 'string' ? P0[c.center] : (Array.isArray(c.center) ? { x: +c.center[0], y: +c.center[1] } : null);
+    return ctr && Number.isFinite(+c.radius) && +c.radius > 0 ? { c: ctr, r: +c.radius, name: typeof c.center === 'string' ? c.center : null } : null;
+  }).filter(Boolean);
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  const ext = (x, y) => { minX = Math.min(minX, x); maxX = Math.max(maxX, x); minY = Math.min(minY, y); maxY = Math.max(maxY, y); };
+  names.forEach(n => ext(P0[n].x, P0[n].y));
+  circles.forEach(c => { ext(c.c.x - c.r, c.c.y - c.r); ext(c.c.x + c.r, c.c.y + c.r); });
+  const bw = Math.max(1e-6, maxX - minX), bh = Math.max(1e-6, maxY - minY);
+  const W = 16, H = Math.max(7, Math.min(12, W * bh / bw * 1.1 + 2));
+  const k = Math.min((W - 2.5) / bw, (H - 2.5) / bh);
+  const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
+  const T = p => ({ x: (p.x - cx) * k, y: (p.y - cy) * k });
+  const out = [];
+  const seg = (list, extra, pre) => (list || []).forEach((s, i) => {
+    if (!Array.isArray(s) || !P0[s[0]] || !P0[s[1]]) return;
+    const a = s[0].replace(/'/g, '_'), b = s[1].replace(/'/g, '_');
+    const nm = pre + i;
+    if (pre === 'd') {
+      out.push('new Line { name = ' + q(nm) + '; pos = (' + a + ', ' + b + '); interact = false; active = false }');
+      out.push('draw Punctir { name = ' + q('p' + nm) + '; edge = ' + q(nm) + ' }');
+    } else out.push('new Line { name = ' + q(nm) + '; pos = (' + a + ', ' + b + '); interact = false' + extra + ' }');
+  });
+  seg(sk.segments, '', 's');
+  seg(sk.dashed, '', 'd');
+  seg(sk.highlight, '; color = ' + ACCENT + '; thickness = 4.5; layer = 30', 'f');
+  circles.forEach((c, i) => {
+    const t = T(c.c);
+    if (!c.name) out.push('new Point { name = ' + q('oc' + i) + '; pos = (' + fmt(t.x) + ', ' + fmt(t.y) + '); active = false; dynamic = false }');
+    out.push('new Circle { name = ' + q('c' + i) + '; center = ' + (c.name ? c.name.replace(/'/g, '_') : 'oc' + i) + '; radius = ' + fmt(c.r * k) + ' }');
+  });
+  const pts = names.map(n => { const t = T(P0[n]); return 'new Point { name = ' + q(n) + '; pos = (' + fmt(t.x) + ', ' + fmt(t.y) + '); text = true(' + q(n.replace(/_/g, '′')) + '); dynamic = false; collision = false; interact = false }'; });
+  return ['[', 'description = ' + q('**Рис. 1.** Эскиз чертежа (построен по решению нейросети, пропорции условные).'), 'theme = ' + (opts.theme === 'dark' ? 'dark' : 'light'), 'field width = ' + fmt(W) + ';', 'field height = ' + fmt(H) + ';', 'camera type = fixed;', '']
+    .concat(pts, out, [']']).join('\n');
+}

@@ -60,3 +60,10 @@ export async function recognizePhoto(file, mode) {
   if (!text) throw new Error('на фото не нашлось ' + (mode === 'geometry' ? 'условия задачи' : 'примера'));
   return text;
 }
+
+// Полное решение нейросетью (для задач вне модели локального решателя).
+export async function aiSolveGeometry(text) {
+  const d = await post({ task: 'solve', text });
+  if (!Array.isArray(d.steps) || !d.steps.length) throw new Error('нейросеть не вернула решения');
+  return d;
+}

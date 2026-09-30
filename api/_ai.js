@@ -40,6 +40,9 @@ const DEFAULT_TIER = 'medium';
 const TASK_MODELS = {
   geometry: () => tierModel('medium'),
   vision:   () => process.env.NGROK_MODEL_VISION || 'openai:gpt-4o-mini',
+  // solve — полное решение задачи вне возможностей локального решателя (окружности,
+  //           ГМТ, преобразования): нужна сильная модель → «Большая».
+  solve:    () => tierModel('large'),
   simplify: () => process.env.SIMPLIFY_MODEL || tierModel('medium'),
 };
 

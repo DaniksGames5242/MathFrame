@@ -2302,12 +2302,13 @@
         var usedAi = false;
         return gp.solveGeometryProblem(text, {
           theme: siteTheme(),
+          aiSolve: function (t) { setStatus('Задача вне возможностей локального решателя — решаю с помощью нейросети…', 'busy'); return ai.aiSolveGeometry(t); },
           ai: function (t, draft) { usedAi = true; setStatus('Незнакомая формулировка — разбираю условие с помощью нейросети…', 'busy'); return ai.aiParseGeometry(t, draft); }
         }).then(function (r) { return { r: r, gms: gms, usedAi: usedAi, gp: gp }; });
       }).then(function (x) {
         if (my !== token) return;
         render(x.r, x.gms, x.gp);
-        setStatus(x.r.ok && x.r.source === 'ai' ? 'Условие разобрано нейросетью — проверьте чертёж: совпадает ли он с задачей.' : '', x.r.ok && x.r.source === 'ai' ? 'info' : '');
+        setStatus(x.r.ok && x.r.source === 'ai-solve' ? '' : x.r.ok && x.r.source === 'ai' ? 'Условие разобрано нейросетью — проверьте чертёж: совпадает ли он с задачей.' : '', x.r.ok && x.r.source === 'ai' ? 'info' : '');
       }).catch(function (e) {
         if (my !== token) return;
         setStatus('Ошибка: ' + (e && e.message ? e.message : e), 'err');
@@ -2343,11 +2344,12 @@
       // решение
       el('div', 'gp-h', out, 'Решение');
       var ol = el('ol', 'gp-steps', out);
-      r.steps.forEach(function (s) { el('li', null, ol, s.html); });
+      if (r.stepsMd) r.stepsMd.forEach(function (s) { el('li', null, ol, richText(s)); });
+      else r.steps.forEach(function (s) { el('li', null, ol, s.html); });
       // ответ
       var ans = el('div', 'gp-answer', out);
       el('span', 'gp-answer-lbl', ans, 'Ответ');
-      el('span', 'gp-answer-val', ans, r.answers.map(gp.answerText).join('; '));
+      el('span', 'gp-answer-val', ans, r.answerMd !== undefined ? richText(r.answerMd) : r.answers.map(gp.answerText).join('; '));
       if (r.method === 'coords') el('div', 'gp-note', out, 'Решение методом координат: подходящей цепочки школьных теорем решатель не нашёл.');
     }
     if (ta.value.trim()) solve();

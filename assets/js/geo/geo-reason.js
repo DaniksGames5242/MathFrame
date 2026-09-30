@@ -185,7 +185,7 @@ function makeVars(G, ir) {
     return angRays(r1, r2);
   };
   const area = poly => {
-    const k = 'S:' + poly;
+    const k = 'S:' + poly.split('').sort().join('');
     if (!vars.has(k)) {
       let s = 0; const P = poly.split('').map(n => pts[n]);
       for (let i = 0; i < P.length; i++) { const a = P[i], b = P[(i + 1) % P.length]; s += a.x * b.y - b.x * a.y; }
@@ -478,10 +478,10 @@ export function solveProblem(ir, model) {
     // теорема косинусов / синусов
     for (const r of [a, b, c]) {
       const [p, q] = [a, b, c].filter(x => x !== r);
-      add(fn([sides[r], Q.len(r, p), Q.len(r, q), angs[r]], x => x[0] * x[0] - x[1] * x[1] - x[2] * x[2] + 2 * x[1] * x[2] * Math.cos(x[3] * Math.PI / 180), { kind: 'cosine', tri, at: r, cost: 4 }));
+      add(fn([sides[r], Q.len(r, p), Q.len(r, q), angs[r]], x => x[0] * x[0] - x[1] * x[1] - x[2] * x[2] + 2 * x[1] * x[2] * Math.cos(x[3] * Math.PI / 180), { kind: 'cosine', tri, at: r, cost: 80 }));
     }
     for (const [r, s] of [[a, b], [b, c], [a, c]]) {
-      add(fn([sides[r], angs[r], sides[s], angs[s]], x => x[0] * Math.sin(x[3] * Math.PI / 180) - x[2] * Math.sin(x[1] * Math.PI / 180), { kind: 'sine', tri, cost: 4 }));
+      add(fn([sides[r], angs[r], sides[s], angs[s]], x => x[0] * Math.sin(x[3] * Math.PI / 180) - x[2] * Math.sin(x[1] * Math.PI / 180), { kind: 'sine', tri, cost: 80 }));
     }
     // площадь: ½·a·b·sin C, ½·основание·высота, Герон
     for (const r of [a, b, c]) {
@@ -526,6 +526,18 @@ export function solveProblem(ir, model) {
   }
   if (isPar) {
     add(fn([Q.area(V.join('')), S[0], S[3], angV(V[0])], x => x[0] - x[1] * x[2] * Math.sin(x[3] * Math.PI / 180), { kind: 'area_par_sin', cost: 3, figRu }));
+  }
+  // длина медианы треугольника: m = ½√(2a² + 2b² − c²)
+  for (const c of ir.constructions) {
+    const isMid = (c.kind === 'median' && c.target) || (c.kind === 'midpoint' && V.length === 3);
+    if (!isMid || !G.pts[c.point] || V.length !== 3) continue;
+    const side = c.kind === 'median' ? c.target : c.seg;
+    const apex = V.find(x => !side.includes(x));
+    if (!apex || !G.lineOf(apex, c.point)) continue;
+    add(fn([Q.len(apex, c.point), Q.len(apex, side[0]), Q.len(apex, side[1]), Q.len(side[0], side[1])],
+      x => 4 * x[0] * x[0] - 2 * x[1] * x[1] - 2 * x[2] * x[2] + x[3] * x[3], { kind: 'medianLen', cost: 2 }));
+    const whole = Q.area(V.join(''));
+    for (const e0 of side) add(lin([[Q.area(apex + e0 + c.point), 2], [whole, -1]], 0, { kind: 'half', why: 'медиана ' + apex + c.point + ' делит треугольник на два равновеликих', cost: 1 }));
   }
   // теорема о биссектрисе треугольника
   if (V.length === 3) for (const b of bisectors) {
@@ -932,6 +944,11 @@ function linWhy(e, Q) {
   }
 }
 
+// «= √100 = 10», но «= √865», а не «√865 = √865».
+function sqEnd(sq, v, approx, ans) {
+  const r = '√' + num(sq);
+  return (fmtNum(v).s === r ? '' : ' = ' + r) + ' ' + approx + ' ' + ans;
+}
 // Нелинейные формулы.
 function renderFormula(k, e, known, Q, unit) {
   const nm = x => displayQ(Q.vars.get(x));
@@ -1011,6 +1028,11 @@ function renderFormula(k, e, known, Q, unit) {
       const [S, a, b, ang] = V;
       if (k === S) return 'Площадь ' + (e.figRu || 'параллелограмма') + ': ' + nm(S) + ' = ' + nm(a) + ' · ' + nm(b) + ' · sin ' + nm(ang) + ' = ' + n(a) + ' · ' + n(b) + ' · sin ' + n(ang) + '° ' + approx + ' ' + ans + '.';
       return 'Из формулы ' + nm(S) + ' = ' + nm(a) + ' · ' + nm(b) + ' · sin ' + nm(ang) + ' находим ' + nm(k) + ' ' + approx + ' ' + ans + '.';
+    }
+    case 'medianLen': {
+      const [m, a, b, c] = V;
+      if (k === m) return 'По формуле длины медианы: ' + nm(m) + ' = ½·√(2' + nm(a) + '² + 2' + nm(b) + '² − ' + nm(c) + '²) = ½·√(2·' + n(a) + '² + 2·' + n(b) + '² − ' + n(c) + '²) = ½·√' + num(2 * vv(a) ** 2 + 2 * vv(b) ** 2 - vv(c) ** 2) + ' ' + approx + ' ' + ans + '.';
+      return 'Из формулы длины медианы ' + nm(m) + ' = ½·√(2' + nm(a) + '² + 2' + nm(b) + '² − ' + nm(c) + '²) находим ' + nm(k) + ' ' + approx + ' ' + ans + '.';
     }
     case 'bisector_thm': {
       const [pk, kq, vp, vq] = V;

@@ -12,7 +12,7 @@
 import { parseProblem, freeName } from './geo-parse.js';
 import { buildModel, evalQ, isDetermined, assumedQuantities } from './geo-model.js';
 import { solveProblem, coordinateSolution, num, I, ANG, italicNames } from './geo-reason.js';
-import { buildGms } from './geo-gms.js';
+import { buildGms, sketchToGms } from './geo-gms.js';
 
 const FIG_TYPES = ['triangle', 'parallelogram', 'rhombus', 'rectangle', 'square', 'trapezoid', 'quadrilateral'];
 const RU_Q = { length: 'отрезок', angle: 'угол', area: 'площадь', perimeter: 'периметр' };
@@ -47,6 +47,18 @@ export function validateIr(ir) {
   ir.constructions = (ir.constructions || []).filter(c => c && typeof c === 'object' && typeof c.kind === 'string');
   ir.find = (ir.find || []).filter(f => f && ['length', 'angle', 'area', 'perimeter'].includes(f.kind));
   if (!ir.find.length) throw new Error('не понятно, что нужно найти');
+  // Все упомянутые точки должны быть вершинами фигуры или точками построений.
+  const known = new Set(V.concat(ir.constructions.map(c => c.point).filter(Boolean)));
+  const pts = [];
+  for (const x of ir.given.concat(ir.find)) {
+    for (const k of ['seg', 'a', 'b', 'point']) if (typeof x[k] === 'string') pts.push(...x[k].match(/[A-Z][0-9]?/g) || []);
+    if (x.angle && x.angle.length === 3) pts.push(...x.angle.split(''));
+    if (x.segs) x.segs.forEach(sg => pts.push(...sg.match(/[A-Z][0-9]?/g) || []));
+    if (x.of) pts.push(...x.of.split(''));
+  }
+  for (const c of ir.constructions) for (const k of ['vertex', 'target', 'seg']) if (typeof c[k] === 'string') pts.push(...c[k].match(/[A-Z][0-9]?/g) || []);
+  const miss = [...new Set(pts.filter(n => !known.has(n)))];
+  if (miss.length) throw new Error('в условии есть точки, построение которых не понято: ' + miss.join(', '));
   // Трапеция с равными боковыми сторонами — равнобедренная.
   if (fig.type === 'trapezoid' && !fig.isosceles) {
     const bs = fig.bases || [V[0] + V[3], V[1] + V[2]];
@@ -80,10 +92,11 @@ function auxCandidates(ir) {
     // высоты из концов меньшего основания
     const bs = fig.bases || [V[0] + V[3], V[1] + V[2]];
     const top = bs[1], bottom = bs[0];
-    const h1 = { kind: 'altitude', vertex: top[0], target: bottom, point: nameFor('H'), aux: true };
-    out.push([h1]);
-    const h2 = { kind: 'altitude', vertex: top[1], target: bottom, point: freeName({ constructions: ir.constructions.concat([h1]), given: ir.given }, V, 'K'), aux: true };
-    out.push([h1, h2]);
+    const have = v => ir.constructions.some(c => c.kind === 'altitude' && c.vertex === v);
+    const h1 = have(top[0]) ? null : { kind: 'altitude', vertex: top[0], target: bottom, point: nameFor('H'), aux: true };
+    if (h1) out.push([h1]);
+    const h2 = have(top[1]) ? null : { kind: 'altitude', vertex: top[1], target: bottom, point: freeName({ constructions: ir.constructions.concat(h1 ? [h1] : []), given: ir.given }, V, 'K'), aux: true };
+    if (h2) out.push([h1, h2].filter(Boolean));
   }
   if (['parallelogram', 'rhombus'].includes(t)) out.push([{ kind: 'altitude', vertex: V[1], target: V[0] + V[3], point: nameFor('H'), aux: true }]);
   if (t === 'triangle') {
@@ -110,6 +123,21 @@ function auxText(cs) {
 
 export async function solveGeometryProblem(text, opts) {
   opts = opts || {};
+  const r = await solveLocalOrIr(text, opts);
+  if (r.ok || !opts.aiSolve) return r;
+  // Задача вне модели решателя (окружности, ГМТ, преобразования, буквенные данные):
+  // полное решение — нейросетью, чертёж — по её эскизу.
+  try {
+    const d = await opts.aiSolve(text);
+    let gms = '';
+    try { gms = sketchToGms(d.sketch, { theme: opts.theme }); } catch (e) { gms = ''; }
+    return { ok: true, source: 'ai-solve', method: 'ai', steps: [], stepsMd: d.steps, answerMd: d.answer, answers: [], gms, notes: ['Эту задачу решила нейросеть: локальный решатель пока не умеет ' + (r.error ? 'разбирать такие условия' : 'такие построения') + '. Проверьте рассуждения.'] };
+  } catch (e) {
+    return Object.assign({}, r, { error: r.error + ' Нейросеть тоже не помогла: ' + (e && e.message ? e.message : e) });
+  }
+}
+
+async function solveLocalOrIr(text, opts) {
   const parsed = parseProblem(text);
   let ir = parsed.ir;
   let source = 'local';
@@ -139,6 +167,11 @@ export async function solveGeometryProblem(text, opts) {
 }
 
 export function solveIr(ir, opts) {
+  try { return solveIrUnsafe(ir, opts); } catch (e) {
+    return { ok: false, error: 'Решатель не справился с этой задачей (' + (e && e.message ? e.message : e) + ').', ir };
+  }
+}
+function solveIrUnsafe(ir, opts) {
   opts = opts || {};
   const notes = (opts.notes || []).slice();
   let model;

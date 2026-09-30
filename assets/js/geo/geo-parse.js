@@ -26,6 +26,8 @@
 // которые ни один шаблон не понял, результат помечается как неполный
 // (unknown: [...]) — тогда вызывающий код отправляет задачу ИИ (geo-ai.js).
 
+import { normalizeMarkup } from './geo-markup.js';
+
 // Кириллические буквы, похожие на латинские: ученики часто набирают «АВС» русскими.
 const CYR2LAT = { 'А': 'A', 'В': 'B', 'С': 'C', 'Е': 'E', 'Н': 'H', 'К': 'K', 'М': 'M', 'О': 'O', 'Р': 'P', 'Т': 'T', 'Х': 'X', 'У': 'Y' };
 
@@ -46,7 +48,7 @@ export function parseNumber(s) {
 // Текст → удобный для шаблонов вид: ё → е, кириллические «точки» → латиница,
 // ∠ ABC → ∠ABC, единый пробел, «угол B» в любом регистре.
 export function normalizeText(src) {
-  let t = String(src || '').replace(/\r/g, '').replace(/ё/g, 'е').replace(/Ё/g, 'Е');
+  let t = normalizeMarkup(src).replace(/\r/g, '').replace(/ё/g, 'е').replace(/Ё/g, 'Е');
   t = t.replace(/[−–]/g, '-').replace(/ /g, ' ').replace(/[“”«»]/g, '"');
   t = t.replace(/\bsqrt\s*\(?\s*(\d+(?:[.,]\d+)?)\s*\)?/gi, '√$1').replace(/√\s*\(\s*(\d+(?:[.,]\d+)?)\s*\)/g, '√$1');
   // Отдельно стоящие «слова» из 1–5 заглавных букв (с цифрами-индексами) — это
@@ -214,6 +216,8 @@ export function parseProblem(src) {
     const pt = m[3] ? m[3].replace(m[1], '') : freeName(ir, V, kind === 'altitude' ? 'H' : kind === 'median' ? 'M' : 'L');
     addCons({ kind, vertex: m[1], target: m[4], point: pt });
   });
+  // «из вершины C опущена высота CD» (без стороны — её найдёт resolveTargets)
+  each(/из\s+вершины\s+([A-Z])\s+(?:проведен[а-яА-Я]*|опущен[а-яА-Я]*)(?=\s*(?:$|[.,;]|\s{3,}|\s+(?:высот|медиан|биссектрис|перпендикуляр)))/, () => {});
   // «перпендикуляр BH к стороне AD»
   each(/перпендикуляр[а-яА-Я]*\s+([A-Z]{2})\s+(?:к|на)\s+(?:сторон[а-яА-Я]*|основани[а-яА-Я]*|прям[а-яА-Я]*)?\s*([A-Z]{2})/, m => {
     const s = m[1]; const vert = isVertex(s[0]) ? s[0] : s[1];
@@ -286,7 +290,7 @@ export function parseProblem(src) {
   each(new RegExp('периметр[а-яА-Я]*(?:\\s+(?:[а-я]+\\s+)?([A-Z]{3,4}))?' + EQ + NUM + UNIT), m => { ir.given.push({ kind: 'perimeter', of: m[1] || null, value: parseNumber(m[2]) }); });
   each(new RegExp('площад[а-яА-Я]*(?:\\s+(?:[а-я]+\\s+)?([A-Z]{3,4}))?' + EQ + NUM + '(?:\\s*(?:кв\\.?\\s*)?(?:см|мм|дм|м)(?:²|2|\\^2)?\\.?)?'), m => { ir.given.push({ kind: 'area', of: m[1] || null, value: parseNumber(m[2]) }); });
   // «стороны параллелограмма равны 5 и 7», «основания трапеции равны 4 и 10», «катеты равны 3 и 4»
-  each(new RegExp('(сторон[а-яА-Я]*|основани[а-яА-Я]*|катет[а-яА-Я]*|диагонал[а-яА-Я]*|боков[а-яА-Я]*\\s+сторон[а-яА-Я]*)(?:\\s+[а-я]+)?\\s+(?:равен|равн[а-яА-Я]*)\\s+' + NUM + UNIT + '\\s+и\\s+' + NUM + UNIT), m => {
+  each(new RegExp('(боков[а-яА-Я]*\\s+сторон[а-яА-Я]*|сторон[а-яА-Я]*|основани[а-яА-Я]*|катет[а-яА-Я]*|диагонал[а-яА-Я]*)(?:\\s+[а-я]+){0,2}\\s+(?:равен|равн[а-яА-Я]*)\\s+' + NUM + UNIT + '\\s+и\\s+' + NUM + UNIT), m => {
     if (!fig) return false;
     const a = parseNumber(m[2]), b = parseNumber(m[4]);
     const w = m[1];
@@ -316,7 +320,7 @@ export function parseProblem(src) {
   // «… делит сторону AD на отрезки AH = 6 и HD = 4» — сами отрезки разберёт шаблон длин ниже
   each(/(?:дел[а-я]*|разбивает)\s+(?:сторон[а-я]*|основани[а-я]*|гипотенуз[а-я]*|отрезок)\s+[A-Z]{2}\s+на\s+отрезки(?=\s+[A-Z]{2}\s*=)/, () => {});
   // «сторона ромба равна 5», «сторона квадрата 4 см», «гипотенуза равна 10»
-  each(new RegExp('(сторон[а-яА-Я]*|гипотенуз[а-яА-Я]*|боков[а-яА-Я]*\\s+сторон[а-яА-Я]*|основани[а-яА-Я]*|радиус[а-яА-Я]*)(?:\\s+[а-я]+)?' + EQ + NUM + UNIT), m => {
+  each(new RegExp('(?:а\\s+)?(?:ее\\s+|его\\s+)?(боков[а-яА-Я]*\\s+сторон[а-яА-Я]*|сторон[а-яА-Я]*|гипотенуз[а-яА-Я]*|основани[а-яА-Я]*|радиус[а-яА-Я]*)(?:\\s+[а-я]+)?' + EQ + NUM + UNIT), m => {
     if (!fig) return false;
     const v = parseNumber(m[2]); const w = m[1];
     if (/гипотенуз/.test(w) && fig.type === 'triangle') {
@@ -332,6 +336,19 @@ export function parseProblem(src) {
     } else if (/сторон/.test(w)) {
       ir.given.push({ kind: 'length', seg: V[0] + V[1], value: v });
     } else return false;
+  });
+  // «a = 5, b = 6, c = 7» — стороны против вершин A, B, C
+  each(new RegExp('(?:^|[^A-Za-z])([abc])\\s*=\\s*' + NUM + UNIT), m => {
+    if (!fig || fig.type !== 'triangle') return false;
+    const i = 'abc'.indexOf(m[1]); const others = V.filter((_, j) => j !== i);
+    ir.given.push({ kind: 'length', seg: others.join(''), value: parseNumber(m[2]) });
+  });
+  // «cos A = 0.6», «sin B = 0,8», «tg C = 3/4»
+  each(new RegExp('(cos|sin|tg|tan)\\s*∠?\\s*([A-Z]{1,3})' + EQ + NUM), m => {
+    const v = parseNumber(m[3]); let deg;
+    if (m[1] === 'cos') deg = Math.acos(v); else if (m[1] === 'sin') deg = Math.asin(v); else deg = Math.atan(v);
+    if (!Number.isFinite(deg)) return false;
+    ir.given.push({ kind: 'angle', angle: m[2], value: deg * 180 / Math.PI, trig: m[1] + ' = ' + m[3] });
   });
   // «AB = CD = 5 см»
   each(new RegExp(SEG + '\\s*=\\s*' + SEG + '\\s*=\\s*' + NUM + UNIT), m => {
@@ -422,6 +439,19 @@ function parseFindList(body, ir, V) {
   s = s.replace(/(?:его|ее|их)?\s*площад[а-яА-Я]*(?:\s+(?:[а-я]+\s+)?([A-Z]{3,4}))?/g, (w, of) => { push({ kind: 'area', of: of || null }); return ' '; });
   s = s.replace(/(?:∠|угол\s+|угла\s+|величину\s+угла\s+|градусную\s+меру\s+угла\s+)([A-Z]{1,3})\b/g, (w, a) => { push({ kind: 'angle', angle: a }); return ' '; });
   s = s.replace(/(?:(?:длин[а-яА-Я]*\s+)?(?:отрез[а-яА-Я]*|сторон[а-яА-Я]*|основани[а-яА-Я]*|диагонал[а-яА-Я]*|высот[а-яА-Я]*|медиан[а-яА-Я]*|биссектрис[а-яА-Я]*|катет[а-яА-Я]*|гипотенуз[а-яА-Я]*)\s+)?([A-Z][0-9]?[A-Z][0-9]?)\b/g, (w, seg) => { push({ kind: 'length', seg }); return ' '; });
+  // Без обозначений: «высоту трапеции», «её диагональ», «гипотенузу»
+  s = s.replace(/высот[а-яА-Я]*(?:\s+(?:трапеции|параллелограмма|ромба|треугольника))?/g, () => {
+    if (V.length < 3) return ' ';
+    const t = ir.figure.type;
+    const base = t === 'trapezoid' ? trapBases(ir.figure)[0] : V.length === 4 ? V[0] + V[3] : V[0] + V[2];
+    const vert = V.length === 4 ? (t === 'trapezoid' ? trapBases(ir.figure)[1][0] : V[1]) : V[1];
+    let c = ir.constructions.find(x => x.kind === 'altitude' && x.vertex === vert);
+    if (!c) { c = { kind: 'altitude', vertex: vert, target: base, point: freeName(ir, V, 'H') }; ir.constructions.push(c); }
+    push({ kind: 'length', seg: vert + c.point });
+    return ' ';
+  });
+  s = s.replace(/(?:длин[а-яА-Я]*\s+)?(?:ее\s+|его\s+)?диагонал[а-яА-Я]*/g, () => { if (V.length === 4) push({ kind: 'length', seg: V[0] + V[2] }); return ' '; });
+  s = s.replace(/гипотенуз[а-яА-Я]*/g, () => { if (V.length === 3) { const r = ir.figure.rightAngle || V[2]; push({ kind: 'length', seg: V.filter(x => x !== r).join('') }); } return ' '; });
   // Слова без обозначений: «высоту», «гипотенузу», «диагональ» — оставим ИИ.
   return any && !/[A-Z0-9]/.test(s.replace(/\s+/g, ''));
 }
