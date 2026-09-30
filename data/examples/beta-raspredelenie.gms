@@ -36,7 +36,7 @@ Function ib0(x, p, q) {
 Function ib(x) { if (x <= 0.5) { return ib0(x, a, b); } return 1 - ib0(1 - x, b, a); }
 Function pkv() {
   if (a > 1 && b > 1) { return fb((a - 1) / (a + b - 2)); }
-  return max(fb(0.5), max(fb(0.05), fb(0.95)));
+  return max(fb(0.5), max(fb(0.15), fb(0.85)));
 }
 Update {
   if (abs(A.pos.y - y0) > 0.0001) { A.pos.y = y0; }

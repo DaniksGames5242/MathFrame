@@ -5,7 +5,7 @@ field width = 20;
 field height = 12;
 camera type = fixed;
 
-// ---- 16 независимых серий испытаний: ломаные — относительная частота ν = m/n успеха после n испытаний.
+// ---- 12 независимых серий испытаний: ломаные — относительная частота ν = m/n успеха после n испытаний.
 // Горизонтальные линии — вероятность p и полоса p ± ε (оранжевая); вертикальная линия — выбранное n, кружки на ней —
 // частоты серий (оранжевые — вышли за полосу). ----
 draw Graph { name = "gG"; graph = "gg"; edgeColor = #3b82f655; edgeWidth = 1; nodeRadius = 0; labels = false; interactive = false; showWeights = false; layer = 1 }
@@ -17,7 +17,7 @@ draw Text { name = "t0"; pos = (-9.6, -5.5); text = "0"; size = 0.85 }
 draw Text { name = "t1"; pos = (-9.6, 5.5); text = "1"; size = 0.85 }
 draw Text { name = "tn"; pos = (9.5, -5.75); text = "n"; size = 0.85 }
 
-new UI { name = "sP"; type = slider; label = "p"; variable = p; min = 0.05; max = 0.95; step = 0.01; default = 0.4 }
+new UI { name = "sP"; type = slider; label = "p"; variable = p; min = 0.05; max = 0.95; step = 0.05; default = 0.4 }
 new UI { name = "sE"; type = slider; label = "ε"; variable = eps; min = 0.02; max = 0.3; step = 0.01; default = 0.1 }
 new UI { name = "sN"; type = slider; label = "n"; variable = N; min = 5; max = 200; step = 1; default = 60 }
 new UI { name = "bR"; type = button; label = "Новые серии"; action = "seed = seed + 1" }
@@ -29,17 +29,19 @@ Function px(n) { return -9.4 + 18.8 * (n - 1) / 199; }
 Function py(f) { return -5.5 + 11 * f; }
 
 Update {
-  if (init == 0) { repeat (3199) { push(u, 0); push(fr, 0); } repeat (200) { push(lfl, lfl[i] + log(i + 1)); } init = 1; }
-  if (sd != seed) { sd = seed; repeat (3200) { u[i] = random(0, 1); } pk = -1; }
+  if (init == 0) { repeat (2399) { push(u, 0); push(fr, 0); } repeat (200) { push(lfl, lfl[i] + log(i + 1)); } init = 1; }
+  if (sd != seed) { sd = seed; repeat (2400) { u[i] = random(0, 1); } pk = -1; }
   if (pk != p) {
     pk = p; gp = newGraph();
-    repeat (16) {
-      float r = i; float m = 0;
+    repeat (12) {
+      float r = i; float m = 0; string pv = "";
       repeat (200) {
         if (u[r * 200 + i] < p) { m = m + 1; }
         fr[r * 200 + i] = m / (i + 1);
-        addNode(gp, "p" + format(r, 0) + "_" + format(i, 0), [px(i + 1), py(m / (i + 1))]);
-        if (i > 0) { addEdge(gp, "p" + format(r, 0) + "_" + format(i - 1, 0), "p" + format(r, 0) + "_" + format(i, 0)); }
+        string cur = "p" + format(r * 200 + i, 0);
+        addNode(gp, cur, [px(i + 1), py(m / (i + 1))]);
+        if (i > 0) { addEdge(gp, pv, cur); }
+        pv = cur;
       }
     }
     key = -1;
@@ -54,7 +56,7 @@ Update {
     if (p + eps < 1) { addNode(gl, "b1", [-9.4, py(p + eps)]); addNode(gl, "b2", [9.4, py(p + eps)]); addEdge(gl, "b1", "b2"); }
     addNode(gl, "n1", [px(N), -5.5]); addNode(gl, "n2", [px(N), 5.5]); addEdge(gl, "n1", "n2", 1, "#3b82f688");
     float out = 0;
-    repeat (16) {
+    repeat (12) {
       float f = fr[i * 200 + N - 1];
       if (abs(f - p) > eps + 0.000001) { out = out + 1; addNode(go, "o" + format(i, 0), [px(N), py(f)]); } else { addNode(gi, "i" + format(i, 0), [px(N), py(f)]); }
     }
@@ -62,7 +64,7 @@ Update {
     repeat (N + 1) { float m = i; if (abs(m / N - p) > eps + 0.000001) { ex = ex + exp(lfl[N] - lfl[m] - lfl[N - m] + m * log(p) + (N - m) * log(1 - p)); } }
     float bd = p * (1 - p) / (N * eps * eps);
     info = "**Теорема Бернулли:** пусть в каждом из n независимых испытаний событие наступает с вероятностью p = " + format(p, 2) + ", а m — число наступлений. Тогда для любого ε > 0 вероятность P(|m/n − p| > ε) → 0 при n → ∞: относительная частота сходится по вероятности к p.\n\n";
-    info = info + "**При n = " + format(N, 0) + ", ε = " + format(eps, 2) + ":** точная вероятность P(|m/n − p| > ε) = " + format(ex, 4) + " (биномиальное распределение); оценка через неравенство Чебышёва p(1 − p)/(nε²) = " + format(bd, 4) + "; из 16 серий за полосу вышли " + format(out, 0) + ". С ростом n все три числа убывают к нулю, но остаются положительными при любом конечном n.";
+    info = info + "**При n = " + format(N, 0) + ", ε = " + format(eps, 2) + ":** точная вероятность P(|m/n − p| > ε) = " + format(ex, 4) + " (биномиальное распределение); оценка через неравенство Чебышёва p(1 − p)/(nε²) = " + format(bd, 4) + "; из 12 серий за полосу вышли " + format(out, 0) + ". С ростом n все три числа убывают к нулю, но остаются положительными при любом конечном n.";
   }
 }
 ]
