@@ -4,6 +4,7 @@
 // api/gemini.js / api/llm.js) it spends the SITE's key, so it uses exactly the
 // same environment variables as the AI agent — nothing new has to be set up:
 //
+//   NGROK_AI_KEY        the ngrok AI Gateway key (primary; model from api/_ai.js)
 //   AI_AGENT_API_KEYS   the site's key(s) (comma / whitespace separated, rotated)
 //   AI_AGENT_PROVIDER   mistral (default) | groq | openrouter | gemini
 //   AI_AGENT_MODEL      optional, the model (mistral default: mistral-medium-latest)
@@ -35,6 +36,7 @@
 
 const chat = require('./chat');
 const { getConfig, identify, checkRateLimit, loadAiSettings, DEFAULT_DISABLED_MESSAGE } = chat._internal;
+const AI = require('./_ai');
 
 const MAX_TEXT = 12000;
 const MAX_TITLE = 200;
@@ -240,7 +242,8 @@ async function handler(req, res) {
     return;
   }
 
-  const model = process.env.SIMPLIFY_MODEL || cfg.model;
+  // On the ngrok gateway the model is fixed for this function (api/_ai.js).
+  const model = cfg.providerId === 'ngrok' ? AI.TASK_MODELS.simplify() : (process.env.SIMPLIFY_MODEL || cfg.model);
   const key = hashText(model + '\n' + title + '\n' + text);
   const hit = cacheGet(key);
   if (hit) {
@@ -265,7 +268,11 @@ async function handler(req, res) {
 
   const userText = 'Тема: «' + (title || 'без названия') + '»\n\nОписание темы из справочника:\n<<<\n' + text + '\n>>>';
   const signal = AbortSignal.timeout(UPSTREAM_TIMEOUT_MS);
-  const out = await callModel(cfg, model, userText, signal);
+  let out = await callModel(cfg, model, userText, signal);
+  if (typeof out.text !== 'string' && out.code !== 'timeout' && cfg.fallback) {
+    // The gateway failed — retry through the old provider (Mistral by default).
+    out = await callModel(cfg.fallback, process.env.SIMPLIFY_MODEL || cfg.fallback.model, userText, signal);
+  }
   if (typeof out.text !== 'string') {
     if (out.status === 429) res.setHeader('retry-after', '60');
     res.status(out.status).json({ error: out.error, code: out.code });

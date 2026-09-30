@@ -12,6 +12,7 @@
 // только их количество. Новых переменных окружения не требует.
 
 const chat = require('./chat');
+const AI = require('./_ai');
 const { getConfig, identify, superEmails } = chat._internal;
 
 function bearerToken(req) {
@@ -46,7 +47,11 @@ module.exports = async function handler(req, res) {
     provider: cfg.providerId,
     providerKnown: !!cfg.provider,
     model: cfg.model,
-    simplifyModel: process.env.SIMPLIFY_MODEL || cfg.model,
+    simplifyModel: cfg.providerId === 'ngrok' ? AI.TASK_MODELS.simplify() : (process.env.SIMPLIFY_MODEL || cfg.model),
+    // ngrok AI Gateway: три модели на выбор в AI-агенте и модели авто-функций
+    tiers: cfg.providerId === 'ngrok' ? Object.keys(AI.TIERS).map(id => ({ id, label: AI.TIERS[id].label, model: AI.tierModel(id), cost: AI.TIERS[id].cost })) : null,
+    taskModels: cfg.providerId === 'ngrok' ? { geometry: AI.TASK_MODELS.geometry(), vision: AI.TASK_MODELS.vision() } : null,
+    fallback: cfg.fallback ? { provider: cfg.fallback.providerId, model: cfg.fallback.model, keys: cfg.fallback.keys.length } : null,
     keys: cfg.keys.length,
     webSearch: cfg.webSearch,
     chatRateLimit: (ai && ai.chatRateLimit) || cfg.rateLimit, // запросов в час на пользователя (админы без лимита)

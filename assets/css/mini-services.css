@@ -287,3 +287,36 @@ html.mf-no-motion .svc-bar, html.mf-no-motion .mf-copy { transition: none; }
 @media (prefers-reduced-motion: reduce) {
   .svc-bar, .mf-copy { transition: none; }
 }
+
+/* ======================================================================
+   Геометрический калькулятор → «Задача»: решение задачи по тексту
+   (services.js buildProblemUI, решатель — assets/js/geo/*).
+   ====================================================================== */
+.gp-row { display: flex; gap: .45rem; flex-wrap: wrap; align-items: center; margin-bottom: .6rem; }
+.gp-row-tight { margin: .5rem 0 .2rem; }
+.gp-solve { background: var(--accent); color: #fff; border-color: transparent; font-weight: 600; }
+@media (hover: hover) { .gp-solve:hover { background: var(--accent-hover); color: #fff; } }
+.gp-status { font-size: .88rem; color: var(--text-secondary); min-height: 1.1em; margin: .1rem 0 .5rem; }
+.gp-status:empty { display: none; }
+.gp-status.gp-busy::before { content: ''; display: inline-block; width: .8em; height: .8em; margin-right: .45em; vertical-align: -.1em;
+  border: 2px solid var(--accent); border-right-color: transparent; border-radius: 50%; animation: gpSpin .8s linear infinite; }
+.gp-status.gp-err { color: #f87171; }
+.gp-status.gp-info { color: var(--accent); }
+@keyframes gpSpin { to { transform: rotate(360deg); } }
+.gp-figure { margin: .4rem 0 1.1rem; }
+.gp-frame { width: 100%; aspect-ratio: 16 / 11; min-height: 260px; border: 1px solid var(--border-strong); border-radius: var(--r); background: var(--bg-sunken); display: block; }
+.gp-code { margin-top: .45rem; font-size: .8rem; color: var(--text-tertiary); }
+.gp-code summary { cursor: pointer; }
+.gp-code pre { max-height: 260px; overflow: auto; padding: .6rem; border-radius: var(--r-sm); background: var(--bg-sunken); border: 1px solid var(--border); font-family: var(--font-mono); font-size: .75rem; white-space: pre; }
+.gp-h { font-family: var(--font-mono); font-size: .72rem; letter-spacing: .12em; text-transform: uppercase; color: var(--text-tertiary); margin: .4rem 0 .7rem; }
+.gp-steps { list-style: none; counter-reset: gp; padding: 0; margin: 0 0 1rem; }
+.gp-steps li { counter-increment: gp; position: relative; padding: 0 0 .85rem 2.4rem; line-height: 1.75; font-family: var(--font-display); font-size: 1.02rem; color: var(--text-primary); }
+.gp-steps li::before { content: counter(gp) '.'; position: absolute; left: 0; top: 0; color: #ec4899; font-family: var(--font-display); font-style: italic; font-size: 1.15rem; }
+.gp-steps i { font-family: var(--font-math); font-style: italic; }
+.gp-steps b { font-weight: 700; }
+.gp-answer { display: flex; align-items: baseline; gap: 1.2rem; flex-wrap: wrap; padding: .8rem 0; margin: .2rem 0 .8rem; border-top: 1.5px solid var(--text-primary); border-bottom: 1.5px solid var(--text-primary); }
+.gp-answer-lbl { font-family: var(--font-mono); font-size: .72rem; letter-spacing: .14em; text-transform: uppercase; color: var(--text-tertiary); }
+.gp-answer-val { font-family: var(--font-display); font-style: italic; font-weight: 600; font-size: 1.6rem; color: #ec4899; }
+.gp-answer-val i { font-style: italic; }
+.gp-note { font-size: .86rem; color: var(--text-secondary); margin: .3rem 0; line-height: 1.5; }
+.gp-note.gp-warn { padding: .55rem .75rem; border-radius: var(--r-sm); border: 1px solid rgba(245, 158, 11, .45); background: rgba(245, 158, 11, .1); color: var(--text-primary); margin: 0 0 .8rem; }

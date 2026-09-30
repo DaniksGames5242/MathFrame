@@ -58,11 +58,14 @@
     rows.push(['«Упростить» (/api/simplify)', simpR ? yes(simpR.configured, 'настроен', 'не настроен') : '<span class="badge banned">нет ответа</span>']);
     if (c) {
       rows.push(['Провайдер', `<code>${esc(c.provider)}</code>${c.providerKnown ? '' : ' <span class="badge banned">неизвестный</span>'}`]);
-      rows.push(['Модель агента', `<code>${esc(c.model || '—')}</code>`]);
+      if (c.tiers) rows.push(['Модели агента', c.tiers.map(t => `${esc(t.label)} — <code>${esc(t.model)}</code> (${t.cost} ед.)`).join('<br>')]);
+      else rows.push(['Модель агента', `<code>${esc(c.model || '—')}</code>`]);
+      if (c.taskModels) rows.push(['Авто-функции', `разбор задач — <code>${esc(c.taskModels.geometry)}</code><br>фото — <code>${esc(c.taskModels.vision)}</code>`]);
+      if (c.provider === 'ngrok') rows.push(['Запасной провайдер', c.fallback ? `<code>${esc(c.fallback.provider)}</code> · <code>${esc(c.fallback.model)}</code> · ключей: ${c.fallback.keys}` : yes(false, '', 'не настроен')]);
       rows.push(['Модель «Упростить»', `<code>${esc(c.simplifyModel || '—')}</code>`]);
       rows.push(['Ключей API', `${c.keys} ${c.keys ? '' : yes(false, '', 'нет ключей')}`]);
       rows.push(['Поиск в интернете', yes(c.webSearch, 'включён', 'выключен')]);
-      rows.push(['Лимит агента', `${c.chatRateLimit} запросов/час на пользователя · админы без лимита`]);
+      rows.push(['Лимит агента', `${c.chatRateLimit} ${c.tiers ? 'ед.' : 'запросов'}/час на пользователя · админы без лимита`]);
       rows.push(['Лимит «Упростить»', `${c.simplifyRateLimit.anonymous}/час гость · ${c.simplifyRateLimit.signedIn}/час с входом`]);
       rows.push(['Джарвис для владельцев', yes(c.jarvis.configured, 'подключён', 'не подключён')]);
       rows.push(['GitHub (редактор тем)', yes(c.github.configured, esc(c.github.repo + ' · ' + c.github.branch), 'нет GITHUB_TOKEN')]);

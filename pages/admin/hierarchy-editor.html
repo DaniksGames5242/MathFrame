@@ -5651,6 +5651,12 @@
   // fine for stable reference facts (theorems don't change), weaker for
   // anything that would benefit from a live check.
   const AI_PROVIDERS = {
+    ngrok: {
+      label: 'ngrok AI Gateway',
+      keyPlaceholder: 'ключ AI Gateway',
+      keyHint: 'Основной провайдер сайта. Ключ хранится только в этом браузере (localStorage), запросы идут через сервер MathFrame (api/llm.js → gateway.ngrok.ai). Модели — те же три, что у AI-агента: «Маленькая», «Средняя», «Большая» (см. api/_ai.js); большая заметно дороже расходует кредиты. Поиска в интернете нет — генерация опирается на знания модели. Если шлюз перестанет работать, переключитесь на Mistral — он оставлен запасным.',
+      supportsSearch: false,
+    },
     gemini: {
       label: 'Google Gemini',
       keyPlaceholder: 'AIzaSy…',
@@ -5694,7 +5700,13 @@
   // and saved settings/jobs pointing at the old ministral-* / mistral-small-*
   // models are migrated to it on read.
   const MISTRAL_DEFAULT_MODEL = 'mistral-medium-latest';
+  const NGROK_MODELS = [
+    { id: 'openai:gpt-4.1-mini', display_name: 'Средняя' },
+    { id: 'openai:gpt-4o-mini', display_name: 'Маленькая' },
+    { id: 'openai:gpt-4.1', display_name: 'Большая' },
+  ];
   function aiMigrateModel(provider, model){
+    if (provider === 'ngrok') return NGROK_MODELS.some(m => m.id === model) ? model : NGROK_MODELS[0].id;
     if (provider !== 'mistral') return model;
     if (!model || /^(ministral-|mistral-small-|open-mistral-)/.test(model)) return MISTRAL_DEFAULT_MODEL;
     return model;
@@ -5717,7 +5729,7 @@
       // Gemini) into byProvider.gemini, so existing saved keys survive.
       if (p && typeof p.apiKey === 'string' && !byProvider.gemini.apiKey) byProvider.gemini.apiKey = p.apiKey;
       if (p && typeof p.model === 'string' && !byProvider.gemini.model) byProvider.gemini.model = p.model;
-      const provider = (p && AI_PROVIDERS[p.provider]) ? p.provider : 'gemini';
+      const provider = (p && AI_PROVIDERS[p.provider]) ? p.provider : 'ngrok';
       const section = (p && typeof p.section === 'string') ? p.section : '';
       return { provider, section, byProvider };
     } catch (e){ return { provider: 'gemini', section: '', byProvider: empty() }; }
@@ -5944,6 +5956,8 @@
         }))
         .filter(m => m.id);
     }
+    // ngrok: фиксированный набор из трёх моделей (как на странице AI-агента, api/_ai.js).
+    if (provider === 'ngrok') return NGROK_MODELS.slice();
     // Groq / OpenRouter — OpenAI-compatible GET /models → { data: [{id, ...}] }
     const r = await llmFetch(provider, 'models', apiKey);
     const data = await r.json().catch(() => null);
@@ -7952,7 +7966,7 @@ theorem (Теорема) — узел, целиком посвящённый о�
     // happens to be selected in the UI right now (the panel may have been
     // reopened and switched to a different provider since).
     const provider = (job.settings.provider && AI_PROVIDERS[job.settings.provider]) ? job.settings.provider : 'gemini';
-    if (provider === 'mistral') job.settings.model = aiMigrateModel(provider, job.settings.model);
+    if (provider === 'mistral' || provider === 'ngrok') job.settings.model = aiMigrateModel(provider, job.settings.model);
     const providerSettings = loadAiSettings().byProvider[provider];
     const startKeys = aiParseKeys(providerSettings.apiKey).slice(0, AI_MAX_THREADS);
     if (!startKeys.length || !job.settings.model){

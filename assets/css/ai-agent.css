@@ -648,3 +648,11 @@ html.mf-no-motion .ci-dot::after { display: none; }
   .icon-btn { width: 40px; height: 40px; }
   .code-copy { height: 32px; }
 }
+
+/* Выбор модели (Маленькая / Средняя / Большая) над полем ввода */
+.model-row { display: flex; align-items: center; gap: .35rem; flex-wrap: wrap; margin: 0 0 .45rem; font-size: .78rem; }
+.model-row[hidden] { display: none; }
+.model-lbl { color: var(--text-tertiary); font-family: var(--font-mono); font-size: .68rem; letter-spacing: .08em; text-transform: uppercase; margin-right: .2rem; }
+.model-chip { font: inherit; padding: .22rem .7rem; border-radius: 999px; border: 1px solid var(--border-strong); background: transparent; color: var(--text-secondary); cursor: pointer; transition: color var(--t-fast), background var(--t-fast), border-color var(--t-fast); }
+@media (hover: hover) { .model-chip:hover { color: var(--accent); border-color: var(--accent); } }
+.model-chip.on { background: var(--accent); color: #fff; border-color: transparent; font-weight: 600; }

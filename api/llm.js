@@ -1,6 +1,6 @@
 // api/llm.js
-// Same-origin relay for OpenAI-compatible free/cheap LLM providers (Groq,
-// OpenRouter, Mistral) — an alternative to Gemini in the AI-autogeneration
+// Same-origin relay for OpenAI-compatible LLM providers (ngrok AI Gateway,
+// Groq, OpenRouter, Mistral) — an alternative to Gemini in the AI-autogeneration
 // panel for accounts whose Gemini free tier is unavailable (region/account
 // restrictions Google enforces server-side, nothing this app can fix).
 // Mirrors api/gemini.js (same reasoning: browsers get no CORS headers back
@@ -13,6 +13,7 @@
 // written anywhere on this server.
 
 const BASES = {
+  ngrok: 'https://gateway.ngrok.ai/v1/',
   groq: 'https://api.groq.com/openai/v1/',
   openrouter: 'https://openrouter.ai/api/v1/',
   mistral: 'https://api.mistral.ai/v1/',

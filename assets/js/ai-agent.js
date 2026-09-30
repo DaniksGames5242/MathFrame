@@ -435,6 +435,7 @@
     const byUpdated = (a, b) => b.updatedAt - a.updatedAt;
     const cur = () => (uid ? chats.get(activeId) : anon) || null;
     let webSearch = false;                 // сервер умеет искать в интернете (для подписи «думает»)
+    let modelId = null;                    // выбранная модель (id уровня: small | medium | large)
 
     /* ---- движение ----
        Лента и список чатов перерисовываются целиком, поэтому «новизна» хранится не в DOM, а
@@ -1323,6 +1324,7 @@
             messages: buildPayloadMessages(chat.messages.slice(0, -1), unlimited ? 60 : 12),
             context: ctx,
             focusId: chat.topicId || undefined,
+            model: modelId || undefined,
           }),
           signal: controller.signal,
         });
@@ -1547,12 +1549,51 @@
       }
     }
 
+    /* ==================================================================
+       МОДЕЛЬ: «Маленькая» / «Средняя» / «Большая» (сервер — api/_ai.js).
+       Большая модель тратит больше часового лимита — стоимость видна в подсказке.
+       ================================================================== */
+    function setupModels(models, def, limit) {
+      const box = document.getElementById('agentModels');
+      if (!box) return;
+      let saved = null;
+      try { saved = localStorage.getItem('mf-ai-model'); } catch (e) {}
+      modelId = models.some(m => m.id === saved) ? saved : (def || models[0].id);
+      box.innerHTML = '';
+      const lbl = document.createElement('span');
+      lbl.className = 'model-lbl'; lbl.textContent = 'Модель';
+      box.appendChild(lbl);
+      models.forEach(m => {
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'model-chip'; b.dataset.id = m.id;
+        b.setAttribute('role', 'radio');
+        b.textContent = m.label;
+        const per = limit ? Math.floor(limit / m.cost) : null;
+        b.title = m.label + ' — ' + m.hint + '. Один вопрос расходует ' + m.cost + ' ед. лимита' + (per ? ' (около ' + per + ' вопросов в час)' : '') + '.';
+        b.addEventListener('click', () => {
+          modelId = m.id;
+          try { localStorage.setItem('mf-ai-model', m.id); } catch (e) {}
+          sync();
+        });
+        box.appendChild(b);
+      });
+      function sync() {
+        box.querySelectorAll('.model-chip').forEach(b => {
+          const on = b.dataset.id === modelId;
+          b.classList.toggle('on', on); b.setAttribute('aria-checked', on ? 'true' : 'false');
+        });
+      }
+      sync();
+      box.hidden = false;
+    }
+
     renderAll();
     if (window.Auth) window.Auth.onAuthChange(onUser);
     else document.addEventListener('authReady', () => window.Auth.onAuthChange(onUser));
 
     fetch('/api/chat', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(d => {
       if (d && d.webSearch) webSearch = true;
+      if (d && Array.isArray(d.models) && d.models.length) setupModels(d.models, d.defaultModel, d.rateLimit);
       if (d && d.configured === false) {
         configured = false; baseConfigured = false;
         showBanner(NOT_CONF_TEXT, 'warn', true);

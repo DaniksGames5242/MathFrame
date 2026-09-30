@@ -11,6 +11,9 @@
 //   AI_AGENT_API_KEYS   one or several keys, separated by commas / whitespace.
 //                       Several keys are used in rotation, and a key that gets
 //                       rejected or rate-limited is skipped for that request.
+//   NGROK_AI_KEY        the ngrok AI Gateway key — the primary provider when set;
+//                       the visitor picks one of three models (api/_ai.js), and
+//                       the provider below becomes the fallback
 //   AI_AGENT_PROVIDER   mistral (default) | gemini | groq | openrouter
 //   AI_AGENT_MODEL      optional, overrides the provider's default model
 //                       (mistral: mistral-medium-latest)
@@ -18,7 +21,8 @@
 //                       to 0 / false / off to turn it off (Mistral bills it per
 //                       search call, and Mistral is the only provider here whose
 //                       API offers it)
-//   AI_AGENT_RATE_LIMIT optional, requests per user per hour (default 30);
+//   AI_AGENT_RATE_LIMIT optional, limit units per user per hour (default 36; a
+//                       request costs 1 / 3 / 12 units by model size);
 //                       does not apply to administrators
 //   SUPER_ADMIN_EMAILS  optional, comma-separated; the accounts treated as the
 //                       site owner (default: the four owner addresses in
@@ -107,11 +111,17 @@ function superEmails() {
   return new Set(env.length ? env : DEFAULT_SUPER_EMAILS);
 }
 
-function getConfig() {
+const AI = require('./_ai');
+
+// The provider the answer comes from. With NGROK_AI_KEY set that is the ngrok AI
+// Gateway (model = the tier the visitor picked, see api/_ai.js), and the old
+// provider (AI_AGENT_PROVIDER + AI_AGENT_API_KEYS, Mistral by default) becomes
+// cfg.fallback — used when the gateway fails. Without NGROK_AI_KEY everything
+// works exactly as before.
+function legacyConfig() {
   const providerId = (process.env.AI_AGENT_PROVIDER || 'mistral').toLowerCase();
   const provider = PROVIDERS[providerId];
-  const keys = String(process.env.AI_AGENT_API_KEYS || process.env.AI_AGENT_API_KEY || '')
-    .split(/[\s,;]+/).map(k => k.trim()).filter(Boolean);
+  const keys = AI.splitKeys(process.env.AI_AGENT_API_KEYS || process.env.AI_AGENT_API_KEY);
   const searchOff = /^(0|false|off|no)$/i.test(String(process.env.AI_AGENT_WEB_SEARCH || '').trim());
   return {
     providerId,
@@ -119,12 +129,27 @@ function getConfig() {
     keys,
     webSearch: !!(provider && provider.search) && !searchOff,
     model: process.env.AI_AGENT_MODEL || (provider && provider.defaultModel) || '',
-    rateLimit: Math.max(1, parseInt(process.env.AI_AGENT_RATE_LIMIT, 10) || 30),
+  };
+}
+function getConfig(tier) {
+  const legacy = legacyConfig();
+  const common = {
+    tier: AI.normTier(tier),
+    rateLimit: Math.max(1, parseInt(process.env.AI_AGENT_RATE_LIMIT, 10) || 36),
     jarvis: {
       token: String(process.env.JARVIS_ACCESS_TOKEN || '').trim(),
       url: String(process.env.JARVIS_URL || '').trim() || 'wss://desktop-1nr71i9.tail32e23c.ts.net/ws/chat',
     },
   };
+  const ngrok = AI.ngrokConfig(AI.tierModel(common.tier));
+  if (ngrok) {
+    return Object.assign(ngrok, common, { fallback: legacy.provider && legacy.keys.length ? legacy : null });
+  }
+  return Object.assign(legacy, common, { fallback: null });
+}
+// Units of the hourly limit one request takes: the tier's cost on the gateway, 1 otherwise.
+function requestCost(cfg) {
+  return cfg.providerId === 'ngrok' ? AI.TIERS[cfg.tier].cost : 1;
 }
 function limitsFor(role) { return role === 'user' ? USER_LIMITS : ADMIN_LIMITS; }
 
@@ -274,14 +299,20 @@ function bearerToken(req) {
 const hits = new Map(); // uid -> [timestamps]
 const WINDOW_MS = 60 * 60 * 1000;
 
-function checkRateLimit(uid, limit) {
+// cost — how many units of the limit this request takes (a larger model takes
+// more, see api/_ai.js); each unit is one timestamp in the window.
+function checkRateLimit(uid, limit, cost) {
+  cost = Math.max(1, cost || 1);
   const now = Date.now();
   const list = (hits.get(uid) || []).filter(t => now - t < WINDOW_MS);
-  if (list.length >= limit) {
+  if (list.length + cost > limit) {
     hits.set(uid, list);
-    return { ok: false, retryAfterSec: Math.ceil((WINDOW_MS - (now - list[0])) / 1000) };
+    // Wait until enough units leave the window (or the whole hour, if the cost exceeds the limit).
+    const idx = Math.min(list.length - 1, Math.max(0, list.length + cost - limit - 1));
+    const oldest = list.length ? list[idx] : now;
+    return { ok: false, retryAfterSec: Math.max(1, Math.ceil((WINDOW_MS - (now - oldest)) / 1000)) };
   }
-  list.push(now);
+  for (let i = 0; i < cost; i++) list.push(now);
   hits.set(uid, list);
   if (hits.size > 2000) {
     for (const [k, v] of hits) if (!v.length || now - v[v.length - 1] > WINDOW_MS) hits.delete(k);
@@ -606,11 +637,16 @@ function streamFromJarvis(cfg, text, res, signal) {
 }
 
 async function handler(req, res) {
-  const cfg = getConfig();
+  let cfg = getConfig();
 
   if (req.method === 'GET') {
     res.setHeader('cache-control', 'no-store');
     const out = { configured: !!(cfg.provider && cfg.keys.length), provider: cfg.providerId, webSearch: cfg.webSearch };
+    if (cfg.providerId === 'ngrok') {
+      out.models = AI.publicTiers();
+      out.defaultModel = AI.DEFAULT_TIER;
+      out.rateLimit = cfg.rateLimit;
+    }
     const t = bearerToken(req);
     const [who, ai] = await Promise.all([t ? identify(t) : null, loadAiSettings()]);
     if (ai.chatEnabled === false) {
@@ -653,6 +689,7 @@ async function handler(req, res) {
 
   let body = req.body;
   if (typeof body === 'string') { try { body = JSON.parse(body); } catch (e) { body = null; } }
+  if (body && typeof body.model === 'string') cfg = getConfig(body.model);
   const messages = sanitizeMessages(body && body.messages, limits);
   if (!messages) {
     res.status(400).json({ error: 'Некорректный запрос.', code: 'bad' });
@@ -663,7 +700,7 @@ async function handler(req, res) {
 
   // Administrators (owner included) are not rate-limited.
   if (role === 'user') {
-    const rl = checkRateLimit(who.uid, rateLimit);
+    const rl = checkRateLimit(who.uid, rateLimit, requestCost(cfg));
     if (!rl.ok) {
       res.setHeader('retry-after', String(rl.retryAfterSec));
       res.status(429).json({
@@ -717,6 +754,17 @@ async function handler(req, res) {
     console.warn('[api/chat] web_search request failed (status ' + upstream.status + '), retrying without search');
     useSearch = false;
     upstream = await openUpstream(cfg, buildSystemPrompt(context, focusId, false, promptOpts), messages, controller.signal, false, limits.maxOutputTokens);
+  }
+  if (isFailure(upstream) && upstream.status !== 499 && cfg.fallback) {
+    // The gateway failed (key, credits, outage) — answer through the old provider.
+    console.warn('[api/chat] ' + cfg.providerId + ' failed (status ' + upstream.status + '), falling back to ' + cfg.fallback.providerId);
+    cfg = Object.assign({}, cfg, cfg.fallback, { fallback: null });
+    useSearch = cfg.webSearch;
+    upstream = await openUpstream(cfg, buildSystemPrompt(context, focusId, useSearch, promptOpts), messages, controller.signal, useSearch, limits.maxOutputTokens);
+    if (useSearch && isFailure(upstream) && upstream.status !== 499) {
+      useSearch = false;
+      upstream = await openUpstream(cfg, buildSystemPrompt(context, focusId, false, promptOpts), messages, controller.signal, false, limits.maxOutputTokens);
+    }
   }
   if (!(upstream && typeof upstream.ok === 'boolean')) {
     if (upstream.status === 499) { res.end(); return; }
@@ -773,4 +821,4 @@ async function handler(req, res) {
 
 module.exports = handler;
 // Exposed for tests only — Vercel ignores extra properties on the handler.
-module.exports._internal = { sanitizeMessages, sanitizeContext, buildSystemPrompt, checkRateLimit, extractDelta, getConfig, formatSources, identify, composeJarvisMessage, superEmails, RESET_MARK, loadAiSettings, parseAiSettings, resetAiSettingsCache, DEFAULT_DISABLED_MESSAGE };
+module.exports._internal = { sanitizeMessages, sanitizeContext, buildSystemPrompt, checkRateLimit, extractDelta, getConfig, formatSources, identify, bearerToken, requestCost, composeJarvisMessage, superEmails, RESET_MARK, loadAiSettings, parseAiSettings, resetAiSettingsCache, DEFAULT_DISABLED_MESSAGE };

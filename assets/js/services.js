@@ -859,6 +859,13 @@
       // analyzeComplex*). Вектор (□⃗) не требует опции — он на клавиатуре уже
       // и раньше, просто раньше ничего не считал (см. analyzeVector).
       var mf = makeField(p, { initial: 'x^2-5x+6=0', onChange: recompute, allowComplex: true });
+      // Распознавание примера с фото (нейросеть, api/ai-task.js): результат — в поле ввода.
+      var photoRow = el('div', 'gp-row gp-row-tight', p);
+      var photoStatus = el('div', 'gp-status', p);
+      photoButton(photoRow, 'algebra', function (text) {
+        try { mf.field.setExpr(text); } catch (e) { photoStatus.textContent = 'Не удалось вставить распознанный пример: ' + text; photoStatus.className = 'gp-status gp-err'; return; }
+        recompute();
+      }, function (text, kind) { photoStatus.textContent = text || ''; photoStatus.className = 'gp-status' + (kind ? ' gp-' + kind : ''); });
       // В отличие от построителя графиков, здесь система ДОЛЖНА быть доступна —
       // клавиатура создаётся с allowSystem по умолчанию (true), просто убеждаемся,
       // что makeField не выключил её.
@@ -2216,7 +2223,138 @@
     [ux,uy,vx,vy].forEach(function(i){i.addEventListener('input',calc2);}); calc2();
   }
 
+  /* ---------------------------------------------------- Задача по тексту
+     Текст задачи → assets/js/geo/geo-problem.js: разбор условия (незнакомые
+     формулировки — через нейросеть, api/ai-task.js), численная модель, решение
+     по действиям и чертёж на GMS (компилятор — gms-compiler.js). Модули
+     тяжёлые, поэтому грузятся лениво при первом решении. */
+  var geoSolverPromise = null;
+  function loadGeoSolver() {
+    if (!geoSolverPromise) geoSolverPromise = Promise.all([
+      import('/assets/js/geo/geo-problem.js'),
+      import('/assets/js/geo/geo-ai.js'),
+      loadGmsCompiler()
+    ]).catch(function (e) { geoSolverPromise = null; throw e; });
+    return geoSolverPromise;
+  }
+  function siteTheme() { return document.documentElement.classList.contains('light') ? 'light' : 'dark'; }
+
+  var GEO_EXAMPLES = [
+    'В параллелограмме ABCD известно, что AD = 12 см, AB = 3 см. Биссектрисы углов B и C пересекают сторону AD в точках E и F соответственно. Найдите отрезок EF.',
+    'Биссектриса угла A параллелограмма ABCD делит сторону BC на отрезки BK = 4 см и KC = 3 см. Найдите периметр параллелограмма.',
+    'В прямоугольном треугольнике ABC с прямым углом C катеты равны 6 и 8. Найдите гипотенузу AB и высоту CH.',
+    'В равнобедренной трапеции ABCD основания AD = 12 и BC = 6, угол A равен 45°. Найдите площадь трапеции.',
+    'Периметр параллелограмма ABCD равен 30 см, AB : BC = 2 : 3. Найдите стороны параллелограмма.'
+  ];
+
+  // Кнопка «С фото»: выбор/съёмка картинки → распознавание нейросетью → onText(текст).
+  function photoButton(parent, mode, onText, onStatus) {
+    var btn = el('button', 'mini gp-photo-btn', parent, '<span aria-hidden="true">📷</span> С фото');
+    btn.type = 'button';
+    btn.title = mode === 'geometry' ? 'Распознать условие задачи с фотографии' : 'Распознать пример с фотографии';
+    var inp = el('input', null, parent);
+    inp.type = 'file'; inp.accept = 'image/*'; inp.hidden = true;
+    btn.addEventListener('click', function () { inp.value = ''; inp.click(); });
+    inp.addEventListener('change', function () {
+      var f = inp.files && inp.files[0];
+      if (!f) return;
+      btn.disabled = true;
+      onStatus('Распознаю фото…', 'busy');
+      import('/assets/js/geo/geo-ai.js').then(function (m) { return m.recognizePhoto(f, mode); })
+        .then(function (text) { onStatus('', ''); onText(text); })
+        .catch(function (e) { onStatus('Не удалось распознать фото: ' + (e && e.message ? e.message : e), 'err'); })
+        .then(function () { btn.disabled = false; });
+    });
+    return btn;
+  }
+
+  function buildProblemUI(c) {
+    var box = el('div', 'gp', c);
+    var ta = el('textarea', 'more-textarea gp-input', box);
+    ta.rows = 4;
+    ta.placeholder = 'Условие задачи, например: «В параллелограмме ABCD AD = 12 см, AB = 3 см. Биссектрисы углов B и C пересекают сторону AD в точках E и F. Найдите EF.»';
+    try { ta.value = sessionStorage.getItem('mf-geo-problem') || ''; } catch (e) {}
+    var row = el('div', 'gp-row', box);
+    var solveBtn = el('button', 'mini gp-solve', row, 'Решить');
+    solveBtn.type = 'button';
+    photoButton(row, 'geometry', function (text) { ta.value = text; solve(); }, setStatus);
+    var exBtn = el('button', 'mini gp-ex', row, 'Пример');
+    exBtn.type = 'button';
+    var exI = 0;
+    exBtn.addEventListener('click', function () { ta.value = GEO_EXAMPLES[exI++ % GEO_EXAMPLES.length]; solve(); });
+    var status = el('div', 'gp-status', box);
+    var out = el('div', 'gp-out', box);
+
+    function setStatus(text, kind) {
+      status.textContent = text || '';
+      status.className = 'gp-status' + (kind ? ' gp-' + kind : '');
+    }
+    var token = 0;
+    function solve() {
+      var text = ta.value.trim();
+      try { sessionStorage.setItem('mf-geo-problem', ta.value); } catch (e) {}
+      if (!text) { setStatus('Введите условие задачи.', 'err'); return; }
+      var my = ++token;
+      solveBtn.disabled = true;
+      setStatus('Решаю…', 'busy');
+      loadGeoSolver().then(function (mods) {
+        var gp = mods[0], ai = mods[1], gms = mods[2];
+        var usedAi = false;
+        return gp.solveGeometryProblem(text, {
+          theme: siteTheme(),
+          ai: function (t, draft) { usedAi = true; setStatus('Незнакомая формулировка — разбираю условие с помощью нейросети…', 'busy'); return ai.aiParseGeometry(t, draft); }
+        }).then(function (r) { return { r: r, gms: gms, usedAi: usedAi, gp: gp }; });
+      }).then(function (x) {
+        if (my !== token) return;
+        render(x.r, x.gms, x.gp);
+        setStatus(x.r.ok && x.r.source === 'ai' ? 'Условие разобрано нейросетью — проверьте чертёж: совпадает ли он с задачей.' : '', x.r.ok && x.r.source === 'ai' ? 'info' : '');
+      }).catch(function (e) {
+        if (my !== token) return;
+        setStatus('Ошибка: ' + (e && e.message ? e.message : e), 'err');
+      }).then(function () { if (my === token) solveBtn.disabled = false; });
+    }
+    solveBtn.addEventListener('click', solve);
+    ta.addEventListener('keydown', function (e) { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); solve(); } });
+
+    function render(r, gms, gp) {
+      out.innerHTML = '';
+      if (!r.ok) { el('div', 'err', out, ''); out.lastChild.textContent = r.error; return; }
+      // чертёж
+      if (r.gms) {
+        var fig = el('div', 'gp-figure', out);
+        var comp;
+        try { comp = gms.compile(r.gms); } catch (e) { comp = { success: false, errors: [String(e.message || e)] }; }
+        if (comp && comp.success) {
+          var frame = document.createElement('iframe');
+          frame.className = 'gp-frame';
+          frame.setAttribute('sandbox', 'allow-scripts allow-same-origin');
+          frame.setAttribute('title', 'Чертёж к задаче');
+          fig.appendChild(frame);
+          frame.srcdoc = comp.html;
+        } else {
+          el('div', 'gp-note', fig, 'Чертёж не построился.');
+        }
+        var code = el('details', 'gp-code', fig);
+        el('summary', null, code, 'Код чертежа (GMS)');
+        var pre = el('pre', null, code); pre.textContent = r.gms;
+      }
+      // оговорки (недостающие данные, нераспознанная часть условия) — до решения
+      r.notes.forEach(function (n) { el('div', 'gp-note gp-warn', out).textContent = n; });
+      // решение
+      el('div', 'gp-h', out, 'Решение');
+      var ol = el('ol', 'gp-steps', out);
+      r.steps.forEach(function (s) { el('li', null, ol, s.html); });
+      // ответ
+      var ans = el('div', 'gp-answer', out);
+      el('span', 'gp-answer-lbl', ans, 'Ответ');
+      el('span', 'gp-answer-val', ans, r.answers.map(gp.answerText).join('; '));
+      if (r.method === 'coords') el('div', 'gp-note', out, 'Решение методом координат: подходящей цепочки школьных теорем решатель не нашёл.');
+    }
+    if (ta.value.trim()) solve();
+  }
+
   var GEO_TABS = [
+    { id: 'problem', label: 'Задача', build: buildProblemUI },
     { id: 'triangle', label: 'Треугольник', build: buildTriangleUI },
     { id: 'quad', label: 'Четырёхугольники', build: buildQuadUI },
     { id: 'circle', label: 'Окружность', build: buildCircleUI },
@@ -2231,7 +2369,7 @@
       var p = panel(host, 'Геометрия');
       var chipRow = el('div', 'conv-chips', p);
       var body = el('div', 'conv-body', p);
-      var activeTab = 'triangle';
+      var activeTab = 'problem';
       function renderTab() {
         chipRow.querySelectorAll('.conv-chip').forEach(function (b) { b.classList.toggle('on', b.dataset.id === activeTab); });
         body.innerHTML = '';

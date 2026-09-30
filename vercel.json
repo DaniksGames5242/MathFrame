@@ -158,6 +158,9 @@
     },
     "api/simplify.js": {
       "maxDuration": 60
+    },
+    "api/ai-task.js": {
+      "maxDuration": 60
     }
   }
 }
