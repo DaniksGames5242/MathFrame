@@ -14,12 +14,9 @@ draw Graph { name = "gG"; graph = "gg"; edgeColor = #3b82f699; edgeWidth = 1; ed
 
 new UI { type = slider; label = "x"; variable = x; min = 1; max = 10; step = 0.001; default = 3.245 }
 new UI { type = slider; label = "неполных частных"; variable = k; min = 1; max = 8; step = 1; default = 4 }
-new UI { type = button; label = "√2"; action = "x = 1.414213562" }
-new UI { type = button; label = "φ"; action = "x = 1.618033989" }
-new UI { type = button; label = "e"; action = "x = 2.718281828" }
-new UI { type = button; label = "π"; action = "x = 3.141592654" }
+new UI { type = select; label = "число"; variable = pre; options = (0, 1, 2, 3, 4); labels = ("x с ползунка", "√2", "φ", "e", "π"); default = 0 }
 
-float x = 3.245; float k = 4; float D = 1000000000; float N = 3245000000; float key = -1; float nn = 0; string info = "";
+float x = 3.245; float pre = 0; float xe = 3.245; float k = 4; float D = 1000000000; float N = 3245000000; float key = -1; float nn = 0; string info = "";
 
 Function md(v, q) { return v - q * floor(v / q); }
 // остатки алгоритма Евклида: r₀ = N, r₁ = D, r₍ⱼ₊₁₎ = r₍ⱼ₋₁₎ mod rⱼ
@@ -60,12 +57,13 @@ Function level(g, lv, x0, y0, c, s) {
 }
 
 Update {
-  N = round(x * 1000000000);
+  xe = x; if (pre == 1) { xe = 1.414213562; } if (pre == 2) { xe = 1.618033989; } if (pre == 3) { xe = 2.718281828; } if (pre == 4) { xe = 3.141592654; }
+  N = round(xe * 1000000000);
   float T = terms(); float kk = min(k, T);
   if (key != N * 10 + k) {
     gb = newGraph(); gy = newGraph(); gg = newGraph(); nn = 0;
-    float sc = min(15.4 / x, 9.4); float u = sc / D;
-    float x0 = -x * sc / 2; float y0 = -sc / 2; float w = N * u; float h = D * u;
+    float sc = min(15.4 / xe, 9.4); float u = sc / D;
+    float x0 = -xe * sc / 2; float y0 = -sc / 2; float w = N * u; float h = D * u;
     repeat (kk) {
       float lv = i; float c = aq(lv); float s = rr(lv + 1) * u;
       if (md(lv, 2) == 0) { level(gb, lv, x0, y0, c, s); x0 = x0 + c * s; w = w - c * s; }
@@ -75,9 +73,9 @@ Update {
     key = N * 10 + k;
   }
   float ad = 3; if (md(N, 1000000) != 0) { ad = 9; }
-  float j = kk - 1; float pj = cv(j, 0); float qj = cv(j, 1); float err = x - pj / qj;
-  info = "**Непрерывная дробь** x = a₀ + 1/(a₁ + 1/(a₂ + …)) числа x = **" + format(x, ad) + "**: **" + cfs(kk) + "**, aᵢ — неполные частные. ";
-  info = info + "Число задано десятичной дробью, поэтому разложение конечно и получено алгоритмом Евклида (у иррационального числа оно бесконечно, а первые частные те же, что у его точного десятичного приближения). ";
+  float j = kk - 1; float pj = cv(j, 0); float qj = cv(j, 1); float err = xe - pj / qj;
+  info = "**Непрерывная дробь** x = a₀ + 1/(a₁ + 1/(a₂ + …)) числа x = **" + format(xe, ad) + "**: **" + cfs(kk) + "**, aᵢ — неполные частные. ";
+  info = info + "Число задано десятичной дробью, поэтому разложение конечно и получено алгоритмом Евклида (у иррационального числа оно бесконечно). ";
   info = info + "Геометрически aᵢ — число квадратов i-го уровня в разрезании прямоугольника x × 1: " + format(aq(0), 0) + " синих квадратов первого уровня, затем жёлтых и т. д.\n\n";
   info = info + "Подходящие дроби pₙ/qₙ, pₙ = aₙ·pₙ₋₁ + pₙ₋₂, qₙ = aₙ·qₙ₋₁ + qₙ₋₂ (p₋₁ = 1, q₋₁ = 0): ";
   repeat (kk) { info = info + format(cv(i, 0), 0) + "/" + format(cv(i, 1), 0); if (i < kk - 1) { info = info + ", "; } }
