@@ -8,7 +8,7 @@ new UI { type = slider; label = "шаг"; variable = st; min = 0; max = smax; st
 draw Graph { name = "gA"; graph = "g1"; nodeColor = #f59e0b; nodeRadius = 17; interactive = false; showWeights = false; layer = 10 }
 draw Graph { name = "gB"; graph = "g2"; nodeColor = #3b82f6; nodeRadius = 17; interactive = false; showWeights = false; layer = 10 }
 draw Graph { name = "gG"; graph = "g3"; nodeColor = #22c55e; nodeRadius = 17; interactive = false; showWeights = false; layer = 10 }
-draw Graph { name = "gD"; graph = "g4"; nodeRadius = 17; interactive = false; showWeights = false; layer = 10 }
+draw Graph { name = "gD"; graph = "g4"; nodeColor = #3b82f640; nodeRadius = 17; interactive = false; showWeights = false; layer = 10 }
 Function md(x, y) { return x - y * floor(x / y); }
 Function spf(m) { float d = 2; repeat (10) { if (d * d <= m && md(m, d) != 0) { d = d + 1; } } if (d * d > m) { return m; } return d; }
 Function isp(m) { if (m < 2) { return 0; } if (spf(m) == m) { return 1; } return 0; }

@@ -23,10 +23,10 @@ new Claster { name = "tabCircle"; elements = (gCube, gEl); active = false }
 
 new UI { name = "btnPt"; type = button; label = "Точка"; action = "tab = 1; tabPt.active = true; tabCircle.active = false" }
 new UI { name = "btnCi"; type = button; label = "Окружности"; action = "tab = 2; tabPt.active = false; tabCircle.active = true" }
-new UI { name = "sX"; type = slider; label = "x"; variable = cx; min = 0; max = 5; step = 0.5; default = 3 }
-new UI { name = "sY"; type = slider; label = "y"; variable = cy; min = 0; max = 5; step = 0.5; default = 2 }
-new UI { name = "sZ"; type = slider; label = "z"; variable = cz; min = 0; max = 5; step = 0.5; default = 4 }
-new UI { name = "sA"; type = slider; label = "ребро куба a"; variable = ca; min = 1; max = 4.5; step = 0.5; default = 4 }
+new UI { name = "sX"; type = slider; label = "x"; variable = cx; min = 0; max = 5; step = 0.5; default = 3; active = tab == 1 }
+new UI { name = "sY"; type = slider; label = "y"; variable = cy; min = 0; max = 5; step = 0.5; default = 2; active = tab == 1 }
+new UI { name = "sZ"; type = slider; label = "z"; variable = cz; min = 0; max = 5; step = 0.5; default = 4; active = tab == 1 }
+new UI { name = "sA"; type = slider; label = "ребро куба a"; variable = ca; min = 1; max = 4.5; step = 0.5; default = 4; active = tab == 2 }
 
 float tab = 1; float cx = 3; float cy = 2; float cz = 4; float ca = 4; float key = -1; float built = 0; string info = "";
 float k = 0.8165;
