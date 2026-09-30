@@ -143,13 +143,18 @@ function getConfig(tier) {
   };
   const ngrok = AI.ngrokConfig(AI.tierModel(common.tier));
   if (ngrok) {
+    const fm = !process.env.AI_AGENT_MODEL && AI.freeModel(legacy.providerId, common.tier);
+    if (fm) legacy.model = fm;
     return Object.assign(ngrok, common, { fallback: legacy.provider && legacy.keys.length ? legacy : null });
   }
-  return Object.assign(legacy, common, { fallback: null });
+  // Без ngrok: те же три уровня на бесплатных моделях провайдера (если он их знает).
+  const free = !process.env.AI_AGENT_MODEL && AI.freeModel(legacy.providerId, common.tier);
+  if (free) legacy.model = free;
+  return Object.assign(legacy, common, { fallback: null, tiered: !!free });
 }
 // Units of the hourly limit one request takes: the tier's cost on the gateway, 1 otherwise.
 function requestCost(cfg) {
-  return cfg.providerId === 'ngrok' ? AI.TIERS[cfg.tier].cost : 1;
+  return cfg.providerId === 'ngrok' || cfg.tiered ? AI.TIERS[cfg.tier].cost : 1;
 }
 function limitsFor(role) { return role === 'user' ? USER_LIMITS : ADMIN_LIMITS; }
 
@@ -642,7 +647,7 @@ async function handler(req, res) {
   if (req.method === 'GET') {
     res.setHeader('cache-control', 'no-store');
     const out = { configured: !!(cfg.provider && cfg.keys.length), provider: cfg.providerId, webSearch: cfg.webSearch };
-    if (cfg.providerId === 'ngrok') {
+    if (cfg.providerId === 'ngrok' || cfg.tiered) {
       out.models = AI.publicTiers();
       out.defaultModel = AI.DEFAULT_TIER;
       out.rateLimit = cfg.rateLimit;

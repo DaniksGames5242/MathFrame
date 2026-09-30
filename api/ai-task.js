@@ -102,12 +102,12 @@ function clientIp(req) {
 function chain(task) {
   const cfg = getConfig();
   const list = [];
-  const modelFor = task === 'ocr' ? AI.TASK_MODELS.vision() : task === 'solve' ? AI.TASK_MODELS.solve() : AI.TASK_MODELS.geometry();
+  const legacyModel = c => process.env.AI_TASK_MODEL || AI.freeTaskModel(c.providerId, task) || c.model;
   if (cfg.providerId === 'ngrok') {
-    list.push({ cfg, model: modelFor });
-    if (cfg.fallback) list.push({ cfg: cfg.fallback, model: task === 'ocr' ? (process.env.AI_TASK_VISION_FALLBACK_MODEL || cfg.fallback.model) : cfg.fallback.model });
+    list.push({ cfg, model: task === 'ocr' ? AI.TASK_MODELS.vision() : task === 'solve' ? AI.TASK_MODELS.solve() : AI.TASK_MODELS.geometry() });
+    if (cfg.fallback) list.push({ cfg: cfg.fallback, model: legacyModel(cfg.fallback) });
   } else if (cfg.provider && cfg.keys.length) {
-    list.push({ cfg, model: task === 'ocr' ? (process.env.AI_TASK_VISION_FALLBACK_MODEL || cfg.model) : cfg.model });
+    list.push({ cfg, model: legacyModel(cfg) });
   }
   return list.filter(x => x.cfg.provider && x.cfg.provider.kind === 'openai');
 }

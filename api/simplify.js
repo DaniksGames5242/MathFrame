@@ -243,7 +243,7 @@ async function handler(req, res) {
   }
 
   // On the ngrok gateway the model is fixed for this function (api/_ai.js).
-  const model = cfg.providerId === 'ngrok' ? AI.TASK_MODELS.simplify() : (process.env.SIMPLIFY_MODEL || cfg.model);
+  const model = cfg.providerId === 'ngrok' ? AI.TASK_MODELS.simplify() : (process.env.SIMPLIFY_MODEL || AI.freeModel(cfg.providerId, 'medium') || cfg.model);
   const key = hashText(model + '\n' + title + '\n' + text);
   const hit = cacheGet(key);
   if (hit) {

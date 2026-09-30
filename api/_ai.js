@@ -46,6 +46,24 @@ const TASK_MODELS = {
   simplify: () => process.env.SIMPLIFY_MODEL || tierModel('medium'),
 };
 
+// Те же три уровня на других провайдерах — бесплатные модели. Используются,
+// когда ключа ngrok нет (или он не работает): Mistral на бесплатном тарифе
+// «Experiment» даёт все три модели, включая распознавание картинок.
+const FREE_TIERS = {
+  mistral: { small: 'mistral-small-latest', medium: 'mistral-medium-latest', large: 'mistral-large-latest', vision: 'mistral-small-latest' },
+  groq: { small: 'llama-3.1-8b-instant', medium: 'llama-3.3-70b-versatile', large: 'llama-3.3-70b-versatile', vision: 'meta-llama/llama-4-scout-17b-16e-instruct' },
+  openrouter: { small: 'meta-llama/llama-3.2-3b-instruct:free', medium: 'meta-llama/llama-3.3-70b-instruct:free', large: 'deepseek/deepseek-r1:free', vision: 'meta-llama/llama-3.2-11b-vision-instruct:free' },
+};
+function freeModel(provider, tier) {
+  const t = FREE_TIERS[provider];
+  return t ? t[tier] || t.medium : null;
+}
+// Модель задачи на бесплатном провайдере.
+function freeTaskModel(provider, task) {
+  const tier = task === 'ocr' || task === 'vision' ? 'vision' : task === 'solve' ? 'large' : 'medium';
+  return freeModel(provider, tier);
+}
+
 function splitKeys(s) {
   return String(s || '').split(/[\s,;]+/).map(k => k.trim()).filter(Boolean);
 }
@@ -77,4 +95,4 @@ function publicTiers() {
   return Object.keys(TIERS).map(id => ({ id, label: TIERS[id].label, cost: TIERS[id].cost, hint: TIERS[id].hint }));
 }
 
-module.exports = { NGROK_BASE, TIERS, DEFAULT_TIER, TASK_MODELS, tierModel, normTier, ngrokKeys, ngrokConfig, publicTiers, splitKeys };
+module.exports = { FREE_TIERS, freeModel, freeTaskModel, NGROK_BASE, TIERS, DEFAULT_TIER, TASK_MODELS, tierModel, normTier, ngrokKeys, ngrokConfig, publicTiers, splitKeys };
