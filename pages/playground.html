@@ -28,40 +28,67 @@ html.light{
   --pg-com:#6f7c97;--pg-bool:#c2410c;--pg-key:#2c3f73;--pg-err:#b42f2f;--pg-ok:#0b7d6f;
 }
 
-/* ---- шапка раздела и переключатель вкладок ---- */
-.pg-top{display:flex;align-items:flex-end;justify-content:space-between;gap:1rem 1.5rem;flex-wrap:wrap;margin:.4rem 0 1.1rem}
-.pg-title{font-family:var(--font-display);font-size:clamp(1.7rem,4vw,2.3rem);line-height:1.1;margin:.35rem 0 .3rem;
-  background:linear-gradient(120deg,var(--text-primary) 35%,var(--accent) 100%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
-.pg-sub{color:var(--text-secondary);font-size:.92rem;max-width:62ch;margin:0}
-.pg-tabs{position:relative;display:inline-flex;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r);padding:4px;gap:2px;
-  backdrop-filter:blur(18px) saturate(140%);-webkit-backdrop-filter:blur(18px) saturate(140%)}
-.pg-tabs button{position:relative;z-index:1;border:0;background:transparent;color:var(--text-secondary);font:inherit;font-size:.9rem;padding:.5rem 1.05rem;border-radius:calc(var(--r) - 4px);cursor:pointer;transition:color var(--t)}
-.pg-tabs button:hover{color:var(--text-primary)}
-.pg-tabs button.on{color:var(--text-primary);font-weight:600}
-/* скользящая подложка активной вкладки (двигает playground.js › movePill) */
-.pg-pill{position:absolute;z-index:0;top:4px;bottom:4px;left:0;width:0;border-radius:calc(var(--r) - 4px);
-  background:var(--accent-soft);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--accent) 35%,transparent);
-  transition:transform var(--t-slow) var(--e-out),width var(--t-slow) var(--e-out)}
-.bd-mode button.on{background:var(--accent-soft)}
-/* появление вкладки при переключении */
-.pg-view{animation:pgViewIn 460ms var(--e-out) both}
-@keyframes pgViewIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+/* ---- режимы: те же карточки .svc, что переключают сервисы в мини-сервисах ---- */
+.pg-modes{display:grid;gap:.75rem;grid-template-columns:repeat(3,minmax(0,1fr))}
+.svc{text-align:left;font:inherit;color:var(--text-primary);cursor:pointer;display:flex;flex-direction:column;gap:.25rem;padding:1rem 1.1rem}
+.svc-ttl{display:flex;align-items:center;gap:.55rem;font-weight:600;font-size:.98rem}
+.svc-ttl .gl{font-family:var(--font-math);font-style:italic;color:var(--accent);font-size:1.12rem;min-width:1.6rem;text-align:center}
+.svc-sub{color:var(--text-tertiary);font-size:.81rem}
+.svc.on{border-color:var(--accent);background:var(--accent-soft)}
+.svc.on::after{opacity:1}
+.pg-hint{margin:.7rem .15rem 1rem;color:var(--text-tertiary);font-size:.82rem;max-width:72ch}
+/* появление вкладки при переключении — отклик на действие, не декор */
+.pg-view{animation:pgViewIn 360ms var(--e-out) both}
+@keyframes pgViewIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 
-/* ---- панель инструментов ---- */
-.tb{display:flex;flex-wrap:wrap;gap:.4rem;align-items:center;margin-bottom:.6rem}
-.tb .sep{width:1px;height:22px;background:var(--border);margin:0 .2rem}
-.tb{padding:.5rem;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r-lg);
-  backdrop-filter:blur(18px) saturate(140%);-webkit-backdrop-filter:blur(18px) saturate(140%)}
-/* Кнопки — общий .btn из common.css (блик, подъём, ripple), здесь только плотнее для панели. */
-main .btn{padding:.42rem .72rem;font-size:.83rem;border-radius:var(--r-sm);white-space:nowrap;gap:.35rem}
-main .btn svg{width:15px;height:15px;flex:0 0 auto}
-main .btn.on{border-color:var(--accent);background:var(--accent-soft);color:var(--text-primary)}
+/* ---- панель действий: одна тихая строка, акцент — только «Запустить» ---- */
+.tb{display:flex;flex-wrap:wrap;gap:.45rem;align-items:center;margin-bottom:.7rem}
+.tb .sep,.tb .tb-gap{width:.35rem}
+.tb .tb-gap.grow{flex:1}
+main .btn{padding:.5rem .9rem;font-size:.86rem;border-radius:var(--r-sm);white-space:nowrap;gap:.45rem}
+main .btn svg{width:16px;height:16px;flex:0 0 auto}
 main .btn:hover{transform:translateY(-1px)}
-.tb select{font:inherit;font-size:.83rem;padding:.45rem .55rem;border-radius:var(--r-sm);border:1px solid var(--border-strong);background:var(--bg-raised);color:var(--text-primary);max-width:15rem;cursor:pointer;transition:border-color var(--t)}
-.tb select:hover{border-color:var(--accent)}
+main .btn.ghost{background:transparent;border-color:transparent;color:var(--text-secondary)}
+main .btn.ghost:hover{background:var(--accent-soft);border-color:transparent;color:var(--text-primary);box-shadow:none}
+main .btn.ghost[aria-expanded="true"]{background:var(--accent-soft);color:var(--text-primary)}
+main .btn kbd{font-family:var(--pg-mono);font-size:.68rem;padding:.08rem .35rem;border-radius:4px;background:rgba(255,255,255,.18);font-weight:500;margin-left:.15rem}
+/* тумблер */
+.sw-toggle{display:inline-flex;align-items:center;gap:.5rem;font-size:.86rem;color:var(--text-secondary);cursor:pointer;padding:.3rem .4rem;border-radius:var(--r-sm);user-select:none}
+.sw-toggle input{position:absolute;opacity:0;width:1px;height:1px}
+.sw-track{width:32px;height:18px;border-radius:999px;background:var(--border-strong);position:relative;transition:background var(--t)}
+.sw-knob{position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:transform var(--t) var(--e-out)}
+.sw-toggle input:checked+.sw-track{background:var(--accent)}
+.sw-toggle input:checked+.sw-track .sw-knob{transform:translateX(14px)}
+.sw-toggle input:focus-visible+.sw-track{outline:2px solid var(--accent);outline-offset:2px}
+/* группы иконок */
+.ib-group{display:inline-flex;gap:2px;padding:2px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--bg-raised)}
+.ib{width:34px;height:32px;display:inline-grid;place-items:center;border:0;border-radius:5px;background:transparent;color:var(--text-secondary);cursor:pointer;
+  transition:background var(--t),color var(--t)}
+.ib svg{width:17px;height:17px}
+.ib:hover{background:var(--accent-soft);color:var(--text-primary)}
+.ib:active{transform:scale(.94)}
+.ib.on{background:var(--accent-soft);color:var(--accent)}
+.ib.sm,.ib-group.sm .ib{width:28px;height:26px}
+.ib-group.sm .ib svg{width:15px;height:15px}
+.ib.sm svg{width:15px;height:15px}
+.ib:focus-visible,.seg button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+/* сегментный переключатель */
+.seg{display:inline-flex;padding:2px;border-radius:999px;background:var(--bg-sunken);border:1px solid var(--border)}
+.seg button{border:0;background:transparent;color:var(--text-tertiary);width:28px;height:24px;border-radius:999px;display:grid;place-items:center;cursor:pointer;transition:background var(--t),color var(--t)}
+.seg button svg{width:14px;height:14px}
+.seg button.on{background:var(--bg-raised);color:var(--accent);box-shadow:0 1px 3px rgba(0,0,0,.18)}
+.seg.text button{width:auto;padding:0 .8rem;font:inherit;font-size:.82rem;font-weight:600;height:28px}
+/* меню шаблонов */
+.menu-wrap{position:relative}
+.menu{position:absolute;z-index:50;top:calc(100% + 6px);left:0;min-width:240px;padding:.35rem;border-radius:var(--r);background:var(--bg-raised);border:1px solid var(--border-strong);
+  box-shadow:var(--shadow-lg);animation:pgPop 200ms var(--e-out) both;transform-origin:top left}
+.menu button{display:flex;flex-direction:column;align-items:flex-start;gap:.1rem;width:100%;text-align:left;border:0;background:transparent;color:var(--text-primary);font:inherit;font-size:.88rem;padding:.5rem .65rem;border-radius:var(--r-sm);cursor:pointer}
+.menu button small{color:var(--text-tertiary);font-size:.76rem}
+.menu button:hover,.menu button:focus-visible{background:var(--accent-soft);outline:none}
+.chip{font-family:var(--pg-mono);font-size:.76rem;color:var(--text-secondary);background:var(--bg-sunken);border:1px solid var(--border);padding:.12rem .5rem;border-radius:999px;max-width:50%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 /* ---- рабочая область ---- */
-.ws{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:.75rem;height:calc(100vh - 290px);min-height:520px}
+.ws{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:.75rem;height:calc(100vh - 300px);min-height:520px}
 .ws.wide-ed{grid-template-columns:minmax(0,1.4fr) minmax(0,1fr)}
 .pane{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r-lg);display:flex;flex-direction:column;min-height:0;
   backdrop-filter:blur(18px) saturate(140%);-webkit-backdrop-filter:blur(18px) saturate(140%);
@@ -178,15 +205,26 @@ main .btn:hover{transform:translateY(-1px)}
 .toast::before{content:'';display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--accent);margin-right:.55rem;vertical-align:middle}
 .toast.show{opacity:1;transform:translate(-50%,0) scale(1)}
 
+/* ---- конструктор: палитра инструментов ---- */
+.palette{display:inline-flex;flex-wrap:wrap;gap:2px;padding:3px;border:1px solid var(--border);border-radius:var(--r);background:var(--bg-raised)}
+.pal-btn{display:inline-flex;align-items:center;gap:.4rem;border:0;background:transparent;color:var(--text-secondary);font:inherit;font-size:.82rem;
+  padding:.42rem .62rem;border-radius:calc(var(--r) - 3px);cursor:pointer;transition:background var(--t),color var(--t)}
+.pal-btn svg{width:16px;height:16px;flex:0 0 auto}
+.pal-btn:hover{background:var(--accent-soft);color:var(--text-primary)}
+.pal-btn.on{background:var(--accent);color:#fff;box-shadow:0 4px 14px var(--accent-glow)}
+.pal-btn:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.sel-btn{position:relative}
+.sel-btn select{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%}
+@media (max-width:1250px){.pal-btn span{display:none}.pal-btn{padding:.45rem}}
 /* ---- конструктор ---- */
-.bd{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:.75rem;height:calc(100vh - 290px);min-height:540px}
+.bd{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:.75rem;height:calc(100vh - 300px);min-height:540px}
 .bd-canvas-pane{min-height:0}
 .bd-stage{flex:1;min-height:0;position:relative;background:var(--bg-sunken)}
 .bd-list button{transition:background var(--t)}
 .bd-stage svg{position:absolute;inset:0;width:100%;height:100%;touch-action:none;user-select:none;cursor:crosshair}
 .bd-stage svg.sel-mode{cursor:default}
 .bd-side{display:flex;flex-direction:column;gap:.75rem;min-height:0}
-.bd-box{min-height:0}
+.bd-box{min-height:0;backdrop-filter:none;-webkit-backdrop-filter:none;background:var(--bg-raised)}
 .bd-box:nth-child(1){flex:0 0 auto;max-height:42%}
 .bd-box:nth-child(2){flex:1 1 0}
 .bd-box:nth-child(3){flex:1.2 1 0}
@@ -211,8 +249,6 @@ main .btn:hover{transform:translateY(-1px)}
 .bd-list .dot{width:9px;height:9px;border-radius:50%;flex:0 0 auto;background:var(--text-tertiary)}
 .bd-list .empty{color:var(--text-tertiary);padding:.6rem;font-size:.82rem}
 .bd-code{margin:0;flex:1;min-height:0;overflow:auto;padding:.6rem .8rem;font-family:var(--pg-mono);font-size:11.5px;line-height:1.5}
-.bd-mode button{padding:.32rem .8rem;font-size:.83rem}
-.btn.tool.on{border-color:var(--accent);background:var(--accent-soft);font-weight:600}
 .bd-svg-grid{stroke:var(--border)}
 .bd-svg-axis{stroke:var(--text-tertiary)}
 .bd-svg-label{fill:var(--text-primary);font:13px var(--font-body, sans-serif);paint-order:stroke;stroke:var(--bg-sunken);stroke-width:3px}
@@ -228,7 +264,12 @@ main .btn:hover{transform:translateY(-1px)}
 html.mf-no-motion .pg-view,html.mf-no-motion .dlg.show,html.mf-no-motion .dlg.show .dlg-box{animation:none}
 @media (prefers-reduced-motion:reduce){.pg-view,.dlg.show,.dlg.show .dlg-box,.errs div{animation:none}.pg-pill{transition:none}}
 @media (max-width:900px){
-  .pg-top{align-items:flex-start}
+  .pg-modes{grid-template-columns:repeat(3,minmax(0,1fr));gap:.4rem;margin-bottom:.8rem}
+  .svc{padding:.6rem .5rem;align-items:center}
+  .svc-sub{display:none}
+  .svc-ttl{flex-direction:column;gap:.15rem;font-size:.84rem}
+  .pg-hint{display:none}
+  .tb .tb-gap.grow{display:none}
   .ws,.ws.wide-ed{grid-template-columns:1fr;height:auto}
   .ws .pane{height:62vh;min-height:380px}
   .tb .sep{display:none}
@@ -248,47 +289,54 @@ html.mf-no-motion .pg-view,html.mf-no-motion .dlg.show,html.mf-no-motion .dlg.sh
 <main>
   <h1 class="sr-only">Песочница GMS</h1>
 
-  <div class="pg-top mf-reveal">
-    <div>
-      <span class="mf-label">§ 05 · Песочница</span>
-      <h2 class="pg-title">Песочница GMS</h2>
-      <p class="pg-sub">Интерактивные сцены на языке GMS — в 2D и 3D: пишите код, собирайте мышью в конструкторе, смотрите справочник. Всё сохраняется в этом браузере.</p>
-    </div>
-    <div class="pg-tabs" role="tablist" id="pgTabs">
-      <span class="pg-pill" id="pgPill" aria-hidden="true"></span>
-      <button type="button" role="tab" id="tabEditor" class="on" aria-selected="true">Редактор</button>
-      <button type="button" role="tab" id="tabBuilder" aria-selected="false">Конструктор</button>
-      <button type="button" role="tab" id="tabDocs" aria-selected="false">Документация</button>
-    </div>
+  <h1 class="sr-only">Песочница GMS</h1>
+  <div class="pg-modes" role="tablist" id="pgTabs" aria-label="Режим песочницы">
+    <button type="button" role="tab" class="svc on" id="tabEditor" aria-selected="true">
+      <span class="svc-ttl"><span class="gl">{ }</span>Редактор</span>
+      <span class="svc-sub">Код сцены и живой просмотр рядом</span>
+    </button>
+    <button type="button" role="tab" class="svc" id="tabBuilder" aria-selected="false">
+      <span class="svc-ttl"><span class="gl">△</span>Конструктор</span>
+      <span class="svc-sub">Строите мышью в 2D и 3D — код пишется сам</span>
+    </button>
+    <button type="button" role="tab" class="svc" id="tabDocs" aria-selected="false">
+      <span class="svc-ttl"><span class="gl">∫</span>Документация</span>
+      <span class="svc-sub">Весь язык GMS с примерами, которые можно запустить</span>
+    </button>
   </div>
+  <p class="pg-hint">Сцены на языке GMS — тем же движком, что и примеры справочника. Код хранится в этом браузере.</p>
 
   <!-- ================= Редактор ================= -->
   <section id="viewEditor" class="pg-view">
-    <div class="tb">
-      <button class="btn primary" id="bRun" title="Ctrl+Enter">
-        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15l13-7.5z"/></svg>Запустить
-      </button>
-      <button class="btn on" id="bAuto" title="Перезапускать сцену при каждом изменении кода">Автозапуск</button>
-      <span class="sep"></span>
-      <select id="selTemplate" aria-label="Шаблон">
-        <option value="">Новый из шаблона…</option>
-      </select>
-      <button class="btn" id="bExamples">Примеры справочника</button>
-      <span class="sep"></span>
-      <button class="btn" id="bOpen" title="Открыть .gms-файл">Открыть</button>
-      <button class="btn" id="bSave" title="Скачать исходник .gms">Скачать .gms</button>
-      <button class="btn" id="bHtml" title="Скачать готовую страницу сцены">Скачать .html</button>
-      <button class="btn" id="bShare" title="Скопировать ссылку с кодом">Поделиться</button>
-      <span class="sep"></span>
-      <button class="btn" id="bFormat" title="Выровнять отступы">Отступы</button>
-      <button class="btn" id="bFull" title="Во весь экран">⤢</button>
+    <div class="tb" role="toolbar" aria-label="Действия редактора">
+      <button class="btn primary" id="bRun" title="Запустить (Ctrl+Enter)"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15l13-7.5z"/></svg>Запустить<kbd>Ctrl ↵</kbd></button>
+      <label class="sw-toggle" title="Перезапускать сцену при каждом изменении кода">
+        <input type="checkbox" id="bAuto" checked><span class="sw-track"><span class="sw-knob"></span></span>Автозапуск
+      </label>
+      <span class="tb-gap"></span>
+      <div class="menu-wrap">
+        <button class="btn ghost" id="bTemplates" aria-haspopup="menu" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>Шаблоны</button>
+        <div class="menu" id="tplMenu" role="menu" hidden></div>
+      </div>
+      <button class="btn ghost" id="bExamples"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5z"/><path d="M4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5"/></svg>Примеры справочника</button>
+      <span class="tb-gap grow"></span>
+      <div class="ib-group" role="group" aria-label="Файл">
+        <button class="ib" id="bOpen" title="Открыть файл .gms" aria-label="Открыть файл .gms"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></button>
+        <button class="ib" id="bSave" title="Скачать исходник .gms" aria-label="Скачать исходник .gms"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11"/><path d="m7 10 5 5 5-5"/><path d="M5 20h14"/></svg></button>
+        <button class="ib" id="bHtml" title="Скачать готовую страницу .html" aria-label="Скачать готовую страницу .html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m8 7-5 5 5 5"/><path d="m16 7 5 5-5 5"/><path d="m14 4-4 16"/></svg></button>
+        <button class="ib" id="bShare" title="Скопировать ссылку с кодом" aria-label="Скопировать ссылку с кодом"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 14a4.5 4.5 0 0 0 6.4 0l3.2-3.2a4.5 4.5 0 0 0-6.4-6.4l-1.1 1.1"/><path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3.2 3.2a4.5 4.5 0 0 0 6.4 6.4l1.1-1.1"/></svg></button>
+      </div>
+      <div class="ib-group" role="group" aria-label="Вид">
+        <button class="ib" id="bFormat" title="Выровнять отступы" aria-label="Выровнять отступы"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M10 12h10M10 18h10"/><path d="m4 10 3 2-3 2"/></svg></button>
+        <button class="ib" id="bFull" title="Во весь экран (Esc — выйти)" aria-label="Во весь экран"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+      </div>
       <input type="file" id="fileIn" accept=".gms,.txt" hidden />
     </div>
 
     <div class="ws wide-ed" id="ws">
       <div class="pane mf-ticks">
         <div class="pane-h">
-          <b id="fileName">scene.gms</b><span class="grow"></span>
+          <span class="chip" id="fileName">scene.gms</span><span class="grow"></span>
           <span class="status" id="status"></span>
         </div>
         <div class="ed">
@@ -305,9 +353,11 @@ html.mf-no-motion .pg-view,html.mf-no-motion .dlg.show,html.mf-no-motion .dlg.sh
       <div class="pane mf-ticks">
         <div class="pane-h">
           <b>Сцена</b><span class="grow"></span>
-          <button class="mini" id="pvDark">Тёмная</button>
-          <button class="mini" id="pvLight">Светлая</button>
-          <button class="mini" id="pvReload" title="Перезапустить">↻</button>
+          <div class="seg" role="group" aria-label="Тема сцены">
+            <button id="pvDark" title="Тёмная тема сцены" aria-label="Тёмная тема сцены"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg></button>
+            <button id="pvLight" title="Светлая тема сцены" aria-label="Светлая тема сцены"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></button>
+          </div>
+          <button class="ib sm" id="pvReload" title="Перезапустить сцену" aria-label="Перезапустить сцену"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.7"/><path d="M20 4v5h-5"/></svg></button>
         </div>
         <div class="prev">
           <iframe id="frame" title="Сцена" sandbox="allow-scripts allow-downloads allow-popups"></iframe>
@@ -326,6 +376,7 @@ html.mf-no-motion .pg-view,html.mf-no-motion .dlg.show,html.mf-no-motion .dlg.sh
         <div class="pane-h">
           <b id="bdHint">Выберите инструмент</b><span class="grow"></span>
           <span class="status" id="bdCoords"></span>
+          <div class="ib-group sm" id="bdHist" role="group" aria-label="История"></div>
         </div>
         <div class="bd-stage" id="bdStage">
           <svg id="bdSvg" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Поле конструктора"></svg>

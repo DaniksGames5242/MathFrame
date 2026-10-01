@@ -279,8 +279,8 @@ $('pvDark').onclick = () => { previewTheme = 'dark'; applyPreviewTheme(); };
 $('pvLight').onclick = () => { previewTheme = 'light'; applyPreviewTheme(); };
 $('pvReload').onclick = () => run(true);
 $('bRun').onclick = () => run(true);
-function refreshAuto() { $('bAuto').classList.toggle('on', autoRun); }
-$('bAuto').onclick = () => { autoRun = !autoRun; store.set(LS_AUTO, autoRun ? 'on' : 'off'); refreshAuto(); if (autoRun) run(); };
+function refreshAuto() { $('bAuto').checked = autoRun; }
+$('bAuto').onchange = () => { autoRun = $('bAuto').checked; store.set(LS_AUTO, autoRun ? 'on' : 'off'); if (autoRun) run(); };
 
 let editTimer = null, saveTimer = null;
 function onEdit() {
@@ -656,14 +656,37 @@ $('bShare').onclick = async () => {
   catch (e) { toast('Ссылка — в адресной строке'); }
 };
 
-const selT = $('selTemplate');
-for (const k of Object.keys(TEMPLATES)) { const o = document.createElement('option'); o.value = k; o.textContent = k; selT.appendChild(o); }
-selT.onchange = () => {
-  const k = selT.value; selT.value = '';
-  if (!k) return;
+// Меню шаблонов (вместо системного <select>: подписи-пояснения и клавиатура).
+const TEMPLATE_NOTES = {
+  'Пустая 2D-сцена': 'Поле с осями и одной точкой',
+  'Треугольник и углы': 'Точки, отрезки, углы и живое описание',
+  'График с ползунками': 'func, draw Function и два ползунка',
+  'Вкладки': 'Кластеры и кнопки-переключатели',
+  '3D-сцена': 'Тетраэдр из точек и рёбер',
+  'Анимация': 'animate и точка на окружности',
+  'Граф': 'Граф, собираемый в Update',
+};
+const tplMenu = $('tplMenu'), bTpl = $('bTemplates');
+tplMenu.innerHTML = Object.keys(TEMPLATES).map((k) => `<button type="button" role="menuitem" data-tpl="${esc(k)}">${esc(k)}<small>${esc(TEMPLATE_NOTES[k] || '')}</small></button>`).join('');
+function setTplMenu(open) {
+  tplMenu.hidden = !open;
+  bTpl.setAttribute('aria-expanded', open);
+  if (open) { const f = tplMenu.querySelector('button'); if (f) f.focus(); }
+}
+bTpl.onclick = (e) => { e.stopPropagation(); setTplMenu(tplMenu.hidden); };
+document.addEventListener('click', (e) => { if (!tplMenu.hidden && !tplMenu.contains(e.target)) setTplMenu(false); });
+tplMenu.addEventListener('keydown', (e) => {
+  const items = [...tplMenu.querySelectorAll('button')], i = items.indexOf(document.activeElement);
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); items[(i + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length].focus(); }
+  if (e.key === 'Escape') { setTplMenu(false); bTpl.focus(); }
+});
+tplMenu.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-tpl]'); if (!b) return;
+  const k = b.dataset.tpl;
+  setTplMenu(false);
   if (code.value.trim() && !confirm('Заменить текущий код шаблоном «' + k + '»? Несохранённые изменения пропадут.')) return;
   setCode(TEMPLATES[k], 'scene.gms');
-};
+});
 
 // ---- примеры справочника (data/examples/*.gms, список — data/gms-docs/examples-index.json)
 let examples = null, exSel = 0, exShown = [];

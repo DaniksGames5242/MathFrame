@@ -729,27 +729,55 @@ $('bdList').addEventListener('click', (e) => {
    Панель инструментов
    ========================================================================== */
 const tb = $('bdTools');
+// Иконки инструментов (24×24, обводка — как иконки шапки сайта).
+const SVG = (d, fill) => `<svg viewBox="0 0 24 24" fill="${fill ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+const ICON = {
+  select: SVG('<path d="M5 3l14 8-6 1.5L10 19z"/>'),
+  point: SVG('<circle cx="12" cy="12" r="3.2" fill="currentColor"/><circle cx="12" cy="12" r="7" opacity=".35"/>'),
+  segment: SVG('<path d="M6 18 18 6"/><circle cx="6" cy="18" r="2" fill="currentColor"/><circle cx="18" cy="6" r="2" fill="currentColor"/>'),
+  line: SVG('<path d="M3 21 21 3"/><circle cx="9" cy="15" r="1.8" fill="currentColor"/><circle cx="15" cy="9" r="1.8" fill="currentColor"/>'),
+  vector: SVG('<path d="M5 19 18 6"/><path d="M11 6h7v7"/>'),
+  circle: SVG('<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/>'),
+  polygon: SVG('<path d="M5 18 8 6l11 3-2 9z"/>'),
+  angle: SVG('<path d="M4 19h16"/><path d="M4 19 15 5"/><path d="M10 19a6 6 0 0 0-2.4-4.8"/>'),
+  midpoint: SVG('<path d="M4 18 20 6"/><circle cx="12" cy="12" r="2.4" fill="currentColor"/><path d="M9 9.5l-1-1.5M15 14.5l1 1.5" opacity=".5"/>'),
+  text: SVG('<path d="M5 6V4h14v2M12 4v16M9 20h6"/>'),
+  plane: SVG('<path d="M3 16 9 8h12l-6 8z"/>'),
+  func: SVG('<path d="M3 17c3 0 4-10 9-10s6 10 9 10"/>'),
+  slider: SVG('<path d="M4 12h16"/><circle cx="10" cy="12" r="3" fill="currentColor"/>'),
+  solid: SVG('<path d="M12 3 4 7.5v9L12 21l8-4.5v-9z"/><path d="M4 7.5 12 12l8-4.5M12 12v9"/>'),
+  surface: SVG('<path d="M3 15c3-4 6 2 9-2s6 2 9-2"/><path d="M3 19c3-4 6 2 9-2s6 2 9-2" opacity=".5"/>'),
+  view: SVG('<path d="M20 12a8 8 0 1 1-2.3-5.7"/><path d="M20 4v5h-5"/>'),
+  undo: SVG('<path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/>'),
+  redo: SVG('<path d="m15 14 5-5-5-5"/><path d="M20 9H10a6 6 0 0 0 0 12h3"/>'),
+  clear: SVG('<path d="M4 7h16M10 11v6M14 11v6"/><path d="M6 7l1 13h10l1-13M9 7V4h6v3"/>'),
+};
 function renderToolbar() {
   const ids = is3D() ? TOOLS_3D : TOOLS_2D;
-  tb.innerHTML = `<span class="pg-tabs bd-mode"><button type="button" data-mode="2d" class="${is3D() ? '' : 'on'}">2D</button>` +
-    `<button type="button" data-mode="3d" class="${is3D() ? 'on' : ''}">3D</button></span><span class="sep"></span>` +
-    ids.map((id) => `<button type="button" class="btn tool" data-tool="${id}">${TOOLS.find((t) => t.id === id).label}</button>`).join('') +
-    '<span class="sep"></span>' +
+  const tools = ids.map((id) => { const t = TOOLS.find((x) => x.id === id);
+    return `<button type="button" class="pal-btn" data-tool="${id}" title="${escH(t.hint)}">${ICON[id] || ''}<span>${t.label}</span></button>`; }).join('');
+  tb.innerHTML =
+    `<div class="seg text" role="group" aria-label="Режим конструктора"><button type="button" data-mode="2d" class="${is3D() ? '' : 'on'}">2D</button><button type="button" data-mode="3d" class="${is3D() ? 'on' : ''}">3D</button></div>` +
+    `<div class="palette" role="group" aria-label="Инструменты">${tools}</div>` +
+    `<span class="tb-gap"></span>` +
     (is3D()
-      ? `<select class="bd-add" data-act="solid" aria-label="Добавить тело"><option value="">+ Тело…</option>${Object.entries(SOLIDS).map(([k, v]) => `<option value="${k}">${v.title}</option>`).join('')}</select>` +
-        `<button type="button" class="btn" data-act="surface">+ Поверхность</button>`
-      : `<button type="button" class="btn" data-act="func">+ График</button>`) +
-    `<button type="button" class="btn" data-act="slider">+ Ползунок</button>` +
-    (is3D() ? `<button type="button" class="btn" data-act="view" title="Вернуть начальный вид">Вид ⟲</button>` : '') +
-    `<span class="sep"></span><button type="button" class="btn" data-act="undo" title="Ctrl+Z">↶</button>` +
-    `<button type="button" class="btn" data-act="redo" title="Ctrl+Y">↷</button>` +
-    `<button type="button" class="btn" data-act="clear">Очистить</button>`;
+      ? `<label class="btn ghost sel-btn">${ICON.solid}<span>Тело</span><select class="bd-add" data-act="solid" aria-label="Добавить тело"><option value="">Тело…</option>${Object.entries(SOLIDS).map(([k, v]) => `<option value="${k}">${v.title}</option>`).join('')}</select></label>` +
+        `<button type="button" class="btn ghost" data-act="surface">${ICON.surface}Поверхность</button>`
+      : `<button type="button" class="btn ghost" data-act="func">${ICON.func}График</button>`) +
+    `<button type="button" class="btn ghost" data-act="slider">${ICON.slider}Ползунок</button>` +
+    '';
+  // История и вид — в шапке поля, рядом с тем, на что действуют.
+  $('bdHist').innerHTML =
+    (is3D() ? `<button type="button" class="ib" data-act="view" title="Вернуть начальный вид" aria-label="Вернуть начальный вид">${ICON.view}</button>` : '') +
+    `<button type="button" class="ib" data-act="undo" title="Отменить (Ctrl+Z)" aria-label="Отменить">${ICON.undo}</button>` +
+    `<button type="button" class="ib" data-act="redo" title="Повторить (Ctrl+Y)" aria-label="Повторить">${ICON.redo}</button>` +
+    `<button type="button" class="ib" data-act="clear" title="Очистить сцену" aria-label="Очистить сцену">${ICON.clear}</button>`;
 }
 function setTool(id) {
   const ids = is3D() ? TOOLS_3D : TOOLS_2D;
   if (!ids.includes(id)) id = 'select';
   tool = id; pending = []; cursor = null;
-  tb.querySelectorAll('[data-tool]').forEach((b) => b.classList.toggle('on', b.dataset.tool === id));
+  tb.querySelectorAll('[data-tool]').forEach((b) => { b.classList.toggle('on', b.dataset.tool === id); b.setAttribute('aria-pressed', b.dataset.tool === id); });
   $('bdHint').textContent = (is3D() && HINT_3D[id]) || TOOLS.find((t) => t.id === id).hint;
   draw();
 }
@@ -777,7 +805,9 @@ tb.addEventListener('change', (e) => {
   selected = add(o).id;
   setTool('select'); refresh(true);
 });
-tb.addEventListener('click', (e) => {
+$('bdHist').addEventListener('click', (e) => onToolbarClick(e));
+tb.addEventListener('click', (e) => onToolbarClick(e));
+function onToolbarClick(e) {
   const md = e.target.closest('[data-mode]');
   if (md) { setMode(md.dataset.mode); return; }
   const t = e.target.closest('[data-tool]');
@@ -809,7 +839,7 @@ tb.addEventListener('click', (e) => {
     selected = add({ kind: 'slider', name: autoName('slider'), label: '', min: -5, max: 5, step: 0.1, value: 1 }).id;
     setTool('select'); refresh(true);
   }
-});
+}
 
 document.addEventListener('keydown', (e) => {
   if ($('viewBuilder').hidden) return;
