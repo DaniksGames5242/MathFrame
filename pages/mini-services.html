@@ -90,8 +90,13 @@ label.f input:focus,label.f select:focus{border-color:var(--accent);box-shadow:0
 
 /* ---- график ---- */
 .plot-wrap{position:relative;border:1px solid var(--border);border-radius:var(--r);overflow:hidden;background:var(--bg-sunken)}
-#plot{display:block;width:100%;height:min(58vh,420px);touch-action:none;cursor:crosshair}
-.plot-bar{display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.6rem}
+/* Графики рисует движок GMS (assets/js/gms-embed.js): рамка, сетка и оси — его,
+   здесь только место под сцену, пока она грузится, и подпись про жесты. */
+.plot-wrap.gms-stage,.ode-viz.gms-stage{border:0;background:transparent;overflow:visible;min-height:240px;height:auto;display:block}
+.gms-stage .gms-frame{transition:opacity .25s}
+.gms-stage-status{padding:2rem 0;text-align:center;color:var(--text-tertiary);font-size:.85rem}
+.gms-stage-status:empty{display:none}
+.plot-hint{margin-top:.35rem;color:var(--text-tertiary);font-size:.78rem}
 .mini{
   font:inherit;font-size:.8rem;padding:.4rem .7rem;min-height:36px;
   border-radius:var(--r-sm);border:1px solid var(--border-strong);
@@ -368,7 +373,6 @@ label.f input:focus,label.f select:focus{border-color:var(--accent);box-shadow:0
      но при 2 колонках по 150px это всё ещё тесно на экране ~320px). */
   .grid2{grid-template-columns:1fr}
 
-  .ode-viz{height:min(38vh,260px)}
   .matrix-cell{padding:.4rem}
   .more-toolrow{gap:.3rem}
 }
@@ -410,7 +414,7 @@ label.f input:focus,label.f select:focus{border-color:var(--accent);box-shadow:0
   color:var(--text-primary);font:inherit;font-size:16px;resize:vertical;margin-bottom:.7rem
 }
 
-.more-canvas{width:100%;height:320px;display:block;margin-top:.8rem;border-radius:var(--r);border:1px solid var(--border);background:var(--bg-sunken)}
+.more-plot{margin-top:.8rem}
 
 .pascal-wrap{display:flex;flex-direction:column;align-items:center;gap:.3rem;overflow-x:auto;padding:.5rem 0}
 .pascal-row{display:flex;gap:.35rem}
@@ -424,7 +428,6 @@ label.f input:focus,label.f select:focus{border-color:var(--accent);box-shadow:0
   border:1px solid var(--border);background:var(--bg-sunken);
   display:flex;align-items:center;justify-content:center
 }
-.ode-frame{width:100%;height:100%;border:none;display:block}
 .ode-probe{
   margin-top:.5rem;font-family:var(--font-mono);font-size:.85rem;
   color:var(--text-secondary);min-height:1.3em;

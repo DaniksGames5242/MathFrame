@@ -838,7 +838,7 @@
       box-shadow: var(--shadow);
       transition: border-color 0.3s, box-shadow 0.3s;
     }
-    /* После загрузки высота задаётся из содержимого iframe (JS, см. fitExampleFrame) —
+    /* После загрузки высота задаётся из содержимого iframe (JS, см. gms-embed.js › attachFrame) —
        весь пример (сцена + текст описания под ней) виден целиком, без внутренней
        прокрутки внутри рамки, даже если он выше «типового» соотношения 4:3. */
     .spr-example-frame-wrap.spr-sized { aspect-ratio: unset; }
@@ -5269,7 +5269,8 @@
 
       const PAGE_ROOT = window.PAGE_ROOT || './';
       const CONFIG_URL = PAGE_ROOT + 'data/topics/config.json';
-      const COMPILER_URL = PAGE_ROOT + 'assets/js/gms-compiler.js';
+      // Компилятор GMS, встраивание сцены, тема и высота рамки — общий модуль сайта.
+      const GMS_EMBED_URL = PAGE_ROOT + 'assets/js/gms-embed.js';
 
       // ---- Состояние ----
       let topics = [];
@@ -7093,18 +7094,11 @@
       // ===================================================================
       // ИНТЕРАКТИВНЫЙ ПРИМЕР
       // ===================================================================
-      function loadCompiler() {
-        if (!compilerModulePromise) compilerModulePromise = import(COMPILER_URL);
+      function loadEmbed() {
+        if (!compilerModulePromise) compilerModulePromise = import(GMS_EMBED_URL).catch(e => { compilerModulePromise = null; throw e; });
         return compilerModulePromise;
       }
-
-      function currentTheme() {
-        return document.documentElement.classList.contains('light') ? 'light' : 'dark';
-      }
-
-      function sendThemeToFrame(frame) {
-        try { frame.contentWindow.postMessage({ type: 'geocompiler-set-theme', theme: currentTheme() }, '*'); } catch (e) {}
-      }
+      function loadCompiler() { return loadEmbed().then(m => m.loadCompiler()); }
 
       // Сообщает интерактивному примеру, какой "шаг" (GMS-кластер с полем step) сейчас
       // ===================================================================
@@ -7198,37 +7192,9 @@
         fitExampleFrame(frame);
       }
 
-      // Подгоняет высоту рамки примера под фактическое содержимое iframe (сцена +
-      // текст описания под ней), чтобы всё было видно целиком без внутренней
-      // прокрутки (у самого документа внутри iframe нет overflow:hidden — он
-      // сколько угодно высокий, но раньше рамка снаружи жёстко резалась под 4:3).
-      // srcdoc + allow-same-origin => iframe того же происхождения, что и страница,
-      // поэтому contentDocument доступен напрямую, без postMessage.
-      let exampleFrameRO = null;
-      function fitExampleFrame(frame) {
-        try {
-          const doc = frame.contentDocument;
-          const wrap = frame.closest('.spr-example-frame-wrap');
-          if (!doc || !doc.documentElement || !wrap) return;
-          const h = Math.ceil(doc.documentElement.getBoundingClientRect().height);
-          if (h > 0 && Math.abs(h - (parseFloat(wrap.style.height) || 0)) > 1) {
-            wrap.style.height = h + 'px';
-          }
-          wrap.classList.add('spr-sized');
-        } catch (e) {}
-      }
-      // Отслеживаем изменения высоты содержимого (шрифты догрузились, поменялась
-      // ширина колонки при resize/перетаскивании разделителя сайдбара, поменялся
-      // шаг доказательства и т.п.) и подгоняем рамку заново.
-      function watchExampleFrame(frame) {
-        if (exampleFrameRO) { try { exampleFrameRO.disconnect(); } catch (e) {} }
-        try {
-          exampleFrameRO = new ResizeObserver(() => fitExampleFrame(frame));
-          exampleFrameRO.observe(frame.contentDocument.documentElement);
-          const wrap = frame.closest('.spr-example-frame-wrap');
-          if (wrap) exampleFrameRO.observe(wrap);
-        } catch (e) {}
-      }
+      // Высоту рамки под содержимое сцены (сцена + текст описания), тему сайта и
+      // отписку при смене темы справочника берёт на себя gms-embed.attachFrame.
+      let detachExampleFrame = null;
 
       async function renderExample(topic) {
         if (topic.type === 'folder') {
@@ -7283,12 +7249,13 @@
         }
 
         try {
-          const [source, mod] = await Promise.all([
+          const [source, mod, embed] = await Promise.all([
             fetch(PAGE_ROOT + topic.example, { cache: 'no-cache' }).then(r => {
               if (!r.ok) throw new Error('Не удалось загрузить файл (' + r.status + ')');
               return r.text();
             }),
             loadCompiler(),
+            loadEmbed(),
           ]);
           if (!document.body.contains(frame)) return;
           const result = mod.compile(source);
@@ -7297,14 +7264,17 @@
             status.classList.add('error');
             return;
           }
-          frame.addEventListener('load', () => {
-            status.hidden = true;
-            frame.classList.add('loaded');
-            sendThemeToFrame(frame);
-            if (topic.type === 'proof') sendStepToFrame(frame, currentProofStepIndex + 1);
-            fitExampleFrame(frame);
-            watchExampleFrame(frame);
-          }, { once: true });
+          if (detachExampleFrame) detachExampleFrame();
+          const wrap = frame.closest('.spr-example-frame-wrap');
+          detachExampleFrame = embed.attachFrame(frame, {
+            fit: wrap,
+            onLoad: () => {
+              status.hidden = true;
+              frame.classList.add('loaded');
+              if (wrap) wrap.classList.add('spr-sized');
+              if (topic.type === 'proof') sendStepToFrame(frame, currentProofStepIndex + 1);
+            },
+          });
           frame.srcdoc = result.html;
         } catch (e) {
           status.innerHTML = 'Не удалось загрузить пример: ' + e.message;
@@ -7456,13 +7426,6 @@
         });
       }
 
-      function setupThemeSync() {
-        const observer = new MutationObserver(() => {
-          const frame = document.getElementById('sprExampleFrame');
-          if (frame) sendThemeToFrame(frame);
-        });
-        observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
-      }
 
       // ===================================================================
       // АДМИН: СКАЧИВАНИЕ (MD, DOC, HTML)
@@ -8213,7 +8176,6 @@ ${bodyXml}
       async function init() {
         if (!mountLayout()) return;
         setupUiHandlers();
-        setupThemeSync();
         restoreSidebarWidth();
         initResizer();
 
