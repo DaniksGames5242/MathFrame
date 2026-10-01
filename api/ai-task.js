@@ -24,6 +24,7 @@
 
 const chat = require('./chat');
 const AI = require('./_ai');
+const { classify } = require('./_classify');
 const { getConfig, identify, checkRateLimit, loadAiSettings, bearerToken, DEFAULT_DISABLED_MESSAGE } = chat._internal;
 
 const MAX_TEXT = 3000;
@@ -272,6 +273,14 @@ async function handler(req, res) {
       { role: 'system', content: OCR_PROMPTS[mode] },
       { role: 'user', content: [{ type: 'text', text: 'Фото:' }, { type: 'image_url', image_url: { url: image } }] },
     ];
+  }
+
+  // Быстрый классификатор (Cloudflare: Jev или бесплатная Llama) — посторонние
+  // запросы отсекаются, не тратя лимит модели-решателя. Ошибка = пропускаем дальше.
+  if (task !== 'ocr') {
+    const c = await classify(String(body.text || '').slice(0, 2000));
+    if (c && c.kind === 'offtopic') { res.status(422).json({ error: 'Некорректная задача: это не ' + (task === 'algebra' ? 'математика' : 'геометрическая задача') + '.', code: 'offtopic', by: c.by }); return; }
+    if (c && c.kind === 'math' && task !== 'algebra') { res.status(422).json({ error: 'Некорректная задача: это не геометрия — такие задачи решает алгебраический калькулятор.', code: 'offtopic', by: c.by }); return; }
   }
 
   if (!isAdmin) {
