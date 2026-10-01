@@ -93,14 +93,14 @@ draw Text { name = "c7_5"; pos = (cx(5), cy(7)); text = cell(7, 5); size = 1.1; 
 draw Text { name = "c7_6"; pos = (cx(6), cy(7)); text = cell(7, 6); size = 1.1; layer = 20; active = 7 < m && 6 < m }
 draw Text { name = "c7_7"; pos = (cx(7), cy(7)); text = cell(7, 7); size = 1.1; layer = 20; active = 7 < m && 7 < m }
 draw Text { name = "op"; pos = (cx(-1), cy(-1)); text = "∗"; size = 1.3; color = #f59e0b }
-draw Text { name = "ax0"; pos = (3.4, 3.2); text = "замкнутость"; size = 1; align = left }
-draw Text { name = "aw0"; pos = (3.4, 2.75); text = wit(0); size = 0.85; color = #6b7280; align = left }
-draw Text { name = "ax1"; pos = (3.4, 2.1); text = "ассоциативность"; size = 1; align = left }
-draw Text { name = "aw1"; pos = (3.4, 1.65); text = wit(1); size = 0.85; color = #6b7280; align = left }
-draw Text { name = "ax2"; pos = (3.4, 1); text = "нейтральный элемент"; size = 1; align = left }
-draw Text { name = "aw2"; pos = (3.4, 0.55); text = wit(2); size = 0.85; color = #6b7280; align = left }
-draw Text { name = "ax3"; pos = (3.4, -0.1); text = "обратные элементы"; size = 1; align = left }
-draw Text { name = "aw3"; pos = (3.4, -0.55); text = wit(3); size = 0.85; color = #6b7280; align = left }
+draw Text { name = "ax0"; pos = (2.9, 3.2); text = "замкнутость"; size = 0.9; align = left }
+draw Text { name = "aw0"; pos = (2.9, 2.75); text = wit(0); size = 0.85; color = #6b7280; align = left }
+draw Text { name = "ax1"; pos = (2.9, 2.1); text = "ассоциативность"; size = 0.9; align = left }
+draw Text { name = "aw1"; pos = (2.9, 1.65); text = wit(1); size = 0.85; color = #6b7280; align = left }
+draw Text { name = "ax2"; pos = (2.9, 1); text = "нейтральный элемент"; size = 0.9; align = left }
+draw Text { name = "aw2"; pos = (2.9, 0.55); text = wit(2); size = 0.85; color = #6b7280; align = left }
+draw Text { name = "ax3"; pos = (2.9, -0.1); text = "обратные элементы"; size = 0.9; align = left }
+draw Text { name = "aw3"; pos = (2.9, -0.55); text = wit(3); size = 0.85; color = #6b7280; align = left }
 
 new UI { name = "sO"; type = select; label = "операция"; variable = op; options = ("add", "sub", "mul0", "mul1", "max"); labels = ("a + b mod n на {0…n−1}", "a − b mod n", "a · b mod n на {0…n−1}", "a · b mod n на {1…n−1}", "max(a, b)"); default = "mul1" }
 new UI { name = "sN"; type = slider; label = "n"; variable = n; min = 2; max = 8; step = 1; default = 7 }
@@ -153,7 +153,7 @@ Update {
     }
   } else { okA[3] = 0; w3 = "без e обратные не определены"; }
   gok = newGraph(); gno = newGraph();
-  repeat (4) { if (okA[i] == 1) { addNode(gok, "k" + format(i, 0), [3.0, 3.2 - 1.1 * i]); } else { addNode(gno, "k" + format(i, 0), [3.0, 3.2 - 1.1 * i]); } }
+  repeat (4) { if (okA[i] == 1) { addNode(gok, "k" + format(i, 0), [2.55, 3.2 - 1.1 * i]); } else { addNode(gno, "k" + format(i, 0), [2.55, 3.2 - 1.1 * i]); } }
   float grp = okA[0] * okA[1] * okA[2] * okA[3];
 
   info = "**Аксиомы группы:** множество G с операцией ∗ — группа, если (1) операция не выводит из G; (2) ассоциативна: (a∗b)∗c = a∗(b∗c); (3) есть нейтральный элемент e: e∗a = a∗e = a; (4) у каждого a есть обратный a⁻¹: a∗a⁻¹ = a⁻¹∗a = e. Коммутативность не требуется.\n\n";

@@ -13,37 +13,37 @@ draw Graph { name = "gDis"; graph = "g3"; nodeRadius = 6; labels = false; intera
 new Line { name = "axis"; pos = (LA, LB); interact = false }
 new Point { name = "LA"; pos = (-5.8, 0); dynamic = false; collision = false; active = false }
 new Point { name = "LB"; pos = (5.8, 0); dynamic = false; collision = false; active = false }
-// Направляющая [−1,5; 1,5]: точки a, b, c ходят только по ней — строго по прямой
-new Point { name = "RA"; pos = (-1.5, 0); dynamic = false; collision = false; active = false }
-new Point { name = "RB"; pos = (1.5, 0); dynamic = false; collision = false; active = false }
+// Масштаб прямой K = 2: одно деление — 0,5. Направляющая — значения [−1,5; 1,5]: точки a, b, c ходят только по ней — строго по прямой
+new Point { name = "RA"; pos = (-3, 0); dynamic = false; collision = false; active = false }
+new Point { name = "RB"; pos = (3, 0); dynamic = false; collision = false; active = false }
 new Line { name = "rail"; pos = (RA, RB); interact = false; active = false }
 new Point { name = "PA"; line = "rail"; t = 1; pauseOnDrag = false; collideWithPoints = false; text = true("a") }
 new Point { name = "PB"; line = "rail"; t = 0.1667; pauseOnDrag = false; collideWithPoints = false; text = true("b") }
 new Point { name = "PC"; line = "rail"; t = 0.8333; pauseOnDrag = false; collideWithPoints = false; text = true("c") }
-draw Text { name = "L1p0"; pos = (0, 3.0); text = "0"; size = 0.9; }
-draw Text { name = "L1p1"; pos = (a, 3.0); text = "a"; size = 0.9; }
-draw Text { name = "L1p2"; pos = (a + b, 3.0); text = "a + b"; size = 0.9; }
-draw Text { name = "L1q0"; pos = (0, 1.7999999999999998); text = "0"; size = 0.9; }
-draw Text { name = "L1q1"; pos = (b, 1.7999999999999998); text = "b"; size = 0.9; }
-draw Text { name = "L1q2"; pos = (a + b, 1.7999999999999998); text = "b + a"; size = 0.9; }
-draw Text { name = "L1r0"; pos = (0, -1.7999999999999998); text = "0"; size = 0.9; }
-draw Text { name = "L1r1"; pos = (a, -1.7999999999999998); text = "a"; size = 0.9; }
-draw Text { name = "L1r2"; pos = (0, -3.0); text = "a + (−a) = 0"; size = 0.9; }
-draw Text { name = "L2p1"; pos = (b, 3.0); text = "b"; size = 0.9; }
-draw Text { name = "L2p2"; pos = (a * b, 3.0); text = "a · b"; size = 0.9; }
-draw Text { name = "L2q1"; pos = (a, 1.7999999999999998); text = "a"; size = 0.9; }
-draw Text { name = "L2q2"; pos = (a * b, 1.7999999999999998); text = "b · a"; size = 0.9; }
-draw Text { name = "L2r0"; pos = (1 / a, -1.7999999999999998); text = "1/a"; size = 0.9; active = abs(a) > 0.1; }
-draw Text { name = "L2r1"; pos = (1, -3.0); text = "a · (1/a) = 1"; size = 0.9; active = abs(a) > 0.1; }
-draw Text { name = "L3p0"; pos = (0, 3.0); text = "0"; size = 0.9; }
-draw Text { name = "L3p1"; pos = (a * b, 3.0); text = "a · b"; size = 0.9; }
-draw Text { name = "L3p2"; pos = (a * b + a * c, 3.0); text = "a·b + a·c"; size = 0.9; }
-draw Text { name = "L3q0"; pos = (0, 1.7999999999999998); text = "0"; size = 0.9; }
-draw Text { name = "L3q1"; pos = (a * (b + c), 1.7999999999999998); text = "a · (b + c)"; size = 0.9; }
-draw Text { name = "L3r0"; pos = (a, -1.7999999999999998); text = "a"; size = 0.9; }
-draw Text { name = "L3r1"; pos = (b, -1.7999999999999998); text = "b"; size = 0.9; }
-draw Text { name = "L3r2"; pos = (a + c, -3.0); text = "a + c"; size = 0.9; }
-draw Text { name = "L3r3"; pos = (b + c, -3.0); text = "b + c"; size = 0.9; }
+draw Text { name = "L1p0"; pos = (K * (0), 3.0); text = "0"; size = 0.9; }
+draw Text { name = "L1p1"; pos = (K * (a), 3.0); text = "a"; size = 0.9; }
+draw Text { name = "L1p2"; pos = (K * (a + b), 3.0); text = "a + b"; size = 0.9; }
+draw Text { name = "L1q0"; pos = (K * (0), 1.7999999999999998); text = "0"; size = 0.9; }
+draw Text { name = "L1q1"; pos = (K * (b), 1.7999999999999998); text = "b"; size = 0.9; }
+draw Text { name = "L1q2"; pos = (K * (a + b), 1.7999999999999998); text = "b + a"; size = 0.9; }
+draw Text { name = "L1r0"; pos = (K * (0), -1.7999999999999998); text = "0"; size = 0.9; }
+draw Text { name = "L1r1"; pos = (K * (a), -1.7999999999999998); text = "a"; size = 0.9; }
+draw Text { name = "L1r2"; pos = (K * (0), -3.0); text = "a + (−a) = 0"; size = 0.9; }
+draw Text { name = "L2p1"; pos = (K * (b), 3.0); text = "b"; size = 0.9; }
+draw Text { name = "L2p2"; pos = (K * (a * b), 3.0); text = "a · b"; size = 0.9; }
+draw Text { name = "L2q1"; pos = (K * (a), 1.7999999999999998); text = "a"; size = 0.9; }
+draw Text { name = "L2q2"; pos = (K * (a * b), 1.7999999999999998); text = "b · a"; size = 0.9; }
+draw Text { name = "L2r0"; pos = (K * (1 / a), -1.7999999999999998); text = "1/a"; size = 0.9; active = abs(a) > 0.35; }
+draw Text { name = "L2r1"; pos = (K * (1), -3.0); text = "a · (1/a) = 1"; size = 0.9; active = abs(a) > 0.35; }
+draw Text { name = "L3p0"; pos = (K * (0), 3.0); text = "0"; size = 0.9; }
+draw Text { name = "L3p1"; pos = (K * (a * b), 3.0); text = "a · b"; size = 0.9; }
+draw Text { name = "L3p2"; pos = (K * (a * b + a * c), 3.0); text = "a·b + a·c"; size = 0.9; }
+draw Text { name = "L3q0"; pos = (K * (0), 1.7999999999999998); text = "0"; size = 0.9; }
+draw Text { name = "L3q1"; pos = (K * (a * (b + c)), 1.7999999999999998); text = "a · (b + c)"; size = 0.9; }
+draw Text { name = "L3r0"; pos = (K * (a), -1.7999999999999998); text = "a"; size = 0.9; }
+draw Text { name = "L3r1"; pos = (K * (b), -1.7999999999999998); text = "b"; size = 0.9; }
+draw Text { name = "L3r2"; pos = (K * (a + c), -3.0); text = "a + c"; size = 0.9; }
+draw Text { name = "L3r3"; pos = (K * (b + c), -3.0); text = "b + c"; size = 0.9; }
 new Claster { name = "tabAdd"; elements = (gAdd, L1p0, L1p1, L1p2, L1q0, L1q1, L1q2, L1r0, L1r1, L1r2); active = true }
 new Claster { name = "tabMul"; elements = (gMul, L2p1, L2p2, L2q1, L2q2, L2r0, L2r1); active = false }
 new Claster { name = "tabDis"; elements = (gDis, L3p0, L3p1, L3p2, L3q0, L3q1, L3r0, L3r1, L3r2, L3r3); active = false }
@@ -52,13 +52,13 @@ new UI { name = "bMul"; type = button; label = "Умножение"; action = "t
 new UI { name = "bDis"; type = button; label = "Распределительность и порядок"; action = "tab = 3; tabAdd.active = false; tabMul.active = false; tabDis.active = true" }
 
 string info = "";
-float first = 0; float tab = 1; float a = 1.5; float b = -1; float c = 1; float ka = 99; float kb = 0; float kc = 0;
+float K = 2; float first = 0; float tab = 1; float a = 1.5; float b = -1; float c = 1; float ka = 99; float kb = 0; float kc = 0;
 Function num(x, d) { if (x < -0.00001) { return "−" + format(-x, d); } return format(abs(x), d); }
 Function term(x) { if (x < -0.00001) { return "(−" + format(-x, 1) + ")"; } return format(abs(x), 1); }
 // Значение — координата точки на направляющей, без округления: подписи и стрелки
 // движутся вместе с точкой плавно (раньше шаг 0,5 давал рывки)
-Function fix(P) { return round(100 * P.pos.x) / 100; }
-Function nd(g, id, x, y, t) { addNode(g, id, [x, y], t); }
+Function fix(P) { return round(100 * P.pos.x / K) / 100; }
+Function nd(g, id, x, y, t) { addNode(g, id, [K * x, y], t); }
 Update {
   a = fix(PA); b = fix(PB); c = fix(PC);
   if (abs(a - ka) + abs(b - kb) + abs(c - kc) > 0.000001 || ka > 50) {
@@ -72,7 +72,7 @@ Update {
     // умножение: b → a·b и a → b·a; a → a · (1/a)
     nd(g2, "p1", b, 2.6, "b"); nd(g2, "p2", a * b, 2.6, "a · b"); addEdge(g2, "p1", "p2");
     nd(g2, "q1", a, 1.4, "a"); nd(g2, "q2", a * b, 1.4, "b · a"); addEdge(g2, "q1", "q2", 1, "#3b82f6");
-    if (abs(a) > 0.1) { nd(g2, "r0", 1 / a, -1.4, "1/a"); nd(g2, "r1", 1, -2.6, "a · (1/a) = 1"); addEdge(g2, "r0", "r1", 1, "#22c55e"); }
+    if (abs(a) > 0.35) { nd(g2, "r0", 1 / a, -1.4, "1/a"); nd(g2, "r1", 1, -2.6, "a · (1/a) = 1"); addEdge(g2, "r0", "r1", 1, "#22c55e"); }
     // распределительность и порядок
     nd(g3, "p0", 0, 2.6, "0"); nd(g3, "p1", a * b, 2.6, "a · b"); nd(g3, "p2", a * b + a * c, 2.6, "a·b + a·c"); addEdge(g3, "p0", "p1"); addEdge(g3, "p1", "p2");
     nd(g3, "q0", 0, 1.4, "0"); nd(g3, "q1", a * (b + c), 1.4, "a · (b + c)"); addEdge(g3, "q0", "q1", 1, "#3b82f6");
