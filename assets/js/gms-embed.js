@@ -73,17 +73,36 @@ export function attachFrame(frame, opts = {}) {
       const doc = frame.contentDocument;
       if (!doc || !doc.body) return;
       const h = contentHeight(doc);
-      if (h > 0 && Math.abs(h - (parseFloat(fitEl.style.height) || 0)) > 1) fitEl.style.height = h + 'px';
+      if (!(h > 0)) return;
+      // Высота задаётся контейнеру (у справочника — рамке с border): прибавляем его
+      // собственные рамки, иначе iframe внутри выходит на пару пикселей ниже содержимого
+      // и в нём появляется полоса прокрутки.
+      const extra = fitEl === frame ? 0 : Math.max(0, fitEl.offsetHeight - fitEl.clientHeight);
+      const target = h + extra;
+      if (Math.abs(target - (parseFloat(fitEl.style.height) || 0)) > 0.5) fitEl.style.height = target + 'px';
     } catch (e) {}
   };
   const onLoad = () => {
     // flush — сцена вплотную к краям рамки (без внутреннего отступа документа сцены)
     if (opts.flush) { try { frame.contentDocument.body.style.padding = '2px'; } catch (e) {} }
+    // Окно подгоняется под содержимое, поэтому прокрутки внутри сцены не бывает:
+    // ни полосы, ни случайного сдвига колесом мыши (колесо прокручивает страницу).
+    if (fitEl) {
+      try {
+        const d = frame.contentDocument;
+        d.documentElement.style.overflow = 'hidden';
+        d.body.style.overflow = 'hidden';
+      } catch (e) {}
+    }
     applyTheme();
     fit();
     try {
       const ro = new ResizeObserver(fit);
-      ro.observe(frame.contentDocument.body);
+      const d = frame.contentDocument;
+      // .container — само содержимое: у body min-height:100vh, и рост описания или
+      // панели UI внутри него не меняет размер body, пока не превысит окно.
+      ro.observe(d.querySelector('.container') || d.body);
+      ro.observe(d.body);
       ro.observe(frame);
       cleanups.push(() => ro.disconnect());
     } catch (e) {}
