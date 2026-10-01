@@ -60,7 +60,7 @@ function freeModel(provider, tier) {
 }
 // Модель задачи на бесплатном провайдере.
 function freeTaskModel(provider, task) {
-  const tier = task === 'ocr' || task === 'vision' ? 'vision' : task === 'solve' || task === 'algebra' ? 'large' : 'medium';
+  const tier = task === 'ocr' || task === 'vision' ? 'vision' : task === 'solve' || task === 'algebra' || task === 'article' ? 'large' : 'medium';
   return freeModel(provider, tier);
 }
 

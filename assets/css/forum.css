@@ -609,3 +609,11 @@ html.mf-no-motion .fx-empty-art circle { opacity: .35; }
 
 /* нативный крестик type=search не нужен — есть свой .search-clear */
 .searchbox input::-webkit-search-cancel-button, .searchbox input::-webkit-search-decoration { -webkit-appearance: none; display: none; }
+
+/* Помощь нейросети в редакторе статьи */
+.ai-assist{display:flex;flex-wrap:wrap;align-items:center;gap:.35rem;margin:.2rem 0 .55rem}
+.ai-assist-lbl{display:inline-flex;align-items:center;gap:.3rem;font-size:.78rem;color:var(--text-tertiary);margin-right:.2rem}
+.ai-assist-status{font-size:.82rem;color:var(--text-secondary)}
+.ai-assist-status.busy{color:var(--accent)}
+.ai-assist-status.err{color:#f87171}
+.ai-assist-status .link-btn{background:none;border:none;color:var(--accent);cursor:pointer;font:inherit;padding:0;text-decoration:underline}

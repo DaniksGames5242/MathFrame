@@ -231,6 +231,8 @@ async function handler(req, res) {
   }
   const token = bearerToken(req);
   const [who, ai] = await Promise.all([token ? identify(token).catch(() => null) : null, loadAiSettings()]);
+  // Только для вошедших: без аккаунта функции нейросети недоступны (лимиты — по аккаунту).
+  if (!who) { res.status(401).json({ error: 'Войдите в аккаунт, чтобы пользоваться функциями нейросети.', code: 'auth' }); return; }
   const isAdmin = !!who && who.role !== 'user';
   if (!isAdmin && ai.simplifyEnabled === false) {
     res.status(503).json({ error: ai.disabledMessage || DEFAULT_DISABLED_MESSAGE, code: 'disabled' });
@@ -255,7 +257,7 @@ async function handler(req, res) {
   // Rate limit: administrators — none; signed-in users — by account; others — by IP.
   if (!isAdmin) {
     const base = ai.simplifyRateLimit || Math.max(1, parseInt(process.env.SIMPLIFY_RATE_LIMIT, 10) || 20);
-    const rl = checkRateLimit(who ? 'simplify:' + who.uid : 'simplify-ip:' + clientIp(req), who ? base * 2 : base);
+    const rl = checkRateLimit('simplify:' + who.uid, base);
     if (!rl.ok) {
       res.setHeader('retry-after', String(rl.retryAfterSec));
       res.status(429).json({
