@@ -680,7 +680,7 @@ new UI { name = "s2"; type = slider; label = "Im c"; variable = ci; min = -1; ma
 |---|---|
 | `new Point3D` | `pos = (x, y, z)`, `text`, `dynamic`, точка на плоскости `plane`, `u`, `v` |
 | `new Line3D` | `pos = (A, B)` |
-| `new Figure3D` | `elements` — грани из отрезков |
+| `new Figure3D` | `elements = (A, B, C)` — вершины грани (**точки**, а не отрезки, как в 2D); заливка — `draw Filling3D { figure = "имя" }` |
 | `new Primitive` | `type = cube/box/sphere/cylinder/cone/pyramid/prism/tetrahedron/octahedron/dodecahedron/icosahedron/torus`; `pos`, `rotate`, `edge`, `width`, `height`, `depth`, `radius`, `tube`, `sides`, `opacity`, `wireframe`, `showInfo`, `roughness`, `metalness`, `flatShading` |
 | `new Section` | сечение тела: `source`, `normal = (x, y, z)`, `offset` или `point`, `keep`, `explode`, `capColor` |
 | `new Boolean` | `op = union/intersect/subtract`, `parts = (a, b)` |
@@ -892,6 +892,26 @@ Update {
 координатами или значением. Удаление точки удаляет и всё, что на ней построено.
 `Ctrl` + `Z` / `Ctrl` + `Y` — отмена и повтор. Кнопка «Открыть в редакторе» переносит
 код во вкладку «Редактор», где его можно дописывать вручную.
+
+### Режим 3D
+
+Переключатель **2D / 3D** в начале панели инструментов меняет режим (сцена при этом
+очищается; `Ctrl` + `Z` вернёт её). В 3D:
+
+| Инструмент | Что получится в коде |
+|---|---|
+| Точка | `new Point3D` на рабочей плоскости y = const (высота — в настройках сцены) |
+| Отрезок, Вектор | `new Line3D` (+ `draw Vector3D`) |
+| Многоугольник | рёбра + грань `new Figure3D` + `draw Filling3D` |
+| Плоскость | три точки → `draw InfPlane { points = (A, B, C) }` |
+| Середина | `new Point3D` с гомотетией |
+| + Тело | `new Primitive`: куб, параллелепипед, шар, цилиндр, конус, пирамида, призма, правильные многогранники, тор |
+| + Поверхность | y = f(x, z) → `func` + `draw Surface { type = parametric; mode = 3d }` |
+
+Перетаскивание пустого места вращает вид, колесо мыши — масштаб; этот вид попадает в
+код как `camera start rot` / `camera start zoom`, поэтому сцена открывается так же,
+как в конструкторе. Точки и тела тащатся по горизонтали, с зажатым `Shift` — по
+вертикали; точные координаты (x, y, z) и размеры тел задаются в панели свойств.
 
 ## Горячие клавиши песочницы
 
