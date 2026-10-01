@@ -88,6 +88,7 @@ function buildGeometry(ir, model) {
   for (const g of ir.given.concat(ir.find)) {
     for (const k of ['seg', 'a', 'b']) if (g[k] && g[k].length === 2) addSeg(g[k][0], g[k][1]);
     if (g.segs) g.segs.forEach(s => addSeg(s[0], s[1]));
+    if (g.angle && g.angle.length === 3) { addSeg(g.angle[0], g.angle[1]); addSeg(g.angle[1], g.angle[2]); }
   }
   // Прямые: объединяем отрезки, лежащие на одной прямой; на прямую попадают все
   // точки чертежа, которые на ней лежат.
@@ -229,6 +230,7 @@ export function solveProblem(ir, model) {
 
   let trapC = fig.type === 'trapezoid' ? model.spec.C : null;
   const trigWanted = [];
+  let midlineVar = null;
   /* ---- 1. данные ---- */
   const givenKeys = new Set();
   const qKey = q => {
@@ -257,6 +259,7 @@ export function solveProblem(ir, model) {
       if (!Q.vars.has(k)) {
         Q.vars.set(k, { key: k, type: 'len', name: 'm', value: (Q.vars.get(Q.len(trapC[0], trapC[3])).value + Q.vars.get(Q.len(trapC[1], trapC[2])).value) / 2 });
         add(lin([[k, 2], [Q.len(trapC[0], trapC[3]), -1], [Q.len(trapC[1], trapC[2]), -1]], 0, { kind: 'half', why: 'средняя линия трапеции равна полусумме оснований', cost: 1 }));
+        midlineVar = k;
       }
       return k;
     }
@@ -266,13 +269,20 @@ export function solveProblem(ir, model) {
   const CIRC = { inradius: 'r', circumradius: 'R', centersDist: 'OI' };
   const circVar = kind => {
     const k = 'C:' + kind;
+    if (!Q.vars.has(k) && V.length === 4) {
+      const d = Q.vars.get(Q.len(V[0], V[2])).value;
+      const a = Q.vars.get(Q.len(V[0], V[1])).value;
+      Q.vars.set(k, { key: k, type: 'len', name: CIRC[kind], value: kind === 'circumradius' ? d / 2 : (t === 'square' ? a / 2 : NaN), circ: true });
+      if (kind === 'circumradius' && (t === 'rectangle' || t === 'square')) add(lin([[Q.len(V[0], V[2]), 1], [k, -2]], 0, { kind: 'half', why: 'центр окружности, описанной около ' + figRu + ', — точка пересечения диагоналей, радиус равен половине диагонали', cost: 1 }));
+      if (kind === 'inradius' && t === 'square') add(lin([[Q.len(V[0], V[1]), 1], [k, -2]], 0, { kind: 'half', why: 'диаметр окружности, вписанной в квадрат, равен его стороне', cost: 1 }));
+    }
     if (!Q.vars.has(k) && V.length === 3) {
       const c = triCircles(G.pts[V[0]], G.pts[V[1]], G.pts[V[2]]);
       Q.vars.set(k, { key: k, type: 'len', name: CIRC[kind], value: kind === 'inradius' ? c.r : kind === 'circumradius' ? c.R : V2.dist(c.I, c.O), circ: true });
     }
     return k;
   };
-  ir.find.filter(f => f.kind === 'trig').forEach(f => qKey(f));   // нужны до формул ниже
+  ir.find.filter(f => f.kind === 'trig' || f.kind === 'midline').forEach(f => qKey(f));   // нужны до формул ниже
   for (const g of ir.given) {
     if (['length', 'angle', 'perimeter', 'area'].includes(g.kind)) {
       const k = qKey(g); if (!k) continue;
@@ -284,6 +294,15 @@ export function solveProblem(ir, model) {
     } else if (g.kind === 'mult') {
       const a = Q.len(g.a[0], g.a[1]), b = Q.len(g.b[0], g.b[1]);
       add(lin([[a, 1], [b, -g.k]], 0, { kind: 'cond', why: 'по условию', cost: 1 }));
+    } else if (g.kind === 'angleMult' || g.kind === 'angleDiff' || g.kind === 'angleRatio') {
+      const ak = n => (n.length === 3 ? Q.ang(n[0], n[1], n[2]) : angV(n));
+      const a = ak(g.a), b = ak(g.b);
+      if (!a || !b) continue;
+      if (g.kind === 'angleMult') add(lin([[a, 1], [b, -g.k]], 0, { kind: 'cond', why: 'по условию', cost: 1 }));
+      else if (g.kind === 'angleDiff') add(lin([[a, 1], [b, -1]], g.value, { kind: 'cond', why: 'по условию', cost: 1 }));
+      else add(lin([[a, g.ratio[1]], [b, -g.ratio[0]]], 0, { kind: 'ratio', ratio: g.ratio, a, b, cost: 1 }));
+    } else if (g.kind === 'inradius' || g.kind === 'circumradius') {
+      add(lin([[qKey({ kind: g.kind }), 1]], g.value, { kind: 'given', cost: 0 }));
     } else if (g.kind === 'midline' && trapCfor(fig, model)) {
       const C = model.spec.C;
       add(lin([[Q.len(C[0], C[3]), 1], [Q.len(C[1], C[2]), 1]], 2 * g.value, { kind: 'cond', why: 'средняя линия трапеции равна полусумме оснований: ' + C[0] + C[3] + ' + ' + C[1] + C[2] + ' = 2 · ' + num(g.value), cost: 1, midline: g.value }));
@@ -377,6 +396,11 @@ export function solveProblem(ir, model) {
         if (whole) add(lin([[whole, 1], [a1, -2]], 0, { kind: 'half', why: who + ' — биссектриса угла ' + Q.vars.get(whole).name, cost: 1 }));
         bisectors.push({ v, point: c.point, a1, a2 });
       }
+    }
+    if (c.kind === 'bisectorMeet' && V.length === 3 && G.pts[c.point]) {
+      const [a, b] = c.vertices; const cv = V.find(x => x !== a && x !== b);
+      const aob = Q.ang(a, c.point, b);
+      if (aob && cv) add(lin([[aob, 2], [angV(cv), -1]], 180, { kind: 'cond', why: 'угол между биссектрисами углов ' + a + ' и ' + b + ' равен 90° + ∠' + cv + ' / 2 (в треугольнике ' + a + c.point + b + ' углы при ' + a + ' и ' + b + ' — половины углов ' + a + ' и ' + b + ')', cost: 1 }));
     }
     if (c.kind === 'bisectorMeet') {
       for (const v of c.vertices) {
@@ -559,7 +583,7 @@ export function solveProblem(ir, model) {
     add(fn([tw.k, pair[0], pair[1]], x => x[0] * x[2] - x[1], { kind: 'trigRatio', fnm: tw.fnm, tri: T.tri, requires: [angs[r]], cost: 1 }));
   }
   // Радиусы вписанной и описанной окружностей, расстояние между центрами (Эйлер).
-  if (V.length === 3 && ir.find.some(f => CIRC[f.kind])) {
+  if (V.length === 3 && ir.find.concat(ir.given).some(f => CIRC[f.kind])) {
     const r = circVar('inradius'), R = circVar('circumradius'), d = circVar('centersDist');
     const S0 = Q.area(V.join('')), P0 = Q.per(V.join(''));
     const [a, b, c] = [Q.len(V[1], V[2]), Q.len(V[0], V[2]), Q.len(V[0], V[1])];
@@ -607,6 +631,7 @@ export function solveProblem(ir, model) {
     if (t === 'trapezoid') {
       const C = trapC; const b1 = Q.len(C[0], C[3]), b2 = Q.len(C[1], C[2]);
       if ([b1, b2].includes(base)) add(fn([Q.area(V.join('')), b1, b2, h], x => x[0] - (x[1] + x[2]) / 2 * x[3], { kind: 'area_trap', cost: 2 }));
+      if (midlineVar && [b1, b2].includes(base)) add(fn([Q.area(V.join('')), midlineVar, h], x => x[0] - x[1] * x[2], { kind: 'area_midv', cost: 1 }));
       const ml = ir.given.find(g => g.kind === 'midline');
       if (ml && [b1, b2].includes(base)) add(fn([Q.area(V.join('')), h], x => x[0] - ml.value * x[1], { kind: 'area_mid', m: ml.value, cost: 1 }));
     }
@@ -633,6 +658,12 @@ export function solveProblem(ir, model) {
       eqLen(ah, kd, 'прямоугольные треугольники ' + I(A0 + nearA.vertex + nearA.point) + ' и ' + I(D0 + nearD.vertex + nearD.point) + ' равны по гипотенузе и катету');
       add(lin([[ah, 2], [Q.len(C[0], C[3]), -1], [Q.len(C[1], C[2]), 1]], 0, { kind: 'half', why: 'в равнобедренной трапеции проекция боковой стороны на основание равна полуразности оснований', cost: 1 }));
     }
+  }
+  // прямоугольная трапеция: высота — боковая сторона при прямых углах
+  if (t === 'trapezoid' && fig.rightTrap && trapC) {
+    const h = Q.len(trapC[0], trapC[1]), b1 = Q.len(trapC[0], trapC[3]), b2 = Q.len(trapC[1], trapC[2]);
+    add(fn([Q.area(V.join('')), b1, b2, h], x => x[0] - (x[1] + x[2]) / 2 * x[3], { kind: 'area_trap', cost: 2 }));
+    if (midlineVar) add(fn([Q.area(V.join('')), midlineVar, h], x => x[0] - x[1] * x[2], { kind: 'area_midv', cost: 1 }));
   }
   if (isPar) {
     add(fn([Q.area(V.join('')), S[0], S[3], angV(V[0])], x => x[0] - x[1] * x[2] * Math.sin(x[3] * Math.PI / 180), { kind: 'area_par_sin', cost: 3, figRu }));
@@ -1176,6 +1207,12 @@ function renderFormula(k, e, known, Q, unit) {
       const [T, a] = V;
       if (k === T) return nm(T) + ' = ' + e.fnm + ' ' + n(a) + '° ' + approx + ' ' + ans + '.';
       return 'Так как ' + nm(T) + ' = ' + n(T) + ', ' + nm(k) + ' ' + approx + ' ' + ans + '.';
+    }
+    case 'area_midv': {
+      const [S, m, h] = V;
+      if (k === S) return 'Площадь трапеции равна произведению средней линии на высоту: ' + nm(S) + ' = ' + nm(m) + ' · ' + nm(h) + ' = ' + n(m) + ' · ' + n(h) + ' ' + approx + ' ' + ans + '.';
+      if (k === m) return 'Площадь трапеции равна произведению средней линии на высоту, поэтому ' + nm(m) + ' = ' + nm(S) + ' / ' + nm(h) + ' = ' + n(S) + ' / ' + n(h) + ' ' + approx + ' ' + ans + '.';
+      return 'Из формулы ' + nm(S) + ' = ' + nm(m) + ' · ' + nm(h) + ': ' + nm(h) + ' = ' + n(S) + ' / ' + n(m) + ' ' + approx + ' ' + ans + '.';
     }
     case 'area_mid': {
       const [S, h] = V;

@@ -241,6 +241,15 @@ export function quantity(model, pts, q) {
       return (V2.dist(P(C[0]), P(C[3])) + V2.dist(P(C[1]), P(C[2]))) / 2;
     }
     case 'inradius': case 'circumradius': case 'centersDist': {
+      if (V.length === 4) {
+        // прямоугольник/квадрат: R = d/2; квадрат/ромб: r = h/2
+        const d = V2.dist(P(V[0]), P(V[2]));
+        if (q.kind === 'circumradius') return d / 2;
+        const a = V2.dist(P(V[0]), P(V[1])), b = V2.dist(P(V[0]), P(V[3]));
+        const area = Math.abs(V2.cross(V2.sub(P(V[1]), P(V[0])), V2.sub(P(V[3]), P(V[0]))));
+        if (q.kind === 'inradius') return area / Math.max(a, b) / 2;
+        return 0;
+      }
       const [A, B, C] = V.slice(0, 3).map(P);
       const c = triCircles(A, B, C);
       return q.kind === 'inradius' ? c.r : q.kind === 'circumradius' ? c.R : V2.dist(c.I, c.O);
@@ -280,6 +289,10 @@ function residuals(model, p, opts) {
       })); break;
       case 'mult': out.push(safe(() => (quantity(model, pts, { kind: 'length', seg: g.a }) - g.k * quantity(model, pts, { kind: 'length', seg: g.b })) / L)); break;
       case 'diff': out.push(safe(() => (quantity(model, pts, { kind: 'length', seg: g.a }) - quantity(model, pts, { kind: 'length', seg: g.b }) - g.value) / L)); break;
+      case 'angleMult': out.push(safe(() => (quantity(model, pts, { kind: 'angle', angle: g.a }) - g.k * quantity(model, pts, { kind: 'angle', angle: g.b })) / 45)); break;
+      case 'angleDiff': out.push(safe(() => (quantity(model, pts, { kind: 'angle', angle: g.a }) - quantity(model, pts, { kind: 'angle', angle: g.b }) - g.value) / 45)); break;
+      case 'angleRatio': out.push(safe(() => (quantity(model, pts, { kind: 'angle', angle: g.a }) * g.ratio[1] - quantity(model, pts, { kind: 'angle', angle: g.b }) * g.ratio[0]) / 45 / ((g.ratio[0] + g.ratio[1]) / 2))); break;
+      case 'inradius': case 'circumradius': out.push(safe(() => (quantity(model, pts, { kind: g.kind }) - g.value) / L)); break;
       case 'midline': out.push(safe(() => {
         const C = model.spec.C;
         return ((V2.dist(pts[C[0]], pts[C[3]]) + V2.dist(pts[C[1]], pts[C[2]])) / 2 - g.value) / L;
@@ -392,6 +405,8 @@ export function buildModel(ir) {
     if (g.kind === 'area') lens.push(Math.sqrt(g.value / (Math.abs(polyArea(defPts)) / (defMean * defMean) || 1)));
     if (g.kind === 'diff') lens.push(Math.abs(g.value) * 2);
     if (g.kind === 'midline') lens.push(g.value);
+    if (g.kind === 'inradius') lens.push(g.value * 3);
+    if (g.kind === 'circumradius') lens.push(g.value * 1.5);
   }
   const s = lens.length ? lens.reduce((a, b) => a + b, 0) / lens.length / defMean : 1;
   model.scale = defMean * s;

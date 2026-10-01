@@ -44,6 +44,10 @@ export function validateIr(ir) {
     if (g.kind === 'diff') return isSeg(g.a) && isSeg(g.b) && Number.isFinite(g.value);
     if (g.kind === 'onLine') return isName(g.point) && isSeg(g.seg);
     if (g.kind === 'midline') return g.value > 0 && fig.type === 'trapezoid';
+    if (g.kind === 'angleMult') return typeof g.a === 'string' && typeof g.b === 'string' && g.k > 0;
+    if (g.kind === 'angleDiff') return typeof g.a === 'string' && typeof g.b === 'string' && Number.isFinite(g.value);
+    if (g.kind === 'angleRatio') return typeof g.a === 'string' && typeof g.b === 'string' && Array.isArray(g.ratio);
+    if (g.kind === 'inradius' || g.kind === 'circumradius') return g.value > 0;
     if (g.kind === 'obtuse' || g.kind === 'acute') return typeof g.angle === 'string' && g.angle.length >= 1;
     return false;
   });
@@ -51,11 +55,12 @@ export function validateIr(ir) {
   ir.find = (ir.find || []).filter(f => f && ['length', 'angle', 'area', 'perimeter', 'inradius', 'circumradius', 'centersDist', 'trig', 'midline'].includes(f.kind));
   if (!ir.find.length) throw new Error('не понятно, что нужно найти');
   // Все упомянутые точки должны быть вершинами фигуры или точками построений.
-  const known = new Set(V.concat(ir.constructions.map(c => c.point).filter(Boolean)));
+  const known = new Set(V.concat(ir.constructions.map(c => c.point).filter(Boolean), (ir.circles || []).map(c => c.center)));
   const pts = [];
   for (const x of ir.given.concat(ir.find)) {
-    for (const k of ['seg', 'a', 'b', 'point']) if (typeof x[k] === 'string') pts.push(...x[k].match(/[A-Z][0-9]?/g) || []);
+    for (const k of ['seg', 'a', 'b', 'point']) if (typeof x[k] === 'string' && !(x.kind && /^angle/.test(x.kind))) pts.push(...x[k].match(/[A-Z][0-9]?/g) || []);
     if (x.angle && x.angle.length === 3) pts.push(...x.angle.split(''));
+    for (const k of ['a', 'b']) if (x.kind && /^angle/.test(x.kind) && typeof x[k] === 'string') pts.push(...x[k].split(''));
     if (x.segs) x.segs.forEach(sg => pts.push(...sg.match(/[A-Z][0-9]?/g) || []));
     if (x.of) pts.push(...x.of.split(''));
   }
