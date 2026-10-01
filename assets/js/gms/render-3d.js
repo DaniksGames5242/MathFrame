@@ -5755,6 +5755,17 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '      return ok;\n',
             '    };\n',
             '  }\n',
+            // Слушатель темы: раньше его добавлял только 2D-слой, поэтому чисто 3D-сцена в iframe
+            // (справочник, песочница) не реагировала на postMessage и оставалась тёмной.
+            // Флаг общий с 2D — в смешанной сцене слушатель не дублируется.
+            '  if (!window.__gcThemeMsgListenerAdded) {\n',
+            '    window.__gcThemeMsgListenerAdded = true;\n',
+            '    window.addEventListener(\'message\', function(ev) {\n',
+            '      var data = ev && ev.data;\n',
+            '      if (!data || data.type !== \'geocompiler-set-theme\') return;\n',
+            '      window.geocompilerSetTheme(data.theme);\n',
+            '    });\n',
+            '  }\n',
             '  // \u041f\u0435\u0440\u0435\u043a\u043b\u044e\u0447\u0435\u043d\u0438\u0435 \u0448\u0430\u0433\u0430 \u0434\u043e\u043a\u0430\u0437\u0430\u0442\u0435\u043b\u044c\u0441\u0442\u0432\u0430 (\u0442\u043e \u0436\u0435 \u0441\u0430\u043c\u043e\u0435, \u0447\u0442\u043e \u0438 \u0432 generate2D) \u2014 gcSetStep \u043e\u043f\u0440\u0435\u0434\u0435\u043b\u0435\u043d\u0430 \u043d\u0438\u0436\u0435 \u043f\u043e \u0444\u0430\u0439\u043b\u0443 (\u0440\u044f\u0434\u043e\u043c \u0441 animate()), \u043d\u043e \u0432\u044b\u0437\u044b\u0432\u0430\u0435\u0442\u0441\u044f \u0442\u043e\u043b\u044c\u043a\u043e \u0430\u0441\u0438\u043d\u0445\u0440\u043e\u043d\u043d\u043e (\u0447\u0435\u0440\u0435\u0437 postMessage), \u043f\u043e\u044d\u0442\u043e\u043c\u0443 \u043f\u043e\u0440\u044f\u0434\u043e\u043a \u043e\u0431\u044a\u044f\u0432\u043b\u0435\u043d\u0438\u044f \u0437\u0434\u0435\u0441\u044c \u043d\u0435 \u0432\u0430\u0436\u0435\u043d.\n',
             '  window.__gcStepSetters = window.__gcStepSetters || [];\n',
             '  window.__gcStepSetters.push(function(step) { if (typeof gcSetStep === \'function\') gcSetStep(step); return true; });\n',
