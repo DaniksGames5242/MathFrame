@@ -58,8 +58,17 @@ const SCENE_TITLES = {
 const KIND_HINT = { string: '"текст"', number: 'число или выражение', bool: 'true / false', color: '#rrggbb', ref: 'имя объекта', xyz: '(x, y, z)', tuple: '(a, b)', list: '(a, b, …)', names: '(A, B, …)', expr: 'выражение', enum: 'вариант' };
 
 const CSS = `
-.se{--se-mono:var(--pg-mono,ui-monospace,'SF Mono',Menlo,Consolas,monospace);display:grid;grid-template-columns:minmax(200px,250px) minmax(260px,340px) minmax(0,1fr);gap:.6rem;min-height:0;height:100%;font-size:.84rem;color:var(--text-primary)}
+.se{--se-mono:var(--pg-mono,ui-monospace,'SF Mono',Menlo,Consolas,monospace);display:grid;grid-template-columns:minmax(180px,230px) minmax(0,1fr) minmax(260px,330px);gap:.6rem;min-height:0;height:100%;font-size:.84rem;color:var(--text-primary)}
 .se *{box-sizing:border-box}
+.se-c1{order:1}.se-c3{order:2}.se-c2{order:3}
+.se-stage{position:relative;width:100%;flex:1 0 auto;display:flex;flex-direction:column;align-items:center;gap:.4rem}
+.se-stage>.se-inline{align-self:stretch;flex:1 0 auto;height:auto;min-height:440px}
+.se-ov{position:absolute;z-index:30;touch-action:none;user-select:none;-webkit-user-select:none;cursor:default;overflow:visible}
+.se-ov.hover{cursor:move}
+.se-ov text{font:600 11px var(--se-mono);paint-order:stroke;stroke:var(--bg-body,#000);stroke-width:3px}
+.se-hint{font-size:.72rem;color:var(--text-tertiary);text-align:center;max-width:640px}
+.se-frame-wrap iframe.se-next{position:absolute;inset:0;opacity:0;pointer-events:none}
+.se-inline.se-next{position:absolute;inset:0;opacity:0;pointer-events:none}
 .se-col{display:flex;flex-direction:column;min-height:0;border:1px solid var(--border);border-radius:var(--r,10px);background:var(--bg-raised,var(--bg-card));overflow:hidden}
 .se-h{display:flex;align-items:center;gap:.4rem;padding:.45rem .55rem;border-bottom:1px solid var(--border);min-height:2.4rem}
 .se-h b{font-weight:600;font-size:.82rem}
@@ -94,7 +103,7 @@ const CSS = `
 .se-muted{color:var(--text-tertiary);font-size:.76rem;line-height:1.45}
 .se-code{flex:1;width:100%;border:0;resize:none;padding:.6rem .7rem;font-family:var(--se-mono);font-size:.8rem;line-height:1.5;background:transparent;color:var(--text-primary);tab-size:4;white-space:pre;outline:none}
 .se-prev-body{flex:1;overflow:auto;padding:.6rem;display:flex;flex-direction:column;align-items:center;gap:.5rem;background:var(--bg-sunken,transparent)}
-.se-frame-wrap{position:relative;width:100%;max-width:640px;border-radius:.75rem;overflow:hidden;border:1px solid var(--border);background:var(--bg-card);box-shadow:var(--shadow)}
+.se-frame-wrap{position:relative;width:100%;max-width:900px;border-radius:.75rem;overflow:hidden;border:1px solid var(--border);background:var(--bg-card);box-shadow:var(--shadow)}
 .se-frame-wrap iframe{display:block;width:100%;height:100%;border:0;background:transparent}
 .se-inline{width:100%;height:100%;min-height:360px}
 .se-err{width:100%;max-width:640px;color:#ef4444;font-family:var(--se-mono);font-size:.76rem;white-space:pre-wrap}
@@ -107,9 +116,9 @@ const CSS = `
 .se-cat button small{color:var(--text-tertiary);font-family:var(--se-mono);font-size:.68rem}
 .se-cat button:hover{border-color:var(--accent);background:var(--accent-soft)}
 .se-code-mode .se-col.se-c2{display:none}
-.se-code-mode{grid-template-columns:minmax(0,1.1fr) minmax(0,1fr)}
+.se-code-mode{grid-template-columns:minmax(0,1fr) minmax(0,1.1fr)}
 .se-code-mode .se-col.se-c1 .se-list,.se-code-mode .se-col.se-c1 .se-search{display:none}
-@media (max-width:1100px){.se{grid-template-columns:minmax(190px,230px) minmax(0,1fr);height:auto}.se-col.se-c3{grid-column:1/-1;min-height:480px}.se-col{max-height:70vh}}
+@media (max-width:1100px){.se{grid-template-columns:minmax(180px,220px) minmax(0,1fr);height:auto}.se-col.se-c3{grid-column:1/-1;order:0;min-height:480px}.se-col{max-height:70vh}}
 @media (max-width:700px){.se{grid-template-columns:1fr}.se-col{max-height:none}.se-list{max-height:40vh}}
 `;
 
@@ -142,7 +151,11 @@ export async function mountStructuredEditor(host, opts = {}) {
           <div class="se-insp"></div>
         </div>
         <div class="se-col se-c3">
-          <div class="se-h"><b>Предпросмотр</b><span class="se-status"></span><span class="se-grow"></span><span class="se-tools"></span></div>
+          <div class="se-h"><b>Сцена</b><span class="se-status"></span><span class="se-grow"></span>
+            <span class="se-tools"></span>
+            <button type="button" class="se-btn on" data-a="edit" title="Правка мышью: выделение, рамка, перетаскивание (Shift/Ctrl — несколько)">✥ Правка</button>
+            <button type="button" class="se-btn" data-a="play" title="Сцена работает как у посетителя">▶ Просмотр</button>
+          </div>
           <div class="se-prev-body"></div>
         </div>
       </div>`;
@@ -152,7 +165,9 @@ export async function mountStructuredEditor(host, opts = {}) {
     const searchEl = q('.se-search'), statusEl = q('.se-status'), prevBody = q('.se-prev-body'), toolsEl = q('.se-tools');
 
     let model = M.parseGms(opts.source || '[\n]', sceneKeys);
-    let selected = 'scene';          // 'scene' | блок модели
+    let selected = 'scene';          // 'scene' | блок модели (основной выбранный)
+    const sel = new Set();           // все выделенные объекты (мышью в сцене или Ctrl/Shift в списке)
+    let editMode = true;             // правка мышью поверх предпросмотра
     let codeMode = false;
 
     const src = () => M.serializeGms(model);
@@ -168,13 +183,20 @@ export async function mountStructuredEditor(host, opts = {}) {
             const lbl = baseLabel(b);
             const title = TYPE_TITLES[lbl] || lbl;
             if (f && !(name.toLowerCase().includes(f) || lbl.toLowerCase().includes(f) || title.toLowerCase().includes(f))) return;
-            items.push(`<button type="button" class="se-item${selected === b ? ' on' : ''}" data-i="${i}" title="${esc(b.kw + ' ' + b.type)}"><span class="n">${esc(name)}</span><span class="t">${esc(title)}</span><span class="ln">${lines.get(b)}</span></button>`);
+            items.push(`<button type="button" class="se-item${selected === b || sel.has(b) ? ' on' : ''}" data-i="${i}" title="${esc(b.kw + ' ' + b.type)}"><span class="n">${esc(name)}</span><span class="t">${esc(title)}</span><span class="ln">${lines.get(b)}</span></button>`);
         });
         listEl.innerHTML = items.join('');
     }
     listEl.addEventListener('click', (e) => {
         const it = e.target.closest('.se-item'); if (!it) return;
-        select(it.dataset.i === 'scene' ? 'scene' : M.blocks(model)[+it.dataset.i]);
+        const b = it.dataset.i === 'scene' ? 'scene' : M.blocks(model)[+it.dataset.i];
+        if (b !== 'scene' && (e.ctrlKey || e.metaKey || e.shiftKey)) {
+            if (selected !== 'scene') sel.add(selected);
+            if (sel.has(b)) { sel.delete(b); selected = [...sel].pop() || 'scene'; } else { sel.add(b); selected = b; }
+            renderList(); renderInspector(); drawOverlay();
+            return;
+        }
+        select(b);
     });
     searchEl.addEventListener('input', renderList);
 
@@ -230,6 +252,7 @@ export async function mountStructuredEditor(host, opts = {}) {
     function renderInspector() {
         inspEl.innerHTML = '';
         if (selected === 'scene') return renderScene();
+        if (sel.size > 1) return renderMulti();
         const b = selected;
         const lbl = baseLabel(b), t = typeByLabel.get(lbl);
         inspH.innerHTML = `<b>${esc(TYPE_TITLES[lbl] || lbl)}</b><span class="se-muted" style="font-family:var(--se-mono)">${esc(b.kw + ' ' + b.type)}</span><span class="se-grow"></span>
@@ -278,7 +301,7 @@ export async function mountStructuredEditor(host, opts = {}) {
             M.addBlock(model, c, b); selected = c;
         } else if (a.dataset.b === 'del') {
             if (!confirm('Удалить объект ' + (M.unquote(M.getField(b, 'name') || '') || b.type) + '?')) return;
-            M.removeBlock(model, b); selected = 'scene';
+            M.removeBlock(model, b); selected = 'scene'; sel.clear();
         }
         changed(true, true);
     });
@@ -349,6 +372,7 @@ export async function mountStructuredEditor(host, opts = {}) {
         const mainName = names(code).pop();
         model = M.parseGms(next, sceneKeys);
         selected = M.blocks(model).find((b) => M.unquote(M.getField(b, 'name') || '') === mainName) || 'scene';
+        setSel(selected === 'scene' ? [] : [selected]);
         changed(true, true);
     }
 
@@ -367,7 +391,7 @@ export async function mountStructuredEditor(host, opts = {}) {
         clearTimeout(codeTimer);
         codeTimer = setTimeout(() => {
             const keepName = selected !== 'scene' ? M.unquote(M.getField(selected, 'name') || '') : null;
-            model = M.parseGms(codeEl.value, sceneKeys);
+            model = M.parseGms(codeEl.value, sceneKeys); sel.clear();
             selected = (keepName && M.blocks(model).find((b) => M.unquote(M.getField(b, 'name') || '') === keepName)) || 'scene';
             emit(); schedule();
         }, 250);
@@ -380,6 +404,7 @@ export async function mountStructuredEditor(host, opts = {}) {
         const a = e.target.closest('[data-a]'); if (!a) return;
         if (a.dataset.a === 'add') openCat(a);
         if (a.dataset.a === 'code') setCodeMode(!codeMode);
+        if (a.dataset.a === 'edit' || a.dataset.a === 'play') setEditMode(a.dataset.a === 'edit');
     });
 
     // ── изменения и предпросмотр ─────────────────────────────────────────────
@@ -394,12 +419,15 @@ export async function mountStructuredEditor(host, opts = {}) {
         if (reinspect) renderInspector();
         emit(); schedule();
     }
+    function setSel(list) { sel.clear(); for (const b of list) sel.add(b); }
     function select(sel) {
         if (typeof sel === 'string' && sel !== 'scene') sel = M.blocks(model).find((b) => M.unquote(M.getField(b, 'name') || '') === sel) || 'scene';
-        selected = sel; renderList(); renderInspector();
+        selected = sel; setSel(sel === 'scene' ? [] : [sel]);
+        renderList(); renderInspector(); drawOverlay();
         const on = listEl.querySelector('.se-item.on'); if (on) on.scrollIntoView({ block: 'nearest' });
     }
 
+    let inlineSeq = 0, inlineHost = null;
     let compileTimer = 0, compiler = null, frame = null, detach = null, inline = null, lastHtml = '';
     function schedule() { clearTimeout(compileTimer); compileTimer = setTimeout(preview, 380); }
     async function preview() {
@@ -419,25 +447,331 @@ export async function mountStructuredEditor(host, opts = {}) {
         statusEl.textContent = '· ок'; statusEl.classList.remove('bad');
         if (r.html === lastHtml) return;
         lastHtml = r.html;
+        const stage = ensureStage();
         if (mode === 'reference') {
-            if (!frame) {
-                const wrap = document.createElement('div'); wrap.className = 'se-frame-wrap'; wrap.style.height = '420px';
-                frame = document.createElement('iframe');
-                frame.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-pointer-lock allow-popups');
-                frame.title = 'Предпросмотр примера';
-                wrap.append(frame); prevBody.append(wrap);
-                const embed = await import(new URL('./gms-embed.js', import.meta.url).href);
-                detach = embed.attachFrame(frame, { fit: wrap });
-            }
-            frame.srcdoc = r.html;
+            let wrap = stage.querySelector('.se-frame-wrap');
+            if (!wrap) { wrap = document.createElement('div'); wrap.className = 'se-frame-wrap'; wrap.style.height = '420px'; stage.prepend(wrap); }
+            const embed = await import(new URL('./gms-embed.js', import.meta.url).href);
+            const nf = document.createElement('iframe');
+            nf.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-pointer-lock allow-popups');
+            nf.title = 'Предпросмотр примера';
+            if (frame) nf.className = 'se-next';
+            wrap.append(nf);
+            const nd = embed.attachFrame(nf, { fit: wrap, onLoad: () => {
+                if (frame && frame !== nf) { try { if (detach) detach(); } catch (e) {} frame.remove(); }
+                nf.className = ''; frame = nf; detach = nd;
+                setTimeout(drawOverlay, 60);
+            } });
+            nf.srcdoc = r.html;
         } else {
             const { mountInline } = await import(new URL('./gms-inline.js', import.meta.url).href);
-            if (inline) { try { inline.destroy(); } catch (e) {} }
-            let h = prevBody.querySelector('.se-inline');
-            if (!h) { h = document.createElement('div'); h.className = 'se-inline'; prevBody.append(h); }
-            inline = await mountInline(h, r.html, { onError: (m) => { statusEl.textContent = '· ' + m; statusEl.classList.add('bad'); } });
-            try { inline.setTheme(document.documentElement.classList.contains('light') ? 'light' : 'dark'); } catch (e) {}
+            const old = inline, oldHost = stage.querySelector('.se-inline:not(.se-next)');
+            const h = document.createElement('div'); h.className = 'se-inline' + (old ? ' se-next' : ''); stage.prepend(h);
+            const seq = ++inlineSeq;
+            const ni = await mountInline(h, r.html, { onError: (m) => { statusEl.textContent = '· ' + m; statusEl.classList.add('bad'); } });
+            if (seq !== inlineSeq) { try { ni.destroy(); } catch (e) {} h.remove(); return; }   // уже собирается более новая версия
+            try { ni.setTheme(document.documentElement.classList.contains('light') ? 'light' : 'dark'); } catch (e) {}
+            if (old) { try { old.destroy(); } catch (e) {} }
+            if (oldHost) oldHost.remove();
+            h.className = 'se-inline'; inline = ni; inlineHost = h;
+            stage.querySelectorAll('.se-inline').forEach((x) => { if (x !== h && !x.classList.contains('se-next')) x.remove(); });
+            setTimeout(drawOverlay, 80);
         }
+    }
+
+    // ── правка мышью прямо в сцене (2D) ──────────────────────────────────────
+    // Поверх холста лежит прозрачный SVG-слой: щелчок выделяет объект (Shift/Ctrl —
+    // добавить к выделению), рамка по пустому месту выделяет всё внутри, перетаскивание
+    // двигает все выделенные объекты. Двигаются точки с числовыми координатами
+    // pos = (x, y): у отрезка, окружности, фигуры, угла и т. п. — точки, на которых они
+    // построены; у текста, формулы, картинки, диаграмм — их собственный pos.
+    let ov = null, ovStage = null;
+    function ensureStage() {
+        let st = prevBody.querySelector('.se-stage');
+        if (!st) {
+            st = document.createElement('div'); st.className = 'se-stage';
+            st.innerHTML = '<p class="se-hint">Щелчок — выделить · Shift/Ctrl+щелчок — добавить · рамка по пустому месту — выделить несколько · тяните — переместить (Shift — по сетке 0,5) · Delete — удалить · Ctrl+D — копия · стрелки — сдвиг</p>';
+            prevBody.append(st);
+            ov = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); ov.setAttribute('class', 'se-ov'); ov.setAttribute('tabindex', '0');
+            st.append(ov); ovStage = st;
+            bindOverlay();
+        }
+        return st;
+    }
+    function setEditMode(on) {
+        editMode = on;
+        q('[data-a="edit"]').classList.toggle('on', on); q('[data-a="play"]').classList.toggle('on', !on);
+        drawOverlay();
+    }
+    const nameOf = (b) => M.unquote(M.getField(b, 'name') || '');
+    const byName = () => { const m = new Map(); for (const b of M.blocks(model)) { const n = nameOf(b); if (n) m.set(n, b); } return m; };
+    const NUM = '\\s*(-?(?:\\d+\\.?\\d*|\\.\\d+))\\s*';
+    const LIT2 = new RegExp('^\\(' + NUM + ',' + NUM + '\\)$');
+    const litPos = (b) => { const v = M.getField(b, 'pos'); const m = v && LIT2.exec(v); return m ? { x: +m[1], y: +m[2] } : null; };
+
+    // Окно сцены, её холст и его прямоугольник в координатах слоя.
+    function sceneCtx() {
+        const w = sceneWindow(); if (!w || !ovStage) return null;
+        let canvas = null, off = { x: 0, y: 0 };
+        try {
+            if (mode === 'reference') {
+                const d = frame && frame.contentDocument; if (!d) return null;
+                canvas = d.querySelector('.canvas-wrapper canvas') || d.querySelector('canvas');
+                const fr = frame.getBoundingClientRect(); off = { x: fr.left, y: fr.top };
+            } else {
+                const h = inlineHost;
+                const root = h && h.shadowRoot; canvas = root && (root.querySelector('.canvas-wrapper canvas') || root.querySelector('canvas'));
+            }
+        } catch (e) { return null; }
+        let cam = null; try { cam = w.camera; } catch (e) {}
+        if (!canvas || !cam || typeof cam.offsetX !== 'number') return null;   // 3D-сцены — только список и инспектор
+        const cr = canvas.getBoundingClientRect(), sr = ovStage.getBoundingClientRect();
+        const rect = { left: off.x + cr.left - sr.left, top: off.y + cr.top - sr.top, width: cr.width, height: cr.height };
+        const num = (k, d) => { const v = parseFloat(M.getParam(model, k)); return isFinite(v) && v > 0 ? v : d; };
+        const FW = num('field width', 50), FH = num('field height', 30);
+        const scale = Math.min(rect.width / FW, rect.height / FH) * (cam.zoom || 1);
+        return {
+            w, rect, scale,
+            px: (x, y) => ({ x: rect.width / 2 + (x - cam.offsetX) * scale, y: rect.height / 2 - (y - cam.offsetY) * scale }),
+            fx: (x, y) => ({ x: (x - rect.width / 2) / scale + cam.offsetX, y: -(y - rect.height / 2) / scale + cam.offsetY }),
+        };
+    }
+    // Геометрия объектов для выделения: из рантайма сцены (точки, отрезки, окружности),
+    // остальное — по собственному числовому pos.
+    function sceneItems(ctx) {
+        const out = [];
+        const w = ctx.w, names = byName();
+        const rt = (arr) => { try { return Array.isArray(w[arr]) ? w[arr] : []; } catch (e) { return []; } };
+        const seen = new Set();
+        for (const p of rt('points')) { const b = names.get(p && p.name); if (!b || !p.pos || p.active === false) continue; seen.add(b); out.push({ b, kind: 'pt', a: ctx.px(p.pos.x, p.pos.y), rt: p }); }
+        for (const l of rt('lines')) { const b = names.get(l && l.name); if (!b || !l.pA || !l.pB || l.active === false) continue; seen.add(b); out.push({ b, kind: 'seg', a: ctx.px(l.pA.pos.x, l.pA.pos.y), c: ctx.px(l.pB.pos.x, l.pB.pos.y) }); }
+        for (const c of rt('circles')) {
+            const b = names.get(c && c.name), ctr = c && (c.center || c.centerPoint);
+            if (!b || !ctr || !ctr.pos || !(typeof c.radius === 'number')) continue;
+            seen.add(b); out.push({ b, kind: 'circ', a: ctx.px(ctr.pos.x, ctr.pos.y), r: c.radius * ctx.scale });
+        }
+        for (const b of M.blocks(model)) {
+            if (seen.has(b)) continue;
+            const lp = litPos(b); if (lp) out.push({ b, kind: 'box', a: ctx.px(lp.x, lp.y) });
+        }
+        return out;
+    }
+    function hitTest(items, p) {
+        let best = null;
+        const consider = (it, d, lim) => { if (d <= lim && (!best || d < best.d)) best = { it, d }; };
+        for (const it of items) {
+            if (it.kind === 'pt' || it.kind === 'box') consider(it, Math.hypot(it.a.x - p.x, it.a.y - p.y) - 4, 12);
+            else if (it.kind === 'seg') {
+                const dx = it.c.x - it.a.x, dy = it.c.y - it.a.y, L = dx * dx + dy * dy || 1;
+                const t = Math.max(0, Math.min(1, ((p.x - it.a.x) * dx + (p.y - it.a.y) * dy) / L));
+                consider(it, Math.hypot(it.a.x + t * dx - p.x, it.a.y + t * dy - p.y) + 2, 8);
+            } else if (it.kind === 'circ') consider(it, Math.abs(Math.hypot(it.a.x - p.x, it.a.y - p.y) - it.r) + 2, 8);
+        }
+        return best && best.it.b;
+    }
+    // Что фактически сдвигается при перемещении набора объектов.
+    function movables(list) {
+        const names = byName(), out = new Set(), seen = new Set();
+        const visit = (b, direct) => {
+            if (!b || seen.has(b)) return; seen.add(b);
+            if (litPos(b)) { out.add(b); return; }
+            if (b.kw === 'new' && /^Point/.test(b.type) && !direct) return;   // построенная точка — не трогаем её опоры
+            for (const f of b.fields) {
+                if (!f.key || f.key === 'name') continue;
+                for (const m of String(f.value).matchAll(/[A-Za-z_][A-Za-z0-9_]*/g)) { const r = names.get(m[0]); if (r && r !== b) visit(r, false); }
+            }
+        };
+        for (const b of list) visit(b, true);
+        return [...out];
+    }
+
+    let drag = null, hoverB = null;
+    function drawOverlay() {
+        if (!ov) return;
+        const ctx = editMode && !codeMode ? sceneCtx() : null;
+        if (!ctx) { ov.style.display = 'none'; return; }
+        ov.style.display = '';
+        Object.assign(ov.style, { left: ctx.rect.left + 'px', top: ctx.rect.top + 'px', width: ctx.rect.width + 'px', height: ctx.rect.height + 'px' });
+        const items = sceneItems(ctx);
+        const accent = 'var(--accent,#5b8cff)';
+        const dd = drag && drag.moved ? drag.dpx : { x: 0, y: 0 };
+        const movedSet = drag && drag.moved ? new Set(drag.list) : null;
+        const parts = [];
+        for (const it of items) {
+            const on = sel.has(it.b) || selected === it.b, hv = it.b === hoverB;
+            if (!on && !hv) continue;
+            const o = movedSet && (movedSet.has(it.b) || drag.mov.includes(it.b)) ? dd : { x: 0, y: 0 };
+            const st = `style="stroke:${accent}" stroke-width="${on ? 3 : 1.5}" fill="none" opacity="${on ? 0.9 : 0.55}"`;
+            if (it.kind === 'pt') parts.push(`<circle cx="${it.a.x + o.x}" cy="${it.a.y + o.y}" r="10" ${st}/>`);
+            else if (it.kind === 'box') parts.push(`<rect x="${it.a.x + o.x - 9}" y="${it.a.y + o.y - 9}" width="18" height="18" rx="3" ${st}/>`);
+            else if (it.kind === 'seg') parts.push(`<line x1="${it.a.x + o.x}" y1="${it.a.y + o.y}" x2="${it.c.x + o.x}" y2="${it.c.y + o.y}" ${st} stroke-linecap="round" stroke-opacity=".5" stroke-width="${on ? 8 : 5}"/>`);
+            else if (it.kind === 'circ') parts.push(`<circle cx="${it.a.x + o.x}" cy="${it.a.y + o.y}" r="${it.r}" ${st}/>`);
+            if (on || hv) parts.push(`<text x="${it.a.x + o.x + 12}" y="${it.a.y + o.y - 10}" style="fill:${accent}">${esc(nameOf(it.b))}</text>`);
+        }
+        if (drag && drag.box) {
+            const b = drag.box;
+            parts.push(`<rect x="${Math.min(b.x0, b.x1)}" y="${Math.min(b.y0, b.y1)}" width="${Math.abs(b.x1 - b.x0)}" height="${Math.abs(b.y1 - b.y0)}" style="fill:${accent};stroke:${accent}" fill-opacity=".1" stroke-dasharray="4 3"/>`);
+        }
+        ov.innerHTML = parts.join('');
+    }
+    function bindOverlay() {
+        const pt = (e) => { const r = ov.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
+        ov.addEventListener('pointermove', (e) => {
+            const ctx = sceneCtx(); if (!ctx) return;
+            const p = pt(e);
+            if (!drag) {
+                const h = hitTest(sceneItems(ctx), p);
+                if (h !== hoverB) { hoverB = h; ov.classList.toggle('hover', !!h); drawOverlay(); }
+                return;
+            }
+            if (drag.box) { drag.box.x1 = p.x; drag.box.y1 = p.y; drawOverlay(); return; }
+            let dx = p.x - drag.p0.x, dy = p.y - drag.p0.y;
+            if (!drag.moved && Math.hypot(dx, dy) < 3) return;
+            drag.moved = true;
+            // смещение в единицах поля (Shift — шаг 0,5)
+            let fdx = dx / ctx.scale, fdy = -dy / ctx.scale;
+            if (e.shiftKey) { fdx = Math.round(fdx * 2) / 2; fdy = Math.round(fdy * 2) / 2; dx = fdx * ctx.scale; dy = -fdy * ctx.scale; }
+            drag.fd = { x: fdx, y: fdy }; drag.dpx = { x: dx, y: dy };
+            // точки в живой сцене двигаются сразу — за ними тянется всё построенное на них
+            for (const r of drag.rt) { r.p.pos.x = r.x + fdx; r.p.pos.y = r.y + fdy; }
+            try { ctx.w.dispatchEvent(new Event('resize')); } catch (er) {}
+            drawOverlay();
+        });
+        ov.addEventListener('pointerdown', (e) => {
+            if (e.button !== 0) return;
+            const ctx = sceneCtx(); if (!ctx) return;
+            ov.setPointerCapture(e.pointerId); ov.focus({ preventScroll: true });
+            const p = pt(e), multi = e.shiftKey || e.ctrlKey || e.metaKey;
+            const h = hitTest(sceneItems(ctx), p);
+            if (h) {
+                if (multi) { if (sel.has(h)) { sel.delete(h); if (selected === h) selected = [...sel].pop() || 'scene'; } else { if (selected !== 'scene') sel.add(selected); sel.add(h); selected = h; } }
+                else if (!sel.has(h)) { setSel([h]); selected = h; }
+                else selected = h;
+                renderList(); renderInspector();
+                const list = [...sel];
+                const mov = movables(list);
+                const names = new Set(mov.map(nameOf));
+                const rt = []; try { for (const q of ctx.w.points || []) if (q && names.has(q.name) && q.pos) rt.push({ p: q, x: q.pos.x, y: q.pos.y }); } catch (er) {}
+                drag = { p0: p, list, mov, rt, moved: false, fd: { x: 0, y: 0 }, dpx: { x: 0, y: 0 } };
+            } else {
+                if (!multi) { setSel([]); selected = 'scene'; renderList(); renderInspector(); }
+                drag = { p0: p, box: { x0: p.x, y0: p.y, x1: p.x, y1: p.y }, add: multi };
+            }
+            drawOverlay();
+        });
+        const end = (e) => {
+            if (!drag) return;
+            const d = drag; drag = null;
+            if (d.box) {
+                const ctx = sceneCtx();
+                const b = d.box, x0 = Math.min(b.x0, b.x1), x1 = Math.max(b.x0, b.x1), y0 = Math.min(b.y0, b.y1), y1 = Math.max(b.y0, b.y1);
+                if (ctx && x1 - x0 > 3 && y1 - y0 > 3) {
+                    const inside = (q) => q.x >= x0 && q.x <= x1 && q.y >= y0 && q.y <= y1;
+                    const got = sceneItems(ctx).filter((it) => it.kind === 'seg' ? inside(it.a) && inside(it.c) : inside(it.a)).map((it) => it.b);
+                    if (!d.add) sel.clear();
+                    for (const g of got) sel.add(g);
+                    selected = [...sel].pop() || 'scene';
+                    renderList(); renderInspector();
+                }
+                drawOverlay(); return;
+            }
+            if (d.moved && (d.fd.x || d.fd.y)) moveBlocks(d.mov, d.fd.x, d.fd.y);
+            else drawOverlay();
+        };
+        ov.addEventListener('pointerup', end);
+        ov.addEventListener('pointercancel', end);
+        ov.addEventListener('pointerleave', () => { if (!drag && hoverB) { hoverB = null; drawOverlay(); } });
+        ov.addEventListener('dblclick', (e) => { if (selected !== 'scene') { const f = inspEl.querySelector('input,textarea,select'); if (f) f.focus(); } });
+        // клавиатура: удаление, копия, сдвиг стрелками, выделить всё
+        // клавиши действуют, пока последний щелчок был по сцене (а не по полю ввода)
+        document.addEventListener('pointerdown', (e) => { kbActive = !!(ov && ov.contains(e.target)); }, true);
+        document.addEventListener('keydown', (e) => {
+            if (!kbActive || !host.isConnected || !editMode || codeMode) return;
+            if (e.target && e.target.closest && e.target.closest('input,textarea,select,[contenteditable]')) return;
+            const list = [...sel].length ? [...sel] : (selected !== 'scene' ? [selected] : []);
+            if (e.key === 'Escape') { setSel([]); selected = 'scene'; renderList(); renderInspector(); drawOverlay(); return; }
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
+                e.preventDefault(); const ctx = sceneCtx(); if (!ctx) return;
+                setSel(sceneItems(ctx).map((i) => i.b)); selected = [...sel].pop() || 'scene'; renderList(); renderInspector(); drawOverlay(); return;
+            }
+            if (!list.length) return;
+            if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); deleteBlocks(list); return; }
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') { e.preventDefault(); duplicateBlocks(list); return; }
+            const step = e.shiftKey ? 1 : 0.1;
+            const dir = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, step], ArrowDown: [0, -step] }[e.key];
+            if (dir) { e.preventDefault(); moveBlocks(movables(list), dir[0], dir[1]); }
+        });
+        // слой следует за сценой: прокрутка, изменение размеров, загрузка
+        const ro = new ResizeObserver(() => drawOverlay()); ro.observe(prevBody);
+        prevBody.addEventListener('scroll', () => drawOverlay(), { passive: true });
+        window.addEventListener('resize', drawOverlay);
+        // сцена сама меняет размер холста после запуска и при смене панели UI/описания —
+        // слой сверяется с холстом несколько раз в секунду (дёшево: только сравнение)
+        let sig = '';
+        syncTimer = setInterval(() => {
+            if (drag || !editMode || codeMode || !host.isConnected) return;
+            const c = sceneCtx();
+            let cam = null; try { cam = c && c.w.camera; } catch (e) {}
+            const k = c ? [c.rect.left, c.rect.top, c.rect.width, c.rect.height, cam.zoom, cam.offsetX, cam.offsetY].map((v) => Math.round(v * 10)).join() : '';
+            if (k !== sig) { sig = k; drawOverlay(); }
+        }, 250);
+    }
+    let syncTimer = 0, kbActive = false;
+    const r2 = (x) => String(Math.round(x * 100) / 100);
+    function moveBlocks(list, dx, dy) {
+        if (!list.length) { statusEl.textContent = '· у выделенного нет точек с числовыми координатами'; return; }
+        for (const b of list) { const p = litPos(b); if (p) M.setField(b, 'pos', '(' + r2(p.x + dx) + ', ' + r2(p.y + dy) + ')'); }
+        statusEl.textContent = '· сдвинуто: ' + list.map(nameOf).join(', ');
+        statusEl.classList.remove('bad');
+        changed(false, true);
+    }
+    function deleteBlocks(list) {
+        if (!confirm('Удалить: ' + list.map((b) => nameOf(b) || b.type).join(', ') + '?')) return;
+        for (const b of list) M.removeBlock(model, b);
+        sel.clear(); selected = 'scene';
+        changed(true, true);
+    }
+    // Копия вместе с опорными точками (у копии отрезка — свои концы), ссылки переименовываются.
+    function duplicateBlocks(list) {
+        const all = [...new Set(movables(list).filter((b) => !list.includes(b)).concat(list))];   // сначала опорные точки
+        const ren = new Map();
+        for (const b of all) { const n = nameOf(b); if (n) ren.set(n, uniqueName(n + '_copy')); }
+        // имена не должны совпасть между собой
+        const used = new Set();
+        for (const [k, v] of ren) { let n = v, i = 2; while (used.has(n)) n = v + (i++); used.add(n); ren.set(k, n); }
+        const re = ren.size ? new RegExp('\\b(' + [...ren.keys()].map((k) => k.replace(/[$]/g, '\\$&')).join('|') + ')\\b', 'g') : null;
+        const copies = [];
+        for (const b of all) {
+            const c = M.cloneBlock(b);
+            for (const f of c.fields) if (f.key && re) f.value = f.key === 'name' ? f.value : f.value.replace(re, (m) => ren.get(m));
+            const n = nameOf(c); if (n && ren.has(n)) M.setField(c, 'name', '"' + ren.get(n) + '"');
+            const p = litPos(c); if (p) M.setField(c, 'pos', '(' + r2(p.x + 1) + ', ' + r2(p.y - 1) + ')');
+            M.addBlock(model, c); copies.push(c);
+        }
+        const shown = copies.filter((c, i) => list.includes(all[i]));
+        setSel(shown); selected = shown[shown.length - 1] || 'scene';
+        changed(true, true);
+    }
+    // Несколько выделенных: общие поля задаются всем сразу.
+    function renderMulti() {
+        const list = [...sel];
+        inspH.innerHTML = `<b>Выбрано: ${list.length}</b><span class="se-grow"></span>
+          <button type="button" class="se-btn" data-m="dup" title="Копии (Ctrl+D)">⧉</button><button type="button" class="se-btn danger" data-m="del" title="Удалить (Delete)">✕</button>`;
+        inspH.querySelector('[data-m="dup"]').onclick = () => duplicateBlocks(list);
+        inspH.querySelector('[data-m="del"]').onclick = () => deleteBlocks(list);
+        inspEl.insertAdjacentHTML('beforeend', `<p class="se-muted">${list.map((b) => esc(nameOf(b) || b.type)).join(', ')}</p><div class="se-sec">Общие поля</div>`);
+        const fieldSets = list.map((b) => { const t = typeByLabel.get(baseLabel(b)); return new Map((t ? t.fields : []).map((f) => [f.name, f])); });
+        const common = [...fieldSets[0].values()].filter((f) => f.name !== 'name' && fieldSets.every((m) => m.has(f.name)));
+        const rest = document.createElement('details');
+        rest.innerHTML = '<summary>Остальные общие поля</summary>';
+        const restBox = document.createElement('div'); restBox.style.cssText = 'display:grid;gap:.35rem'; rest.append(restBox);
+        for (const f of common) {
+            const vals = list.map((b) => M.getField(b, f.name) || '');
+            const same = vals.every((v) => v === vals[0]);
+            (vals.some((v) => v !== '') || /^(color|thickness|layer|active|size|opacity)$/.test(f.name) ? inspEl : restBox).append(row(f.label || f.name, f.name + (same ? '' : ' · разные'), widget(f.kind, same ? vals[0] : '', f.options, (val) => { for (const b of list) M.setField(b, f.name, val); changed(false); }, same ? fmtDef(f.default) : 'разные значения'), same && vals[0] !== ''));
+        }
+        if (restBox.childElementCount) inspEl.append(rest);
+        if (!common.length) inspEl.insertAdjacentHTML('beforeend', '<p class="se-muted">У выбранных объектов нет общих полей.</p>');
     }
 
     // Забрать положения перетащенных точек из предпросмотра в поля pos (только числа).
@@ -475,10 +809,10 @@ export async function mountStructuredEditor(host, opts = {}) {
 
     const api = {
         getSource: src,
-        setSource(s) { model = M.parseGms(s || '[\n]', sceneKeys); selected = 'scene'; lastHtml = ''; if (codeMode) codeEl.value = src(); renderList(); renderInspector(); schedule(); },
+        setSource(s) { model = M.parseGms(s || '[\n]', sceneKeys); selected = 'scene'; sel.clear(); lastHtml = ''; if (codeMode) codeEl.value = src(); renderList(); renderInspector(); schedule(); },
         select,
         get sceneWindow() { return sceneWindow(); },
-        destroy() { closeCat(); themeObs.disconnect(); clearTimeout(compileTimer); if (detach) detach(); if (inline) try { inline.destroy(); } catch (e) {} host.innerHTML = ''; },
+        destroy() { clearInterval(syncTimer); closeCat(); themeObs.disconnect(); clearTimeout(compileTimer); if (detach) detach(); if (inline) try { inline.destroy(); } catch (e) {} host.innerHTML = ''; },
     };
     return api;
 }
