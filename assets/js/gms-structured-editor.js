@@ -153,6 +153,8 @@ export async function mountStructuredEditor(host, opts = {}) {
         <div class="se-col se-c3">
           <div class="se-h"><b>Сцена</b><span class="se-status"></span><span class="se-grow"></span>
             <span class="se-tools"></span>
+            <button type="button" class="se-btn" data-a="undo" title="Отменить (Ctrl+Z)" disabled>↶</button>
+            <button type="button" class="se-btn" data-a="redo" title="Повторить (Ctrl+Y, Ctrl+Shift+Z)" disabled>↷</button>
             <button type="button" class="se-btn on" data-a="edit" title="Правка мышью: выделение, рамка, перетаскивание (Shift/Ctrl — несколько)">✥ Правка</button>
             <button type="button" class="se-btn" data-a="play" title="Сцена работает как у посетителя">▶ Просмотр</button>
           </div>
@@ -404,11 +406,53 @@ export async function mountStructuredEditor(host, opts = {}) {
         const a = e.target.closest('[data-a]'); if (!a) return;
         if (a.dataset.a === 'add') openCat(a);
         if (a.dataset.a === 'code') setCodeMode(!codeMode);
+        if (a.dataset.a === 'undo') undo();
+        if (a.dataset.a === 'redo') redo();
         if (a.dataset.a === 'edit' || a.dataset.a === 'play') setEditMode(a.dataset.a === 'edit');
     });
 
     // ── изменения и предпросмотр ─────────────────────────────────────────────
-    function emit() { if (opts.onChange) { try { opts.onChange(src()); } catch (e) { console.warn(e); } } }
+    // ── история правок: Ctrl+Z / Ctrl+Y ────────────────────────────────────────
+    // Снимок кода после каждой правки; серия быстрых правок (набор в поле, сдвиг
+    // стрелками) — один шаг.
+    const hist = { list: [], i: -1, timer: 0 };
+    function histInit() { clearTimeout(hist.timer); hist.list = [src()]; hist.i = 0; updUndo(); }
+    function histNote() { clearTimeout(hist.timer); hist.timer = setTimeout(histCommit, 450); }
+    function histCommit() {
+        clearTimeout(hist.timer);
+        const s = src(); if (s === hist.list[hist.i]) return;
+        hist.list.splice(hist.i + 1); hist.list.push(s);
+        if (hist.list.length > 300) hist.list.shift();
+        hist.i = hist.list.length - 1; updUndo();
+    }
+    function updUndo() {
+        const u = q('[data-a="undo"]'), r = q('[data-a="redo"]');
+        if (u) u.disabled = hist.i <= 0; if (r) r.disabled = hist.i >= hist.list.length - 1;
+    }
+    function restore(text) {
+        const keep = [...sel].map(nameOf), ks = selected !== 'scene' ? nameOf(selected) : null;
+        model = M.parseGms(text, sceneKeys);
+        const nm = byName();
+        setSel(keep.map((n) => nm.get(n)).filter(Boolean));
+        selected = (ks && nm.get(ks)) || [...sel].pop() || 'scene';
+        if (codeMode) codeEl.value = text;
+        renderList(); renderInspector(); emit(); schedule(); updUndo();
+    }
+    function undo() { histCommit(); if (hist.i <= 0) return; hist.i--; restore(hist.list[hist.i]); statusEl.textContent = '· отменено'; }
+    function redo() { histCommit(); if (hist.i >= hist.list.length - 1) return; hist.i++; restore(hist.list[hist.i]); statusEl.textContent = '· повторено'; }
+    document.addEventListener('keydown', (e) => {
+        if (!(e.ctrlKey || e.metaKey) || !host.isConnected) return;
+        const k = e.key.toLowerCase();
+        if (k !== 'z' && k !== 'y' && k !== 'я' && k !== 'н') return;
+        const inHost = host.contains(e.target) || kbActive;
+        if (!inHost) return;
+        // в полях ввода — их собственная отмена набора
+        if (e.target.closest && e.target.closest('input[type=text],input:not([type]),textarea,[contenteditable]')) return;
+        e.preventDefault();
+        if ((k === 'z' || k === 'я') && !e.shiftKey) undo(); else redo();
+    });
+
+    function emit() { histNote(); if (opts.onChange) { try { opts.onChange(src()); } catch (e) { console.warn(e); } } }
     function changed(relist, reinspect) {
         if (relist) renderList();
         else {
@@ -530,14 +574,104 @@ export async function mountStructuredEditor(host, opts = {}) {
         const num = (k, d) => { const v = parseFloat(M.getParam(model, k)); return isFinite(v) && v > 0 ? v : d; };
         const FW = num('field width', 50), FH = num('field height', 30);
         const scale = Math.min(rect.width / FW, rect.height / FH) * (cam.zoom || 1);
+        instrument(w, canvas);
         return {
-            w, rect, scale,
+            w, rect, scale, canvas,
             px: (x, y) => ({ x: rect.width / 2 + (x - cam.offsetX) * scale, y: rect.height / 2 - (y - cam.offsetY) * scale }),
             fx: (x, y) => ({ x: (x - rect.width / 2) / scale + cam.offsetX, y: -(y - rect.height / 2) / scale + cam.offsetY }),
         };
     }
-    // Геометрия объектов для выделения: из рантайма сцены (точки, отрезки, окружности),
-    // остальное — по собственному числовому pos.
+    // Рамки объектов по фактической отрисовке: сцена сообщает, какой объект рисуется
+    // (window.__gcDrawHook из render-2d.js), а вызовы рисования холста этого объекта
+    // складываются в его прямоугольник (в CSS-пикселях холста). Так выделяется любой
+    // тип — текст целиком, граф, график, диаграмма, фрактал…
+    function instrument(w, canvas) {
+        let st = null;
+        try { st = w.__seBoxes; } catch (e) { return; }
+        if (st && st.canvas === canvas) return;
+        st = { canvas, cur: null, boxes: new Map(), next: new Map(), path: [] };
+        try { w.__seBoxes = st; } catch (e) { return; }
+        const P = (w.CanvasRenderingContext2D || window.CanvasRenderingContext2D).prototype;
+        if (!P.__seWrapped) {
+            P.__seWrapped = true;
+            const k = (ctx) => { const S = ctx.canvas && ctx.canvas.__seState; return S && S.cur ? S : null; };
+            const add = (ctx, S, x, y, pad) => {
+                const m = ctx.getTransform(), cv = ctx.canvas, r = cv.width / (cv.clientWidth || cv.width) || 1;
+                const X = (m.a * x + m.c * y + m.e) / r, Y = (m.b * x + m.d * y + m.f) / r;
+                let bx = S.next.get(S.cur);
+                if (!bx) S.next.set(S.cur, bx = { x0: X - pad, y0: Y - pad, x1: X + pad, y1: Y + pad });
+                else { bx.x0 = Math.min(bx.x0, X - pad); bx.y0 = Math.min(bx.y0, Y - pad); bx.x1 = Math.max(bx.x1, X + pad); bx.y1 = Math.max(bx.y1, Y + pad); }
+            };
+            const wrap = (name, fn) => { const o = P[name]; if (typeof o !== 'function') return; P[name] = function (...a) { const S = k(this); if (S) { try { fn(this, S, a); } catch (e) {} } return o.apply(this, a); }; };
+            const pathPt = (ctx, S, x, y) => { S.path.push([x, y, ctx.getTransform()]); };
+            wrap('beginPath', (c, S) => { S.path = []; });
+            wrap('moveTo', (c, S, a) => pathPt(c, S, a[0], a[1]));
+            wrap('lineTo', (c, S, a) => pathPt(c, S, a[0], a[1]));
+            wrap('quadraticCurveTo', (c, S, a) => { pathPt(c, S, a[0], a[1]); pathPt(c, S, a[2], a[3]); });
+            wrap('bezierCurveTo', (c, S, a) => { pathPt(c, S, a[0], a[1]); pathPt(c, S, a[2], a[3]); pathPt(c, S, a[4], a[5]); });
+            wrap('arc', (c, S, a) => { pathPt(c, S, a[0] - a[2], a[1] - a[2]); pathPt(c, S, a[0] + a[2], a[1] + a[2]); });
+            wrap('ellipse', (c, S, a) => { const r = Math.max(a[2], a[3]); pathPt(c, S, a[0] - r, a[1] - r); pathPt(c, S, a[0] + r, a[1] + r); });
+            wrap('rect', (c, S, a) => { pathPt(c, S, a[0], a[1]); pathPt(c, S, a[0] + a[2], a[1] + a[3]); });
+            wrap('roundRect', (c, S, a) => { pathPt(c, S, a[0], a[1]); pathPt(c, S, a[0] + a[2], a[1] + a[3]); });
+            // Path2D: точки фигуры запоминаются в самом объекте пути
+            const PP = (w.Path2D || window.Path2D).prototype;
+            if (!PP.__seWrapped) {
+                PP.__seWrapped = true;
+                const pw = (name, f) => { const o = PP[name]; if (typeof o !== 'function') return; PP[name] = function (...a) { try { (this.__sePts || (this.__sePts = [])).push(...f(a)); } catch (e) {} return o.apply(this, a); }; };
+                pw('moveTo', (a) => [[a[0], a[1]]]); pw('lineTo', (a) => [[a[0], a[1]]]);
+                pw('quadraticCurveTo', (a) => [[a[0], a[1]], [a[2], a[3]]]); pw('bezierCurveTo', (a) => [[a[0], a[1]], [a[2], a[3]], [a[4], a[5]]]);
+                pw('arc', (a) => [[a[0] - a[2], a[1] - a[2]], [a[0] + a[2], a[1] + a[2]]]);
+                pw('ellipse', (a) => { const r = Math.max(a[2], a[3]); return [[a[0] - r, a[1] - r], [a[0] + r, a[1] + r]]; });
+                pw('rect', (a) => [[a[0], a[1]], [a[0] + a[2], a[1] + a[3]]]);
+                pw('addPath', (a) => (a[0] && a[0].__sePts) || []);
+            }
+            const flush = (c, S, a) => {
+                const pad = (c.lineWidth || 1) / 2;
+                if (a && a[0] && typeof a[0] === 'object' && a[0].__sePts) { for (const [x, y] of a[0].__sePts) add(c, S, x, y, pad); return; }
+                const keep = c.getTransform();
+                for (const [x, y, m] of S.path) { c.setTransform(m); add(c, S, x, y, pad); }
+                c.setTransform(keep);
+            };
+            wrap('stroke', flush); wrap('fill', flush);
+            wrap('fillRect', (c, S, a) => { add(c, S, a[0], a[1], 0); add(c, S, a[0] + a[2], a[1] + a[3], 0); });
+            wrap('strokeRect', (c, S, a) => { add(c, S, a[0], a[1], 1); add(c, S, a[0] + a[2], a[1] + a[3], 1); });
+            const text = (c, S, a) => {
+                const wd = c.measureText(String(a[0])).width, fs = parseFloat((/(\d+(?:\.\d+)?)px/.exec(c.font) || [, 12])[1]);
+                const al = c.textAlign, bl = c.textBaseline;
+                const x0 = al === 'center' ? a[1] - wd / 2 : (al === 'right' || al === 'end') ? a[1] - wd : a[1];
+                const y0 = bl === 'middle' ? a[2] - fs / 2 : (bl === 'top' || bl === 'hanging') ? a[2] : bl === 'bottom' ? a[2] - fs : a[2] - fs * 0.8;
+                add(c, S, x0, y0, 1); add(c, S, x0 + wd, y0 + fs, 1);
+            };
+            wrap('fillText', text); wrap('strokeText', text);
+            // putImageData — в пикселях устройства, без преобразований
+            wrap('putImageData', (c, S, a) => {
+                const keep = c.getTransform(), cv = c.canvas, r = cv.width / (cv.clientWidth || cv.width) || 1;
+                c.setTransform(r, 0, 0, r, 0, 0);
+                const im = a[0], dx = a[1] / r, dy = a[2] / r;
+                add(c, S, dx, dy, 0); add(c, S, dx + (im.width || 0) / r, dy + (im.height || 0) / r, 0);
+                c.setTransform(keep);
+            });
+            wrap('drawImage', (c, S, a) => {
+                const im = a[0];
+                if (a.length >= 9) { add(c, S, a[5], a[6], 0); add(c, S, a[5] + a[7], a[6] + a[8], 0); }
+                else if (a.length >= 5) { add(c, S, a[1], a[2], 0); add(c, S, a[1] + a[3], a[2] + a[4], 0); }
+                else { add(c, S, a[1], a[2], 0); add(c, S, a[1] + (im.width || 0), a[2] + (im.height || 0), 0); }
+            });
+        }
+        canvas.__seState = st;
+        const prev = w.__gcDrawHook;
+        w.__gcDrawHook = function (obj, begin) {
+            if (begin) { st.cur = obj && obj.name ? obj.name : null; st.path = []; }
+            else { st.boxes = st.next; st.next = new Map(); st.cur = null; }
+            if (prev) try { prev(obj, begin); } catch (e) {}
+        };
+        try { if (w.__gcRedraw) w.__gcRedraw(); } catch (e) {}
+    }
+    function boxesOf(ctx) { try { return (ctx.w.__seBoxes && ctx.w.__seBoxes.boxes) || new Map(); } catch (e) { return new Map(); } }
+    function rtObj(ctx, name) { try { const o = ctx.w[name]; return o && typeof o === 'object' ? o : null; } catch (e) { return null; } }
+
+    // Геометрия объектов для выделения: точки, отрезки и окружности — точно, по рантайму;
+    // всё остальное — по рамке отрисовки (или по собственному числовому pos).
     function sceneItems(ctx) {
         const out = [];
         const w = ctx.w, names = byName();
@@ -550,9 +684,30 @@ export async function mountStructuredEditor(host, opts = {}) {
             if (!b || !ctr || !ctr.pos || !(typeof c.radius === 'number')) continue;
             seen.add(b); out.push({ b, kind: 'circ', a: ctx.px(ctr.pos.x, ctr.pos.y), r: c.radius * ctx.scale });
         }
+        for (const [name, bx] of boxesOf(ctx)) {
+            const b = names.get(name); if (!b || seen.has(b)) continue;
+            if (!(bx.x1 > bx.x0) || !(bx.y1 > bx.y0)) continue;
+            seen.add(b); out.push({ b, kind: 'bbox', box: bx, a: { x: bx.x0, y: bx.y0 } });
+        }
         for (const b of M.blocks(model)) {
             if (seen.has(b)) continue;
-            const lp = litPos(b); if (lp) out.push({ b, kind: 'box', a: ctx.px(lp.x, lp.y) });
+            const lp = litPos(b); if (lp) { seen.add(b); out.push({ b, kind: 'box', a: ctx.px(lp.x, lp.y) }); }
+        }
+        // многоугольник, кластер, угол — рамка вокруг того, из чего они состоят
+        const byBlock = new Map(out.map((it) => [it.b, it]));
+        for (const b of M.blocks(model)) {
+            if (seen.has(b) || !isGeom(b)) continue;
+            let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+            const grow = (x, y) => { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); };
+            for (const f of b.fields) {
+                if (!f.key || f.key === 'name') continue;
+                for (const m of String(f.value).matchAll(/[A-Za-z_][A-Za-z0-9_]*/g)) {
+                    const it = byBlock.get(names.get(m[0])); if (!it) continue;
+                    if (it.kind === 'bbox') { grow(it.box.x0, it.box.y0); grow(it.box.x1, it.box.y1); }
+                    else { grow(it.a.x, it.a.y); if (it.c) grow(it.c.x, it.c.y); if (it.r) { grow(it.a.x - it.r, it.a.y - it.r); grow(it.a.x + it.r, it.a.y + it.r); } }
+                }
+            }
+            if (x1 >= x0 && y1 >= y0) out.push({ b, kind: 'bbox', box: { x0: x0 - 8, y0: y0 - 8, x1: x1 + 8, y1: y1 + 8 }, a: { x: x0 - 8, y: y0 - 8 }, derived: true });
         }
         return out;
     }
@@ -567,23 +722,40 @@ export async function mountStructuredEditor(host, opts = {}) {
                 consider(it, Math.hypot(it.a.x + t * dx - p.x, it.a.y + t * dy - p.y) + 2, 8);
             } else if (it.kind === 'circ') consider(it, Math.abs(Math.hypot(it.a.x - p.x, it.a.y - p.y) - it.r) + 2, 8);
         }
-        return best && best.it.b;
+        if (best) return best.it.b;
+        // внутри рамки: самая маленькая (самый «конкретный» объект под курсором)
+        let bb = null;
+        for (const it of items) {
+            if (it.kind !== 'bbox') continue;
+            const x = it.box, t = 3;
+            if (p.x < x.x0 - t || p.x > x.x1 + t || p.y < x.y0 - t || p.y > x.y1 + t) continue;
+            const area = (x.x1 - x.x0) * (x.y1 - x.y0);
+            if (!bb || area < bb.area) bb = { b: it.b, area };
+        }
+        return bb && bb.b;
     }
-    // Что фактически сдвигается при перемещении набора объектов.
-    function movables(list) {
-        const names = byName(), out = new Set(), seen = new Set();
+    // Что сдвигается при перемещении: собственный числовой pos; у фигур, построенных на
+    // точках (отрезок, окружность, многоугольник, угол, дуга, эллипс, пометки) — эти точки;
+    // у всего остального — общий для любого 2D-объекта сдвиг отрисовки shift = (dx, dy).
+    const GEOM = /^(new (Line|Figure|Claster|Circle|Ellipse|Angle)|draw (Arc|Angle|Vector|Punctir|InfLine|EquallySing|Filling))(2D)?$/;
+    const isGeom = (b) => GEOM.test(b.kw + ' ' + b.type) || (b.kw === 'new' && /^Curve/.test(b.type) && /bezier/.test(M.getField(b, 'type') || ''));
+    function movePlan(list) {
+        const names = byName(), pos = new Set(), shift = new Set(), seen = new Set();
         const visit = (b, direct) => {
             if (!b || seen.has(b)) return; seen.add(b);
-            if (litPos(b)) { out.add(b); return; }
-            if (b.kw === 'new' && /^Point/.test(b.type) && !direct) return;   // построенная точка — не трогаем её опоры
+            if (litPos(b)) { pos.add(b); return; }
+            if (b.kw === 'new' && /^Point/.test(b.type)) return;     // построенная точка — её опоры не трогаем
+            if (!isGeom(b)) { if (direct && b.kw === 'draw' || direct && /^(Curve)/.test(b.type)) shift.add(b); return; }
             for (const f of b.fields) {
                 if (!f.key || f.key === 'name') continue;
                 for (const m of String(f.value).matchAll(/[A-Za-z_][A-Za-z0-9_]*/g)) { const r = names.get(m[0]); if (r && r !== b) visit(r, false); }
             }
         };
         for (const b of list) visit(b, true);
-        return [...out];
+        return { pos: [...pos], shift: [...shift] };
     }
+    const movables = (list) => movePlan(list).pos;
+    const shiftOf = (b) => { const v = M.getField(b, 'shift'); const m = v && LIT2.exec(v); return m ? { x: +m[1], y: +m[2] } : { x: 0, y: 0 }; };
 
     let drag = null, hoverB = null;
     function drawOverlay() {
@@ -594,7 +766,8 @@ export async function mountStructuredEditor(host, opts = {}) {
         Object.assign(ov.style, { left: ctx.rect.left + 'px', top: ctx.rect.top + 'px', width: ctx.rect.width + 'px', height: ctx.rect.height + 'px' });
         const items = sceneItems(ctx);
         const accent = 'var(--accent,#5b8cff)';
-        const dd = drag && drag.moved ? drag.dpx : { x: 0, y: 0 };
+        let live = false; try { live = !!ctx.w.__gcRedraw; } catch (e) {}
+        const dd = drag && drag.moved && !live ? drag.dpx : { x: 0, y: 0 };
         const movedSet = drag && drag.moved ? new Set(drag.list) : null;
         const parts = [];
         for (const it of items) {
@@ -606,6 +779,7 @@ export async function mountStructuredEditor(host, opts = {}) {
             else if (it.kind === 'box') parts.push(`<rect x="${it.a.x + o.x - 9}" y="${it.a.y + o.y - 9}" width="18" height="18" rx="3" ${st}/>`);
             else if (it.kind === 'seg') parts.push(`<line x1="${it.a.x + o.x}" y1="${it.a.y + o.y}" x2="${it.c.x + o.x}" y2="${it.c.y + o.y}" ${st} stroke-linecap="round" stroke-opacity=".5" stroke-width="${on ? 8 : 5}"/>`);
             else if (it.kind === 'circ') parts.push(`<circle cx="${it.a.x + o.x}" cy="${it.a.y + o.y}" r="${it.r}" ${st}/>`);
+            else if (it.kind === 'bbox') parts.push(`<rect x="${it.box.x0 + o.x - 3}" y="${it.box.y0 + o.y - 3}" width="${it.box.x1 - it.box.x0 + 6}" height="${it.box.y1 - it.box.y0 + 6}" rx="4" ${st} stroke-dasharray="${on ? '0' : '4 3'}"/>`);
             if (on || hv) parts.push(`<text x="${it.a.x + o.x + 12}" y="${it.a.y + o.y - 10}" style="fill:${accent}">${esc(nameOf(it.b))}</text>`);
         }
         if (drag && drag.box) {
@@ -634,7 +808,8 @@ export async function mountStructuredEditor(host, opts = {}) {
             drag.fd = { x: fdx, y: fdy }; drag.dpx = { x: dx, y: dy };
             // точки в живой сцене двигаются сразу — за ними тянется всё построенное на них
             for (const r of drag.rt) { r.p.pos.x = r.x + fdx; r.p.pos.y = r.y + fdy; }
-            try { ctx.w.dispatchEvent(new Event('resize')); } catch (er) {}
+            for (const r of drag.rs) r.o.shift = [r.s0.x + fdx, r.s0.y + fdy];
+            try { if (ctx.w.__gcRedraw) ctx.w.__gcRedraw(); else ctx.w.dispatchEvent(new Event('resize')); } catch (er) {}
             drawOverlay();
         });
         ov.addEventListener('pointerdown', (e) => {
@@ -649,10 +824,11 @@ export async function mountStructuredEditor(host, opts = {}) {
                 else selected = h;
                 renderList(); renderInspector();
                 const list = [...sel];
-                const mov = movables(list);
+                const plan = movePlan(list), mov = plan.pos;
                 const names = new Set(mov.map(nameOf));
                 const rt = []; try { for (const q of ctx.w.points || []) if (q && names.has(q.name) && q.pos) rt.push({ p: q, x: q.pos.x, y: q.pos.y }); } catch (er) {}
-                drag = { p0: p, list, mov, rt, moved: false, fd: { x: 0, y: 0 }, dpx: { x: 0, y: 0 } };
+                const rs = []; for (const b of plan.shift) { const o = rtObj(ctx, nameOf(b)); const s0 = shiftOf(b); if (o) rs.push({ o, s0, had: o.shift }); }
+                drag = { p0: p, list, mov, plan, rt, rs, moved: false, fd: { x: 0, y: 0 }, dpx: { x: 0, y: 0 } };
             } else {
                 if (!multi) { setSel([]); selected = 'scene'; renderList(); renderInspector(); }
                 drag = { p0: p, box: { x0: p.x, y0: p.y, x1: p.x, y1: p.y }, add: multi };
@@ -667,7 +843,7 @@ export async function mountStructuredEditor(host, opts = {}) {
                 const b = d.box, x0 = Math.min(b.x0, b.x1), x1 = Math.max(b.x0, b.x1), y0 = Math.min(b.y0, b.y1), y1 = Math.max(b.y0, b.y1);
                 if (ctx && x1 - x0 > 3 && y1 - y0 > 3) {
                     const inside = (q) => q.x >= x0 && q.x <= x1 && q.y >= y0 && q.y <= y1;
-                    const got = sceneItems(ctx).filter((it) => it.kind === 'seg' ? inside(it.a) && inside(it.c) : inside(it.a)).map((it) => it.b);
+                    const got = sceneItems(ctx).filter((it) => it.kind === 'seg' ? inside(it.a) && inside(it.c) : it.kind === 'bbox' ? inside({ x: it.box.x0, y: it.box.y0 }) && inside({ x: it.box.x1, y: it.box.y1 }) : inside(it.a)).map((it) => it.b);
                     if (!d.add) sel.clear();
                     for (const g of got) sel.add(g);
                     selected = [...sel].pop() || 'scene';
@@ -675,7 +851,7 @@ export async function mountStructuredEditor(host, opts = {}) {
                 }
                 drawOverlay(); return;
             }
-            if (d.moved && (d.fd.x || d.fd.y)) moveBlocks(d.mov, d.fd.x, d.fd.y);
+            if (d.moved && (d.fd.x || d.fd.y)) moveBlocks(d.plan, d.fd.x, d.fd.y);
             else drawOverlay();
         };
         ov.addEventListener('pointerup', end);
@@ -699,7 +875,7 @@ export async function mountStructuredEditor(host, opts = {}) {
             if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') { e.preventDefault(); duplicateBlocks(list); return; }
             const step = e.shiftKey ? 1 : 0.1;
             const dir = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, step], ArrowDown: [0, -step] }[e.key];
-            if (dir) { e.preventDefault(); moveBlocks(movables(list), dir[0], dir[1]); }
+            if (dir) { e.preventDefault(); moveBlocks(movePlan(list), dir[0], dir[1]); }
         });
         // слой следует за сценой: прокрутка, изменение размеров, загрузка
         const ro = new ResizeObserver(() => drawOverlay()); ro.observe(prevBody);
@@ -718,10 +894,12 @@ export async function mountStructuredEditor(host, opts = {}) {
     }
     let syncTimer = 0, kbActive = false;
     const r2 = (x) => String(Math.round(x * 100) / 100);
-    function moveBlocks(list, dx, dy) {
-        if (!list.length) { statusEl.textContent = '· у выделенного нет точек с числовыми координатами'; return; }
-        for (const b of list) { const p = litPos(b); if (p) M.setField(b, 'pos', '(' + r2(p.x + dx) + ', ' + r2(p.y + dy) + ')'); }
-        statusEl.textContent = '· сдвинуто: ' + list.map(nameOf).join(', ');
+    function moveBlocks(plan, dx, dy) {
+        const all = plan.pos.concat(plan.shift);
+        if (!all.length) { statusEl.textContent = '· выделенное нельзя сдвинуть (точки заданы через другие объекты)'; return; }
+        for (const b of plan.pos) { const p = litPos(b); if (p) M.setField(b, 'pos', '(' + r2(p.x + dx) + ', ' + r2(p.y + dy) + ')'); }
+        for (const b of plan.shift) { const s0 = shiftOf(b), nx = s0.x + dx, ny = s0.y + dy; M.setField(b, 'shift', Math.abs(nx) < 1e-9 && Math.abs(ny) < 1e-9 ? '' : '(' + r2(nx) + ', ' + r2(ny) + ')'); }
+        statusEl.textContent = '· сдвинуто: ' + all.map(nameOf).join(', ');
         statusEl.classList.remove('bad');
         changed(false, true);
     }
@@ -805,11 +983,11 @@ export async function mountStructuredEditor(host, opts = {}) {
     const themeObs = new MutationObserver(() => { if (inline) try { inline.setTheme(document.documentElement.classList.contains('light') ? 'light' : 'dark'); } catch (e) {} });
     themeObs.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
 
-    renderList(); renderInspector(); preview();
+    renderList(); renderInspector(); preview(); histInit();
 
     const api = {
         getSource: src,
-        setSource(s) { model = M.parseGms(s || '[\n]', sceneKeys); selected = 'scene'; sel.clear(); lastHtml = ''; if (codeMode) codeEl.value = src(); renderList(); renderInspector(); schedule(); },
+        setSource(s) { model = M.parseGms(s || '[\n]', sceneKeys); selected = 'scene'; sel.clear(); lastHtml = ''; if (codeMode) codeEl.value = src(); renderList(); renderInspector(); schedule(); histInit(); },
         select,
         get sceneWindow() { return sceneWindow(); },
         destroy() { clearInterval(syncTimer); closeCat(); themeObs.disconnect(); clearTimeout(compileTimer); if (detach) detach(); if (inline) try { inline.destroy(); } catch (e) {} host.innerHTML = ''; },

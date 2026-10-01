@@ -16,6 +16,10 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
                     drawBifurcationsData, drawCobwebsData, drawIFSsData, drawAutomataData, drawVoronoisData, drawFouriersData, drawDiagramsData,
                     funcsData, procsData, userVars, startCodes, updateCodes, drawDistributionsData) {
     try {
+        // shift = (dx, dy) любого объекта — таблица по имени: не все типы переносят
+        // свои поля в рантайм целиком (часть собирается из выбранных полей)
+        const gcShifts = {};
+        for (const arr of arguments) if (Array.isArray(arr)) for (const d of arr) if (d && d.name && Array.isArray(d.shift)) gcShifts[d.name] = d.shift;
         const description = params.description || '';
         const descAlign = ['left', 'center', 'right'].includes(params['description align']) ? params['description align'] : 'left';
 
@@ -564,7 +568,13 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '      if (raw === undefined || raw === null) return fallback !== false;\n',
             '      return !(raw === false || raw === 0 || raw === \'\');\n',
             '    }\n',
+            '    // Объект, для которого сейчас строится очередь отрисовки (isObjectActive вызывается\n',
+            '    // перед каждым push в drawFull) — запись очереди помнит свой объект: для shift и\n',
+            '    // для визуального редактора (window.__gcDrawHook — какой объект сейчас рисуется).\n',
+            '    let __gcQueueObj = null;\n',
+            '    const __gcShifts = ', jsonForScript(gcShifts), ';\n',
             '    function isObjectActive(obj) {\n',
+            '      __gcQueueObj = obj;\n',
             '      if (!obj) return false;\n',
             '      for (let c of clusters) {\n',
             '        if (c.elements.includes(obj)) {\n',
@@ -5157,7 +5167,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '\n',
             '      // Единая очередь отрисовки, отсортированная по layer (управление слоями, запрос #7)\n',
             '      const renderQueue = [];\n',
-            '      const push = (layer, fn) => renderQueue.push({ layer: (layer === undefined || layer === null) ? 0 : layer, fn });\n',
+            '      const push = (layer, fn) => renderQueue.push({ layer: (layer === undefined || layer === null) ? 0 : layer, fn, obj: __gcQueueObj });\n',
             '\n',
             '      for (let l of lines) {\n',
             '        if (!l || !l.pA || !l.pB) continue;\n',
@@ -5411,6 +5421,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '        if (!angleObj) continue;\n',
             '        if (!isObjectActive(angleObj.vertex)) continue;\n',
             '        if (!isObjectActive(angleObj.line1) || !isObjectActive(angleObj.line2)) continue;\n',
+            '        __gcQueueObj = d;\n',
             '        push(d.layer, () => drawAngleArc(d));\n',
             '      }\n',
             '\n',
@@ -5466,7 +5477,15 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '      }\n',
             '\n',
             '      renderQueue.sort((a, b) => a.layer - b.layer);\n',
-            '      for (let item of renderQueue) item.fn();\n',
+            '      const __gcHook = window.__gcDrawHook;\n',
+            '      for (let item of renderQueue) {\n',
+            '        const o = item.obj, sh = o && (o.shift || __gcShifts[o.name]);\n',
+            '        if (__gcHook) __gcHook(o, true);\n',
+            '        // shift = (dx, dy) — сдвиг отрисовки объекта в единицах поля (любой тип)\n',
+            '        if (sh) { const s = fieldScale(); ctx.save(); ctx.translate(sh[0] * s, -sh[1] * s); item.fn(); ctx.restore(); }\n',
+            '        else item.fn();\n',
+            '      }\n',
+            '      if (__gcHook) __gcHook(null, false);\n',
             '    }\n',
             '\n',
             '    // ---- Задача 4: офскрин-буфер сцены + флаги dirty ----\n',
@@ -11776,6 +11795,8 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '\n',
 
             '    window.__gc2D_canvas = canvas;\n',
+            '    // полная перерисовка снаружи (визуальный редактор двигает объекты в живой сцене)\n',
+            '    window.__gcRedraw = function() { markSceneChanged(); if (typeof updateScene === \'function\') updateScene(); draw(); };\n',
             '    window.__gc2D_isActive = function() { return dragMode !== null || isPanning; };\n',
             '  })();\n',
             '<' + '/script>\n',

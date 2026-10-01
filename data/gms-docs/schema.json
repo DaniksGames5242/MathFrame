@@ -286,6 +286,15 @@
      "name": "interact",
      "kind": "bool",
      "label": "Перетаскивание"
+    },
+    {
+     "name": "shift",
+     "kind": "tuple",
+     "default": [
+      0,
+      0
+     ],
+     "label": "Сдвиг"
     }
    ],
    "template": {
@@ -463,6 +472,15 @@
       "event",
       "once"
      ]
+    },
+    {
+     "name": "shift",
+     "kind": "tuple",
+     "default": [
+      0,
+      0
+     ],
+     "label": "Сдвиг"
     }
    ],
    "template": {
@@ -594,6 +612,15 @@
      "name": "collideWithBoundary",
      "kind": "bool",
      "default": false
+    },
+    {
+     "name": "shift",
+     "kind": "tuple",
+     "default": [
+      0,
+      0
+     ],
+     "label": "Сдвиг"
     }
    ],
    "template": {
@@ -1415,6 +1442,15 @@
       "event",
       "once"
      ]
+    },
+    {
+     "name": "shift",
+     "kind": "tuple",
+     "default": [
+      0,
+      0
+     ],
+     "label": "Сдвиг"
     }
    ],
    "template": {
@@ -1445,6 +1481,15 @@
      "name": "lock",
      "kind": "bool",
      "default": false
+    },
+    {
+     "name": "shift",
+     "kind": "tuple",
+     "default": [
+      0,
+      0
+     ],
+     "label": "Сдвиг"
     }
    ],
    "template": {
@@ -1520,6 +1565,15 @@
       "event",
       "once"
      ]
+    },
+    {
+     "name": "shift",
+     "kind": "tuple",
+     "default": [
+      0,
+      0
+     ],
+     "label": "Сдвиг"
     }
    ],
    "template": {
@@ -1569,6 +1623,15 @@
       "event",
       "once"
      ]
+    },
+    {
+     "name": "shift",
+     "kind": "tuple",
+     "default": [
+      0,
+      0
+     ],
+     "label": "Сдвиг"
     }
    ],
    "template": {
@@ -1632,6 +1695,15 @@
       "event",
       "once"
      ]
+    },
+    {
+     "name": "shift",
+     "kind": "tuple",
+     "default": [
+      0,
+      0
+     ],
+     "label": "Сдвиг"
     }
    ],
    "template": {
@@ -1691,6 +1763,15 @@
       "event",
       "once"
      ]
+    },
+    {
+     "name": "shift",
+     "kind": "tuple",
+     "default": [
+      0,
+      0
+     ],
+     "label": "Сдвиг"
     }
    ],
    "template": {
@@ -1878,6 +1959,15 @@
       "event",
       "once"
      ]
+    },
+    {
+     "name": "shift",
+     "kind": "tuple",
+     "default": [
+      0,
+      0
+     ],
+     "label": "Сдвиг"
     }
    ],
    "template": {
@@ -1932,6 +2022,15 @@
       "event",
       "once"
      ]
+    },
+    {
+     "name": "shift",
+     "kind": "tuple",
+     "default": [
+      0,
+      0
+     ],
+     "label": "Сдвиг"
     }
    ],
    "template": {
@@ -2002,6 +2101,15 @@
       "event",
       "once"
      ]
+    },
+    {
+     "name": "shift",
+     "kind": "tuple",
+     "default": [
+      0,
+      0
+     ],
+     "label": "Сдвиг"
     }
    ],
    "template": {
@@ -2141,6 +2249,15 @@
     {
      "name": "labels",
      "kind": "list"
+    },
+    {
+     "name": "shift",
+     "kind": "tuple",
+     "default": [
+      0,
+      0
+     ],
+     "label": "Сдвиг"
     }
    ],
    "template": {
@@ -2277,6 +2394,15 @@
       "event",
       "once"
      ]
+    },
+    {
+     "name": "shift",
+     "kind": "tuple",
+     "default": [
+      0,
+      0
+     ],
+     "label": "Сдвиг"
     }
    ],
    "template": {
@@ -2420,6 +2546,15 @@
      "name": "collideWithBoundary",
      "kind": "bool",
      "default": false
+    },
+    {
+     "name": "shift",
+     "kind": "tuple",
+     "default": [
+      0,
+      0
+     ],
+     "label": "Сдвиг"
     }
    ],
    "template": {
@@ -2579,6 +2714,15 @@
      "name": "collideWithBoundary",
      "kind": "bool",
      "default": false
+    },
+    {
+     "name": "shift",
+     "kind": "tuple",
+     "default": [
+      0,
+      0
+     ],
+     "label": "Сдвиг"
     }
    ],
    "template": {
@@ -2769,6 +2913,15 @@
       "event",
       "once"
      ]
+    },
+    {
+     "name": "shift",
+     "kind": "tuple",
+     "default": [
+      0,
+      0
+     ],
+     "label": "Сдвиг"
     }
    ],
    "template": {
@@ -2873,6 +3026,15 @@
       "event",
       "once"
      ]
+    },
+    {
+     "name": "shift",
+     "kind": "tuple",
+     "default": [
+      0,
+      0
+     ],
+     "label": "Сдвиг"
     }
    ],
    "template": {
@@ -3028,6 +3190,15 @@
       "event",
       "once"
      ]
+    },
+    {
+     "name": "shift",
+     "kind": "tuple",
+     "default": [
+      0,
+      0
+     ],
+     "label": "Сдвиг"
     }
    ],
    "template": {
@@ -3109,6 +3280,15 @@
       "event",
       "once"
      ]
+    },
+    {
+     "name": "shift",
+     "kind": "tuple",
+     "default": [
+      0,
+      0
+     ],
+     "label": "Сдвиг"
     }
    ],
    "template": {
@@ -3213,10 +3393,19 @@
       "event",
       "once"
      ]
+    },
+    {
+     "name": "shift",
+     "kind": "tuple",
+     "default": [
+      0,
+      0
+     ],
+     "label": "Сдвиг"
     }
    ],
    "template": {
-    "code": "list hd$ = [1, 2, 2, 3, 3, 3, 4, 4, 5];\ndraw Histogram { name = \"hist$\"; data = hd$; bins = 5 }"
+    "code": "Function hd$() { return [1, 2, 2, 3, 3, 3, 4, 4, 5]; }\ndraw Histogram { name = \"hist$\"; data = hd$(); bins = 5 }"
    }
   },
   {
@@ -3320,6 +3509,15 @@
       "event",
       "once"
      ]
+    },
+    {
+     "name": "shift",
+     "kind": "tuple",
+     "default": [
+      0,
+      0
+     ],
+     "label": "Сдвиг"
     }
    ],
    "template": {
@@ -3405,6 +3603,15 @@
       "event",
       "once"
      ]
+    },
+    {
+     "name": "shift",
+     "kind": "tuple",
+     "default": [
+      0,
+      0
+     ],
+     "label": "Сдвиг"
     }
    ],
    "template": {
@@ -3555,6 +3762,15 @@
       "event",
       "once"
      ]
+    },
+    {
+     "name": "shift",
+     "kind": "tuple",
+     "default": [
+      0,
+      0
+     ],
+     "label": "Сдвиг"
     }
    ],
    "template": {
@@ -3727,6 +3943,15 @@
       "event",
       "once"
      ]
+    },
+    {
+     "name": "shift",
+     "kind": "tuple",
+     "default": [
+      0,
+      0
+     ],
+     "label": "Сдвиг"
     }
    ],
    "template": {
@@ -3814,6 +4039,15 @@
       "event",
       "once"
      ]
+    },
+    {
+     "name": "shift",
+     "kind": "tuple",
+     "default": [
+      0,
+      0
+     ],
+     "label": "Сдвиг"
     }
    ],
    "template": {
@@ -3970,6 +4204,15 @@
       "event",
       "once"
      ]
+    },
+    {
+     "name": "shift",
+     "kind": "tuple",
+     "default": [
+      0,
+      0
+     ],
+     "label": "Сдвиг"
     }
    ],
    "template": {
@@ -4052,6 +4295,15 @@
       "event",
       "once"
      ]
+    },
+    {
+     "name": "shift",
+     "kind": "tuple",
+     "default": [
+      0,
+      0
+     ],
+     "label": "Сдвиг"
     }
    ],
    "template": {
@@ -4124,6 +4376,15 @@
       "event",
       "once"
      ]
+    },
+    {
+     "name": "shift",
+     "kind": "tuple",
+     "default": [
+      0,
+      0
+     ],
+     "label": "Сдвиг"
     }
    ],
    "template": {
@@ -4264,6 +4525,15 @@
       "event",
       "once"
      ]
+    },
+    {
+     "name": "shift",
+     "kind": "tuple",
+     "default": [
+      0,
+      0
+     ],
+     "label": "Сдвиг"
     }
    ],
    "template": {
@@ -4486,10 +4756,19 @@
       "event",
       "once"
      ]
+    },
+    {
+     "name": "shift",
+     "kind": "tuple",
+     "default": [
+      0,
+      0
+     ],
+     "label": "Сдвиг"
     }
    ],
    "template": {
-    "code": "list cd$ = [3, 5, 2, 6, 4];\ndraw Chart { name = \"ch$\"; type = bar; data = cd$ }"
+    "code": "Function cd$() { return [3, 5, 2, 6, 4]; }\ndraw Chart { name = \"ch$\"; type = bar; data = cd$() }"
    }
   },
   {
@@ -4601,10 +4880,19 @@
       "event",
       "once"
      ]
+    },
+    {
+     "name": "shift",
+     "kind": "tuple",
+     "default": [
+      0,
+      0
+     ],
+     "label": "Сдвиг"
     }
    ],
    "template": {
-    "code": "list td$ = [\"корень\", [\"A\", [\"A1\"], [\"A2\"]], [\"B\"]];\ndraw Tree { name = \"tree$\"; data = td$ }"
+    "code": "Function td$() { return [\"корень\", [\"A\", [\"A1\"], [\"A2\"]], [\"B\"]]; }\ndraw Tree { name = \"tree$\"; data = td$() }"
    }
   },
   {
@@ -4737,10 +5025,19 @@
       "event",
       "once"
      ]
+    },
+    {
+     "name": "shift",
+     "kind": "tuple",
+     "default": [
+      0,
+      0
+     ],
+     "label": "Сдвиг"
     }
    ],
    "template": {
-    "code": "list tb$ = [[\"x\", \"y\"], [1, 2], [2, 4]];\ndraw Table { name = \"tab$\"; data = tb$ }"
+    "code": "Function tb$() { return [[\"x\", \"y\"], [1, 2], [2, 4]]; }\ndraw Table { name = \"tab$\"; data = tb$() }"
    }
   },
   {
@@ -4851,10 +5148,19 @@
       "event",
       "once"
      ]
+    },
+    {
+     "name": "shift",
+     "kind": "tuple",
+     "default": [
+      0,
+      0
+     ],
+     "label": "Сдвиг"
     }
    ],
    "template": {
-    "code": "draw Complex { name = \"cx$\"; f = \"z^2 - 1\"; mode = domain }"
+    "code": "Function cf$(z) { return cpow(z, 2); }\ndraw Complex { name = \"cx$\"; f = \"cf$\"; mode = domain }"
    }
   },
   {
@@ -4952,6 +5258,15 @@
       "event",
       "once"
      ]
+    },
+    {
+     "name": "shift",
+     "kind": "tuple",
+     "default": [
+      0,
+      0
+     ],
+     "label": "Сдвиг"
     }
    ],
    "template": {
@@ -5086,6 +5401,15 @@
       "event",
       "once"
      ]
+    },
+    {
+     "name": "shift",
+     "kind": "tuple",
+     "default": [
+      0,
+      0
+     ],
+     "label": "Сдвиг"
     }
    ],
    "template": {
@@ -5204,6 +5528,15 @@
       "event",
       "once"
      ]
+    },
+    {
+     "name": "shift",
+     "kind": "tuple",
+     "default": [
+      0,
+      0
+     ],
+     "label": "Сдвиг"
     }
    ],
    "template": {
@@ -5275,10 +5608,19 @@
       "event",
       "once"
      ]
+    },
+    {
+     "name": "shift",
+     "kind": "tuple",
+     "default": [
+      0,
+      0
+     ],
+     "label": "Сдвиг"
     }
    ],
    "template": {
-    "code": "list im$ = [[0.5, 0, 0, 0.5, 0, 0], [0.5, 0, 0, 0.5, 0.5, 0], [0.5, 0, 0, 0.5, 0.25, 0.5]];\ndraw IFS { name = \"ifs$\"; maps = im$; iterations = 20000 }"
+    "code": "Function im$() { return [[0.5, 0, 0, 0.5, 0, 0], [0.5, 0, 0, 0.5, 0.5, 0], [0.5, 0, 0, 0.5, 0.25, 0.5]]; }\ndraw IFS { name = \"ifs$\"; maps = im$(); iterations = 20000 }"
    }
   },
   {
@@ -5392,6 +5734,15 @@
       "event",
       "once"
      ]
+    },
+    {
+     "name": "shift",
+     "kind": "tuple",
+     "default": [
+      0,
+      0
+     ],
+     "label": "Сдвиг"
     }
    ],
    "template": {
@@ -5498,10 +5849,19 @@
       "event",
       "once"
      ]
+    },
+    {
+     "name": "shift",
+     "kind": "tuple",
+     "default": [
+      0,
+      0
+     ],
+     "label": "Сдвиг"
     }
    ],
    "template": {
-    "code": "list vs$ = [[-3, -2], [2, -1], [0, 3], [4, 2]];\ndraw Voronoi { name = \"vor$\"; sites = vs$; mode = voronoi }"
+    "code": "Function vs$() { return [[-3, -2], [2, -1], [0, 3], [4, 2], [-4, 3]]; }\ndraw Voronoi { name = \"vor$\"; sites = vs$(); mode = voronoi }"
    }
   },
   {
@@ -5569,10 +5929,19 @@
       "event",
       "once"
      ]
+    },
+    {
+     "name": "shift",
+     "kind": "tuple",
+     "default": [
+      0,
+      0
+     ],
+     "label": "Сдвиг"
     }
    ],
    "template": {
-    "code": "list fp$ = [[3, 0], [0, 3], [-3, 0], [0, -3]];\ndraw Fourier { name = \"fou$\"; path = fp$; terms = 16 }"
+    "code": "Function fp$() { return [[3, 0], [2, 2], [0, 3], [-2, 2], [-3, 0], [-2, -2], [0, -3], [2, -2]]; }\ndraw Fourier { name = \"fou$\"; path = fp$(); terms = 8 }"
    }
   },
   {
@@ -5659,10 +6028,19 @@
       "event",
       "once"
      ]
+    },
+    {
+     "name": "shift",
+     "kind": "tuple",
+     "default": [
+      0,
+      0
+     ],
+     "label": "Сдвиг"
     }
    ],
    "template": {
-    "code": "list dn$ = [[\"q0\", -4, 0], [\"q1\", 0, 0], [\"q2\", 4, 0]];\nlist da$ = [[\"q0\", \"q1\", \"a\"], [\"q1\", \"q2\", \"b\"]];\ndraw Diagram { name = \"dia$\"; nodes = dn$; arrows = da$ }"
+    "code": "Function dn$() { return [[\"q0\", -4, 0], [\"q1\", 0, 0], [\"q2\", 4, 0]]; }\nFunction da$() { return [[\"q0\", \"q1\", \"a\"], [\"q1\", \"q2\", \"b\"]]; }\ndraw Diagram { name = \"dia$\"; nodes = dn$(); arrows = da$() }"
    }
   },
   {
@@ -5898,7 +6276,7 @@
     }
    ],
    "template": {
-    "code": "list sd$ = [[0, 0, 0], [1, 2, 1], [2, 1, 3], [-1, 1, -2]];\ndraw Scatter3D { name = \"sc$\"; data = sd$ }"
+    "code": "Function sd$() { return [[0, 0, 0], [1, 2, 1], [2, 1, 3], [-1, 1, -2]]; }\ndraw Scatter3D { name = \"sc$\"; data = sd$() }"
    }
   },
   {
@@ -6033,7 +6411,7 @@
     }
    ],
    "template": {
-    "code": "list hd$ = [[0, 0], [1, 1], [1, 2], [2, 2], [2, 1]];\ndraw Histogram3D { name = \"h3$\"; data = hd$ }"
+    "code": "Function hd$() { return [[0, 0], [1, 1], [1, 2], [2, 2], [2, 1]]; }\ndraw Histogram3D { name = \"h3$\"; data = hd$() }"
    }
   }
  ],

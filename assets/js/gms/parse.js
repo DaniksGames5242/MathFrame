@@ -3818,6 +3818,9 @@ function parseCommands(codeBlock, vars) {
                 }
                 else if (def.fixedDim) parsed.dim = def.fixedDim;
                 parsed.__pos = b.start; // всегда — используется во всех последующих проверках ссылок для указания места ошибки
+                // shift = (dx, dy) — общий для всех объектов сдвиг отрисовки (2D), в единицах поля
+                const shm = matchField(b.body, /(?:^|[^A-Za-z0-9_])shift\s*=\s*\(\s*(-?\d*\.?\d+)\s*,\s*(-?\d*\.?\d+)\s*\)/);
+                if (shm) parsed.shift = [parseFloat(shm[1]), parseFloat(shm[2])];
                 def.target.push(parsed);
             }
             else {

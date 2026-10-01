@@ -167,13 +167,15 @@ const COMMON_LABELS = {
     edge: 'Отрезок', line: 'Прямая', figure: 'Фигура', circle: 'Окружность', min: 'Минимум', max: 'Максимум',
     step: 'Шаг', default: 'Значение по умолчанию', variable: 'Переменная', action: 'Действие',
     wireframe: 'Каркас', showInfo: 'Показывать сведения', hideSource: 'Скрыть исходные', grid: 'Сетка',
-    billboard: 'Всегда к камере', world: 'В мировых координатах', quality: 'Качество', palette: 'Палитра',
+    billboard: 'Всегда к камере', shift: 'Сдвиг', world: 'В мировых координатах', quality: 'Качество', palette: 'Палитра',
 };
 
 const types = [];
 for (const d of defs) {
     const fields = extractFields(fnBody(d.parse));
     for (const e of EXTRA[d.label] || []) if (!fields.has(e.name)) fields.set(e.name, { ...e });
+    // shift = (dx, dy) — общий сдвиг отрисовки любого 2D-объекта (parse.js, render-2d.js)
+    if (d.dim !== '3D' && !fields.has('shift')) fields.set('shift', { name: 'shift', kind: 'tuple', default: [0, 0] });
     const arr = [...fields.values()];
     for (const f of arr) {
         const en = ENUMS[d.label + '.' + f.name];
