@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="robots" content="noindex" />
+<script>/* MathFrame: тема до первого кадра (см. common.js › initTheme) */(function(){var d=document.documentElement;try{var t=localStorage.getItem('theme');if(t==='light'||(t!=='dark'&&!matchMedia('(prefers-color-scheme: dark)').matches))d.classList.add('light');}catch(e){}})();</script>
+<title>Страница не найдена — MathFrame</title>
+<!-- Vercel отдаёт этот файл (404.html в корне) на любой несуществующий адрес, на любой
+     глубине пути, — поэтому все ссылки на ресурсы только абсолютные. -->
+<link rel="stylesheet" href="/assets/css/common.css" />
+<style>
+main{
+  max-width:980px;margin:0 auto;
+  padding:clamp(1.5rem,5vw,3.5rem) clamp(1rem,4vw,1.5rem) 4rem;
+  padding-left:max(clamp(1rem,4vw,1.5rem),var(--safe-l));
+  padding-right:max(clamp(1rem,4vw,1.5rem),var(--safe-r));
+  padding-bottom:calc(4rem + var(--safe-b));
+}
+.nf{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:clamp(1.5rem,4vw,3rem);align-items:center}
+.nf-kicker{display:inline-flex;align-items:center;gap:.55rem;font-family:ui-monospace,'SF Mono',Menlo,Consolas,monospace;
+  font-size:.74rem;letter-spacing:.16em;text-transform:uppercase;color:var(--text-tertiary)}
+.nf-kicker::before{content:'';width:18px;height:3px;background:repeating-linear-gradient(90deg,var(--accent) 0 3px,transparent 3px 6px)}
+.nf h1{font-family:var(--font-display);font-size:clamp(4.5rem,15vw,8.5rem);line-height:.95;letter-spacing:-.03em;margin:.6rem 0 .4rem}
+.nf h1 em{font-family:var(--font-math);font-style:italic;font-weight:400;color:var(--accent)}
+.nf-lead{font-size:1.15rem;color:var(--text-primary);margin:0 0 .5rem}
+.nf-text{color:var(--text-secondary);line-height:1.6;margin:0 0 1rem;max-width:46ch}
+.nf-path{font-family:ui-monospace,'SF Mono',Menlo,Consolas,monospace;font-size:.85rem;color:var(--text-secondary);
+  background:var(--bg-sunken);border:1px solid var(--border);border-radius:8px;padding:.45rem .7rem;display:inline-block;
+  max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:bottom}
+.nf-formula{font-family:var(--font-math);font-style:italic;font-size:1.05rem;color:var(--text-secondary);margin:1.1rem 0 1.4rem}
+.nf-actions{display:flex;flex-wrap:wrap;gap:.55rem}
+.nf-btn{display:inline-flex;align-items:center;gap:.4rem;padding:.6rem 1rem;border-radius:10px;font-size:.92rem;text-decoration:none;
+  border:1px solid var(--border-strong);color:var(--text-primary);background:var(--bg-card);transition:border-color var(--t),background var(--t)}
+.nf-btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+@media (hover:hover){.nf-btn:not(.primary):hover{border-color:var(--accent);background:var(--accent-soft)}}
+.nf-plot{background:var(--bg-card);border:1px solid var(--border);border-radius:16px;padding:.6rem;position:relative}
+.nf-plot svg{display:block;width:100%;height:auto}
+.nf-plot .cap{position:absolute;left:1rem;bottom:.7rem;font-size:.78rem;color:var(--text-tertiary)}
+.grid-l{stroke:var(--border)}
+.axis-l{stroke:var(--text-tertiary)}
+.tick{fill:var(--text-tertiary);font:10px ui-monospace,Menlo,Consolas,monospace}
+.curve{fill:none;stroke:var(--accent);stroke-width:2.6;stroke-linecap:round}
+.hole{fill:var(--bg-card);stroke:var(--accent);stroke-width:2.4}
+.hole-label{fill:var(--text-primary);font:italic 15px var(--font-math)}
+.probe{fill:var(--accent)}
+.probe-line{stroke:var(--accent);stroke-dasharray:3 4;opacity:.6}
+.nf-links{margin-top:clamp(2rem,5vw,3rem);display:grid;gap:.7rem;grid-template-columns:repeat(auto-fit,minmax(min(100%,160px),1fr))}
+.nf-links a{display:block;text-decoration:none;background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:.85rem 1rem;color:var(--text-primary);transition:border-color var(--t),background var(--t)}
+@media (hover:hover){.nf-links a:hover{border-color:var(--accent);background:var(--accent-soft)}}
+.nf-links b{display:block;font-size:.95rem;margin-bottom:.15rem}
+.nf-links span{font-size:.8rem;color:var(--text-tertiary)}
+@media (max-width:760px){.nf{grid-template-columns:1fr}}
+@media (prefers-reduced-motion:reduce){.probe,.probe-line{display:none}}
+</style>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
+</head>
+<body data-page="404">
+
+<div id="app-header"></div>
+
+<main>
+  <section class="nf">
+    <div>
+      <span class="nf-kicker">Ошибка 404</span>
+      <h1>4<em>0</em>4</h1>
+      <p class="nf-lead">Функция не определена в этой точке.</p>
+      <p class="nf-text">Страницы по адресу <span class="nf-path" id="nfPath">/</span> нет — она удалена, переименована или в ссылке опечатка.</p>
+      <p class="nf-formula">x = 404 ∉ D(f) — выколотая точка: слева и справа всё есть, а здесь пусто.</p>
+      <div class="nf-actions">
+        <a class="nf-btn primary" href="/">На главную</a>
+        <a class="nf-btn" href="/spravochnik/">Открыть справочник</a>
+        <a class="nf-btn" href="#" id="nfBack">← Назад</a>
+      </div>
+    </div>
+
+    <figure class="nf-plot" aria-label="График функции с выколотой точкой">
+      <svg id="nfSvg" viewBox="0 0 420 300" role="img"></svg>
+      <figcaption class="cap">f(x) = (x² − 404x) / (x − 404)</figcaption>
+    </figure>
+  </section>
+
+  <nav class="nf-links" aria-label="Разделы сайта">
+    <a href="/spravochnik/"><b>Справочник</b><span>Темы, определения и интерактивные примеры</span></a>
+    <a href="/mini-services/"><b>Мини-сервисы</b><span>Калькуляторы и визуализации</span></a>
+    <a href="/playground/"><b>Песочница</b><span>Сцены на языке GMS и конструктор</span></a>
+    <a href="/ai-agent/"><b>AI-агент</b><span>Объяснение и решение задач</span></a>
+    <a href="/forum/"><b>Форум</b><span>Вопросы и обсуждения</span></a>
+  </nav>
+</main>
+
+<div id="app-footer"></div>
+
+<script>
+(function () {
+  // Запрошенный адрес — в текст (textContent, без разметки).
+  var path = decodeURI(location.pathname + location.search);
+  try { document.getElementById('nfPath').textContent = path; } catch (e) {}
+  document.getElementById('nfBack').addEventListener('click', function (e) {
+    e.preventDefault();
+    if (history.length > 1 && document.referrer) history.back(); else location.href = '/';
+  });
+
+  // График f(x) = x (после сокращения) с выколотой точкой «404»: подписи осей —
+  // в «сотнях», чтобы точка разрыва пришлась на x = 4,04 ≈ середина поля.
+  var svg = document.getElementById('nfSvg'), NS = 'http://www.w3.org/2000/svg';
+  var W = 420, H = 300, x0 = 0, x1 = 8, y0 = -1, y1 = 7;
+  function X(x) { return 20 + (x - x0) / (x1 - x0) * (W - 40); }
+  function Y(y) { return H - 20 - (y - y0) / (y1 - y0) * (H - 40); }
+  function el(t, a, p) { var e = document.createElementNS(NS, t); for (var k in a) e.setAttribute(k, a[k]); (p || svg).appendChild(e); return e; }
+  for (var gx = x0; gx <= x1; gx++) el('line', { x1: X(gx), y1: Y(y0), x2: X(gx), y2: Y(y1), 'class': 'grid-l' });
+  for (var gy = y0; gy <= y1; gy++) el('line', { x1: X(x0), y1: Y(gy), x2: X(x1), y2: Y(gy), 'class': 'grid-l' });
+  el('line', { x1: X(x0), y1: Y(0), x2: X(x1), y2: Y(0), 'class': 'axis-l', 'stroke-width': 1.4 });
+  el('line', { x1: X(0) + 1, y1: Y(y0), x2: X(0) + 1, y2: Y(y1), 'class': 'axis-l', 'stroke-width': 1.4 });
+  for (var t = 1; t < x1; t++) el('text', { x: X(t), y: Y(0) + 14, 'text-anchor': 'middle', 'class': 'tick' }).textContent = t * 100;
+  // кривая с плавной «волной», но через точку (4.04; 4.04)
+  function f(x) { return x + 0.55 * Math.sin((x - 4.04) * 1.6); }
+  var d = '';
+  for (var i = 0; i <= 200; i++) { var x = x0 + 0.15 + (x1 - x0 - 0.3) * i / 200; d += (i ? 'L' : 'M') + X(x).toFixed(1) + ' ' + Y(f(x)).toFixed(1); }
+  var curve = el('path', { d: d, 'class': 'curve' });
+  var hx = 4.04, hy = f(hx);
+  el('line', { x1: X(hx), y1: Y(hy), x2: X(hx), y2: Y(0), 'class': 'probe-line' });
+  el('circle', { cx: X(hx), cy: Y(hy), r: 7, 'class': 'hole' });
+  el('text', { x: X(hx) + 12, y: Y(hy) + 22, 'class': 'hole-label' }).textContent = 'x = 404';
+  // точка, которая бежит по графику и «перепрыгивает» разрыв
+  var line = el('line', { 'class': 'probe-line' }), dot = el('circle', { r: 4.5, 'class': 'probe' });
+  var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var len = curve.getTotalLength ? curve.getTotalLength() : 0;
+  function frame(ts) {
+    var s = (ts / 6000) % 1, xp = x0 + 0.15 + (x1 - x0 - 0.3) * s;
+    var hidden = Math.abs(xp - hx) < 0.09;
+    dot.setAttribute('cx', X(xp)); dot.setAttribute('cy', Y(f(xp)));
+    dot.style.opacity = hidden ? 0 : 1;
+    line.setAttribute('x1', X(xp)); line.setAttribute('x2', X(xp)); line.setAttribute('y1', Y(f(xp))); line.setAttribute('y2', Y(0));
+    line.style.opacity = hidden ? 0 : .5;
+    requestAnimationFrame(frame);
+  }
+  if (!reduce && len) requestAnimationFrame(frame); else { dot.remove(); line.remove(); }
+})();
+</script>
+<script>var PAGE_ROOT = '/';</script>
+<script src="/assets/js/auth.js"></script>
+<script src="/assets/js/common.js"></script>
+</body>
+</html>
