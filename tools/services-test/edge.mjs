@@ -20,29 +20,36 @@ for (const svc of ['conv', 'geo', 'more']) {
   const list = await screens(p0, svc); await p0.close();
   for (const path of list) {
     if (path[1] === 'Задача' || path[1] === 'Случайность') continue;
-    for (const v of VALUES) {
-      const p = await b.newPage({ viewport: { width: 1200, height: 1400 } });
-      const errs = []; p.on('pageerror', e => { if (!/firebase/.test(String(e))) errs.push(String(e).slice(0, 140)); });
-      await p.goto(base + '#' + svc); await p.waitForTimeout(900);
+    const p = await b.newPage({ viewport: { width: 1200, height: 1400 } });
+    const errs = []; p.on('pageerror', e => { if (!/firebase/.test(String(e))) errs.push(String(e).slice(0, 140)); });
+    process.stderr.write('· ' + path.join(' / ') + '\n');
+    try {
+      await p.goto(base + '#' + svc, { timeout: 15000 }); await p.waitForTimeout(800);
       await p.evaluate(([c, s]) => {
         const cl = (sel, t) => { const e = [...document.querySelectorAll(sel)].find(x => x.textContent.trim() === t); if (e) e.click(); };
         if (c) cl('#work .conv-chips > .conv-chip', c); if (s) cl('#work .more-toolrow .geo-subchip', s);
       }, [path[1], path[2]]);
       await p.waitForTimeout(200);
-      await p.evaluate(v => {
-        for (const el of document.querySelectorAll('#work input[type=text], #work input[type=number], #work input:not([type]), #work textarea')) {
-          if (!el.offsetParent || el.closest('.gp-algai')) continue;
-          el.value = v; el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true }));
-        }
-      }, v);
-      await p.waitForTimeout(350);
-      const txt = await p.evaluate(() => document.querySelector('#work').innerText);
-      const m = txt.match(/NaN|undefined|Infinity|\[object/);
-      if (m || errs.length) issues.push(path.join(' / ') + '  ввод «' + v + '»: ' + (errs.length ? errs.join('; ') : '…' + txt.slice(Math.max(0, m.index - 50), m.index + 30).replace(/\s+/g, ' ') + '…'));
-      await p.close();
-    }
+      for (const v of VALUES) {
+        errs.length = 0;
+        const done = p.evaluate(v => {
+          for (const el of document.querySelectorAll('#work input[type=text], #work input[type=number], #work input:not([type]), #work textarea')) {
+            if (!el.offsetParent || el.closest('.gp-algai')) continue;
+            el.value = v; el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+        }, v);
+        // вкладка «повисла» (бесконечный цикл) — evaluate не вернётся
+        const hang = await Promise.race([done.then(() => false), new Promise(r => setTimeout(() => r(true), 8000))]);
+        if (hang) { const line = path.join(' / ') + '  ввод «' + v + '»: ЗАВИСАНИЕ (вкладка не отвечает)'; issues.push(line); console.log(line); break; }
+        await p.waitForTimeout(250);
+        const txt = await Promise.race([p.evaluate(() => document.querySelector('#work').innerText), new Promise(r => setTimeout(() => r('ЗАВИСАНИЕ'), 8000))]);
+        if (txt === 'ЗАВИСАНИЕ') { const line = path.join(' / ') + '  ввод «' + v + '»: ЗАВИСАНИЕ'; issues.push(line); console.log(line); break; }
+        const m = txt.match(/NaN|undefined|Infinity|\[object/);
+        if (m || errs.length) { const line = path.join(' / ') + '  ввод «' + v + '»: ' + (errs.length ? errs.join('; ') : '…' + txt.slice(Math.max(0, m.index - 50), m.index + 30).replace(/\s+/g, ' ') + '…'); issues.push(line); console.log(line); }
+      }
+    } catch (e) { console.log('сбой теста на ' + path.join(' / ') + ': ' + String(e).slice(0, 100)); }
+    await Promise.race([p.close(), new Promise(r => setTimeout(r, 3000))]);
   }
 }
-console.log(issues.length ? issues.join('\n') : 'проблем нет');
 console.log('ИТОГО проблем: ' + issues.length);
 await b.close();

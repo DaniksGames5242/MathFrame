@@ -3072,14 +3072,17 @@
     var out = el('div', 'out', c);
     function calc() {
       out.innerHTML = '';
-      var from = Math.round(moreNum(iFrom)); if (from === null) return;
+      var from0 = moreNum(iFrom); if (from0 === null) return;
+      var from = Math.round(from0);
       var toRaw = String(iTo.value).trim().toLowerCase();
       var to = (toRaw === 'inf' || toRaw === '∞') ? Infinity : Math.round(parseFloat(toRaw));
       var lin = mf.field.expr(); if (!lin.trim()) return;
       var comp = MFMath.compile(lin, 'n'); if (!comp) return;
       var maxIter = 200000, sum = 0, n = from, count = 0, converged = false;
       var infinite = to === Infinity;
-      while (infinite ? count < maxIter : n <= to) {
+      if (!infinite && !isFinite(to)) { el('div', 'err', out, 'верхняя граница — число или inf'); return; }
+      var capped = !infinite && to - from + 1 > maxIter;   // слишком много членов — не вешаем вкладку
+      while (count < maxIter && (infinite || n <= to)) {
         var v = comp.at(n);
         if (!isFinite(v)) { el('div','err',out,'ряд расходится'); return; }
         sum += v;
@@ -3088,6 +3091,7 @@
       }
       moreResults(out, [['сумма (≈' + count + ' членов)', sum]]);
       if (infinite && !converged) el('div', 'sub', out, 'похоже, ряд сходится медленно или расходится — результат приближённый');
+      if (capped) el('div', 'sub', out, 'членов больше ' + maxIter + ' — посчитаны первые ' + maxIter + ', результат приближённый');
     }
     // числовые поля тоже пересчитывают результат (не только формула)
     c.querySelectorAll('input').forEach(function (i) { i.addEventListener('input', calc); });
@@ -3282,7 +3286,8 @@
     var iA = moreField(g, 'a', '7'), iB = moreField(g, 'b (степень)', '128'), iM = moreField(g, 'mod m', '13');
     var out = el('div', 'out', c);
     function modPowF(base,exp,mod){ base=((base%mod)+mod)%mod; var r=1; while(exp>0){ if(exp&1) r=(r*base)%mod; exp=Math.floor(exp/2); base=(base*base)%mod; } return r; }
-    function extGCD(a,b){ if(b===0) return [a,1,0]; var r=extGCD(b,a%b); return [r[0], r[2], r[1]-Math.floor(a/b)*r[2]]; }
+    // итеративно — рекурсия на огромных/дробных числах переполняла стек
+    function extGCD(a,b){ var x0=1,y0=0,x1=0,y1=1; while(b!==0){ var q=Math.floor(a/b), t=a-q*b; a=b; b=t; t=x0-q*x1; x0=x1; x1=t; t=y0-q*y1; y0=y1; y1=t; } return [a,x0,y0]; }
     function calc() {
       out.innerHTML=''; var a=Math.round(moreNum(iA)), b=Math.round(moreNum(iB)), m=Math.round(moreNum(iM)); if(!a||!m||b===null) return;
       var res = [['a mod m', ((a%m)+m)%m], ['a^b mod m', modPowF(a,b,m)]];
@@ -3301,12 +3306,16 @@
     var r2=moreField(g2,'r₂','3'), m2=moreField(g2,'m₂','5');
     var r3=moreField(g2,'r₃ (можно 0, если не нужно)','2'), m3=moreField(g2,'m₃ (можно 1)','7');
     var out = el('div', 'out', c);
-    function extGCD(a,b){ if(b===0) return [a,1,0]; var r=extGCD(b,a%b); return [r[0], r[2], r[1]-Math.floor(a/b)*r[2]]; }
+    // итеративно — рекурсия на огромных/дробных числах переполняла стек
+    function extGCD(a,b){ var x0=1,y0=0,x1=0,y1=1; while(b!==0){ var q=Math.floor(a/b), t=a-q*b; a=b; b=t; t=x0-q*x1; x0=x1; x1=t; t=y0-q*y1; y0=y1; y1=t; } return [a,x0,y0]; }
     function modInv(a,m){ var r=extGCD(((a%m)+m)%m,m); return r[0]!==1 ? null : ((r[1]%m)+m)%m; }
     function calc() {
       out.innerHTML='';
-      var rs=[moreNum(r1),moreNum(r2),moreNum(r3)].map(Math.round), ms=[moreNum(m1),moreNum(m2),moreNum(m3)].map(Math.round);
-      if (rs.some(function(v){return v===null;}) || ms.some(function(v){return !v;})) return;
+      var rawR=[moreNum(r1),moreNum(r2),moreNum(r3)], rawM=[moreNum(m1),moreNum(m2),moreNum(m3)];
+      if (rawR.concat(rawM).some(function(v){return v===null;})) return;
+      if (rawR.concat(rawM).some(function(v){return !Number.isInteger(v);})) { el('div','err',out,'остатки и модули — целые числа'); return; }
+      if (rawM.some(function(v){return v<1 || v>1e7;})) { el('div','err',out,'модули — натуральные числа до 10 000 000'); return; }
+      var rs=rawR, ms=rawM;
       var M2 = ms.reduce(function(a,b){return a*b;},1);
       var x = 0;
       for (var i=0;i<ms.length;i++) {
@@ -3326,8 +3335,17 @@
     var iN = moreField(g, 'n', '10'), iK = moreField(g, 'k', '3');
     var out = el('div', 'out', c);
     function calc() {
-      out.innerHTML=''; var n=Math.round(moreNum(iN)), k=Math.round(moreNum(iK)); if(n===null||k===null||k>n||n>170) return;
-      moreResults(out, [['P(n) — перестановки n', factorialF(n)], ['A(n,k) — размещения', factorialF(n)/factorialF(n-k)], ['C(n,k) — сочетания', factorialF(n)/(factorialF(k)*factorialF(n-k))]]);
+      out.innerHTML=''; var n=moreNum(iN), k=moreNum(iK); if(n===null||k===null) return;
+      if (!Number.isInteger(n) || !Number.isInteger(k) || n < 0 || k < 0) { el('div','err',out,'n и k — целые неотрицательные числа'); return; }
+      if (k > n) { el('div','err',out,'k не может быть больше n'); return; }
+      if (n > 1000) { el('div','err',out,'n — не больше 1000'); return; }
+      // точно, в BigInt: n! при n > 20 уже не помещается в обычное число
+      var N = BigInt(n), K = BigInt(k), fact = function (m) { var r = 1n; for (var i = 2n; i <= m; i++) r *= i; return r; };
+      var A = 1n; for (var i = N - K + 1n; i <= N; i++) A *= i;
+      var Cn = A / fact(K);
+      var show = function (b) { var t = b.toString(); return t.length > 30 ? t.slice(0, 12) + '…' + t.slice(-6) + ' (' + t.length + ' цифр)' : t; };
+      var dl = el('dl', 'kv', out);
+      [['P(n) — перестановки n', fact(N)], ['A(n,k) — размещения', A], ['C(n,k) — сочетания', Cn]].forEach(function (r) { el('dt', null, dl, r[0]); el('dd', null, dl, show(r[1])); });
     }
     [iN,iK].forEach(function(i){i.addEventListener('input',calc);}); calc();
   }
@@ -3335,10 +3353,17 @@
     var g = el('div', 'grid2', c);
     var iN = moreField(g, 'испытаний n', '10'), iK = moreField(g, 'успехов k', '5'), iP = moreField(g, 'p успеха', '0.5');
     var out = el('div', 'out', c);
-    function C(n,k){ return factorialF(n)/(factorialF(k)*factorialF(n-k)); }
+    // через логарифмы — без переполнения факториалов при больших n
+    function logC(n,k){ var s=0; for(var i=1;i<=k;i++) s+=Math.log(n-k+i)-Math.log(i); return s; }
     function calc() {
-      out.innerHTML=''; var n=Math.round(moreNum(iN)), k=Math.round(moreNum(iK)), p=moreNum(iP); if(n===null||k===null||p===null||n>170) return;
-      moreResults(out, [['P(X=k)', C(n,k)*Math.pow(p,k)*Math.pow(1-p,n-k)]]);
+      out.innerHTML=''; var n=moreNum(iN), k=moreNum(iK), p=moreNum(iP); if(n===null||k===null||p===null) return;
+      if (!Number.isInteger(n) || !Number.isInteger(k) || n < 0 || k < 0) { el('div','err',out,'n и k — целые неотрицательные числа'); return; }
+      if (k > n) { el('div','err',out,'успехов не может быть больше, чем испытаний'); return; }
+      if (p < 0 || p > 1) { el('div','err',out,'вероятность p — от 0 до 1'); return; }
+      if (n > 1e7) { el('div','err',out,'слишком много испытаний (до 10 000 000)'); return; }
+      var kk = Math.min(k, n - k);
+      var val = (p === 0) ? (k === 0 ? 1 : 0) : (p === 1) ? (k === n ? 1 : 0) : Math.exp(logC(n, kk) + k*Math.log(p) + (n-k)*Math.log(1-p));
+      moreResults(out, [['P(X=k)', val]]);
     }
     [iN,iK,iP].forEach(function(i){i.addEventListener('input',calc);}); calc();
   }
@@ -3434,9 +3459,12 @@
     var iN = moreField(g, 'n (индекс, F₀=0, F₁=1)', '10');
     var out = el('div', 'out', c);
     function calc() {
-      out.innerHTML=''; var n=Math.round(moreNum(iN)); if(n===null||n<0||n>1000) return;
-      var a=0,b=1; for (var i=0;i<n;i++){ var t=a+b; a=b; b=t; }
-      el('div','big',out, 'F' + n + ' = ' + (n>75 ? a.toExponential(6) : a));
+      out.innerHTML=''; var n=moreNum(iN); if(n===null) return;
+      if (!Number.isInteger(n) || n < 0) { el('div','err',out,'n — целое неотрицательное число'); return; }
+      if (n > 5000) { el('div','err',out,'n — не больше 5000'); return; }
+      var a=0n,b=1n; for (var i=0;i<n;i++){ var t=a+b; a=b; b=t; }
+      var str = a.toString();
+      el('div','big',out, 'F' + n + ' = ' + (str.length > 40 ? str.slice(0, 15) + '…' + str.slice(-8) + ' (' + str.length + ' цифр)' : str));
     }
     iN.addEventListener('input', calc); calc();
   }
@@ -3637,7 +3665,9 @@
     var iN = moreField(g, 'число строк', '8');
     var out = el('div', 'out', c);
     function calc() {
-      out.innerHTML=''; var n = Math.round(moreNum(iN)); if (!n || n<1 || n>20) return;
+      out.innerHTML=''; var n0 = moreNum(iN); if (n0 === null) return;
+      if (!Number.isInteger(n0) || n0 < 1 || n0 > 20) { el('div','err',out,'число строк — от 1 до 20'); return; }
+      var n = n0;
       var wrap = el('div', 'pascal-wrap', out);
       var row = [1];
       for (var i = 0; i < n; i++) {
@@ -3660,7 +3690,10 @@
     var iN = moreField(g, 'число', '28');
     var out = el('div', 'out', c);
     function calc() {
-      out.innerHTML=''; var n = Math.round(moreNum(iN)); if (!n || n<1) return;
+      out.innerHTML=''; var n0 = moreNum(iN); if (n0 === null) return;
+      if (!Number.isInteger(n0) || n0 < 1) { el('div','err',out,'нужно натуральное число'); return; }
+      if (n0 > 1e12) { el('div','err',out,'слишком большое число: делители ищутся для чисел до 10¹²'); return; }
+      var n = n0;
       var divs = [];
       for (var i = 1; i*i <= n; i++) if (n % i === 0) { divs.push(i); if (i !== n/i) divs.push(n/i); }
       divs.sort(function(a,b){return a-b;});
