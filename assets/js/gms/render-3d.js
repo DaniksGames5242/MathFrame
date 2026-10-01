@@ -3,7 +3,7 @@
 // Часть компилятора GMS; точка входа — assets/js/gms-compiler.js.
 
 import { THEME_PRESETS, jsonForScript } from './preprocess.js';
-import { gcSharedExprParserLines, gcSharedMarkdownKatexLines, gcSharedUIBuilderLines } from './runtime-shared.js';
+import { gcSharedExprParserLines, gcSharedMarkdownKatexLines, gcSharedUIBuilderLines, gcSharedControlsCss } from './runtime-shared.js';
 
 
 // ========== ГЕНЕРАЦИЯ 3D-СЦЕНЫ (СТЕРЕОМЕТРИЯ) ==========
@@ -185,6 +185,7 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '    }\n',
             '    .controls label { font-size:0.85rem; color:var(--gc-control-text); }\n',
             '    .controls .ui-item { display:flex; align-items:center; gap:6px; }\n',
+            ...gcSharedControlsCss(),
             // .info-panel — тот же обычный читаемый текст, что и в 2D (см. generate2D):
             // без моноширинного шрифта и фоновой «плашки», нормальный шрифт страницы.
             '    .info-panel { font-size:', String(descSize), 'rem; margin:0.8rem auto 0; max-width:800px; line-height:1.6; color:var(--gc-desc); position:relative; }\n',

@@ -2613,12 +2613,14 @@ function parseRegionBlock(block, vars) {
     if (!name) return null;
     const fM = block.match(/(?:^|[^A-Za-z0-9_])f\s*=\s*"([^"]*)"/);
     if (!fM) return null;
-    const opM = block.match(/(?:^|[^A-Za-z0-9_])op\s*=\s*"?(<=|>=|<|>)"?/);
+    // op = "=" — не область, а сама линия f(x, y) = level (неявная кривая).
+    const opM = block.match(/(?:^|[^A-Za-z0-9_])op\s*=\s*"?(<=|>=|<|>|=)"?/);
     const f2M = block.match(/(?:^|[^A-Za-z0-9_])f2\s*=\s*"([^"]*)"/);
     const op2M = block.match(/(?:^|[^A-Za-z0-9_])op2\s*=\s*"?(<=|>=|<|>)"?/);
     const combineM = block.match(/(?:^|[^A-Za-z0-9_])combine\s*=\s*"?(and|or)"?/);
-    const color = parseColorField(block, vars, 'color', '#4a90d9');
+    const color = parseColorField(block, vars, 'color', (opM && opM[1] === '=') ? null : '#4a90d9');
     const colorExpr = captureExprField(block, 'color');
+    const thickness = parseNumberField(block, vars, 'thickness', 2.5, false);
     const opacity = parseNumberField(block, vars, 'opacity', 0.35, false);
     const opacityExpr = captureExprField(block, 'opacity');
     const quality = parseNumberField(block, vars, 'quality', 3, false);
@@ -2655,7 +2657,7 @@ function parseRegionBlock(block, vars) {
         func2Name: f2M ? f2M[1] : null, op2: op2M ? op2M[1] : '<',
         level2: parseNumberField(block, vars, 'level2', 0, false),
         combine: combineM ? combineM[1] : 'and',
-        color, colorExpr, opacity, opacityExpr, quality, border, active, activeExpr: parseActiveExpr(block), layer,
+        color, colorExpr, thickness, opacity, opacityExpr, quality, border, active, activeExpr: parseActiveExpr(block), layer,
         updateMode, updateInterval,
         dim, pos3D, rotate3D, billboard,
         panelWidth: parseNumberField(block, vars, 'panelWidth', 8, false),

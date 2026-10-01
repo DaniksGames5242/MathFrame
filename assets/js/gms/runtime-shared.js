@@ -112,8 +112,38 @@
         // Раньше сюда подставлялся defaultColor темы, вычисленный один раз при создании:
         // на тёмной теме фон кнопки был почти белым при белом тексте, а при переключении
         // темы на лету inline-цвета не обновлялись. CSS-переменные меняет __gcApplyThemeVars.
+        // ========== ОБЩИЙ CSS контролов (2D и 3D) ==========
+        // Кнопки/поля/ползунки в стиле современных калькуляторов: скруглённые, с мягкой
+        // заливкой и заполненной частью дорожки ползунка (--gc-p ставит gcBuildUI).
+        function gcSharedControlsCss() {
+            return [
+                '    .canvas-wrapper { border-radius:14px; box-shadow:0 1px 2px rgba(15,20,35,0.06), 0 8px 24px -12px rgba(15,20,35,0.18); }\n',
+                '    .controls { gap:10px 18px; }\n',
+                '    .controls button { padding:6px 14px; border-radius:9px; font-weight:600; letter-spacing:.01em; transition:filter .15s, transform .1s, background-color .15s; }\n',
+                '    .controls button:hover { opacity:1; filter:brightness(1.08); }\n',
+                '    .controls button:active { transform:translateY(1px); }\n',
+                '    .controls input[type="number"], .controls input[type="text"] { border-radius:8px; padding:5px 9px; }\n',
+                '    .controls input[type="number"]:focus, .controls input[type="text"]:focus { outline:2px solid color-mix(in srgb, var(--gc-accent) 45%, transparent); outline-offset:1px; }\n',
+                '    .controls label { font-weight:500; }\n',
+                '    .controls select { border-radius:8px; padding:4px 8px; border:1px solid var(--gc-control-border); background:var(--gc-input-bg); font-family:inherit; }\n',
+                '    input.gc-range { -webkit-appearance:none; appearance:none; height:22px; background:transparent; cursor:pointer; min-width:120px; --gc-range:var(--gc-accent); }\n',
+                '    input.gc-range::-webkit-slider-runnable-track { height:6px; border-radius:6px; background:linear-gradient(to right, var(--gc-range) 0 var(--gc-p,0%), color-mix(in srgb, var(--gc-control-text) 16%, transparent) var(--gc-p,0%) 100%); }\n',
+                '    input.gc-range::-moz-range-track { height:6px; border-radius:6px; background:color-mix(in srgb, var(--gc-control-text) 16%, transparent); }\n',
+                '    input.gc-range::-moz-range-progress { height:6px; border-radius:6px; background:var(--gc-range); }\n',
+                '    input.gc-range::-webkit-slider-thumb { -webkit-appearance:none; width:18px; height:18px; margin-top:-6px; border-radius:50%; background:var(--gc-field, #fff); border:3px solid var(--gc-range); box-shadow:0 1px 3px rgba(0,0,0,.25); transition:transform .12s; }\n',
+                '    input.gc-range::-moz-range-thumb { width:12px; height:12px; border-radius:50%; background:var(--gc-field, #fff); border:3px solid var(--gc-range); box-shadow:0 1px 3px rgba(0,0,0,.25); }\n',
+                '    input.gc-range:hover::-webkit-slider-thumb, input.gc-range:active::-webkit-slider-thumb { transform:scale(1.15); }\n',
+            ];
+        }
+
         function gcSharedUIBuilderLines(indent) {
             return [
+                indent + 'function gcContrastText(c) {\n',
+                indent + '  const m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(String(c).trim()); if (!m) return \'#ffffff\';\n',
+                indent + '  let h = m[1]; if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];\n',
+                indent + '  const r = parseInt(h.slice(0, 2), 16), g = parseInt(h.slice(2, 4), 16), b = parseInt(h.slice(4, 6), 16);\n',
+                indent + '  return (0.299 * r + 0.587 * g + 0.114 * b) > 165 ? \'#1f2430\' : \'#ffffff\';\n',
+                indent + '}\n',
                 indent + 'function gcBuildUI(uiData, hooks) {\n',
                 indent + '  if (hooks.clearOverlay) uiOverlay.innerHTML = \'\';\n',
                 indent + '  uiContainer.innerHTML = \'\';\n',
@@ -134,7 +164,9 @@
                 indent + '      const btn = document.createElement(\'button\');\n',
                 indent + '      btn.textContent = ui.label || \'Button\';\n',
                 indent + '      btn.style.backgroundColor = ui.color || \'var(--gc-control-bg)\';\n',
-                indent + '      btn.style.color = ui.textcolor || \'var(--gc-button-text)\';\n',
+                // Своя заливка без своего цвета текста — текст подбирается по контрасту.
+                indent + '      btn.style.color = ui.textcolor || (ui.color ? gcContrastText(ui.color) : \'var(--gc-button-text)\');\n',
+                indent + '      if (ui.color) btn.style.borderColor = \'transparent\';\n',
                 indent + '      btn.style.borderRadius = (ui.radius !== null && ui.radius !== undefined ? ui.radius : 4) + \'px\';\n',
                 indent + '      if (positioned) { btn.style.width = \'100%\'; btn.style.height = \'100%\'; }\n',
                 indent + '      btn.addEventListener(\'click\', async function() { await hooks.runButtonAction(ui.action || \'\'); });\n',
@@ -217,7 +249,10 @@
                 indent + '      let defaultVal = (ui.default !== undefined && ui.default !== null) ? ui.default : ui.min;\n',
                 indent + '      if (ui.variable) { const val = hooks.getVar(ui.variable); if (val !== undefined) defaultVal = val; }\n',
                 indent + '      input.value = defaultVal;\n',
-                indent + '      input.style.accentColor = ui.color || \'var(--gc-accent)\';\n',
+                indent + '      input.className = \'gc-range\';\n',
+                indent + '      if (ui.color) input.style.setProperty(\'--gc-range\', ui.color);\n',
+                indent + '      const gcRangeFill = function() { const lo = parseFloat(input.min), hi = parseFloat(input.max), v = parseFloat(input.value); input.style.setProperty(\'--gc-p\', (hi > lo ? Math.max(0, Math.min(1, (v - lo) / (hi - lo))) * 100 : 0) + \'%\'); };\n',
+                indent + '      gcRangeFill(); input.addEventListener(\'input\', gcRangeFill); ui._fill = gcRangeFill;\n',
                 indent + '      if (positioned) { input.style.width = \'100%\'; }\n',
                 indent + '      const valueLabel = document.createElement(\'span\'); valueLabel.textContent = String(defaultVal); valueLabel.style.color = ui.textcolor || \'var(--gc-control-text)\'; valueLabel.style.marginLeft = \'6px\';\n',
                 // Ширина подписи значения фиксирована (по самому длинному значению): иначе
@@ -524,4 +559,4 @@
             ];
         }
 
-export { gcSharedExprParserLines, gcSharedMarkdownKatexLines, gcSharedUIBuilderLines };
+export { gcSharedExprParserLines, gcSharedMarkdownKatexLines, gcSharedUIBuilderLines, gcSharedControlsCss };

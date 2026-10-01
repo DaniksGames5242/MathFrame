@@ -1482,6 +1482,55 @@
     return results;
   }
 
+  /* Графики мини-сервисов рисует тот же движок, что и интерактивные примеры
+     справочника, — GMS (assets/js/gms-embed.js → gms-compiler.js). Здесь
+     остаётся только математика: разбор ввода, корни, экстремумы, пересечения;
+     сцена собирается из них (MFGms.plotScene) и встраивается в iframe.
+     Перестройка — с задержкой, новая сцена подменяет старую после загрузки,
+     чтобы график не мигал на каждый введённый символ. */
+  var gmsEmbedPromise = null;
+  function loadGmsEmbed() {
+    if (!gmsEmbedPromise) gmsEmbedPromise = import('/assets/js/gms-embed.js').catch(function (e) { gmsEmbedPromise = null; throw e; });
+    return gmsEmbedPromise;
+  }
+  function gmsStage(host, opts) {
+    opts = opts || {};
+    var token = 0, current = null, timer = 0;
+    var status = el('div', 'gms-stage-status', host);
+    function show(src, onVar) {
+      var my = ++token;
+      loadGmsEmbed().then(function (G) {
+        return G.compileScene(src).then(function (r) {
+          if (my !== token) return;
+          if (!r.success) { status.textContent = opts.errorText || 'Не удалось построить чертёж.'; status.hidden = false; return; }
+          var h = G.mountHtml(host, r.html, { onVar: onVar, className: 'gms-stage-frame', title: opts.title, flush: true });
+          h.frame.style.opacity = '0';
+          h.frame.addEventListener('load', function () {
+            if (my !== token) { h.destroy(); return; }
+            status.hidden = true;
+            if (current) current.destroy();
+            current = h;
+            h.frame.style.position = ''; h.frame.style.opacity = '';
+          }, { once: true });
+          if (current) { h.frame.style.position = 'absolute'; h.frame.style.inset = '0'; }
+        });
+      }).catch(function () {
+        if (my !== token) return;
+        status.textContent = 'Не удалось загрузить движок чертежей.'; status.hidden = false;
+      });
+    }
+    return {
+      show: function (src, onVar, delay) {
+        clearTimeout(timer);
+        if (delay) timer = setTimeout(function () { show(src, onVar); }, delay); else show(src, onVar);
+      },
+      clear: function () { token++; clearTimeout(timer); if (current) { current.destroy(); current = null; } },
+    };
+  }
+  // Цвета кривых и отметок — те же, что у сцен GMS по умолчанию.
+  // Первая кривая — без явного цвета: берётся цвет кривой текущей темы сцены.
+  var PLOT_C1 = null, PLOT_C2 = '#16a34a', PLOT_MARK = '#ea580c', PLOT_EXT = '#9333ea';
+
   var svcPlot = {
     id: 'plot', glyph: 'f', title: 'График функции',
     sub: 'Функции, уравнения и системы — графическим методом',
@@ -1492,129 +1541,21 @@
 
       var badge = el('div', 'alg-badge', p);   // переиспользуем стиль «типа ввода» из алгебраического калькулятора
 
-      var wrap = el('div', 'plot-wrap', p);
+      var wrap = el('div', 'plot-wrap gms-stage', p);
       wrap.style.marginTop = '.6rem';
-      var cv = el('canvas', null, wrap); cv.id = 'plot';
       replay(wrap, 'mf-plot-in');
-
-      var bar = el('div', 'plot-bar', p);
-      [['−', zoomOut], ['+', zoomIn], ['сброс', reset]].forEach(function (b) {
-        var btn = el('button', 'mini', bar, b[0]);
-        btn.type = 'button';
-        btn.addEventListener('click', function () { replay(btn, 'mf-zoom-tap'); b[1](); });
-      });
+      var stage = gmsStage(wrap, { title: 'График', errorText: 'Это выражение пока не получается нарисовать.' });
+      el('div', 'plot-hint', p, 'Перетаскивание — сдвиг, колесо или щипок — масштаб.');
       var info = el('div', 'out', p);
-
-      // видимая область в математических координатах
-      var view = { cx: 0, cy: 0, scale: 60 };  // пикселей на единицу
-      function reset() { animateView({ cx: 0, cy: 0, scale: 60 }); }
-      function zoomIn() { animateView({ cx: view.cx, cy: view.cy, scale: Math.min(4000, view.scale * 1.35) }); }
-      function zoomOut() { animateView({ cx: view.cx, cy: view.cy, scale: Math.max(2, view.scale / 1.35) }); }
-
-      /* ---------------------------------------------------------- анимация
-         Всё движение графика — внутри canvas, одним rAF-циклом, который
-         крутится только пока есть что анимировать:
-           • intro   — при открытии оси «вырастают» из начала координат,
-                       сетка проявляется;
-           • sweep   — кривые прорисовываются слева направо (клип по x) с
-                       мягким «сканером» на фронте; точки (корни, экстремумы,
-                       пересечения) «выпрыгивают» и пульсируют кольцом в тот
-                       момент, когда фронт до них доходит;
-           • viewAnim — плавный зум/сброс кнопками (масштаб — в лог-шкале).
-         Перетаскивание/колесо — мгновенные, как и раньше. */
-      var mountT = performance.now();
-      var introOn = motionOK();
-      var sweep = { start: 0, dur: 0 };
-      var viewAnim = null;
-      var rafId = 0;
-      function kick() {
-        if (rafId) return;
-        rafId = requestAnimationFrame(function tick(now) {
-          rafId = 0;
-          if (!cv.isConnected) return;
-          if (viewAnim) {
-            var k = Math.min(1, (now - viewAnim.t0) / viewAnim.dur), e = easeOut3(k);
-            view.cx = viewAnim.a.cx + (viewAnim.b.cx - viewAnim.a.cx) * e;
-            view.cy = viewAnim.a.cy + (viewAnim.b.cy - viewAnim.a.cy) * e;
-            view.scale = Math.exp(Math.log(viewAnim.a.scale) + (Math.log(viewAnim.b.scale) - Math.log(viewAnim.a.scale)) * e);
-            if (k >= 1) viewAnim = null;
-          }
-          redraw(now);
-          var busy = viewAnim || (introOn && now - mountT < 700) || (sweep.dur && now < sweep.start + sweep.dur + 1000);
-          if (busy) rafId = requestAnimationFrame(tick);
-        });
-      }
-      function animateView(target) {
-        if (!motionOK()) { view = { cx: target.cx, cy: target.cy, scale: target.scale }; redraw(); return; }
-        viewAnim = { t0: performance.now(), dur: 360, a: { cx: view.cx, cy: view.cy, scale: view.scale }, b: target };
-        kick();
-      }
-      // Прорисовка кривых слева направо за dur мс (0 — только «пульс» точек).
-      function startSweep(dur) {
-        if (!motionOK()) { sweep.dur = 0; introOn = false; requestAnimationFrame(function () { redraw(); }); return; }
-        sweep.start = performance.now(); sweep.dur = Math.max(1, dur);
-        kick();
-      }
-      function sweepFrac(now) {
-        if (!sweep.dur) return 1;
-        return Math.max(0, Math.min(1, (now - sweep.start) / sweep.dur));
-      }
-      // Эффект точки по её экранному x: масштаб «выпрыгивания» и кольцо-пульс.
-      function markFx(px, now) {
-        if (!sweep.dur) return { s: 1, ring: 0 };
-        var cross = sweep.start + sweep.dur * Math.max(0, Math.min(1, px / Math.max(1, cv.width)));
-        var age = now - cross;
-        if (age < 0) return { s: 0, ring: 0 };
-        var k = Math.min(1, age / 340);
-        var back = 1 + 2.4 * Math.pow(k - 1, 3) + 1.4 * Math.pow(k - 1, 2);   // easeOutBack
-        return { s: back, ring: age < 900 ? age / 900 : 0 };
-      }
-      function drawMark(ctx, x, y, r, color, now, hollow) {
-        var fx = markFx(x, now);
-        if (fx.s <= 0) return;
-        var rr = r * fx.s;
-        ctx.beginPath(); ctx.arc(x, y, Math.max(0.1, rr), 0, 6.2832);
-        if (hollow) {
-          ctx.fillStyle = css('--bg-sunken', '#111'); ctx.fill();
-          ctx.lineWidth = 2 * dpr; ctx.strokeStyle = color; ctx.stroke();
-        } else { ctx.fillStyle = color; ctx.fill(); }
-        if (fx.ring > 0) {
-          ctx.save();
-          ctx.globalAlpha = (1 - fx.ring) * 0.85;
-          ctx.strokeStyle = color; ctx.lineWidth = 1.6 * dpr;
-          ctx.beginPath(); ctx.arc(x, y, r + fx.ring * 14 * dpr, 0, 6.2832); ctx.stroke();
-          ctx.restore();
-        }
-      }
-
-      var dpr = Math.min(window.devicePixelRatio || 1, 2);
-      function sizeCanvas() {
-        var w = Math.max(1, Math.floor(cv.clientWidth * dpr));
-        var h = Math.max(1, Math.floor(cv.clientHeight * dpr));
-        if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
-      }
-      function X(x) { return cv.width / 2 + (x - view.cx) * view.scale * dpr; }
-      function Y(y) { return cv.height / 2 - (y - view.cy) * view.scale * dpr; }
-      function invX(px) { return view.cx + (px - cv.width / 2) / (view.scale * dpr); }
-      function invY(py) { return view.cy - (py - cv.height / 2) / (view.scale * dpr); }
-
-      // Токены читаем с самого canvas, а не с <html>: --accent страницы
-      // (цвет раздела --page-color-services) задан на body[data-page].
-      function css(name, fb) {
-        try { return getComputedStyle(cv).getPropertyValue(name).trim() || fb; }
-        catch (e) { return fb; }
-      }
 
       /* ------------------------------------------------ распознавание ввода
          Строитель сам решает, что перед ним:
-           «функция»        — обычное выражение без «=» → y = f(x), как раньше;
+           «функция»        — обычное выражение без «=» → y = f(x);
            «уравнение f(x)=g(x)», одна переменная  → рисуем ОБЕ стороны и
                               отмечаем точки пересечения — это и есть
                               графический метод решения уравнения;
            «неявная кривая», ровно две переменные  → уравнение вида F(x,y)=0
-                              (окружность, эллипс и т.п.), которое не всегда
-                              разрешимо относительно y — рисуем как облако
-                              точек нулевого уровня, без символьного решения;
+                              (окружность, эллипс и т.п.);
            «система» (через «{ }»), 2 уравнения    → обе кривые + численный
                               поиск точек пересечения (2D Ньютон от затравок).
          ====================================================================== */
@@ -1678,20 +1619,19 @@
         };
       }
 
-      var CURVE1 = function () { return css('--accent', '#5b8cff'); };
-      var CURVE2 = function () { return css('--accent-2', '#3ec2a4'); };
-      var MARK = function () { return css('--accent-3', '#f2b45c'); };
-
       /* -------------------------------------------------------- информация
-         Как и для обычных функций: список решений/пересечений всегда виден
-         в панели, независимо от текущего масштаба/панорамирования — считаем
-         на широком фиксированном диапазоне, пересчитываем только при смене
-         ввода (не на каждый кадр перетаскивания). */
-      var INFO_RANGE = 1000, IMPLICIT_RANGE = 30;
-      var spec = null;
+         Список решений/пересечений считается на широком фиксированном
+         диапазоне — он не зависит от того, куда сдвинут чертёж. Те же точки
+         (в пределах MARK_RANGE) отмечаются на графике. */
+      var INFO_RANGE = 1000, IMPLICIT_RANGE = 30, MARK_RANGE = 60;
+      var spec = null, scene = null;
+
+      function near(list) { return list.filter(function (v) { return Math.abs(v) <= MARK_RANGE; }).slice(0, 40); }
+      function markLabel(x, y) { return '(' + fmt(x, 3) + '; ' + fmt(y, 3) + ')'; }
 
       function updateInfo() {
         info.innerHTML = '';
+        scene = null;
         spec = analyze();
         if (!spec) { badge.textContent = ''; return; }
 
@@ -1705,13 +1645,16 @@
           var dl = el('dl', 'kv', info);
           el('dt', null, dl, 'корни');
           el('dd', null, dl, rs.length ? rs.slice(0, 8).map(function (r) { return fmt(r, 6); }).join(',  ') + (rs.length > 8 ? ' …' : '') : 'не найдены на [−' + INFO_RANGE + '; ' + INFO_RANGE + ']');
-          var dd = MFMath.d(c.ast, 'x');
+          var dd = MFMath.d(c.ast, 'x'), ex = [];
           if (dd) {
             var dfn = { at: function (x) { return MFMath.evalAst(dd, { x: x }); } };
-            var ex = MFMath.roots(function (x) { return dfn.at(x); }, -INFO_RANGE, INFO_RANGE, 20000);
+            ex = MFMath.roots(function (x) { return dfn.at(x); }, -INFO_RANGE, INFO_RANGE, 20000);
             el('dt', null, dl, 'экстремумы');
             el('dd', null, dl, ex.length ? ex.slice(0, 6).map(function (r) { return '(' + fmt(r, 5) + '; ' + fmt(c.at(r), 5) + ')'; }).join('  ') + (ex.length > 6 ? ' …' : '') : 'не найдены на [−' + INFO_RANGE + '; ' + INFO_RANGE + ']');
           }
+          scene = { curves: [{ ast: c.ast, kind: 'function', rename: {}, color: PLOT_C1 }],
+            marks: near(rs).map(function (r) { return { x: r, y: 0, color: PLOT_MARK }; })
+              .concat(near(ex).map(function (r) { var y = c.at(r); return isFinite(y) ? { x: r, y: y, color: PLOT_EXT, size: 0.75 } : null; }).filter(Boolean)) };
           return;
         }
 
@@ -1720,6 +1663,8 @@
           var vars1 = {}; vars1[spec.v] = 0;
           var f = function (t) { vars1[spec.v] = t; try { return MFMath.evalAst(spec.lhsAst, vars1) - MFMath.evalAst(spec.rhsAst, vars1); } catch (e) { return NaN; } };
           var roots1 = MFMath.roots(f, -INFO_RANGE, INFO_RANGE, 20000);
+          var ren = {}; ren[spec.v] = 'x';
+          scene = { curves: [{ ast: spec.lhsAst, kind: 'function', rename: ren, color: PLOT_C1 }, { ast: spec.rhsAst, kind: 'function', rename: ren, color: PLOT_C2 }], marks: [] };
           if (!roots1.length) {
             el('div', 'alg-answer-label', info, 'Ответ');
             el('div', 'alg-answer-big', info, 'решений не найдено на [−' + INFO_RANGE + '; ' + INFO_RANGE + ']');
@@ -1733,17 +1678,27 @@
           });
           var dl2 = el('dl', 'kv', info);
           el('dt', null, dl2, 'точки пересечения');
+          var few = roots1.length <= 4;
           roots1.slice(0, 8).forEach(function (r) {
             vars1[spec.v] = r;
             var yv; try { yv = MFMath.evalAst(spec.lhsAst, vars1); } catch (e) { yv = NaN; }
             el('dd', null, dl2, '(' + fmt(r, 6) + '; ' + fmt(yv, 6) + ')');
           });
+          near(roots1).forEach(function (r) {
+            vars1[spec.v] = r;
+            var yv; try { yv = MFMath.evalAst(spec.lhsAst, vars1); } catch (e) { yv = NaN; }
+            if (isFinite(yv)) scene.marks.push({ x: r, y: yv, color: PLOT_MARK, label: few ? markLabel(r, yv) : '' });
+          });
           return;
         }
+
+        var ren2 = {};
+        if (spec.mode === 'implicit' || spec.mode === 'system') { ren2[spec.hVar] = 'x'; ren2[spec.vVar] = 'y'; }
 
         if (spec.mode === 'implicit') {
           badge.textContent = 'Уравнение с двумя переменными (' + spec.hVar + ', ' + spec.vVar + ') — неявная кривая'; badge.className = 'alg-badge alg-badge-eq';
           el('div', 'sub', info, 'F(' + spec.hVar + ', ' + spec.vVar + ') = 0 — точного решения в общем виде не строим, кривая ниже показывает все точки, где равенство выполняется');
+          scene = { curves: [{ ast: { t: '-', a: spec.lhsAst, b: spec.rhsAst }, kind: 'implicit', rename: ren2, color: PLOT_C1 }], marks: [] };
           return;
         }
 
@@ -1752,6 +1707,10 @@
           var F1 = makeF(spec.eq1.lhsAst, spec.eq1.rhsAst, spec.hVar, spec.vVar);
           var F2 = makeF(spec.eq2.lhsAst, spec.eq2.rhsAst, spec.hVar, spec.vVar);
           var pts = findIntersections2D(F1, F2, -IMPLICIT_RANGE, IMPLICIT_RANGE, -IMPLICIT_RANGE, IMPLICIT_RANGE, 70);
+          scene = { curves: [
+            { ast: { t: '-', a: spec.eq1.lhsAst, b: spec.eq1.rhsAst }, kind: 'implicit', rename: ren2, color: PLOT_C1 },
+            { ast: { t: '-', a: spec.eq2.lhsAst, b: spec.eq2.rhsAst }, kind: 'implicit', rename: ren2, color: PLOT_C2 }],
+            marks: pts.slice(0, 20).map(function (pt) { return { x: pt.x, y: pt.y, color: PLOT_MARK, label: pts.length <= 4 ? markLabel(pt.x, pt.y) : '' }; }) };
           if (!pts.length) {
             el('div', 'alg-answer-label', info, 'Ответ');
             el('div', 'alg-answer-big', info, 'решений не найдено на [−' + IMPLICIT_RANGE + '; ' + IMPLICIT_RANGE + '] по каждой оси');
@@ -1770,243 +1729,33 @@
         }
       }
 
-      function redraw(now) {
-        if (typeof now !== 'number') now = performance.now();
-        sizeCanvas();
-        var ctx = cv.getContext('2d');
-        var W = cv.width, H = cv.height;
-        ctx.clearRect(0, 0, W, H);
-        // intro: сетка проявляется, оси «вырастают» из начала координат
-        var intro = introOn ? easeOut3(Math.min(1, (now - mountT) / 650)) : 1;
-        if (introOn && intro >= 1) introOn = false;
-
-        var cGrid = css('--mf-grid-minor', 'rgba(120,150,210,.06)');
-        var cAxis = css('--border-strong', '#888');
-        var cTxt = css('--text-tertiary', '#888');
-
-        var raw = 70 / view.scale;
-        var mag = Math.pow(10, Math.floor(Math.log10(raw)));
-        var norm = raw / mag;
-        var step = (norm < 1.5 ? 1 : norm < 3.5 ? 2 : norm < 7.5 ? 5 : 10) * mag;
-
-        var x0 = invX(0), x1 = invX(W);
-        var yTop = invY(0), yBot = invY(H);
-
-        ctx.lineWidth = 1;
-        ctx.strokeStyle = cGrid;
-        ctx.globalAlpha = intro;
-        ctx.beginPath();
-        for (var gx = Math.ceil(x0 / step) * step; gx <= x1; gx += step) { ctx.moveTo(X(gx), 0); ctx.lineTo(X(gx), H); }
-        for (var gy = Math.ceil(yBot / step) * step; gy <= yTop; gy += step) { ctx.moveTo(0, Y(gy)); ctx.lineTo(W, Y(gy)); }
-        ctx.stroke();
-        ctx.globalAlpha = 1;
-
-        ctx.strokeStyle = cAxis; ctx.lineWidth = 1.4 * dpr;
-        ctx.beginPath();
-        var ox = X(0), oy = Y(0), ax = Math.max(W, H) * intro;
-        ctx.moveTo(Math.max(0, ox - ax), oy); ctx.lineTo(Math.min(W, ox + ax), oy);
-        ctx.moveTo(ox, Math.max(0, oy - ax)); ctx.lineTo(ox, Math.min(H, oy + ax));
-        ctx.stroke();
-
-        ctx.fillStyle = cTxt;
-        ctx.globalAlpha = intro;
-        ctx.font = (11 * dpr) + 'px ui-monospace, monospace';
-        ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-        for (var tx = Math.ceil(x0 / step) * step; tx <= x1; tx += step) {
-          if (Math.abs(tx) < step / 2) continue;
-          ctx.fillText(fmt(tx, 4), X(tx), Y(0) + 4 * dpr);
-        }
-        ctx.globalAlpha = 1;
-
-        if (!spec || spec.mode === 'error') return;
-
-        // Прорисовка слева направо: кривые клипуются по фронту sweepPx,
-        // точки появляются в момент, когда фронт до них доходит (markFx).
-        var sf = sweepFrac(now), sweepPx = W * sf;
-        ctx.save();
-        if (sf < 1) { ctx.beginPath(); ctx.rect(0, 0, sweepPx, H); ctx.clip(); }
-
-        if (spec.mode === 'function') { drawFunctionCurve(ctx, spec.expr, CURVE1(), x0, x1, W, H, now); }
-        else if (spec.mode === 'equation1d') {
-          drawAstCurve(ctx, spec.lhsAst, spec.v, CURVE1(), x0, x1, W, H);
-          drawAstCurve(ctx, spec.rhsAst, spec.v, CURVE2(), x0, x1, W, H);
-          drawEq1DMarks(ctx, spec, x0, x1, now);
-        }
-        else if (spec.mode === 'implicit') {
-          var F = makeF(spec.lhsAst, spec.rhsAst, spec.hVar, spec.vVar);
-          drawImplicitCurve(ctx, F, CURVE1(), x0, x1, yBot, yTop);
-        }
-        else if (spec.mode === 'system') {
-          var G1 = makeF(spec.eq1.lhsAst, spec.eq1.rhsAst, spec.hVar, spec.vVar);
-          var G2 = makeF(spec.eq2.lhsAst, spec.eq2.rhsAst, spec.hVar, spec.vVar);
-          drawImplicitCurve(ctx, G1, CURVE1(), x0, x1, yBot, yTop);
-          drawImplicitCurve(ctx, G2, CURVE2(), x0, x1, yBot, yTop);
-          drawSystemMarks(ctx, G1, G2, x0, x1, yBot, yTop, now);
-        }
-        ctx.restore();
-
-        // «сканер» на фронте прорисовки — мягкая вертикальная полоса цвета раздела
-        if (sf > 0 && sf < 1) {
-          var bw = 36 * dpr, g = ctx.createLinearGradient(sweepPx - bw, 0, sweepPx, 0);
-          g.addColorStop(0, 'rgba(0,0,0,0)');
-          g.addColorStop(1, CURVE1());
-          ctx.save();
-          ctx.globalAlpha = 0.1 * Math.sin(sf * Math.PI);
-          ctx.fillStyle = g; ctx.fillRect(sweepPx - bw, 0, bw, H);
-          ctx.globalAlpha = 0.55 * Math.sin(sf * Math.PI);
-          ctx.fillStyle = CURVE1(); ctx.fillRect(sweepPx - dpr, 0, 1.5 * dpr, H);
-          ctx.restore();
-        }
-      }
-
-      // Кэш компиляции функции и её производной: redraw зовётся на каждый
-      // кадр анимации/перетаскивания — не пересобираем AST каждый раз.
-      var fnCache = { expr: null, c: null, d: null };
-      function compiledFn(exprStr) {
-        if (fnCache.expr !== exprStr) {
-          var c = MFMath.compile(exprStr, 'x'), dAst = null;
-          try { dAst = c ? MFMath.d(c.ast, 'x') : null; } catch (e) { dAst = null; }
-          fnCache = { expr: exprStr, c: c, d: dAst };
-        }
-        return fnCache;
-      }
-
-      function drawFunctionCurve(ctx, exprStr, color, x0, x1, W, H, now) {
-        var cc = compiledFn(exprStr), c = cc.c;
-        if (!c) return;
-        ctx.strokeStyle = color; ctx.lineWidth = 2.2 * dpr; ctx.beginPath();
-        var pen = false, prevY = null;
-        for (var px = 0; px <= W; px += Math.max(1, dpr)) {
-          var xv = invX(px), yv = c.at(xv);
-          if (!isFinite(yv)) { pen = false; prevY = null; continue; }
-          var py = Y(yv);
-          if (prevY !== null && Math.abs(py - prevY) > H * 1.4) pen = false;
-          if (!pen) { ctx.moveTo(px, py); pen = true; } else { ctx.lineTo(px, py); }
-          prevY = py;
-        }
-        ctx.stroke();
-        var rsVisible = MFMath.roots(function (x) { return c.at(x); }, x0, x1, 1200);
-        rsVisible.slice(0, 40).forEach(function (r) { drawMark(ctx, X(r), Y(0), 3.5 * dpr, color, now); });
-        // Экстремумы — полые точки акцентного цвета (те же, что в списке ниже).
-        if (cc.d) {
-          var dAst = cc.d, dv = { x: 0 };
-          var ex = MFMath.roots(function (x) { dv.x = x; try { return MFMath.evalAst(dAst, dv); } catch (e) { return NaN; } }, x0, x1, 600);
-          ex.slice(0, 30).forEach(function (r) {
-            var yv = c.at(r);
-            if (isFinite(yv)) drawMark(ctx, X(r), Y(yv), 4 * dpr, MARK(), now, true);
-          });
-        }
-      }
-
-      function drawAstCurve(ctx, ast, varName, color, x0, x1, W, H) {
-        ctx.strokeStyle = color; ctx.lineWidth = 2.2 * dpr; ctx.beginPath();
-        var pen = false, prevY = null, vars = {};
-        for (var px = 0; px <= W; px += Math.max(1, dpr)) {
-          var xv = invX(px);
-          vars[varName] = xv;
-          var yv; try { yv = MFMath.evalAst(ast, vars); } catch (e) { yv = NaN; }
-          if (!isFinite(yv)) { pen = false; prevY = null; continue; }
-          var py = Y(yv);
-          if (prevY !== null && Math.abs(py - prevY) > H * 1.4) pen = false;
-          if (!pen) { ctx.moveTo(px, py); pen = true; } else { ctx.lineTo(px, py); }
-          prevY = py;
-        }
-        ctx.stroke();
-      }
-
-      function drawEq1DMarks(ctx, spec, x0, x1, now) {
-        var vars = {};
-        var f = function (t) { vars[spec.v] = t; try { return MFMath.evalAst(spec.lhsAst, vars) - MFMath.evalAst(spec.rhsAst, vars); } catch (e) { return NaN; } };
-        var rs = MFMath.roots(f, x0, x1, 1200);
-        var mc = MARK();
-        rs.forEach(function (r) {
-          vars[spec.v] = r;
-          var yv; try { yv = MFMath.evalAst(spec.lhsAst, vars); } catch (e) { yv = NaN; }
-          if (!isFinite(yv)) return;
-          drawMark(ctx, X(r), Y(yv), 4 * dpr, mc, now);
+      // Чертёж: те же кривые и точки — сценой GMS. Обзор подбирается так, чтобы
+      // отмеченные точки попадали в кадр (но не мельче ±5 и не крупнее ±40).
+      function renderScene(delay) {
+        if (!scene) { stage.clear(); return; }
+        loadGmsEmbed().then(function (G) {
+          var curves;
+          try {
+            curves = scene.curves.map(function (c) { return { kind: c.kind, expr: G.exprToGms(c.ast, c.rename), color: c.color }; });
+          } catch (e) { stage.clear(); return; }
+          var span = 5;
+          scene.marks.forEach(function (m) { span = Math.max(span, Math.min(40, Math.max(Math.abs(m.x) * 0.75, Math.abs(m.y) * 1.15))); });
+          stage.show(G.plotScene({ curves: curves, marks: scene.marks, view: { width: span * 3.2, height: span * 2 } }), null, delay);
         });
       }
 
-      // Неявная кривая — облако точек нулевого уровня (маршевый квадрат),
-      // размер сетки подстраивается под масштаб для разумной плотности.
-      function drawImplicitCurve(ctx, F, color, x0, x1, y0, y1) {
-        var gridN = 130;
-        var pts = traceImplicitPoints(F, x0, x1, y0, y1, gridN, gridN);
-        ctx.fillStyle = color;
-        var r = Math.max(1, 1.6 * dpr);
-        pts.forEach(function (pt) {
-          ctx.beginPath(); ctx.arc(X(pt.x), Y(pt.y), r, 0, 6.2832); ctx.fill();
-        });
-      }
-
-      function drawSystemMarks(ctx, F1, F2, x0, x1, y0, y1, now) {
-        var pts = findIntersections2D(F1, F2, x0, x1, y0, y1, 70);
-        var mc = MARK();
-        pts.forEach(function (pt) {
-          drawMark(ctx, X(pt.x), Y(pt.y), 4.5 * dpr, mc, now);
-        });
-      }
-
-      // Набор символов — кривая перерисовывается сразу (без «сканера», чтобы
-      // не мигать на каждый символ), только точки коротко пульсируют. Enter —
-      // полная прорисовка слева направо + проявление ответа.
+      // Набор символов — сцена перестраивается с небольшой задержкой (не на
+      // каждый символ); Enter — сразу, с проявлением ответа.
       function onFunctionChange(fld, isEnter) {
         updateInfo();
         var errNode = info.querySelector('.err');
         fieldFeedback(mf.field, !!errNode, isEnter === true, errNode);
-        if (isEnter === true) {
-          startSweep(900);
-          revealAnswer(info, 250);
-        } else {
-          startSweep(1);
-        }
+        if (isEnter === true) revealAnswer(info, 250);
+        renderScene(isEnter === true ? 0 : 350);
       }
 
-      /* --- жесты: одним пальцем тянем, двумя щипаем, колесом масштабируем --- */
-      var drag = null, pts = {}, pinch = null;
-      cv.addEventListener('pointerdown', function (e) {
-        cv.setPointerCapture(e.pointerId); viewAnim = null;
-        pts[e.pointerId] = { x: e.clientX, y: e.clientY };
-        var ids = Object.keys(pts);
-        if (ids.length === 1) drag = { x: e.clientX, y: e.clientY, cx: view.cx, cy: view.cy };
-        else if (ids.length === 2) {
-          drag = null;
-          var a = pts[ids[0]], b = pts[ids[1]];
-          pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), scale: view.scale };
-        }
-      });
-      cv.addEventListener('pointermove', function (e) {
-        if (pts[e.pointerId]) { pts[e.pointerId].x = e.clientX; pts[e.pointerId].y = e.clientY; }
-        var ids = Object.keys(pts);
-        if (pinch && ids.length === 2) {
-          var a = pts[ids[0]], b = pts[ids[1]];
-          var d = Math.hypot(a.x - b.x, a.y - b.y);
-          if (pinch.d > 4) { view.scale = Math.max(2, Math.min(4000, pinch.scale * d / pinch.d)); redraw(); }
-          return;
-        }
-        if (drag) {
-          view.cx = drag.cx - (e.clientX - drag.x) / view.scale;
-          view.cy = drag.cy + (e.clientY - drag.y) / view.scale;
-          redraw();
-        }
-      });
-      function up(e) {
-        delete pts[e.pointerId];
-        if (Object.keys(pts).length < 2) pinch = null;
-        if (!Object.keys(pts).length) drag = null;
-      }
-      cv.addEventListener('pointerup', up);
-      cv.addEventListener('pointercancel', up);
-      cv.addEventListener('wheel', function (e) {
-        e.preventDefault(); viewAnim = null;
-        view.scale = Math.max(2, Math.min(4000, view.scale * (e.deltaY < 0 ? 1.12 : 1 / 1.12)));
-        redraw();
-      }, { passive: false });
-
-      window.addEventListener('resize', redraw);
-      new MutationObserver(redraw).observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
       updateInfo();
-      startSweep(1000);
+      renderScene(0);
     }
   };
 
@@ -2411,12 +2160,9 @@
         var comp;
         try { comp = gms.compile(r.gms); } catch (e) { comp = { success: false, errors: [String(e.message || e)] }; }
         if (comp && comp.success) {
-          var frame = document.createElement('iframe');
-          frame.className = 'gp-frame';
-          frame.setAttribute('sandbox', 'allow-scripts allow-same-origin');
-          frame.setAttribute('title', 'Чертёж к задаче');
-          fig.appendChild(frame);
-          frame.srcdoc = comp.html;
+          // тема сайта и высота под содержимое — общий механизм gms-embed
+          var frameHost = el('div', null, fig);
+          loadGmsEmbed().then(function (G) { G.mountHtml(frameHost, comp.html, { className: 'gp-frame', title: 'Чертёж к задаче' }); });
         } else {
           el('div', 'gp-note', fig, 'Чертёж не построился.');
         }
@@ -2996,10 +2742,8 @@
   /* Компилятор GMS — тяжёлый файл (полтора мегабайта), поэтому грузится лениво,
      только когда реально понадобится (первое открытие инструмента, который его
      использует), и один раз кешируется для повторных вызовов. */
-  var gmsCompilerPromise = null;
   function loadGmsCompiler() {
-    if (!gmsCompilerPromise) gmsCompilerPromise = import('/assets/js/gms-compiler.js');
-    return gmsCompilerPromise;
+    return loadGmsEmbed().then(function (G) { return G.loadCompiler(); });
   }
 
   /* ---------------------------------------------------- 1. Математический анализ */
@@ -3504,28 +3248,24 @@
     // Field/draw Trajectory уже умеют именно это), а не самодельный canvas.
     var vizWrap = el('div', 'conv-block', c);
     el('div', 'conv-block-h', vizWrap, 'Поле направлений (наведите/потяните зелёную точку)');
-    var vizHost = el('div', 'ode-viz', vizWrap);
-    var vizStatus = el('div', 'sub', vizWrap, '');
+    var vizHost = el('div', 'ode-viz gms-stage', vizWrap);
+    var vizStage = gmsStage(vizHost, { title: 'Поле направлений', errorText: 'визуализация недоступна для этой функции' });
     var probeReadout = el('div', 'ode-probe', vizWrap);
 
+    // Значения из сцены (new Publish) приходят через общий канал gms-embed.
     var probeState = {};
-    var msgHandler = function (e) {
-      var d = e && e.data;
-      if (!d || d.type !== 'gms-var') return;
-      if (d.name === 'slope' || d.name === 'probeX' || d.name === 'probeY') {
-        probeState[d.name] = d.value;
-        renderProbe();
-      }
-    };
+    function onVar(name, value) {
+      if (name === 'slope' || name === 'probeX' || name === 'probeY') { probeState[name] = value; renderProbe(); }
+    }
     function renderProbe() {
       if (probeState.probeX === undefined) { probeReadout.textContent = ''; return; }
       probeReadout.innerHTML = 'в точке (' + moreFmt(probeState.probeX) + '; ' + moreFmt(probeState.probeY) +
         ') &nbsp; f(x,y) = <b>' + moreFmt(probeState.slope) + '</b>';
     }
-    window.addEventListener('message', msgHandler);
-    c.__mfCleanup = function () { window.removeEventListener('message', msgHandler); };
 
-    function buildScene(fExpr, x0, y0, xt, ymin, ymax) {
+    // fExpr / slopeExpr — уже переведённые в язык выражений GMS (MFGms.exprToGms),
+    // а не исходный текст поля: синтаксис калькулятора и GMS не совпадает (ln, tg, …).
+    function buildScene(fExpr, slopeExpr, x0, y0, xt, ymin, ymax) {
       // ± паддинг вокруг фактического диапазона, чтобы поле не обрезало траекторию впритык
       var xPad = Math.max(1, Math.abs(xt - x0) * 0.25);
       var xmin = Math.min(x0, xt) - xPad, xmax = Math.max(x0, xt) + xPad;
@@ -3533,47 +3273,33 @@
       var y0b = ymin - yPad, y1b = ymax + yPad;
       var steps = Math.min(2000, Math.max(50, Math.round(Math.abs(xt - x0) / 0.02)));
       var dt = (xt - x0) / steps || 0.02;
-      // slope, вычисленный В ТОЧКЕ ЗОНДА: подставляем probe.pos.x/probe.pos.y вместо x/y
-      // в пользовательское выражение (простая замена по границе слова — переменных,
-      // кроме x и y, в этом выражении по смыслу инструмента быть не должно).
-      var slopeExpr = fExpr.replace(/\bx\b/g, 'probe.pos.x').replace(/\by\b/g, 'probe.pos.y');
       return '[\n' +
-        '  theme = dark\n' +
         '  show axes = true\n' +
-        '  field width = ' + moreFmt(xmax - xmin) + '\n' +
+        // масштаб по осям один и тот же — поле 5:3, в которое помещаются обе стороны
+        '  field width = ' + moreFmt(Math.max(xmax - xmin, (y1b - y0b) / 0.6)) + '\n' +
+        '  field height = ' + moreFmt(Math.max(xmax - xmin, (y1b - y0b) / 0.6) * 0.6) + '\n' +
+        '  camera start offset = (' + moreFmt((xmin + xmax) / 2) + ', ' + moreFmt((y0b + y1b) / 2) + ')\n' +
         '  draw Field { name = "field1" P = "1" Q = "' + fExpr + '" xmin = ' + moreFmt(xmin) + ' xmax = ' + moreFmt(xmax) +
           ' ymin = ' + moreFmt(y0b) + ' ymax = ' + moreFmt(y1b) + ' grid = 17 color = "#5b8cff" }\n' +
         '  draw Trajectory { name = "traj1" P = "1" Q = "' + fExpr + '" start = (' + moreFmt(x0) + ', ' + moreFmt(y0) +
-          ') steps = ' + steps + ' dt = ' + moreFmt(dt) + ' color = "#f2b45c" thickness = 3 }\n' +
-        '  new Point { name = "probe" pos = (' + moreFmt(x0) + ', ' + moreFmt(y0) + ') interact = true color = "#22c55e" size = 1.3 }\n' +
+          ') steps = ' + steps + ' dt = ' + moreFmt(dt) + ' color = "#ea580c" thickness = 3 }\n' +
+        '  new Point { name = "probe" pos = (' + moreFmt(x0) + ', ' + moreFmt(y0) + ') interact = true color = "#16a34a" size = 1.1 }\n' +
         '  new Publish { name = "slope" value = ' + slopeExpr + ' }\n' +
         '  new Publish { name = "probeX" value = probe.pos.x }\n' +
         '  new Publish { name = "probeY" value = probe.pos.y }\n' +
         ']\n';
     }
 
-    var vizToken = 0;
-    function updateViz(fExpr, x0, y0, xt, ymin, ymax) {
-      var myToken = ++vizToken;
-      vizStatus.textContent = 'строим сцену…';
-      probeState = {};
-      loadGmsCompiler().then(function (mod) {
-        if (myToken !== vizToken) return;   // пользователь уже успел изменить ввод — не показываем устаревший результат
-        var src = buildScene(fExpr, x0, y0, xt, ymin, ymax);
-        var result;
-        try { result = mod.compile(src); } catch (e) { result = { success: false, errors: [String(e.message || e)] }; }
-        if (myToken !== vizToken) return;
-        vizHost.innerHTML = '';
-        if (!result.success) { vizStatus.textContent = 'визуализация недоступна для этой функции'; return; }
-        vizStatus.textContent = '';
-        var frame = document.createElement('iframe');
-        frame.className = 'ode-frame';
-        frame.setAttribute('sandbox', 'allow-scripts allow-same-origin');
-        vizHost.appendChild(frame);
-        frame.srcdoc = result.html;
-      }).catch(function () {
-        if (myToken !== vizToken) return;
-        vizStatus.textContent = 'не удалось загрузить движок визуализации';
+    function updateViz(ast, x0, y0, xt, ymin, ymax) {
+      probeState = {}; renderProbe();
+      loadGmsEmbed().then(function (G) {
+        var fExpr, slopeExpr;
+        try {
+          fExpr = G.exprToGms(ast);
+          // наклон В ТОЧКЕ ЗОНДА: x, y → координаты точки probe
+          slopeExpr = G.exprToGms(ast, { x: 'probe.pos.x', y: 'probe.pos.y' });
+        } catch (e) { vizStage.clear(); return; }
+        vizStage.show(buildScene(fExpr, slopeExpr, x0, y0, xt, ymin, ymax), onVar, 300);
       });
     }
 
@@ -3594,68 +3320,55 @@
       }
       moreResults(out, [['y(' + xt + ') ≈', y], ['шагов', steps]]);
       el('div','sub',out, 'метод Эйлера — приближённое численное решение, точность растёт при уменьшении h');
-      updateViz(lin, x0, y0, xt, yMin, yMax);
+      updateViz(ast, x0, y0, xt, yMin, yMax);
     }
     [iX0,iY0,iXt,iH].forEach(function(i){i.addEventListener('input',calc);}); calc();
   }
 
-  /* ---------------------------------------------------- 9. Графики: полярные/параметрические */
+  /* ---------------------------------------------------- 9. Графики: полярные/параметрические
+     Тот же движок, что у построителя графиков и примеров справочника (GMS):
+     сетка, оси, масштаб колесом/щипком — общие, здесь только разбор ввода. */
+  function curvePlot(c, build) {
+    var wrap = el('div', 'plot-wrap gms-stage more-plot', c);
+    var stage = gmsStage(wrap, { title: 'График', errorText: 'Эту кривую пока не получается нарисовать.' });
+    return function redraw() {
+      var curve = build();
+      if (!curve) { stage.clear(); return; }
+      loadGmsEmbed().then(function (G) {
+        var cv;
+        try {
+          cv = curve.kind === 'polar'
+            ? { kind: 'polar', r: G.exprToGms(curve.r), t0: curve.t0, t1: curve.t1, color: PLOT_C1 }
+            : { kind: 'param', x: G.exprToGms(curve.x), y: G.exprToGms(curve.y), t0: curve.t0, t1: curve.t1, color: PLOT_C2 };
+        } catch (e) { stage.clear(); return; }
+        stage.show(G.plotScene({ curves: [cv], view: { width: 19.2, height: 12 } }), null, 300);
+      });
+    };
+  }
   function buildPolarPlotUI(c) {
     var g = el('div', null, c);
-    var mf = makeField(g, { initial: '2+2*cos(θ)'.replace('θ','t'), label: 'r(t), t — угол в радианах', onChange: redraw });
-    var cv = document.createElement('canvas'); cv.className = 'more-canvas'; c.appendChild(cv);
-    function redraw() {
-      var ctx = cv.getContext('2d'); var W = cv.width = cv.clientWidth * 2, H = cv.height = 320 * 2;
-      ctx.clearRect(0,0,W,H);
-      var lin = mf.field.expr(); if (!lin.trim()) return;
-      var comp = MFMath.compile(lin, 't'); if (!comp) return;
-      var cx=W/2, cy=H/2, scale = Math.min(W,H)/2/6;
-      ctx.strokeStyle = 'rgba(120,150,210,.25)'; ctx.lineWidth=1;
-      ctx.beginPath(); ctx.moveTo(0,cy); ctx.lineTo(W,cy); ctx.moveTo(cx,0); ctx.lineTo(cx,H); ctx.stroke();
-      ctx.strokeStyle = '#5b8cff'; ctx.lineWidth = 2.4; ctx.beginPath();
-      var first = true;
-      for (var t = 0; t <= Math.PI*2*3; t += 0.01) {
-        var r = comp.at(t); if (!isFinite(r)) { first = true; continue; }
-        var x = cx + r*Math.cos(t)*scale, y = cy - r*Math.sin(t)*scale;
-        if (first) { ctx.moveTo(x,y); first = false; } else ctx.lineTo(x,y);
-      }
-      ctx.stroke();
-    }
-    window.addEventListener('resize', redraw);
-    setTimeout(redraw, 0);
+    var mf = makeField(g, { initial: '2+2*cos(t)', label: 'r(t), t — угол в радианах', onChange: function () { if (redraw) redraw(); } });
+    var redraw = curvePlot(c, function () {
+      var comp = MFMath.compile(mf.field.expr(), 't');
+      return comp ? { kind: 'polar', r: comp.ast, t0: 0, t1: Math.PI * 6 } : null;
+    });
+    redraw();
   }
   function buildParamPlotUI(c) {
     var g = el('div', null, c);
     el('div', 'conv-block-h', g, 'x(t)');
-    var mfx = makeField(g, { initial: 'cos(t)*3', onChange: redraw });
+    var mfx = makeField(g, { initial: 'cos(t)*3', onChange: function () { if (redraw) redraw(); } });
     el('div', 'conv-block-h', g, 'y(t)');
-    var mfy = makeField(g, { initial: 'sin(t)*2', onChange: redraw });
+    var mfy = makeField(g, { initial: 'sin(t)*2', onChange: function () { if (redraw) redraw(); } });
     var g2 = el('div', 'grid2', c);
     var iT0 = moreField(g2, 't от', '0'), iT1 = moreField(g2, 't до', String((2*Math.PI).toFixed(4)));
-    var cv = document.createElement('canvas'); cv.className = 'more-canvas'; c.appendChild(cv);
-    function redraw() {
-      var ctx = cv.getContext('2d'); var W = cv.width = cv.clientWidth * 2, H = cv.height = 320 * 2;
-      ctx.clearRect(0,0,W,H);
-      var t0=moreNum(iT0), t1=moreNum(iT1); if (t0===null||t1===null) return;
-      var cx0 = MFMath.compile(mfx.field.expr(),'t'), cy0 = MFMath.compile(mfy.field.expr(),'t');
-      if (!cx0 || !cy0) return;
-      var cx=W/2, cy=H/2, scale = Math.min(W,H)/2/6;
-      ctx.strokeStyle = 'rgba(120,150,210,.25)'; ctx.lineWidth=1;
-      ctx.beginPath(); ctx.moveTo(0,cy); ctx.lineTo(W,cy); ctx.moveTo(cx,0); ctx.lineTo(cx,H); ctx.stroke();
-      ctx.strokeStyle = '#3ec2a4'; ctx.lineWidth = 2.4; ctx.beginPath();
-      var first = true, N = 2000;
-      for (var i = 0; i <= N; i++) {
-        var t = t0 + (t1-t0)*i/N;
-        var x = cx0.at(t), y = cy0.at(t);
-        if (!isFinite(x) || !isFinite(y)) { first = true; continue; }
-        var X = cx + x*scale, Y = cy - y*scale;
-        if (first) { ctx.moveTo(X,Y); first = false; } else ctx.lineTo(X,Y);
-      }
-      ctx.stroke();
-    }
-    [iT0, iT1].forEach(function(i){ i.addEventListener('input', redraw); });
-    window.addEventListener('resize', redraw);
-    setTimeout(redraw, 0);
+    var redraw = curvePlot(c, function () {
+      var t0 = moreNum(iT0), t1 = moreNum(iT1); if (t0 === null || t1 === null || t0 === t1) return null;
+      var cx0 = MFMath.compile(mfx.field.expr(), 't'), cy0 = MFMath.compile(mfy.field.expr(), 't');
+      return (cx0 && cy0) ? { kind: 'param', x: cx0.ast, y: cy0.ast, t0: t0, t1: t1 } : null;
+    });
+    [iT0, iT1].forEach(function (i) { i.addEventListener('input', redraw); });
+    redraw();
   }
 
 

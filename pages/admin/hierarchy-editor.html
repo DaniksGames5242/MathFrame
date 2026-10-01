@@ -4256,10 +4256,10 @@
           if (!r.ok) return r.json().catch(() => null).then(d => { throw new Error((d && d.error) || ('HTTP ' + r.status)); });
           return r.text();
         }),
-        import('/assets/js/gms-compiler.js'),
+        import('/assets/js/gms-embed.js'),
       ]);
       if (wrap.style.display === 'none') return;   // closed while loading
-      const result = mod.compile(source);
+      const result = await mod.compileScene(source);
       if (!result.success){
         status.classList.add('error');
         status.innerHTML = 'Ошибка компиляции:<br>' + (result.errors || []).join('<br>');
@@ -4267,7 +4267,8 @@
       }
       const frame = document.createElement('iframe');
       frame.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-pointer-lock allow-popups');
-      frame.addEventListener('load', () => { status.remove(); }, { once:true });
+      // тема сайта — та же, что у примеров в справочнике (gms-embed.attachFrame)
+      mod.attachFrame(frame, { fit: false, onLoad: () => status.remove() });
       frame.srcdoc = result.html;
       wrap.insertBefore(frame, status);
     } catch (e) {
