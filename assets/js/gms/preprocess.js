@@ -74,6 +74,7 @@ function escapeHtml(text) {
                 axisText: 'rgba(214,220,235,0.72)',
                 halo: '#141821',
                 point: '#8b9bff',
+                curve: '#6ea8ff',
             },
             light: {
                 background: '#ffffff',
@@ -93,6 +94,7 @@ function escapeHtml(text) {
                 axisText: 'rgba(31,36,48,0.72)',
                 halo: '#ffffff',
                 point: '#2f6fed',
+                curve: '#2563eb',
             },
         };
         // Тема текущей компиляции — выставляется в compile() до разбора команд, чтобы
