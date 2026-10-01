@@ -217,6 +217,10 @@ main .btn kbd{font-family:var(--pg-mono);font-size:.68rem;padding:.08rem .35rem;
 .sel-btn select{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%}
 @media (max-width:1250px){.pal-btn span{display:none}.pal-btn{padding:.45rem}}
 /* ---- конструктор ---- */
+.bd-switch{display:flex;align-items:center;gap:.4rem;margin:0 0 .6rem}
+.bd-switch-hint{color:var(--text-tertiary);font-size:.8rem;margin-left:.4rem}
+.bd-all{height:calc(100vh - 260px);min-height:600px}
+#viewBuilder.all-mode #bdTools,#viewBuilder.all-mode .bd{display:none}
 .bd{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:.75rem;height:calc(100vh - 300px);min-height:540px}
 .bd-canvas-pane{min-height:0}
 .bd-stage{flex:1;min-height:0;position:relative;background:var(--bg-sunken)}
@@ -366,6 +370,12 @@ html.mf-no-motion .pg-view,html.mf-no-motion .dlg.show,html.mf-no-motion .dlg.sh
 
   <!-- ================= Конструктор ================= -->
   <section id="viewBuilder" class="pg-view" hidden>
+    <div class="bd-switch" role="tablist" aria-label="Вид конструктора">
+      <button type="button" role="tab" class="mini on" id="bdModeMouse" aria-selected="true">Мышью</button>
+      <button type="button" role="tab" class="mini" id="bdModeAll" aria-selected="false">Все элементы</button>
+      <span class="bd-switch-hint" id="bdModeHint">Рисуйте точки, отрезки и фигуры мышью</span>
+    </div>
+    <div id="bdAll" class="bd-all" hidden></div>
     <div class="tb" id="bdTools" role="toolbar" aria-label="Инструменты конструктора"></div>
     <div class="bd">
       <div class="pane mf-ticks bd-canvas-pane">
@@ -430,5 +440,34 @@ html.mf-no-motion .pg-view,html.mf-no-motion .dlg.show,html.mf-no-motion .dlg.sh
 <script src="/assets/js/common.js"></script>
 <script type="module" src="/assets/js/playground.js"></script>
 <script type="module" src="/assets/js/playground-builder.js"></script>
+<script type="module">
+// Конструктор «Все элементы»: любой объект GMS со всеми полями (assets/js/gms-structured-editor.js).
+const $ = (id) => document.getElementById(id);
+let ed = null;
+async function setMode(all) {
+  $('viewBuilder').classList.toggle('all-mode', all);
+  $('bdAll').hidden = !all;
+  $('bdModeMouse').classList.toggle('on', !all); $('bdModeAll').classList.toggle('on', all);
+  $('bdModeMouse').setAttribute('aria-selected', String(!all)); $('bdModeAll').setAttribute('aria-selected', String(all));
+  $('bdModeHint').textContent = all ? 'Все объекты new/draw и параметры сцены — каждое поле настраивается' : 'Рисуйте точки, отрезки и фигуры мышью';
+  try { localStorage.setItem('mf-builder-mode', all ? 'all' : 'mouse'); } catch (e) {}
+  if (all && !ed) {
+    const { mountStructuredEditor } = await import('/assets/js/gms-structured-editor.js');
+    let saved = null; try { saved = localStorage.getItem('mf-builder-all-code'); } catch (e) {}
+    ed = await mountStructuredEditor($('bdAll'), {
+      mode: 'playground',
+      source: saved || '[\nfield width = 20;\nfield height = 12;\nshow axes = true;\nshow grid = true;\n]',
+      onChange: (s) => { try { localStorage.setItem('mf-builder-all-code', s); } catch (e) {} },
+      toolbar: [
+        { label: 'Из редактора', title: 'Загрузить код со вкладки «Редактор»', onClick: () => { const c = $('code').value; if (c.trim() && confirm('Заменить сцену конструктора кодом из редактора?')) ed.setSource(c); } },
+        { label: 'Открыть в редакторе', title: 'Перенести код во вкладку «Редактор»', onClick: (s) => window.mfPlayground && window.mfPlayground.openCode(s, 'constructor.gms') },
+      ],
+    });
+  }
+}
+$('bdModeMouse').onclick = () => setMode(false);
+$('bdModeAll').onclick = () => setMode(true);
+try { if (localStorage.getItem('mf-builder-mode') === 'all') setMode(true); } catch (e) {}
+</script>
 </body>
 </html>
