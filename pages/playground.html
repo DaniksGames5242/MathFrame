@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<script>/* MathFrame: тема до первого кадра + маска перехода между страницами (см. common.js › PAGE TRANSITIONS) */(function(){var d=document.documentElement;try{var t=localStorage.getItem('theme');if(t==='light'||(t!=='dark'&&!matchMedia('(prefers-color-scheme: dark)').matches))d.classList.add('light');}catch(e){}try{var s=sessionStorage.getItem('mf-veil');if(!s)return;sessionStorage.removeItem('mf-veil');var v=JSON.parse(s),n=performance.getEntriesByType&&performance.getEntriesByType('navigation')[0];if(!v||!v.fill||Date.now()-v.t>8000||(n&&n.type&&n.type!=='navigate'))return;window.__mfVeil=v;d.style.setProperty('--mf-veil-fill',v.fill);d.classList.add('mf-veil-on');setTimeout(function(){d.classList.remove('mf-veil-on')},4000);}catch(e){}})();</script>
+<title>Песочница GMS — MathFrame</title>
+<meta name="description" content="Редактор интерактивных математических сцен на языке GMS с живым просмотром и полной документацией." />
+<link rel="stylesheet" href="/assets/css/common.css" />
+<link rel="stylesheet" href="/assets/lib/katex/katex.min.css" />
+<script defer src="/assets/lib/katex/katex.min.js"></script>
+<style>
+main{
+  max-width:1480px;margin:0 auto;
+  padding:1rem clamp(.75rem,3vw,1.5rem) 3rem;
+  padding-left:max(clamp(.75rem,3vw,1.5rem),var(--safe-l));
+  padding-right:max(clamp(.75rem,3vw,1.5rem),var(--safe-r));
+  padding-bottom:calc(3rem + var(--safe-b));
+}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+:root{
+  --pg-kw:#7ba3ff;--pg-type:#f2b45c;--pg-decl:#56dcc8;--pg-str:#8bd49c;--pg-num:#b79bff;
+  --pg-com:#66748f;--pg-bool:#f78c6c;--pg-key:#b4c4ea;--pg-err:#f87171;--pg-ok:#56dcc8;
+  --pg-mono:ui-monospace,'SF Mono','JetBrains Mono','Cascadia Code',Menlo,Consolas,monospace;
+}
+html.light{
+  --pg-kw:#2f5fe0;--pg-type:#a1640b;--pg-decl:#0b7d6f;--pg-str:#1d7f45;--pg-num:#7048d8;
+  --pg-com:#6f7c97;--pg-bool:#c2410c;--pg-key:#2c3f73;--pg-err:#b42f2f;--pg-ok:#0b7d6f;
+}
+
+/* ---- переключатель разделов ---- */
+.pg-top{display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;margin-bottom:.8rem}
+.pg-tabs{display:inline-flex;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r-md, 10px);padding:3px;gap:2px}
+.pg-tabs button{border:0;background:transparent;color:var(--text-secondary);font:inherit;font-size:.9rem;padding:.45rem 1rem;border-radius:7px;cursor:pointer}
+.pg-tabs button.on{background:var(--accent-soft);color:var(--text-primary);font-weight:600}
+.pg-sub{color:var(--text-tertiary);font-size:.82rem}
+
+/* ---- панель инструментов ---- */
+.tb{display:flex;flex-wrap:wrap;gap:.4rem;align-items:center;margin-bottom:.6rem}
+.tb .sep{width:1px;height:22px;background:var(--border);margin:0 .2rem}
+.btn{
+  display:inline-flex;align-items:center;gap:.35rem;
+  border:1px solid var(--border-strong);background:var(--bg-card);color:var(--text-primary);
+  font:inherit;font-size:.83rem;padding:.4rem .7rem;border-radius:8px;cursor:pointer;white-space:nowrap
+}
+@media (hover:hover){.btn:hover{border-color:var(--accent);background:var(--accent-soft)}}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+html.light .btn.primary{color:#fff}
+.btn svg{width:15px;height:15px;flex:0 0 auto}
+.btn.on{border-color:var(--accent);background:var(--accent-soft)}
+.tb select{font:inherit;font-size:.83rem;padding:.4rem .5rem;border-radius:8px;border:1px solid var(--border-strong);background:var(--bg-card);color:var(--text-primary);max-width:15rem}
+
+/* ---- рабочая область ---- */
+.ws{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:.75rem;height:calc(100vh - 210px);min-height:520px}
+.ws.wide-ed{grid-template-columns:minmax(0,1.4fr) minmax(0,1fr)}
+.pane{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.pane-h{display:flex;align-items:center;gap:.5rem;padding:.45rem .7rem;border-bottom:1px solid var(--border);font-size:.8rem;color:var(--text-tertiary);min-height:38px}
+.pane-h b{color:var(--text-secondary);font-weight:600}
+.pane-h .grow{flex:1}
+.status{font-family:var(--pg-mono);font-size:.75rem}
+.status.ok{color:var(--pg-ok)} .status.err{color:var(--pg-err)}
+.mini{border:1px solid var(--border);background:transparent;color:var(--text-secondary);font:inherit;font-size:.75rem;padding:.2rem .5rem;border-radius:6px;cursor:pointer}
+.mini.on{background:var(--accent-soft);color:var(--text-primary);border-color:var(--accent)}
+
+/* ---- редактор: textarea поверх подсветки ---- */
+.ed{position:relative;flex:1;min-height:0;display:flex;font-family:var(--pg-mono);font-size:13px;line-height:19.5px}
+.gutter{flex:0 0 auto;padding:10px 8px 10px 10px;text-align:right;color:var(--text-tertiary);opacity:.6;user-select:none;overflow:hidden;white-space:pre;background:var(--bg-sunken)}
+.gutter .e{color:var(--pg-err);opacity:1;font-weight:700}
+.code-wrap{position:relative;flex:1;min-width:0}
+.code-wrap pre,.code-wrap textarea{
+  position:absolute;inset:0;margin:0;padding:10px 12px;border:0;
+  font:inherit;line-height:inherit;letter-spacing:0;tab-size:2;-moz-tab-size:2;
+  white-space:pre;overflow:auto;word-wrap:normal
+}
+.code-wrap pre{pointer-events:none;color:var(--text-primary)}
+.code-wrap textarea{resize:none;outline:none;background:transparent;color:transparent;caret-color:var(--text-primary);z-index:1}
+.code-wrap textarea::selection{background:rgba(91,140,255,.32);color:transparent}
+.t-com{color:var(--pg-com);font-style:italic}.t-str{color:var(--pg-str)}.t-num{color:var(--pg-num)}
+.t-kw{color:var(--pg-kw);font-weight:600}.t-type{color:var(--pg-type)}.t-decl{color:var(--pg-decl)}
+.t-bool{color:var(--pg-bool)}.t-key{color:var(--pg-key)}.t-col{text-decoration:underline;text-decoration-thickness:3px;text-underline-offset:3px}
+
+/* ---- подсказки ---- */
+.sug{position:absolute;z-index:20;min-width:220px;max-width:340px;max-height:240px;overflow:auto;background:var(--bg-card);border:1px solid var(--border-strong);border-radius:8px;box-shadow:0 12px 30px rgba(0,0,0,.3);font-family:var(--pg-mono);font-size:12.5px;display:none}
+.sug div{padding:.3rem .6rem;cursor:pointer;display:flex;justify-content:space-between;gap:1rem}
+.sug div small{color:var(--text-tertiary);font-family:var(--font-body, inherit)}
+.sug div.sel{background:var(--accent-soft)}
+
+/* ---- ошибки ---- */
+.errs{max-height:30%;overflow:auto;border-top:1px solid var(--border);font-family:var(--pg-mono);font-size:12px}
+.errs:empty{display:none}
+.errs div{padding:.35rem .7rem;color:var(--pg-err);cursor:pointer;border-bottom:1px solid var(--border)}
+.errs div:hover{background:var(--accent-soft)}
+.errs div.warn{color:var(--text-secondary)}
+
+/* ---- просмотр ---- */
+.prev{flex:1;min-height:0;position:relative}
+.prev iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:#1b1b2a}
+.prev-empty[hidden]{display:none}
+.prev-empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--text-tertiary);font-size:.9rem;text-align:center;padding:1rem}
+.console{max-height:28%;overflow:auto;border-top:1px solid var(--border);font-family:var(--pg-mono);font-size:12px}
+.console:empty{display:none}
+.console div{padding:.3rem .7rem;border-bottom:1px solid var(--border);color:var(--pg-err)}
+
+.ws.fs{position:fixed;inset:0;z-index:900;height:auto;padding:.5rem;background:var(--bg-page, var(--bg));}
+
+/* ---- документация ---- */
+.docs{display:grid;grid-template-columns:260px minmax(0,1fr);gap:1.25rem;align-items:start}
+.toc{position:sticky;top:76px;max-height:calc(100vh - 96px);overflow:auto;background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:.6rem}
+.toc input{width:100%;padding:.5rem .6rem;border-radius:8px;border:1px solid var(--border-strong);background:var(--bg-sunken);color:var(--text-primary);font:inherit;font-size:16px;margin-bottom:.4rem}
+.toc a{display:block;padding:.28rem .5rem;border-radius:6px;color:var(--text-secondary);text-decoration:none;font-size:.85rem}
+.toc a.l3{padding-left:1.3rem;font-size:.8rem;color:var(--text-tertiary)}
+.toc a:hover,.toc a.on{background:var(--accent-soft);color:var(--text-primary)}
+.doc{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:1.2rem clamp(1rem,3vw,2rem) 2rem;min-width:0;line-height:1.6}
+.doc h1{font-size:1.6rem;margin:.2rem 0 .8rem}
+.doc h2{font-size:1.3rem;margin:2rem 0 .7rem;padding-top:.6rem;border-top:1px solid var(--border)}
+.doc h3{font-size:1.06rem;margin:1.4rem 0 .5rem}
+.doc p{margin:.5rem 0}
+.doc p,.doc li{color:var(--text-secondary)}
+.doc ul,.doc ol{padding-left:1.4rem}
+.doc code{font-family:var(--pg-mono);font-size:.86em;background:var(--bg-sunken);padding:.08rem .32rem;border-radius:4px;color:var(--text-primary)}
+.doc .tw{overflow-x:auto;margin:.7rem 0}
+.doc table{border-collapse:collapse;font-size:.86rem;min-width:100%}
+.doc th,.doc td{border:1px solid var(--border);padding:.4rem .6rem;text-align:left;vertical-align:top}
+.doc th{background:var(--bg-sunken);color:var(--text-primary)}
+.doc td{color:var(--text-secondary)}
+.cb{position:relative;margin:.8rem 0;border:1px solid var(--border);border-radius:10px;background:var(--bg-sunken);overflow:hidden}
+.cb pre{margin:0;padding:.8rem 1rem;overflow:auto;font-family:var(--pg-mono);font-size:12.5px;line-height:1.55}
+.cb .cb-bar{display:flex;gap:.4rem;justify-content:flex-end;padding:.35rem .5rem;border-top:1px solid var(--border)}
+.doc mark{background:rgba(242,180,92,.35);color:inherit;border-radius:2px}
+.doc .nores{color:var(--text-tertiary);padding:2rem 0;text-align:center}
+
+/* ---- окно примеров ---- */
+.dlg{position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;padding:1rem}
+.dlg.show{display:flex}
+.dlg-box{background:var(--bg-card);border:1px solid var(--border-strong);border-radius:14px;width:min(760px,100%);max-height:min(80vh,720px);display:flex;flex-direction:column;overflow:hidden}
+.dlg-h{display:flex;gap:.5rem;align-items:center;padding:.7rem;border-bottom:1px solid var(--border)}
+.dlg-h input{flex:1;min-width:0;padding:.5rem .6rem;border-radius:8px;border:1px solid var(--border-strong);background:var(--bg-sunken);color:var(--text-primary);font:inherit;font-size:16px}
+.dlg-h select{font:inherit;font-size:.85rem;padding:.45rem;border-radius:8px;border:1px solid var(--border-strong);background:var(--bg-sunken);color:var(--text-primary);max-width:40%}
+.dlg-list{overflow:auto;padding:.3rem}
+.dlg-list button{display:flex;width:100%;justify-content:space-between;gap:1rem;text-align:left;border:0;background:transparent;color:var(--text-primary);font:inherit;font-size:.9rem;padding:.45rem .6rem;border-radius:7px;cursor:pointer}
+.dlg-list button small{color:var(--text-tertiary);white-space:nowrap}
+.dlg-list button:hover,.dlg-list button.sel{background:var(--accent-soft)}
+
+.toast{position:fixed;left:50%;bottom:calc(1.2rem + var(--safe-b));transform:translateX(-50%);background:var(--bg-card);border:1px solid var(--border-strong);padding:.55rem 1rem;border-radius:9px;font-size:.85rem;z-index:1100;box-shadow:0 10px 30px rgba(0,0,0,.3);opacity:0;pointer-events:none;transition:opacity .2s}
+.toast.show{opacity:1}
+
+@media (max-width:900px){
+  .ws,.ws.wide-ed{grid-template-columns:1fr;height:auto}
+  .ws .pane{height:62vh;min-height:380px}
+  .tb .sep{display:none}
+  .docs{grid-template-columns:1fr}
+  .toc{position:static;max-height:none}
+  .toc nav{max-height:40vh;overflow:auto}
+}
+</style>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
+</head>
+<body data-page="playground">
+
+<div id="app-header"></div>
+
+<main>
+  <h1 class="sr-only">Песочница GMS</h1>
+
+  <div class="pg-top">
+    <div class="pg-tabs" role="tablist">
+      <button type="button" role="tab" id="tabEditor" class="on" aria-selected="true">Редактор</button>
+      <button type="button" role="tab" id="tabDocs" aria-selected="false">Документация</button>
+    </div>
+    <span class="pg-sub">Интерактивные сцены на языке GMS — в 2D и 3D. Код сохраняется в этом браузере.</span>
+  </div>
+
+  <!-- ================= Редактор ================= -->
+  <section id="viewEditor">
+    <div class="tb">
+      <button class="btn primary" id="bRun" title="Ctrl+Enter">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15l13-7.5z"/></svg>Запустить
+      </button>
+      <button class="btn on" id="bAuto" title="Перезапускать сцену при каждом изменении кода">Автозапуск</button>
+      <span class="sep"></span>
+      <select id="selTemplate" aria-label="Шаблон">
+        <option value="">Новый из шаблона…</option>
+      </select>
+      <button class="btn" id="bExamples">Примеры справочника</button>
+      <span class="sep"></span>
+      <button class="btn" id="bOpen" title="Открыть .gms-файл">Открыть</button>
+      <button class="btn" id="bSave" title="Скачать исходник .gms">Скачать .gms</button>
+      <button class="btn" id="bHtml" title="Скачать готовую страницу сцены">Скачать .html</button>
+      <button class="btn" id="bShare" title="Скопировать ссылку с кодом">Поделиться</button>
+      <span class="sep"></span>
+      <button class="btn" id="bFormat" title="Выровнять отступы">Отступы</button>
+      <button class="btn" id="bFull" title="Во весь экран">⤢</button>
+      <input type="file" id="fileIn" accept=".gms,.txt" hidden />
+    </div>
+
+    <div class="ws wide-ed" id="ws">
+      <div class="pane">
+        <div class="pane-h">
+          <b id="fileName">scene.gms</b><span class="grow"></span>
+          <span class="status" id="status"></span>
+        </div>
+        <div class="ed">
+          <div class="gutter" id="gutter">1</div>
+          <div class="code-wrap" id="codeWrap">
+            <pre id="hl" aria-hidden="true"></pre>
+            <textarea id="code" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" aria-label="Код GMS"></textarea>
+            <div class="sug" id="sug" role="listbox"></div>
+          </div>
+        </div>
+        <div class="errs" id="errs"></div>
+      </div>
+
+      <div class="pane">
+        <div class="pane-h">
+          <b>Сцена</b><span class="grow"></span>
+          <button class="mini" id="pvDark">Тёмная</button>
+          <button class="mini" id="pvLight">Светлая</button>
+          <button class="mini" id="pvReload" title="Перезапустить">↻</button>
+        </div>
+        <div class="prev">
+          <iframe id="frame" title="Сцена" sandbox="allow-scripts allow-downloads allow-popups"></iframe>
+          <div class="prev-empty" id="prevEmpty">Нажмите «Запустить» или Ctrl+Enter</div>
+        </div>
+        <div class="console" id="console"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= Документация ================= -->
+  <section id="viewDocs" hidden>
+    <div class="docs">
+      <aside class="toc">
+        <input type="search" id="docSearch" placeholder="Поиск по документации" aria-label="Поиск по документации" />
+        <nav id="tocNav"></nav>
+      </aside>
+      <article class="doc" id="doc"><p class="nores">Загрузка документации…</p></article>
+    </div>
+  </section>
+</main>
+
+<div class="dlg" id="dlg" role="dialog" aria-modal="true" aria-label="Примеры справочника">
+  <div class="dlg-box">
+    <div class="dlg-h">
+      <input type="search" id="exSearch" placeholder="Название темы" aria-label="Поиск примера" />
+      <select id="exSection" aria-label="Раздел"><option value="">Все разделы</option></select>
+      <button class="btn" id="exClose" aria-label="Закрыть">✕</button>
+    </div>
+    <div class="dlg-list" id="exList"></div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<div id="app-footer"></div>
+
+<script>var PAGE_ROOT = '/';</script>
+<script src="/assets/js/auth.js"></script>
+<script src="/assets/js/common.js"></script>
+<script type="module" src="/assets/js/playground.js"></script>
+</body>
+</html>
