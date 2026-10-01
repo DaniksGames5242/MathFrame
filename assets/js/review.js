@@ -385,13 +385,18 @@ async function addElement(o, at) {
 function openCodeList() {
     const box = $('rvCodePick');
     const objs = codeObjects();
-    box.innerHTML = '<input class="rv-in" type="search" placeholder="Найти объект…" style="margin:.15rem">' +
+    box.innerHTML = '<div class="rv-codepick-h"><input class="rv-in" type="search" placeholder="Найти объект…" style="flex:1"><button type="button" class="rv-btn sm" data-close title="Закрыть (Esc)">✕</button></div>' +
         (objs.map((o, i) => `<button type="button" data-o="${i}"><span>${esc(o.name)}</span><span style="color:var(--text-tertiary)">${esc(o.type)}</span><small>стр. ${o.line}</small></button>`).join('') || '<span class="rv-hint">В коде нет именованных объектов</span>');
     box.hidden = false;
     const inp = box.querySelector('input'); inp.focus();
     inp.oninput = () => { const f = inp.value.toLowerCase(); box.querySelectorAll('[data-o]').forEach((b) => { b.hidden = f && !b.textContent.toLowerCase().includes(f); }); };
-    box.onclick = (e) => { const b = e.target.closest('[data-o]'); if (b) addElement(objs[+b.dataset.o], null); };
+    box.onclick = (e) => { if (e.target.closest('[data-close]')) { box.hidden = true; return; } const b = e.target.closest('[data-o]'); if (b) addElement(objs[+b.dataset.o], null); };
 }
+document.addEventListener('pointerdown', (e) => {
+    const box = $('rvCodePick');
+    if (!box.hidden && !box.contains(e.target) && !e.target.closest('#rvCodeList,.rv-ov')) box.hidden = true;
+});
+$('rvToEditor').onclick = () => setTab('edit');
 $('rvCodeList').onclick = () => { if ($('rvCodePick').hidden) openCodeList(); else $('rvCodePick').hidden = true; };
 
 // Подсветка выделений всех заметок примера поверх сцены (выбранная — акцентом).
@@ -510,6 +515,7 @@ $('rvChecked').onchange = async () => {
 $('rvPrev').onclick = () => showExample(S.cur - 1);
 $('rvNext').onclick = () => showExample(S.cur + 1);
 document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !$('rvCodePick').hidden) { $('rvCodePick').hidden = true; return; }
     if (e.target.closest('input,textarea,select,[contenteditable]') || !$('rvTabEdit').hidden) return;
     if (e.key === 'ArrowLeft') showExample(S.cur - 1);
     else if (e.key === 'ArrowRight') showExample(S.cur + 1);

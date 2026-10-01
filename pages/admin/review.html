@@ -107,6 +107,8 @@ select.rv-sel,input.rv-in{font:inherit;font-size:.82rem;padding:.34rem .5rem;bor
 .rv-general{border-style:dashed}
 .rv-desc{font-size:.84rem;color:var(--text-secondary);border:1px solid var(--border);border-radius:10px;padding:.6rem .8rem;background:var(--bg-card);max-height:260px;overflow:auto}
 .rv-desc summary{cursor:pointer;color:var(--text-primary)}
+.rv-codepick[hidden]{display:none}
+.rv-codepick-h{display:flex;gap:.3rem;align-items:center;position:sticky;top:0;background:var(--bg-sunken);padding:.1rem}
 .rv-codepick{max-height:240px;overflow:auto;display:flex;flex-direction:column;gap:2px;border:1px solid var(--border);border-radius:8px;padding:.25rem;background:var(--bg-sunken)}
 .rv-codepick button{font:inherit;font-size:.76rem;text-align:left;border:0;background:transparent;color:var(--text-primary);padding:.2rem .4rem;border-radius:5px;cursor:pointer;display:flex;gap:.5rem}
 .rv-codepick button:hover{background:var(--accent-soft)}
@@ -133,7 +135,7 @@ kbd{font-family:var(--font-mono);font-size:.72rem;border:1px solid var(--border-
       <h1>Проверка примеров</h1>
       <div class="rv-seg" role="tablist" aria-label="Раздел">
         <button type="button" role="tab" class="on" data-tab="check">Проверка</button>
-        <button type="button" role="tab" data-tab="edit">Редактор</button>
+        <button type="button" role="tab" data-tab="edit">✎ Визуальный редактор</button>
       </div>
       <div class="rv-seg" role="group" aria-label="Вид">
         <button type="button" class="on" data-view="pc" title="Как на компьютере">ПК</button>
@@ -171,6 +173,7 @@ kbd{font-family:var(--font-mono);font-size:.72rem;border:1px solid var(--border-
             <h2 id="rvTitle"></h2><span class="sec" id="rvSec"></span>
             <span class="rv-grow"></span>
             <label class="rv-chip"><input type="checkbox" id="rvChecked"> Пример проверен</label>
+            <button type="button" class="rv-btn sm" id="rvToEditor" title="Открыть этот пример в визуальном редакторе">✎ Править в редакторе</button>
             <a class="rv-btn sm" id="rvOpen" target="_blank" rel="noopener">Открыть в справочнике</a>
           </div>
 
