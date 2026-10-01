@@ -1,0 +1,339 @@
+{
+  "sentAt": "2026-10-01T18:07:55.804Z",
+  "sentBy": "mathframe.ru@gmail.com",
+  "count": 14,
+  "items": [
+    {
+      "id": "g:aksiomy-polya-deystvitelnyh-chisel",
+      "exampleId": "aksiomy-polya-deystvitelnyh-chisel",
+      "file": "data/examples/aksiomy-polya-deystvitelnyh-chisel.gms",
+      "title": "Аксиомы поля действительных чисел",
+      "section": "Алгебра",
+      "kind": "general",
+      "viewMode": "pc",
+      "text": "Точки должны перетаскиваться строго по прямой, не уходя с неё. ",
+      "targets": [
+        "example"
+      ],
+      "regions": [],
+      "elements": [],
+      "updated": false,
+      "changedAt": "2026-10-01T17:21:59.400Z"
+    },
+    {
+      "id": "n:mupsv2vrkcsm",
+      "exampleId": "aksiomy-polya-deystvitelnyh-chisel",
+      "file": "data/examples/aksiomy-polya-deystvitelnyh-chisel.gms",
+      "title": "Аксиомы поля действительных чисел",
+      "section": "Алгебра",
+      "kind": "note",
+      "viewMode": "pc",
+      "text": "Эти элементы дёргаются при перетаскивании, они должны двигаться плавно.",
+      "targets": [
+        "example",
+        "compiler"
+      ],
+      "regions": [
+        {
+          "x": 278,
+          "y": 50,
+          "w": 117,
+          "h": 111,
+          "frameW": 599,
+          "frameH": 591,
+          "viewMode": "pc",
+          "image": "data/review-notes/2026-10-01T18-07-57-a9se/img/n_mupsv2vrkcsm-1.png"
+        },
+        {
+          "x": 248,
+          "y": 234,
+          "w": 146,
+          "h": 133,
+          "frameW": 599,
+          "frameH": 591,
+          "viewMode": "pc",
+          "image": "data/review-notes/2026-10-01T18-07-57-a9se/img/n_mupsv2vrkcsm-2.png"
+        }
+      ],
+      "elements": [],
+      "updated": false,
+      "changedAt": "2026-10-01T17:22:13.686Z"
+    },
+    {
+      "id": "n:mupt11pge658",
+      "exampleId": "algebraicheskaya-fraction",
+      "file": "data/examples/algebraicheskaya-fraction.gms",
+      "title": "Алгебраическая дробь",
+      "section": "Алгебра",
+      "kind": "note",
+      "viewMode": "pc",
+      "text": "График не доходит до концов поля. ",
+      "targets": [
+        "compiler"
+      ],
+      "regions": [
+        {
+          "x": 255,
+          "y": 19,
+          "w": 96,
+          "h": 336,
+          "frameW": 599,
+          "frameH": 489,
+          "viewMode": "pc",
+          "image": "data/review-notes/2026-10-01T18-07-57-a9se/img/n_mupt11pge658-1.png"
+        }
+      ],
+      "elements": [],
+      "updated": false,
+      "changedAt": "2026-10-01T17:25:29.734Z"
+    },
+    {
+      "id": "n:mupt27vylptf",
+      "exampleId": "algebraicheskaya-fraction",
+      "file": "data/examples/algebraicheskaya-fraction.gms",
+      "title": "Алгебраическая дробь",
+      "section": "Алгебра",
+      "kind": "note",
+      "viewMode": "pc",
+      "text": "Нет формул, обычная запись. ",
+      "targets": [
+        "example",
+        "other"
+      ],
+      "regions": [
+        {
+          "x": 152,
+          "y": 393,
+          "w": 115,
+          "h": 43,
+          "frameW": 599,
+          "frameH": 489,
+          "viewMode": "pc",
+          "image": "data/review-notes/2026-10-01T18-07-57-a9se/img/n_mupt27vylptf-1.png"
+        }
+      ],
+      "elements": [],
+      "updated": false,
+      "changedAt": "2026-10-01T17:26:21.216Z"
+    },
+    {
+      "id": "n:mupt3dt8p5f1",
+      "exampleId": "aksiomy-polya-deystvitelnyh-chisel",
+      "file": "data/examples/aksiomy-polya-deystvitelnyh-chisel.gms",
+      "title": "Аксиомы поля действительных чисел",
+      "section": "Алгебра",
+      "kind": "note",
+      "viewMode": "pc",
+      "text": "Всегда, во всех примерах по стандарту должны использоваться запятые (для записи дробей). Добавь перключения языка в общих настройках (русский / английский) и на английском они должны меняться на точки. ",
+      "targets": [
+        "other"
+      ],
+      "regions": [
+        {
+          "x": 6,
+          "y": 446,
+          "w": 557,
+          "h": 143,
+          "frameW": 599,
+          "frameH": 591,
+          "viewMode": "pc",
+          "image": "data/review-notes/2026-10-01T18-07-57-a9se/img/n_mupt3dt8p5f1-1.png"
+        }
+      ],
+      "elements": [],
+      "updated": false,
+      "changedAt": "2026-10-01T17:27:56.704Z"
+    },
+    {
+      "id": "n:mupta2jjvqve",
+      "exampleId": "algebraicheskaya-fraction",
+      "file": "data/examples/algebraicheskaya-fraction.gms",
+      "title": "Алгебраическая дробь",
+      "section": "Алгебра",
+      "kind": "note",
+      "viewMode": "mobile",
+      "text": "На телефоне цифры залазят друг на друга. ",
+      "targets": [
+        "compiler",
+        "example"
+      ],
+      "regions": [
+        {
+          "x": 20,
+          "y": 107,
+          "w": 147,
+          "h": 21,
+          "frameW": 333,
+          "frameH": 370,
+          "viewMode": "mobile",
+          "image": "data/review-notes/2026-10-01T18-07-57-a9se/img/n_mupta2jjvqve-1.png"
+        }
+      ],
+      "elements": [],
+      "updated": false,
+      "changedAt": "2026-10-01T17:32:11.894Z"
+    },
+    {
+      "id": "n:muptb3ots8uf",
+      "exampleId": "aksiomy-polya-deystvitelnyh-chisel",
+      "file": "data/examples/aksiomy-polya-deystvitelnyh-chisel.gms",
+      "title": "Аксиомы поля действительных чисел",
+      "section": "Алгебра",
+      "kind": "note",
+      "viewMode": "mobile",
+      "text": "На телефоне весь текст залез друг на друга. ",
+      "targets": [],
+      "regions": [
+        {
+          "x": 107,
+          "y": 23,
+          "w": 125,
+          "h": 192,
+          "frameW": 333,
+          "frameH": 515,
+          "viewMode": "mobile",
+          "image": "data/review-notes/2026-10-01T18-07-57-a9se/img/n_muptb3ots8uf-1.png"
+        }
+      ],
+      "elements": [],
+      "updated": false,
+      "changedAt": "2026-10-01T17:32:54.575Z"
+    },
+    {
+      "id": "s:aksiomy-polya-deystvitelnyh-chisel",
+      "exampleId": "aksiomy-polya-deystvitelnyh-chisel",
+      "file": "data/examples/aksiomy-polya-deystvitelnyh-chisel.gms",
+      "title": "Аксиомы поля действительных чисел",
+      "section": "Алгебра",
+      "kind": "status",
+      "viewMode": "pc",
+      "text": "",
+      "targets": [],
+      "regions": [],
+      "elements": [],
+      "updated": false,
+      "changedAt": "2026-10-01T17:23:31.956Z",
+      "checked": true
+    },
+    {
+      "id": "s:algebraicheskaya-fraction",
+      "exampleId": "algebraicheskaya-fraction",
+      "file": "data/examples/algebraicheskaya-fraction.gms",
+      "title": "Алгебраическая дробь",
+      "section": "Алгебра",
+      "kind": "status",
+      "viewMode": "pc",
+      "text": "",
+      "targets": [],
+      "regions": [],
+      "elements": [],
+      "updated": false,
+      "changedAt": "2026-10-01T17:26:26.557Z",
+      "checked": true
+    },
+    {
+      "id": "s:axiom-nepreryvnosti-polnota",
+      "exampleId": "axiom-nepreryvnosti-polnota",
+      "file": "data/examples/axiom-nepreryvnosti-polnota.gms",
+      "title": "Аксиома непрерывности (полнота)",
+      "section": "Алгебра",
+      "kind": "status",
+      "viewMode": "mobile",
+      "text": "",
+      "targets": [],
+      "regions": [],
+      "elements": [],
+      "updated": false,
+      "changedAt": "2026-10-01T17:15:13.084Z",
+      "checked": true
+    },
+    {
+      "id": "g:algebraicheskaya-forma-kompleksnogo-numbers",
+      "exampleId": "algebraicheskaya-forma-kompleksnogo-numbers",
+      "file": "data/examples/algebraicheskaya-forma-kompleksnogo-numbers.gms",
+      "title": "Алгебраическая форма комплексного числа",
+      "section": "Алгебра",
+      "kind": "general",
+      "viewMode": "pc",
+      "text": "Не уверен, не знаю тему, но в теории может быть фактическая ошибка. На телефоне слишком мелкая сетка. ",
+      "targets": [
+        "example",
+        "compiler"
+      ],
+      "regions": [],
+      "elements": [],
+      "updated": false,
+      "changedAt": "2026-10-01T17:46:01.493Z"
+    },
+    {
+      "id": "s:algebraicheskaya-forma-kompleksnogo-numbers",
+      "exampleId": "algebraicheskaya-forma-kompleksnogo-numbers",
+      "file": "data/examples/algebraicheskaya-forma-kompleksnogo-numbers.gms",
+      "title": "Алгебраическая форма комплексного числа",
+      "section": "Алгебра",
+      "kind": "status",
+      "viewMode": "mobile",
+      "text": "",
+      "targets": [],
+      "regions": [],
+      "elements": [],
+      "updated": false,
+      "changedAt": "2026-10-01T17:45:36.747Z",
+      "checked": true
+    },
+    {
+      "id": "n:muptxss3v5t8",
+      "exampleId": "aksiomy-gruppy",
+      "file": "data/examples/aksiomy-gruppy.gms",
+      "title": "Аксиомы группы",
+      "section": "Алгебра",
+      "kind": "note",
+      "viewMode": "mobile",
+      "text": "на телефоне все круги сильно увеличилист",
+      "targets": [
+        "compiler"
+      ],
+      "regions": [
+        {
+          "x": 45,
+          "y": 26,
+          "w": 278,
+          "h": 147,
+          "frameW": 333,
+          "frameH": 516,
+          "viewMode": "mobile",
+          "image": "data/review-notes/2026-10-01T18-07-57-a9se/img/n_muptxss3v5t8-1.png"
+        },
+        {
+          "x": 277,
+          "y": 325,
+          "w": 54,
+          "h": 21,
+          "frameW": 333,
+          "frameH": 516,
+          "viewMode": "mobile",
+          "image": "data/review-notes/2026-10-01T18-07-57-a9se/img/n_muptxss3v5t8-2.png"
+        }
+      ],
+      "elements": [],
+      "updated": false,
+      "changedAt": "2026-10-01T18:07:35.930Z"
+    },
+    {
+      "id": "s:aksiomy-gruppy",
+      "exampleId": "aksiomy-gruppy",
+      "file": "data/examples/aksiomy-gruppy.gms",
+      "title": "Аксиомы группы",
+      "section": "Алгебра",
+      "kind": "status",
+      "viewMode": "mobile",
+      "text": "",
+      "targets": [],
+      "regions": [],
+      "elements": [],
+      "updated": false,
+      "changedAt": "2026-10-01T18:07:40.136Z",
+      "checked": true
+    }
+  ]
+}
