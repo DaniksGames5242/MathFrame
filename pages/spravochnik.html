@@ -22,15 +22,57 @@
       --spr-transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
-    /* Скрываем системные скроллбары */
-    .spr-sidebar-inner::-webkit-scrollbar,
-    .spr-tree::-webkit-scrollbar {
-      display: none;
-    }
+    /* Полоса прокрутки левой панели — «линейка» в стиле сайта: тонкая направляющая
+       с делениями (как миллиметровка подложки) и скруглённый ползунок; при наведении
+       на панель ползунок проявляется, на самом ползунке — цвет раздела. */
+    /* Chrome 121+ игнорирует ::-webkit-scrollbar, если задан scrollbar-width/-color
+       (а common.css задаёт их всем элементам), — для панели сбрасываем их в auto,
+       чтобы работало оформление ниже; Firefox получает тонкую полосу цвета раздела. */
     .spr-sidebar-inner,
     .spr-tree {
-      scrollbar-width: none;
-      -ms-overflow-style: none;
+      scrollbar-width: auto;
+      scrollbar-color: auto;
+    }
+    @supports (-moz-appearance: none) {
+      .spr-sidebar-inner,
+      .spr-tree {
+        scrollbar-width: thin;
+        scrollbar-color: color-mix(in srgb, var(--accent) 45%, var(--border-strong)) transparent;
+      }
+    }
+    .spr-tree { scrollbar-gutter: stable; margin-right: -0.55rem; padding-right: 0.2rem; }
+    .spr-sidebar-inner::-webkit-scrollbar,
+    .spr-tree::-webkit-scrollbar { width: 9px; }
+    .spr-sidebar-inner::-webkit-scrollbar-track,
+    .spr-tree::-webkit-scrollbar-track {
+      background:
+        linear-gradient(to right, transparent 4px, var(--border) 4px, var(--border) 5px, transparent 5px),
+        repeating-linear-gradient(to bottom, transparent 0 11px, var(--border) 11px 12px);
+      background-size: 100% 100%, 4px 100%;
+      background-position: 0 0, 3px 0;
+      background-repeat: no-repeat, no-repeat;
+      border-radius: 99px;
+      margin: 4px 0;
+    }
+    .spr-sidebar-inner::-webkit-scrollbar-thumb,
+    .spr-tree::-webkit-scrollbar-thumb {
+      background: color-mix(in srgb, var(--accent) 30%, var(--border-strong));
+      border: 2px solid transparent;
+      background-clip: content-box;
+      border-radius: 99px;
+      min-height: 36px;
+      transition: background 0.2s;
+    }
+    .spr-sidebar:hover .spr-tree::-webkit-scrollbar-thumb,
+    .spr-sidebar:hover .spr-sidebar-inner::-webkit-scrollbar-thumb {
+      background: color-mix(in srgb, var(--accent) 55%, var(--border-strong));
+      background-clip: content-box;
+    }
+    .spr-sidebar-inner::-webkit-scrollbar-thumb:hover,
+    .spr-tree::-webkit-scrollbar-thumb:hover,
+    .spr-tree::-webkit-scrollbar-thumb:active {
+      background: var(--accent);
+      background-clip: content-box;
     }
 
     /* ===== ЗАГРУЗОЧНЫЙ ЭКРАН ===== */
