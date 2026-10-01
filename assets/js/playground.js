@@ -738,6 +738,15 @@ function toast(t) {
    ========================================================================== */
 const view = { editor: $('viewEditor'), builder: $('viewBuilder'), docs: $('viewDocs') };
 const TAB_IDS = { editor: 'tabEditor', builder: 'tabBuilder', docs: 'tabDocs' };
+// Подложка активной вкладки скользит под нужную кнопку (как индикатор раздела в шапке).
+function movePill() {
+  const pill = $('pgPill'), on = document.querySelector('#pgTabs button.on');
+  if (!pill || !on) return;
+  pill.style.width = on.offsetWidth + 'px';
+  pill.style.transform = 'translateX(' + (on.offsetLeft) + 'px)';
+}
+window.addEventListener('resize', movePill);
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(movePill);
 function showView(name, push) {
   for (const k of Object.keys(view)) {
     const on = k === name;
@@ -745,6 +754,7 @@ function showView(name, push) {
     $(TAB_IDS[k]).classList.toggle('on', on);
     $(TAB_IDS[k]).setAttribute('aria-selected', on);
   }
+  movePill();
   if (name === 'docs') loadDocs();
   if (name === 'builder' && window.mfBuilder) window.mfBuilder.show();
   if (push) history.replaceState(null, '', location.pathname + location.search + (name === 'editor' ? '' : '#' + name));
@@ -943,6 +953,7 @@ function markWords(els, words) {
    ========================================================================== */
 refreshAuto();
 applyPreviewTheme();
+movePill();
 setFileName(fileName);
 (async function boot() {
   const h = location.hash;

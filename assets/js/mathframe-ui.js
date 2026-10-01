@@ -617,7 +617,10 @@
                   pal: { dark:  { b: '#7cd2ff', c: '#f2c05c' },
                          light: { b: '#1a6fb0', c: '#a2670a', ink: '#10302a' } } },
     admin:      { mode: 6, draw: [0, 1, 0], gain: 0.82 },
-    playground: { mode: 4, draw: [0, 1, 0], gain: 1.0 },
+    // песочница — рабочее место с кодом: поле спокойнее, палитра раздела (фиолет + розовый)
+    playground: { mode: 4, draw: [0, 1, 0], gain: 0.8,
+                  pal: { dark:  { b: '#8b7bff', c: '#ff8fb8' },
+                         light: { b: '#5b46d6', c: '#c2437a', ink: '#1e1840' } } },
     'ai-agent': { mode: 5, draw: [0, 1, 0], gain: 1.0, overlay: true,
                   pal: { dark:  { b: '#5cc8ff', c: '#e98cff' },
                          light: { b: '#1672b8', c: '#9a2f98', ink: '#211a40' } } }

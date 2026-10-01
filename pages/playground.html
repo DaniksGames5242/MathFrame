@@ -28,39 +28,62 @@ html.light{
   --pg-com:#6f7c97;--pg-bool:#c2410c;--pg-key:#2c3f73;--pg-err:#b42f2f;--pg-ok:#0b7d6f;
 }
 
-/* ---- переключатель разделов ---- */
-.pg-top{display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;margin-bottom:.8rem}
-.pg-tabs{display:inline-flex;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r-md, 10px);padding:3px;gap:2px}
-.pg-tabs button{border:0;background:transparent;color:var(--text-secondary);font:inherit;font-size:.9rem;padding:.45rem 1rem;border-radius:7px;cursor:pointer}
-.pg-tabs button.on{background:var(--accent-soft);color:var(--text-primary);font-weight:600}
-.pg-sub{color:var(--text-tertiary);font-size:.82rem}
+/* ---- шапка раздела и переключатель вкладок ---- */
+.pg-top{display:flex;align-items:flex-end;justify-content:space-between;gap:1rem 1.5rem;flex-wrap:wrap;margin:.4rem 0 1.1rem}
+.pg-title{font-family:var(--font-display);font-size:clamp(1.7rem,4vw,2.3rem);line-height:1.1;margin:.35rem 0 .3rem;
+  background:linear-gradient(120deg,var(--text-primary) 35%,var(--accent) 100%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.pg-sub{color:var(--text-secondary);font-size:.92rem;max-width:62ch;margin:0}
+.pg-tabs{position:relative;display:inline-flex;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r);padding:4px;gap:2px;
+  backdrop-filter:blur(18px) saturate(140%);-webkit-backdrop-filter:blur(18px) saturate(140%)}
+.pg-tabs button{position:relative;z-index:1;border:0;background:transparent;color:var(--text-secondary);font:inherit;font-size:.9rem;padding:.5rem 1.05rem;border-radius:calc(var(--r) - 4px);cursor:pointer;transition:color var(--t)}
+.pg-tabs button:hover{color:var(--text-primary)}
+.pg-tabs button.on{color:var(--text-primary);font-weight:600}
+/* скользящая подложка активной вкладки (двигает playground.js › movePill) */
+.pg-pill{position:absolute;z-index:0;top:4px;bottom:4px;left:0;width:0;border-radius:calc(var(--r) - 4px);
+  background:var(--accent-soft);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--accent) 35%,transparent);
+  transition:transform var(--t-slow) var(--e-out),width var(--t-slow) var(--e-out)}
+.bd-mode button.on{background:var(--accent-soft)}
+/* появление вкладки при переключении */
+.pg-view{animation:pgViewIn 460ms var(--e-out) both}
+@keyframes pgViewIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
 
 /* ---- панель инструментов ---- */
 .tb{display:flex;flex-wrap:wrap;gap:.4rem;align-items:center;margin-bottom:.6rem}
 .tb .sep{width:1px;height:22px;background:var(--border);margin:0 .2rem}
-.btn{
-  display:inline-flex;align-items:center;gap:.35rem;
-  border:1px solid var(--border-strong);background:var(--bg-card);color:var(--text-primary);
-  font:inherit;font-size:.83rem;padding:.4rem .7rem;border-radius:8px;cursor:pointer;white-space:nowrap
-}
-@media (hover:hover){.btn:hover{border-color:var(--accent);background:var(--accent-soft)}}
-.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
-html.light .btn.primary{color:#fff}
-.btn svg{width:15px;height:15px;flex:0 0 auto}
-.btn.on{border-color:var(--accent);background:var(--accent-soft)}
-.tb select{font:inherit;font-size:.83rem;padding:.4rem .5rem;border-radius:8px;border:1px solid var(--border-strong);background:var(--bg-card);color:var(--text-primary);max-width:15rem}
+.tb{padding:.5rem;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r-lg);
+  backdrop-filter:blur(18px) saturate(140%);-webkit-backdrop-filter:blur(18px) saturate(140%)}
+/* Кнопки — общий .btn из common.css (блик, подъём, ripple), здесь только плотнее для панели. */
+main .btn{padding:.42rem .72rem;font-size:.83rem;border-radius:var(--r-sm);white-space:nowrap;gap:.35rem}
+main .btn svg{width:15px;height:15px;flex:0 0 auto}
+main .btn.on{border-color:var(--accent);background:var(--accent-soft);color:var(--text-primary)}
+main .btn:hover{transform:translateY(-1px)}
+.tb select{font:inherit;font-size:.83rem;padding:.45rem .55rem;border-radius:var(--r-sm);border:1px solid var(--border-strong);background:var(--bg-raised);color:var(--text-primary);max-width:15rem;cursor:pointer;transition:border-color var(--t)}
+.tb select:hover{border-color:var(--accent)}
 
 /* ---- рабочая область ---- */
-.ws{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:.75rem;height:calc(100vh - 210px);min-height:520px}
+.ws{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:.75rem;height:calc(100vh - 290px);min-height:520px}
 .ws.wide-ed{grid-template-columns:minmax(0,1.4fr) minmax(0,1fr)}
-.pane{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.pane{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r-lg);display:flex;flex-direction:column;min-height:0;
+  backdrop-filter:blur(18px) saturate(140%);-webkit-backdrop-filter:blur(18px) saturate(140%);
+  box-shadow:var(--shadow);transition:border-color var(--t),box-shadow var(--t-slow)}
+.pane:focus-within{border-color:var(--border-strong);box-shadow:var(--shadow-lg),0 0 0 1px var(--accent-soft)}
+/* панель режет содержимое по скруглению, поэтому засечки .mf-ticks рисуются внутри рамки */
+.pane{overflow:hidden}
+.pane.mf-ticks::before{top:0;left:0}
+.pane.mf-ticks::after{bottom:0;right:0}
 .pane-h{display:flex;align-items:center;gap:.5rem;padding:.45rem .7rem;border-bottom:1px solid var(--border);font-size:.8rem;color:var(--text-tertiary);min-height:38px}
 .pane-h b{color:var(--text-secondary);font-weight:600}
 .pane-h .grow{flex:1}
 .status{font-family:var(--pg-mono);font-size:.75rem}
 .status.ok{color:var(--pg-ok)} .status.err{color:var(--pg-err)}
-.mini{border:1px solid var(--border);background:transparent;color:var(--text-secondary);font:inherit;font-size:.75rem;padding:.2rem .5rem;border-radius:6px;cursor:pointer}
+.mini{border:1px solid var(--border);background:transparent;color:var(--text-secondary);font:inherit;font-size:.75rem;padding:.25rem .6rem;border-radius:999px;cursor:pointer;
+  transition:border-color var(--t),background var(--t),color var(--t),transform var(--t) var(--e-out)}
+.mini:hover{border-color:var(--accent);color:var(--text-primary)}
+.mini:active{transform:scale(.96)}
 .mini.on{background:var(--accent-soft);color:var(--text-primary);border-color:var(--accent)}
+.status{transition:color var(--t)}
+.status.ok::before{content:'';display:inline-block;width:6px;height:6px;border-radius:50%;background:currentColor;margin-right:.4rem;vertical-align:middle;animation:pgPulse 1.6s ease-out 1}
+@keyframes pgPulse{0%{box-shadow:0 0 0 0 currentColor}100%{box-shadow:0 0 0 8px transparent}}
 
 /* ---- редактор: textarea поверх подсветки ---- */
 .ed{position:relative;flex:1;min-height:0;display:flex;font-family:var(--pg-mono);font-size:13px;line-height:19.5px}
@@ -88,7 +111,7 @@ html.light .btn.primary{color:#fff}
 /* ---- ошибки ---- */
 .errs{max-height:30%;overflow:auto;border-top:1px solid var(--border);font-family:var(--pg-mono);font-size:12px}
 .errs:empty{display:none}
-.errs div{padding:.35rem .7rem;color:var(--pg-err);cursor:pointer;border-bottom:1px solid var(--border)}
+.errs div{padding:.35rem .7rem;color:var(--pg-err);cursor:pointer;border-bottom:1px solid var(--border);animation:pgViewIn 260ms var(--e-out) both}
 .errs div:hover{background:var(--accent-soft)}
 .errs div.warn{color:var(--text-secondary)}
 
@@ -105,12 +128,15 @@ html.light .btn.primary{color:#fff}
 
 /* ---- документация ---- */
 .docs{display:grid;grid-template-columns:260px minmax(0,1fr);gap:1.25rem;align-items:start}
-.toc{position:sticky;top:76px;max-height:calc(100vh - 96px);overflow:auto;background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:.6rem}
+.toc{position:sticky;top:76px;max-height:calc(100vh - 96px);overflow:auto;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r-lg);padding:.6rem;
+  backdrop-filter:blur(18px) saturate(140%);-webkit-backdrop-filter:blur(18px) saturate(140%)}
 .toc input{width:100%;padding:.5rem .6rem;border-radius:8px;border:1px solid var(--border-strong);background:var(--bg-sunken);color:var(--text-primary);font:inherit;font-size:16px;margin-bottom:.4rem}
-.toc a{display:block;padding:.28rem .5rem;border-radius:6px;color:var(--text-secondary);text-decoration:none;font-size:.85rem}
+.toc a{display:block;padding:.28rem .5rem;border-radius:6px;color:var(--text-secondary);text-decoration:none;font-size:.85rem;
+  border-left:2px solid transparent;transition:background var(--t),color var(--t),border-color var(--t)}
+.toc a.on{border-left-color:var(--accent)}
 .toc a.l3{padding-left:1.3rem;font-size:.8rem;color:var(--text-tertiary)}
 .toc a:hover,.toc a.on{background:var(--accent-soft);color:var(--text-primary)}
-.doc{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:1.2rem clamp(1rem,3vw,2rem) 2rem;min-width:0;line-height:1.6}
+.doc{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r-lg);backdrop-filter:blur(18px) saturate(140%);-webkit-backdrop-filter:blur(18px) saturate(140%);padding:1.2rem clamp(1rem,3vw,2rem) 2rem;min-width:0;line-height:1.6}
 .doc h1{font-size:1.6rem;margin:.2rem 0 .8rem}
 .doc h2{font-size:1.3rem;margin:2rem 0 .7rem;padding-top:.6rem;border-top:1px solid var(--border)}
 .doc h3{font-size:1.06rem;margin:1.4rem 0 .5rem}
@@ -123,31 +149,40 @@ html.light .btn.primary{color:#fff}
 .doc th,.doc td{border:1px solid var(--border);padding:.4rem .6rem;text-align:left;vertical-align:top}
 .doc th{background:var(--bg-sunken);color:var(--text-primary)}
 .doc td{color:var(--text-secondary)}
-.cb{position:relative;margin:.8rem 0;border:1px solid var(--border);border-radius:10px;background:var(--bg-sunken);overflow:hidden}
+.cb{position:relative;margin:.8rem 0;border:1px solid var(--border);border-radius:var(--r);background:var(--bg-sunken);overflow:hidden;transition:border-color var(--t)}
+.cb:hover{border-color:var(--border-strong)}
 .cb pre{margin:0;padding:.8rem 1rem;overflow:auto;font-family:var(--pg-mono);font-size:12.5px;line-height:1.55}
 .cb .cb-bar{display:flex;gap:.4rem;justify-content:flex-end;padding:.35rem .5rem;border-top:1px solid var(--border)}
 .doc mark{background:rgba(242,180,92,.35);color:inherit;border-radius:2px}
 .doc .nores{color:var(--text-tertiary);padding:2rem 0;text-align:center}
 
 /* ---- окно примеров ---- */
-.dlg{position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;padding:1rem}
-.dlg.show{display:flex}
-.dlg-box{background:var(--bg-card);border:1px solid var(--border-strong);border-radius:14px;width:min(760px,100%);max-height:min(80vh,720px);display:flex;flex-direction:column;overflow:hidden}
+.dlg{position:fixed;inset:0;z-index:1000;background:rgba(4,6,12,.45);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);display:none;align-items:center;justify-content:center;padding:1rem}
+.dlg.show{display:flex;animation:pgFade 220ms var(--e-out) both}
+.dlg.show .dlg-box{animation:pgPop 360ms var(--e-spring, var(--e-out)) both}
+@keyframes pgFade{from{opacity:0}to{opacity:1}}
+@keyframes pgPop{from{opacity:0;transform:translateY(14px) scale(.96)}to{opacity:1;transform:none}}
+.dlg-box{background:var(--bg-raised);border:1px solid var(--border-strong);border-radius:var(--r-lg);box-shadow:var(--shadow-lg);width:min(760px,100%);max-height:min(80vh,720px);display:flex;flex-direction:column;overflow:hidden}
 .dlg-h{display:flex;gap:.5rem;align-items:center;padding:.7rem;border-bottom:1px solid var(--border)}
 .dlg-h input{flex:1;min-width:0;padding:.5rem .6rem;border-radius:8px;border:1px solid var(--border-strong);background:var(--bg-sunken);color:var(--text-primary);font:inherit;font-size:16px}
 .dlg-h select{font:inherit;font-size:.85rem;padding:.45rem;border-radius:8px;border:1px solid var(--border-strong);background:var(--bg-sunken);color:var(--text-primary);max-width:40%}
 .dlg-list{overflow:auto;padding:.3rem}
 .dlg-list button{display:flex;width:100%;justify-content:space-between;gap:1rem;text-align:left;border:0;background:transparent;color:var(--text-primary);font:inherit;font-size:.9rem;padding:.45rem .6rem;border-radius:7px;cursor:pointer}
 .dlg-list button small{color:var(--text-tertiary);white-space:nowrap}
+.dlg-list button{transition:background var(--t)}
 .dlg-list button:hover,.dlg-list button.sel{background:var(--accent-soft)}
 
-.toast{position:fixed;left:50%;bottom:calc(1.2rem + var(--safe-b));transform:translateX(-50%);background:var(--bg-card);border:1px solid var(--border-strong);padding:.55rem 1rem;border-radius:9px;font-size:.85rem;z-index:1100;box-shadow:0 10px 30px rgba(0,0,0,.3);opacity:0;pointer-events:none;transition:opacity .2s}
-.toast.show{opacity:1}
+.toast{position:fixed;left:50%;bottom:calc(1.2rem + var(--safe-b));transform:translate(-50%,16px) scale(.97);background:var(--bg-raised);border:1px solid var(--border-strong);
+  padding:.6rem 1.05rem;border-radius:var(--r);font-size:.86rem;z-index:1100;box-shadow:var(--shadow-lg);opacity:0;pointer-events:none;
+  transition:opacity var(--t) var(--e-out),transform var(--t-slow) var(--e-out)}
+.toast::before{content:'';display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--accent);margin-right:.55rem;vertical-align:middle}
+.toast.show{opacity:1;transform:translate(-50%,0) scale(1)}
 
 /* ---- конструктор ---- */
-.bd{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:.75rem;height:calc(100vh - 210px);min-height:540px}
+.bd{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:.75rem;height:calc(100vh - 290px);min-height:540px}
 .bd-canvas-pane{min-height:0}
 .bd-stage{flex:1;min-height:0;position:relative;background:var(--bg-sunken)}
+.bd-list button{transition:background var(--t)}
 .bd-stage svg{position:absolute;inset:0;width:100%;height:100%;touch-action:none;user-select:none;cursor:crosshair}
 .bd-stage svg.sel-mode{cursor:default}
 .bd-side{display:flex;flex-direction:column;gap:.75rem;min-height:0}
@@ -190,7 +225,10 @@ html.light .btn.primary{color:#fff}
   .bd-code{max-height:40vh}
 }
 
+html.mf-no-motion .pg-view,html.mf-no-motion .dlg.show,html.mf-no-motion .dlg.show .dlg-box{animation:none}
+@media (prefers-reduced-motion:reduce){.pg-view,.dlg.show,.dlg.show .dlg-box,.errs div{animation:none}.pg-pill{transition:none}}
 @media (max-width:900px){
+  .pg-top{align-items:flex-start}
   .ws,.ws.wide-ed{grid-template-columns:1fr;height:auto}
   .ws .pane{height:62vh;min-height:380px}
   .tb .sep{display:none}
@@ -210,17 +248,22 @@ html.light .btn.primary{color:#fff}
 <main>
   <h1 class="sr-only">Песочница GMS</h1>
 
-  <div class="pg-top">
-    <div class="pg-tabs" role="tablist">
+  <div class="pg-top mf-reveal">
+    <div>
+      <span class="mf-label">§ 05 · Песочница</span>
+      <h2 class="pg-title">Песочница GMS</h2>
+      <p class="pg-sub">Интерактивные сцены на языке GMS — в 2D и 3D: пишите код, собирайте мышью в конструкторе, смотрите справочник. Всё сохраняется в этом браузере.</p>
+    </div>
+    <div class="pg-tabs" role="tablist" id="pgTabs">
+      <span class="pg-pill" id="pgPill" aria-hidden="true"></span>
       <button type="button" role="tab" id="tabEditor" class="on" aria-selected="true">Редактор</button>
       <button type="button" role="tab" id="tabBuilder" aria-selected="false">Конструктор</button>
       <button type="button" role="tab" id="tabDocs" aria-selected="false">Документация</button>
     </div>
-    <span class="pg-sub">Интерактивные сцены на языке GMS — в 2D и 3D. Код сохраняется в этом браузере.</span>
   </div>
 
   <!-- ================= Редактор ================= -->
-  <section id="viewEditor">
+  <section id="viewEditor" class="pg-view">
     <div class="tb">
       <button class="btn primary" id="bRun" title="Ctrl+Enter">
         <svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15l13-7.5z"/></svg>Запустить
@@ -243,7 +286,7 @@ html.light .btn.primary{color:#fff}
     </div>
 
     <div class="ws wide-ed" id="ws">
-      <div class="pane">
+      <div class="pane mf-ticks">
         <div class="pane-h">
           <b id="fileName">scene.gms</b><span class="grow"></span>
           <span class="status" id="status"></span>
@@ -259,7 +302,7 @@ html.light .btn.primary{color:#fff}
         <div class="errs" id="errs"></div>
       </div>
 
-      <div class="pane">
+      <div class="pane mf-ticks">
         <div class="pane-h">
           <b>Сцена</b><span class="grow"></span>
           <button class="mini" id="pvDark">Тёмная</button>
@@ -276,10 +319,10 @@ html.light .btn.primary{color:#fff}
   </section>
 
   <!-- ================= Конструктор ================= -->
-  <section id="viewBuilder" hidden>
+  <section id="viewBuilder" class="pg-view" hidden>
     <div class="tb" id="bdTools" role="toolbar" aria-label="Инструменты конструктора"></div>
     <div class="bd">
-      <div class="pane bd-canvas-pane">
+      <div class="pane mf-ticks bd-canvas-pane">
         <div class="pane-h">
           <b id="bdHint">Выберите инструмент</b><span class="grow"></span>
           <span class="status" id="bdCoords"></span>
@@ -309,7 +352,7 @@ html.light .btn.primary{color:#fff}
   </section>
 
   <!-- ================= Документация ================= -->
-  <section id="viewDocs" hidden>
+  <section id="viewDocs" class="pg-view" hidden>
     <div class="docs">
       <aside class="toc">
         <input type="search" id="docSearch" placeholder="Поиск по документации" aria-label="Поиск по документации" />
@@ -325,7 +368,7 @@ html.light .btn.primary{color:#fff}
     <div class="dlg-h">
       <input type="search" id="exSearch" placeholder="Название темы" aria-label="Поиск примера" />
       <select id="exSection" aria-label="Раздел"><option value="">Все разделы</option></select>
-      <button class="btn" id="exClose" aria-label="Закрыть">✕</button>
+      <button class="btn small" id="exClose" aria-label="Закрыть">✕</button>
     </div>
     <div class="dlg-list" id="exList"></div>
   </div>
@@ -334,6 +377,7 @@ html.light .btn.primary{color:#fff}
 
 <div id="app-footer"></div>
 
+<script src="/assets/js/mathframe-ui.js"></script>
 <script>var PAGE_ROOT = '/';</script>
 <script src="/assets/js/auth.js"></script>
 <script src="/assets/js/common.js"></script>
