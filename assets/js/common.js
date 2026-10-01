@@ -670,9 +670,10 @@ function updateHeroBackground(theme) {
 }
 
 function updateAllThemeSelections(theme) {
-    document.querySelectorAll('.theme-option').forEach(btn => {
+    document.querySelectorAll('.theme-option, .st-theme').forEach(btn => {
         const isActive = btn.dataset.theme === theme;
         btn.classList.toggle('active', isActive);
+        if (btn.classList.contains('st-theme')) btn.setAttribute('aria-checked', isActive);
     });
 }
 
@@ -1358,141 +1359,173 @@ function enableSheetDrag(modal, onClose) {
 function injectSettingsModal() {
     if (document.getElementById('settings-modal')) return;
 
+    // Иконки окна — одна обводка, как в шапке сайта.
+    const ic = (d) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+    const I = {
+        close: ic('<path d="M18 6 6 18M6 6l12 12"/>'),
+        pencil: ic('<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>'),
+        check: ic('<path d="M20 6 9 17l-5-5"/>'),
+        sparkle: ic('<path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8"/>'),
+        mail: ic('<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/>'),
+        key: ic('<circle cx="7.5" cy="15.5" r="4.5"/><path d="m10.7 12.3 9.3-9.3M17 6l3 3M14 9l2 2"/>'),
+        logout: ic('<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5M21 12H9"/>'),
+        trash: ic('<path d="M4 7h16M10 11v6M14 11v6"/><path d="M6 7l1 13h10l1-13M9 7V4h6v3"/>'),
+        chevron: ic('<path d="m9 18 6-6-6-6"/>'),
+    };
+    // Мини-превью темы: окошко со «шапкой» и строками текста в цветах этой темы.
+    const preview = (cls) => `<span class="st-prev ${cls}" aria-hidden="true"><i class="st-prev-bar"></i><i class="st-prev-l1"></i><i class="st-prev-l2"></i><i class="st-prev-dot"></i></span>`;
+
     const html = `
     <div class="overlay" id="settings-overlay"></div>
-    <div class="modal" id="settings-modal">
-      <div class="modal-header">
-        <h2>Настройки</h2>
-        <button class="modal-close" id="settings-close">✕</button>
+    <div class="modal st-modal" id="settings-modal" role="dialog" aria-modal="true" aria-labelledby="st-title" tabindex="-1">
+      <div class="st-head">
+        <h2 id="st-title">Настройки</h2>
+        <button class="modal-close" id="settings-close" type="button" aria-label="Закрыть">${I.close}</button>
       </div>
 
-      <div class="avatar-section">
-        <div class="avatar-wrapper" id="avatar-wrapper">
-          <!-- без пустого src="": браузер трактует его как ссылку на саму
-               страницу и повторно скачивает весь HTML-документ (лишний запрос
-               + ошибка загрузки в консоли). Настоящий src проставляет
-               populateSettings(), когда у пользователя есть аватар. -->
+      <section class="st-profile" aria-label="Профиль">
+        <div class="st-avatar">
+          <!-- без пустого src="": браузер трактует его как ссылку на саму страницу
+               и повторно скачивает HTML (лишний запрос + ошибка в консоли);
+               настоящий src проставляет populateSettings(), если есть аватар -->
           <img id="avatar-img" alt="" style="display:none" />
           <div class="avatar-placeholder" id="avatar-placeholder">?</div>
         </div>
-        <div class="username-display">
-          <span id="username-text"></span>
-          <span class="edit-icon" id="edit-username-btn">✎</span>
+        <div class="st-id">
+          <div class="st-name-row" id="st-name-row">
+            <span class="st-name" id="username-text"></span>
+            <button class="st-icon-btn" id="edit-username-btn" type="button" aria-label="Изменить имя" title="Изменить имя">${I.pencil}</button>
+          </div>
+          <form class="st-name-edit" id="username-edit-field" hidden>
+            <input type="text" id="username-input" maxlength="40" autocomplete="nickname" aria-label="Новое имя" placeholder="Как вас называть" />
+            <button class="st-icon-btn ok" id="save-username-btn" type="submit" aria-label="Сохранить имя" title="Сохранить">${I.check}</button>
+            <button class="st-icon-btn" id="cancel-username-btn" type="button" aria-label="Отменить" title="Отмена">${I.close}</button>
+          </form>
+          <div class="st-email"><span id="email-display"></span><span class="st-badge" id="st-verified" hidden></span></div>
+          <div class="st-meta" id="st-meta"></div>
         </div>
-        <div class="email-display" id="email-display"></div>
-      </div>
+      </section>
 
-      <div class="settings-field" id="username-edit-field" style="display:none;">
-        <input type="text" id="username-input" placeholder="Новое имя" />
-        <div style="display:flex; gap:0.5rem; margin-top:0.5rem;">
-          <button class="btn primary small" id="save-username-btn">Сохранить</button>
-          <button class="btn small" id="cancel-username-btn">Отмена</button>
+      <section class="st-section" aria-labelledby="st-look">
+        <h3 class="st-label" id="st-look">Внешний вид</h3>
+        <div class="st-themes" id="theme-selector-settings" role="radiogroup" aria-label="Тема">
+          <button class="st-theme" type="button" role="radio" data-theme="light">${preview('is-light')}<span>Светлая</span></button>
+          <button class="st-theme" type="button" role="radio" data-theme="dark">${preview('is-dark')}<span>Тёмная</span></button>
+          <button class="st-theme" type="button" role="radio" data-theme="system">${preview('is-system')}<span>Как в системе</span></button>
         </div>
-      </div>
+        <label class="st-row st-row-switch">
+          <span class="st-row-ico">${I.sparkle}</span>
+          <span class="st-row-text"><b>Анимации</b><small>Живой фон, переходы между страницами и появление блоков</small></span>
+          <input type="checkbox" class="st-switch-input" id="anim-toggle-settings" />
+          <span class="st-switch" aria-hidden="true"></span>
+        </label>
+      </section>
 
-      <div style="margin: 1.2rem 0 0.8rem; border-top:1px solid var(--border); padding-top:1rem;">
-        <div style="font-weight:600; font-size:0.85rem; margin-bottom:0.6rem; color:var(--text-secondary); text-align:center;">Тема</div>
-        <div id="theme-selector-settings">
-          <button class="theme-option" data-theme="light" title="Светлая">
-            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23fbbf24' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='5'/%3E%3Cline x1='12' y1='1' x2='12' y2='3'/%3E%3Cline x1='12' y1='21' x2='12' y2='23'/%3E%3Cline x1='4.22' y1='4.22' x2='5.64' y2='5.64'/%3E%3Cline x1='18.36' y1='18.36' x2='19.78' y2='19.78'/%3E%3Cline x1='1' y1='12' x2='3' y2='12'/%3E%3Cline x1='21' y1='12' x2='23' y2='12'/%3E%3Cline x1='4.22' y1='19.78' x2='5.64' y2='18.36'/%3E%3Cline x1='18.36' y1='5.64' x2='19.78' y2='4.22'/%3E%3C/svg%3E" alt="Светлая" />
+      <section class="st-section" aria-labelledby="st-acc">
+        <h3 class="st-label" id="st-acc">Аккаунт</h3>
+        <div class="st-list">
+          <button class="st-row" id="st-verify-btn" type="button" hidden>
+            <span class="st-row-ico">${I.mail}</span>
+            <span class="st-row-text"><b>Подтвердить почту</b><small>Пришлём письмо со ссылкой</small></span>
+            <span class="st-chev">${I.chevron}</span>
           </button>
-          <button class="theme-option" data-theme="dark" title="Тёмная">
-            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23818cf8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z'/%3E%3C/svg%3E" alt="Тёмная" />
+          <button class="st-row" id="change-password-btn" type="button">
+            <span class="st-row-ico">${I.key}</span>
+            <span class="st-row-text"><b>Сменить пароль</b><small>Пришлём ссылку для смены на почту</small></span>
+            <span class="st-chev">${I.chevron}</span>
           </button>
-          <button class="theme-option" data-theme="system" title="Системная">
-            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='2' y='3' width='20' height='14' rx='2' ry='2'/%3E%3Cline x1='8' y1='21' x2='16' y2='21'/%3E%3Cline x1='12' y1='17' x2='12' y2='21'/%3E%3C/svg%3E" alt="Системная" />
+          <button class="st-row" id="logout-btn" type="button">
+            <span class="st-row-ico">${I.logout}</span>
+            <span class="st-row-text"><b>Выйти из аккаунта</b><small>На этом устройстве</small></span>
+            <span class="st-chev">${I.chevron}</span>
           </button>
         </div>
-      </div>
+      </section>
 
-      <div style="margin: 1.2rem 0 0.8rem; border-top:1px solid var(--border); padding-top:1rem;">
-        <div style="font-weight:600; font-size:0.85rem; margin-bottom:0.6rem; color:var(--text-secondary); text-align:center;">Анимации</div>
-        <div id="anim-toggle-settings" style="display:flex; gap:.5rem; justify-content:center;">
-          <button class="btn small" type="button" data-anim="on">Включены</button>
-          <button class="btn small" type="button" data-anim="off">Выключены</button>
+      <details class="st-danger" id="st-danger">
+        <summary><span class="st-row-ico">${I.trash}</span><span>Удалить аккаунт</span><span class="st-chev">${I.chevron}</span></summary>
+        <div class="st-danger-body">
+          <p>Аккаунт и данные профиля удалятся безвозвратно. Чтобы подтвердить, введите слово <b>удалить</b>.</p>
+          <div class="st-danger-row">
+            <input type="text" id="st-delete-confirm" autocomplete="off" aria-label="Подтверждение удаления" placeholder="удалить" />
+            <button class="btn danger small" id="delete-account-btn" type="button" disabled>Удалить навсегда</button>
+          </div>
         </div>
-      </div>
+      </details>
 
-      <button class="btn small" id="change-password-btn" style="width:100%; margin:0.8rem 0;">Сменить пароль</button>
-      <button class="btn danger" id="delete-account-btn" style="width:100%; margin:0.5rem 0;">Удалить аккаунт</button>
-
-      <div style="display:flex; justify-content:center; margin-top:0.5rem;">
-        <button class="btn danger" id="logout-btn">Выйти из аккаунта</button>
-      </div>
+      <div class="st-status" id="st-status" role="status" aria-live="polite"></div>
     </div>
   `;
     document.body.insertAdjacentHTML('beforeend', html);
 
-    const overlay = document.getElementById('settings-overlay');
-    const modal = document.getElementById('settings-modal');
-    const closeBtn = document.getElementById('settings-close');
-    const avatarImg = document.getElementById('avatar-img');
-    const avatarPlaceholder = document.getElementById('avatar-placeholder');
-    const usernameText = document.getElementById('username-text');
-    const emailDisplay = document.getElementById('email-display');
-    const editBtn = document.getElementById('edit-username-btn');
-    const usernameEditField = document.getElementById('username-edit-field');
-    const usernameInput = document.getElementById('username-input');
-    const saveUsernameBtn = document.getElementById('save-username-btn');
-    const cancelUsernameBtn = document.getElementById('cancel-username-btn');
-    const changePasswordBtn = document.getElementById('change-password-btn');
-    const logoutBtn = document.getElementById('logout-btn');
-    const deleteAccountBtn = document.getElementById('delete-account-btn');
+    const $ = (id) => document.getElementById(id);
+    const overlay = $('settings-overlay');
+    const modal = $('settings-modal');
+    const closeBtn = $('settings-close');
+    const avatarImg = $('avatar-img');
+    const avatarPlaceholder = $('avatar-placeholder');
+    const usernameText = $('username-text');
+    const emailDisplay = $('email-display');
+    const verifiedBadge = $('st-verified');
+    const metaEl = $('st-meta');
+    const nameRow = $('st-name-row');
+    const editBtn = $('edit-username-btn');
+    const usernameEditField = $('username-edit-field');
+    const usernameInput = $('username-input');
+    const cancelUsernameBtn = $('cancel-username-btn');
+    const verifyBtn = $('st-verify-btn');
+    const changePasswordBtn = $('change-password-btn');
+    const logoutBtn = $('logout-btn');
+    const danger = $('st-danger');
+    const deleteConfirm = $('st-delete-confirm');
+    const deleteAccountBtn = $('delete-account-btn');
+    const statusEl = $('st-status');
+    const animInput = $('anim-toggle-settings');
 
-    deleteAccountBtn.addEventListener('click', async () => {
-        if (!currentUser) return;
-        if (!confirm('Вы уверены, что хотите удалить свой аккаунт? Это действие необратимо.')) return;
-        try {
-            await window.Auth.deleteAccount();
-            await ensureFirestore();
-            await firebase.firestore().collection('users').doc(currentUser.uid).delete();
-            await firebase.firestore().collection('bannedUsers').doc(currentUser.uid).delete();
-            alert('Аккаунт удалён.');
-            closeSettings();
-        } catch (e) {
-            alert('Ошибка при удалении аккаунта: ' + getFirebaseErrorMessage(e));
-        }
-    });
+    // Сообщения — строкой внизу окна, а не системными alert().
+    let statusTimer = 0;
+    function say(text, kind) {
+        clearTimeout(statusTimer);
+        statusEl.textContent = text;
+        statusEl.className = 'st-status show' + (kind ? ' ' + kind : '');
+        statusTimer = setTimeout(() => statusEl.classList.remove('show'), kind === 'err' ? 7000 : 4000);
+    }
+    async function busy(btn, fn) {
+        btn.disabled = true; btn.classList.add('is-busy');
+        try { await fn(); } finally { btn.disabled = false; btn.classList.remove('is-busy'); }
+    }
 
-    const themeOptionsSettings = modal.querySelectorAll('#theme-selector-settings .theme-option');
-    themeOptionsSettings.forEach(btn => {
+    // ===== Тема =====
+    modal.querySelectorAll('#theme-selector-settings .st-theme').forEach(btn => {
         btn.addEventListener('click', () => {
             const theme = btn.dataset.theme;
-            if (theme === 'system') {
-                applySystemTheme(true, true);
-            } else {
-                applyTheme(theme, true, true);
-            }
+            if (theme === 'system') applySystemTheme(true, true);
+            else applyTheme(theme, true, true);
         });
     });
 
-    // ===== Переключатель анимаций =====
-    // Независим от prefers-reduced-motion: пользователь мог явно захотеть
-    // выключить украшательство на самом сайте. mathframe-ui.js читает тот же
-    // ключ localStorage максимально рано (до DOMContentLoaded), поэтому
-    // класс на <html> уже стоит корректно при первой отрисовке — здесь
-    // только переключаем его вживую и подсвечиваем активную кнопку.
-    const animToggleSettings = document.getElementById('anim-toggle-settings');
-    function updateAnimToggle() {
-        const off = localStorage.getItem('mf-motion') === 'off';
-        animToggleSettings.querySelectorAll('button').forEach(b => {
-            b.classList.toggle('primary', (b.dataset.anim === 'off') === off);
-        });
-    }
-    animToggleSettings.querySelectorAll('button').forEach(b => {
-        b.addEventListener('click', () => {
-            const off = b.dataset.anim === 'off';
-            if (off) {
-                localStorage.setItem('mf-motion', 'off');
-                document.documentElement.classList.add('mf-no-motion');
-            } else {
-                localStorage.removeItem('mf-motion');
-                document.documentElement.classList.remove('mf-no-motion');
-            }
-            updateAnimToggle();
-        });
+    // ===== Анимации =====
+    // Независимы от prefers-reduced-motion: пользователь мог явно выключить
+    // украшательство на самом сайте. mathframe-ui.js читает тот же ключ до
+    // первой отрисовки; здесь переключаем класс на <html> вживую.
+    function updateAnimToggle() { animInput.checked = localStorage.getItem('mf-motion') !== 'off'; }
+    animInput.addEventListener('change', () => {
+        if (animInput.checked) {
+            localStorage.removeItem('mf-motion');
+            document.documentElement.classList.remove('mf-no-motion');
+        } else {
+            localStorage.setItem('mf-motion', 'off');
+            document.documentElement.classList.add('mf-no-motion');
+        }
     });
     updateAnimToggle();
+
+    const PROVIDER_RU = { 'google.com': 'Google', 'apple.com': 'Apple', 'github.com': 'GitHub', password: 'почта и пароль', phone: 'телефон' };
+    function sinceText(user) {
+        const t = user.metadata && user.metadata.creationTime && new Date(user.metadata.creationTime);
+        if (!t || isNaN(t)) return '';
+        return 'с нами с ' + t.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' }).replace(/\s*г\.?$/, '');
+    }
 
     function populateSettings(user) {
         if (!user) {
@@ -1501,8 +1534,11 @@ function injectSettingsModal() {
             avatarPlaceholder.style.display = 'flex';
             avatarPlaceholder.textContent = '?';
             emailDisplay.textContent = '';
-            changePasswordBtn.style.display = 'none';
-            deleteAccountBtn.style.display = 'none';
+            verifiedBadge.hidden = true;
+            metaEl.textContent = '';
+            verifyBtn.hidden = true;
+            changePasswordBtn.hidden = true;
+            danger.hidden = true;
             return;
         }
         const name = user.displayName || user.email || user.phoneNumber || 'User';
@@ -1519,28 +1555,45 @@ function injectSettingsModal() {
             avatarPlaceholder.textContent = name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) || '?';
         }
 
-        const isPasswordProvider = user.providerData.some(p => p.providerId === 'password');
-        changePasswordBtn.style.display = isPasswordProvider ? '' : 'none';
-        deleteAccountBtn.style.display = '';
+        const providers = (user.providerData || []).map(p => p.providerId);
+        const isPassword = providers.includes('password');
+        // Почта от Google/Apple подтверждена провайдером; спрашиваем только у входа по паролю.
+        const unverified = !!user.email && isPassword && !user.emailVerified;
+        verifiedBadge.hidden = !user.email;
+        verifiedBadge.textContent = unverified ? 'не подтверждена' : 'подтверждена';
+        verifiedBadge.classList.toggle('warn', unverified);
+        verifyBtn.hidden = !unverified;
+        changePasswordBtn.hidden = !isPassword;
+        danger.hidden = false;
 
-        const currentTheme = localStorage.getItem('theme') || 'system';
-        updateAllThemeSelections(currentTheme);
+        const how = providers.map(id => PROVIDER_RU[id]).filter(Boolean);
+        metaEl.textContent = [how.length ? 'Вход: ' + how.join(', ') : '', sinceText(user)].filter(Boolean).join(' · ');
+
+        updateAllThemeSelections(localStorage.getItem('theme') || 'system');
+        updateAnimToggle();
     }
     populateSettingsRef = populateSettings;
 
+    function stopNameEdit() { usernameEditField.hidden = true; nameRow.hidden = false; }
+    function resetDanger() { danger.open = false; deleteConfirm.value = ''; deleteAccountBtn.disabled = true; }
+
+    let lastFocus = null;
     function openSettings() {
         if (!currentUser) {
             window.openAuthModal();
             return;
         }
         populateSettings(currentUser);
-        usernameEditField.style.display = 'none';
+        stopNameEdit(); resetDanger();
+        statusEl.className = 'st-status';
+        lastFocus = document.activeElement;
         document.body.classList.add('no-scroll');
         overlay.style.visibility = 'visible';
         modal.style.visibility = 'visible';
         requestAnimationFrame(() => {
             overlay.classList.add('active');
             modal.classList.add('active');
+            modal.focus({ preventScroll: true });   // фокус в окне — Esc и Tab работают, без кольца на кнопке
         });
     }
 
@@ -1553,49 +1606,78 @@ function injectSettingsModal() {
             modal.classList.remove('sheet-full');
             document.body.classList.remove('no-scroll');
         }, 300);
+        if (lastFocus && lastFocus.focus) try { lastFocus.focus({ preventScroll: true }); } catch (e) {}
     }
 
     overlay.addEventListener('click', closeSettings);
     enableSheetDrag(modal, closeSettings);
     closeBtn.addEventListener('click', closeSettings);
+    modal.addEventListener('keydown', (e) => {
+        if (e.key !== 'Escape') return;
+        if (!usernameEditField.hidden) { stopNameEdit(); editBtn.focus(); }
+        else closeSettings();
+    });
 
+    // ===== Имя — правится прямо на месте =====
     editBtn.addEventListener('click', () => {
         usernameInput.value = currentUser?.displayName || '';
-        usernameEditField.style.display = 'block';
+        nameRow.hidden = true;
+        usernameEditField.hidden = false;
+        usernameInput.focus(); usernameInput.select();
     });
-
-    cancelUsernameBtn.addEventListener('click', () => {
-        usernameEditField.style.display = 'none';
-    });
-
-    saveUsernameBtn.addEventListener('click', async () => {
+    cancelUsernameBtn.addEventListener('click', stopNameEdit);
+    usernameEditField.addEventListener('submit', async (e) => {
+        e.preventDefault();
         const newName = usernameInput.value.trim();
-        if (newName && window.Auth) {
-            try {
-                await window.Auth.updateUserProfile({ displayName: newName });
-                const user = window.Auth.getCurrentUser();
-                if (user) {
-                    currentUser = user;
-                    updateAccountCircle(currentUser);
-                    populateSettings(currentUser);
-                }
-            } catch (e) { alert('Ошибка: ' + getFirebaseErrorMessage(e)); }
-        }
-        usernameEditField.style.display = 'none';
-    });
-
-    changePasswordBtn.addEventListener('click', async () => {
-        if (!currentUser || !currentUser.email) return alert('Email не найден');
+        if (!newName) { usernameInput.focus(); return; }
+        if (!window.Auth || newName === (currentUser?.displayName || '')) { stopNameEdit(); return; }
         try {
-            await window.Auth.resetPassword(currentUser.email);
-            alert('Письмо для сброса пароля отправлено. Проверьте почту (и папку «Спам»).');
-        } catch (e) { alert('Ошибка: ' + getFirebaseErrorMessage(e)); }
+            await window.Auth.updateUserProfile({ displayName: newName });
+            const user = window.Auth.getCurrentUser();
+            if (user) { currentUser = user; updateAccountCircle(currentUser); populateSettings(currentUser); }
+            say('Имя сохранено', 'ok');
+        } catch (err) { say('Не удалось сохранить имя: ' + getFirebaseErrorMessage(err), 'err'); }
+        stopNameEdit();
     });
 
-    logoutBtn.addEventListener('click', async () => {
+    // ===== Аккаунт =====
+    verifyBtn.addEventListener('click', () => busy(verifyBtn, async () => {
+        try { await window.Auth.sendEmailVerification(); say('Письмо отправлено на ' + (currentUser?.email || 'почту') + '. Проверьте и папку «Спам».', 'ok'); }
+        catch (err) { say('Не удалось отправить письмо: ' + getFirebaseErrorMessage(err), 'err'); }
+    }));
+    changePasswordBtn.addEventListener('click', () => busy(changePasswordBtn, async () => {
+        if (!currentUser || !currentUser.email) { say('У аккаунта нет почты для сброса пароля', 'err'); return; }
+        try { await window.Auth.resetPassword(currentUser.email); say('Ссылка для смены пароля отправлена на ' + currentUser.email + '. Проверьте и папку «Спам».', 'ok'); }
+        catch (err) { say('Не удалось отправить письмо: ' + getFirebaseErrorMessage(err), 'err'); }
+    }));
+    logoutBtn.addEventListener('click', () => busy(logoutBtn, async () => {
         if (!window.Auth) return;
-        try { await window.Auth.logout(); closeSettings(); } catch (e) { alert('Ошибка: ' + getFirebaseErrorMessage(e)); }
+        try { await window.Auth.logout(); closeSettings(); }
+        catch (err) { say('Не удалось выйти: ' + getFirebaseErrorMessage(err), 'err'); }
+    }));
+
+    // ===== Удаление: подтверждение словом вместо системного confirm() =====
+    deleteConfirm.addEventListener('input', () => {
+        deleteAccountBtn.disabled = deleteConfirm.value.trim().toLowerCase() !== 'удалить';
     });
+    danger.addEventListener('toggle', () => { if (danger.open) deleteConfirm.focus(); });
+    deleteAccountBtn.addEventListener('click', () => busy(deleteAccountBtn, async () => {
+        if (!currentUser) return;
+        const uid = currentUser.uid;
+        try {
+            await window.Auth.deleteAccount();
+            try {
+                await ensureFirestore();
+                await firebase.firestore().collection('users').doc(uid).delete();
+                await firebase.firestore().collection('bannedUsers').doc(uid).delete();
+            } catch (e) { /* данные профиля могли уже отсутствовать */ }
+            closeSettings();
+        } catch (err) {
+            say(err && err.code === 'auth/requires-recent-login'
+                ? 'Для удаления войдите в аккаунт заново и сразу повторите.'
+                : 'Не удалось удалить аккаунт: ' + getFirebaseErrorMessage(err), 'err');
+        }
+    }));
 
     window.openSettings = openSettings;
 }
