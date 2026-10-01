@@ -144,6 +144,51 @@ html.light .btn.primary{color:#fff}
 .toast{position:fixed;left:50%;bottom:calc(1.2rem + var(--safe-b));transform:translateX(-50%);background:var(--bg-card);border:1px solid var(--border-strong);padding:.55rem 1rem;border-radius:9px;font-size:.85rem;z-index:1100;box-shadow:0 10px 30px rgba(0,0,0,.3);opacity:0;pointer-events:none;transition:opacity .2s}
 .toast.show{opacity:1}
 
+/* ---- конструктор ---- */
+.bd{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:.75rem;height:calc(100vh - 210px);min-height:540px}
+.bd-canvas-pane{min-height:0}
+.bd-stage{flex:1;min-height:0;position:relative;background:var(--bg-sunken)}
+.bd-stage svg{position:absolute;inset:0;width:100%;height:100%;touch-action:none;user-select:none;cursor:crosshair}
+.bd-stage svg.sel-mode{cursor:default}
+.bd-side{display:flex;flex-direction:column;gap:.75rem;min-height:0}
+.bd-box{min-height:0}
+.bd-box:nth-child(1){flex:0 0 auto;max-height:42%}
+.bd-box:nth-child(2){flex:1 1 0}
+.bd-box:nth-child(3){flex:1.2 1 0}
+.bd-props{padding:.6rem .7rem;overflow:auto;display:grid;gap:.5rem;font-size:.83rem}
+.bd-props label{display:grid;grid-template-columns:7.5rem minmax(0,1fr);align-items:center;gap:.5rem;color:var(--text-secondary)}
+.bd-props label.chk{grid-template-columns:auto 1fr;justify-content:start}
+.bd-props input[type=text],.bd-props input[type=number],.bd-props select,.bd-props textarea{
+  width:100%;min-width:0;padding:.35rem .5rem;border-radius:6px;border:1px solid var(--border-strong);
+  background:var(--bg-sunken);color:var(--text-primary);font:inherit;font-size:.85rem}
+.bd-props textarea{resize:vertical;min-height:3.2rem;font-family:var(--pg-mono)}
+.bd-props .row2{display:flex;gap:.4rem;flex-wrap:wrap}
+.bd-props .muted{color:var(--text-tertiary);font-size:.78rem;line-height:1.45}
+.bd-props .bad{border-color:var(--pg-err)!important}
+.sw{display:flex;gap:.3rem;flex-wrap:wrap}
+.sw button{width:22px;height:22px;border-radius:50%;border:2px solid transparent;cursor:pointer;padding:0}
+.sw button.on{border-color:var(--text-primary)}
+.sw button.auto{background:conic-gradient(var(--text-primary) 0 50%,var(--bg-card) 0 100%);border:1px solid var(--border-strong)}
+.bd-list{overflow:auto;padding:.25rem}
+.bd-list button{display:flex;width:100%;gap:.5rem;align-items:center;border:0;background:transparent;color:var(--text-primary);font:inherit;font-size:.84rem;padding:.3rem .5rem;border-radius:6px;cursor:pointer;text-align:left}
+.bd-list button small{color:var(--text-tertiary);margin-left:auto}
+.bd-list button.on,.bd-list button:hover{background:var(--accent-soft)}
+.bd-list .dot{width:9px;height:9px;border-radius:50%;flex:0 0 auto;background:var(--text-tertiary)}
+.bd-list .empty{color:var(--text-tertiary);padding:.6rem;font-size:.82rem}
+.bd-code{margin:0;flex:1;min-height:0;overflow:auto;padding:.6rem .8rem;font-family:var(--pg-mono);font-size:11.5px;line-height:1.5}
+.btn.tool.on{border-color:var(--accent);background:var(--accent-soft);font-weight:600}
+.bd-svg-grid{stroke:var(--border)}
+.bd-svg-axis{stroke:var(--text-tertiary)}
+.bd-svg-label{fill:var(--text-primary);font:13px var(--font-body, sans-serif);paint-order:stroke;stroke:var(--bg-sunken);stroke-width:3px}
+.bd-svg-tick{fill:var(--text-tertiary);font:10px var(--pg-mono)}
+@media (max-width:900px){
+  .bd{grid-template-columns:1fr;height:auto}
+  .bd-canvas-pane{height:60vh;min-height:360px}
+  .bd-box{max-height:none!important}
+  .bd-list{max-height:30vh}
+  .bd-code{max-height:40vh}
+}
+
 @media (max-width:900px){
   .ws,.ws.wide-ed{grid-template-columns:1fr;height:auto}
   .ws .pane{height:62vh;min-height:380px}
@@ -167,6 +212,7 @@ html.light .btn.primary{color:#fff}
   <div class="pg-top">
     <div class="pg-tabs" role="tablist">
       <button type="button" role="tab" id="tabEditor" class="on" aria-selected="true">Редактор</button>
+      <button type="button" role="tab" id="tabBuilder" aria-selected="false">Конструктор</button>
       <button type="button" role="tab" id="tabDocs" aria-selected="false">Документация</button>
     </div>
     <span class="pg-sub">Интерактивные сцены на языке GMS — в 2D и 3D. Код сохраняется в этом браузере.</span>
@@ -228,6 +274,39 @@ html.light .btn.primary{color:#fff}
     </div>
   </section>
 
+  <!-- ================= Конструктор ================= -->
+  <section id="viewBuilder" hidden>
+    <div class="tb" id="bdTools" role="toolbar" aria-label="Инструменты конструктора"></div>
+    <div class="bd">
+      <div class="pane bd-canvas-pane">
+        <div class="pane-h">
+          <b id="bdHint">Выберите инструмент</b><span class="grow"></span>
+          <span class="status" id="bdCoords"></span>
+        </div>
+        <div class="bd-stage" id="bdStage">
+          <svg id="bdSvg" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Поле конструктора"></svg>
+        </div>
+      </div>
+      <aside class="bd-side">
+        <div class="pane bd-box">
+          <div class="pane-h"><b>Свойства</b></div>
+          <div class="bd-props" id="bdProps"></div>
+        </div>
+        <div class="pane bd-box">
+          <div class="pane-h"><b>Объекты</b><span class="grow"></span><span class="status" id="bdCount"></span></div>
+          <div class="bd-list" id="bdList"></div>
+        </div>
+        <div class="pane bd-box">
+          <div class="pane-h"><b>Код GMS</b><span class="grow"></span>
+            <button class="mini" id="bdCopy">Копировать</button>
+            <button class="mini on" id="bdToEditor">Открыть в редакторе</button>
+          </div>
+          <pre class="bd-code" id="bdCode"></pre>
+        </div>
+      </aside>
+    </div>
+  </section>
+
   <!-- ================= Документация ================= -->
   <section id="viewDocs" hidden>
     <div class="docs">
@@ -258,5 +337,6 @@ html.light .btn.primary{color:#fff}
 <script src="/assets/js/auth.js"></script>
 <script src="/assets/js/common.js"></script>
 <script type="module" src="/assets/js/playground.js"></script>
+<script type="module" src="/assets/js/playground-builder.js"></script>
 </body>
 </html>

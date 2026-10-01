@@ -736,17 +736,35 @@ function toast(t) {
 /* ==========================================================================
    Документация: Markdown → HTML, оглавление, поиск
    ========================================================================== */
-const view = { editor: $('viewEditor'), docs: $('viewDocs') };
+const view = { editor: $('viewEditor'), builder: $('viewBuilder'), docs: $('viewDocs') };
+const TAB_IDS = { editor: 'tabEditor', builder: 'tabBuilder', docs: 'tabDocs' };
 function showView(name, push) {
-  const docs = name === 'docs';
-  view.docs.hidden = !docs; view.editor.hidden = docs;
-  $('tabDocs').classList.toggle('on', docs); $('tabEditor').classList.toggle('on', !docs);
-  $('tabDocs').setAttribute('aria-selected', docs); $('tabEditor').setAttribute('aria-selected', !docs);
-  if (docs) loadDocs();
-  if (push) history.replaceState(null, '', location.pathname + location.search + (docs ? '#docs' : ''));
+  for (const k of Object.keys(view)) {
+    const on = k === name;
+    view[k].hidden = !on;
+    $(TAB_IDS[k]).classList.toggle('on', on);
+    $(TAB_IDS[k]).setAttribute('aria-selected', on);
+  }
+  if (name === 'docs') loadDocs();
+  if (name === 'builder' && window.mfBuilder) window.mfBuilder.show();
+  if (push) history.replaceState(null, '', location.pathname + location.search + (name === 'editor' ? '' : '#' + name));
 }
 $('tabEditor').onclick = () => showView('editor', true);
+$('tabBuilder').onclick = () => showView('builder', true);
 $('tabDocs').onclick = () => showView('docs', true);
+
+// Конструктор (assets/js/playground-builder.js) передаёт готовый код в редактор через этот объект.
+window.mfPlayground = {
+  openCode(src, name) {
+    if (code.value.trim() && code.value !== src && code.value !== store.get(LS_CODE + '-pristine') &&
+        !confirm('Заменить код в редакторе кодом из конструктора?')) return false;
+    showView('editor', true);
+    setCode(src, name || 'constructor.gms');
+    store.set(LS_CODE + '-pristine', src);
+    return true;
+  },
+  compile, highlight, toast,
+};
 
 function inline(s) {
   // экранирование + `код`, **жирный**, *курсив*
@@ -940,5 +958,6 @@ setFileName(fileName);
   }
   renderEditor();
   run(true);
-  if (h === '#docs' || (h.length > 1 && !h.startsWith('#code='))) showView('docs', false);
+  if (h === '#builder') showView('builder', false);
+  else if (h === '#docs' || (h.length > 1 && !h.startsWith('#code='))) showView('docs', false);
 })();
