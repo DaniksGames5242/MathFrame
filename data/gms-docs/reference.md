@@ -13,6 +13,7 @@ GMS — язык интерактивных математических сце�
 ```gms
 [
 description = "Перетащите точки A и B. Длина отрезка: **{len}**"
+show description = true;
 
 new Point { name = "A"; pos = (-4, -2); text = true("A") }
 new Point { name = "B"; pos = (3, 2); text = true("B") }
@@ -77,7 +78,7 @@ show grid = true;
 | `field depth` | число | глубина поля (3D) |
 | `field color` | цвет | фон поля |
 | `frame color`, `frame width` | цвет / число | рамка поля |
-| `theme` | `dark` / `light` | тема по умолчанию |
+| `theme` | `dark` / `light` / `auto` | тема сцены; `auto` — тема сайта (в песочнице — по умолчанию) |
 | `show axes` | `true` / `false` | оси координат |
 | `show axis x`, `show axis y`, `show axis z` | `true` / `false` | отдельные оси |
 | `axes size`, `axes color` | число / цвет | оформление осей |
@@ -97,16 +98,61 @@ show grid = true;
 | `camera fov`, `camera near`, `camera far` | число | параметры камеры (3D) |
 | `2D layer` | — | слой 2D-элементов поверх 3D-сцены |
 | `steps animation`, `steps duration` | `true` / число | анимация переходов между шагами |
+| `drag smoothing` | секунды, `0.05` | плавность перетаскивания: как быстро объект догоняет указатель; `0` — без сглаживания |
 
 ```gms
 [
 description = "Поле 16×10, неподвижная камера, без сетки"
+show description = true;
 field width = 16;
 field height = 10;
 camera type = fixed;
 show axes = true;
 show grid = false;
 new Point { name = "P"; pos = (2, 1); text = true("P") }
+]
+```
+
+## Сцена в песочнице
+
+В песочнице сцена — самостоятельная программа, а не пример к теме справочника, поэтому
+компилятор работает в отдельном режиме:
+
+- сцена занимает всю отведённую область, сохраняя пропорции поля;
+- описание под сценой **не выводится**, пока его не включить: `show description = true;`;
+- тема задаётся только кодом: `theme = light`, `theme = dark` или `theme = auto`
+  (по умолчанию — следует теме сайта, а в скачанном `.html` — теме системы);
+- сцена показывается прямо на странице, без вложенного окна.
+
+Оформление настраивается параметрами сцены (в справочнике они не действуют):
+
+| Параметр | Значение | Смысл |
+|---|---|---|
+| `show description` | `true` / `false` | показывать описание под сценой |
+| `ui position` | `bottom` / `top` / `left` / `right` / `overlay` | где панель элементов `new UI`; `overlay` — поверх поля |
+| `ui align` | `start` / `center` / `end` | выравнивание элементов в панели |
+| `background` | `#rrggbb` / `transparent` | фон вокруг поля |
+| `scene padding` | число, px | отступ вокруг сцены (по умолчанию 12) |
+| `frame radius` | число, px | скругление рамки поля (по умолчанию 8) |
+| `frame color`, `frame width`, `field color` | цвет / число | рамка и фон самого поля |
+| `scene aspect` | `(16, 9)` | пропорции окна 3D-сцены (в 2D — пропорции поля) |
+| `scene max width` | число, px | предельная ширина поля |
+
+```gms
+[
+description = "Ползунок поверх поля, своя тема и фон"
+show description = true;
+theme = light;
+ui position = overlay;
+background = #eef2ff;
+frame radius = 16;
+field width = 20; field height = 12;
+camera type = fixed;
+float a = 1;
+func f(x) = a * sin(x);
+draw Function { name = "gr"; f = "f" }
+new UI { name = "s"; type = slider; label = "a"; variable = a; min = 0; max = 3; step = 0.1 }
+show axes = true; show grid = true;
 ]
 ```
 
@@ -153,6 +199,7 @@ new Point { name = "P"; pos = (2, 1); text = true("P") }
 ```gms
 [
 description = "{info}"
+show description = true;
 string info = "";
 Update {
   info = "7 % 3 = " + (7 % 3) + ", 2^10 = " + (2^10) + ", 5 > 3 ? → " + (5 > 3 ? "да" : "нет") + ", π ≈ " + format(pi, 4);
@@ -174,6 +221,7 @@ func f(x) = x^2 - 2*x;
 ```gms
 [
 description = "{info}"
+show description = true;
 string info = "";
 float count = 0;
 
@@ -209,6 +257,7 @@ Update { info = "hyp(3, 4) = " + hyp(3, 4) + "; tick вызван " + count + " 
 ```gms
 [
 description = "{info}"
+show description = true;
 string info = "";
 list L = [3, 1, 4, 1, 5];
 Update {
@@ -257,6 +306,7 @@ Update {
 ```gms
 [
 description = "Кликните по полю — точка переместится. Кликов: {n}"
+show description = true;
 new Point { name = "P"; pos = (0, 0); text = true("P") }
 float seen = 0;
 string n = "0";
@@ -292,6 +342,7 @@ show grid = true;
 ```gms
 [
 description = "Точка ездит по оси x"
+show description = true;
 float x = -6;
 new Point { name = "P"; pos = (x, 0); dynamic = false; text = true("P") }
 Start { animate("x", 6, 3, "easeInOut", 0, "pingpong"); }
@@ -324,6 +375,7 @@ show axes = true;
 ```gms
 [
 description = "k = {k}, режим: {mode}, флажок: {on}"
+show description = true;
 float k = 1; bool on = false; string mode = "sin";
 func f(x) = mode == "sin" ? k * sin(x) : k * cos(x);
 draw Function { name = "gr"; f = "f"; xmin = -8; xmax = 8 }
@@ -352,6 +404,7 @@ show axes = true; show grid = true;
 ```gms
 [
 description = "Вкладка {tab}"
+show description = true;
 float tab = 1;
 new Point { name = "A"; pos = (-3, 0); text = true("A") }
 new Point { name = "B"; pos = (3, 0); text = true("B") }
@@ -409,6 +462,7 @@ new UI { name = "b2"; type = button; label = "Окружность"; action = "t
 ```gms
 [
 description = "M — середина AB (гомотетия с коэффициентом 0,5), A' — отражение A относительно O, X — точка на отрезке"
+show description = true;
 new Point { name = "A"; pos = (-5, -2); text = true("A") }
 new Point { name = "B"; pos = (4, 3); text = true("B") }
 new Point { name = "O"; pos = (0, -3); text = true("O") }
@@ -442,6 +496,7 @@ show grid = true;
 ```gms
 [
 description = "Угол AOB = {m}°"
+show description = true;
 new Point { name = "O"; pos = (0, 0); text = true("O") }
 new Point { name = "A"; pos = (5, 0); text = true("A") }
 new Point { name = "B"; pos = (2, 4); text = true("B") }
@@ -476,6 +531,7 @@ Update { m = format(aob.measure, 1); }
 ```gms
 [
 description = "Параметрическая кривая — роза"
+show description = true;
 float k = 3;
 new Curve { name = "rose"; type = parametric; x = "5*cos(k*2*pi*t)*cos(2*pi*t)"; y = "5*cos(k*2*pi*t)*sin(2*pi*t)"; segments = 400 }
 new UI { name = "s"; type = slider; label = "k"; variable = k; min = 1; max = 7; step = 1 }
@@ -499,6 +555,7 @@ show axes = true;
 ```gms
 [
 description = "Векторы и равные отрезки"
+show description = true;
 new Point { name = "A"; pos = (-5, -2); text = true("A") }
 new Point { name = "B"; pos = (0, 3); text = true("B") }
 new Point { name = "C"; pos = (5, -2); text = true("C") }
@@ -533,6 +590,7 @@ draw Text { name = "t"; pos = (0, -3.5); text = "AB = " + format(ab.length, 2) }
 ```gms
 [
 description = "Точка P скользит по графику. P = ({px}; {py})"
+show description = true;
 float a = 1;
 func f(x) = a * x^2 / 4 - 2;
 draw Function { name = "gr"; f = "f" }
@@ -555,6 +613,7 @@ show axes = true; show grid = true;
 ```gms
 [
 description = "Поверхность z = sin(x)·cos(y)"
+show description = true;
 field width = 10; field height = 8; field depth = 10;
 camera start rot = (30, 65);
 func g(x, y) = sin(x) * cos(y);
@@ -574,6 +633,7 @@ show axes = true;
 ```gms
 [
 description = "Векторное поле (−y, x) и траектория"
+show description = true;
 draw Field { name = "fld"; P = "-y"; Q = "x"; xmin = -8; xmax = 8; ymin = -5; ymax = 5; grid = 12 }
 draw Trajectory { name = "tr"; field = "fld"; start = (3, 0); steps = 400; dt = 0.02 }
 show axes = true;
@@ -591,6 +651,7 @@ show axes = true;
 ```gms
 [
 description = "Область x² + y² < 16 и y > x"
+show description = true;
 func g(x, y) = x*x + y*y - 16;
 func h(x, y) = x - y;
 draw Region { name = "r"; f = "g"; op = "<"; f2 = "h"; op2 = "<"; combine = and; rangeX = 6; rangeY = 6 }
@@ -609,6 +670,7 @@ show axes = true; show grid = true;
 ```gms
 [
 description = "Полный граф K{n}"
+show description = true;
 float n = 5; float built = 0;
 float g = 0;
 draw Graph { name = "dg"; graph = "g"; showWeights = false }
@@ -638,6 +700,7 @@ Update {
 ```gms
 [
 description = "Нормальное распределение, μ = {mu}, σ = {sigma}"
+show description = true;
 float mu = 0; float sigma = 1;
 draw Distribution { name = "d"; type = normal; mu = mu; sigma = sigma; highlightFrom = -1; highlightTo = 1 }
 new UI { name = "s1"; type = slider; label = "μ"; variable = mu; min = -3; max = 3; step = 0.1 }
@@ -667,6 +730,7 @@ show axes = true;
 ```gms
 [
 description = "Множество Жюлиа, c = {cr} + {ci}i"
+show description = true;
 float cr = -0.7; float ci = 0.27;
 draw Fractal { name = "fr"; type = julia; cRe = cr; cIm = ci; maxIter = 120 }
 new UI { name = "s1"; type = slider; label = "Re c"; variable = cr; min = -1; max = 1; step = 0.01 }
@@ -697,6 +761,7 @@ new UI { name = "s2"; type = slider; label = "Im c"; variable = ci; min = -1; ma
 ```gms
 [
 description = "Тетраэдр ABCD: перетаскивайте вершины"
+show description = true;
 field width = 10; field height = 8; field depth = 10;
 camera start rot = (30, 70);
 new Point3D { name = "A"; pos = (-2, -1, -2); text = true("A") }
@@ -717,6 +782,7 @@ show axes = true;
 ```gms
 [
 description = "Куб и его сечение плоскостью; сдвиг плоскости: {off}"
+show description = true;
 field width = 10; field height = 8; field depth = 10;
 camera start rot = (35, 65);
 float off = 0;
@@ -849,6 +915,7 @@ initial, tSpan, steps)`, `gradient`, `jacobian`, `divergence`, `curl`, `hessian`
 ```gms
 [
 description = "{info}"
+show description = true;
 string info = "";
 func f(x) = x^3 - 2*x - 5;
 Update {

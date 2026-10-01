@@ -4,10 +4,12 @@
 // (data/gms-docs/reference.md). Компилирует тот же assets/js/gms-compiler.js, что и
 // справочник, поэтому сцена здесь выглядит ровно так же, как на странице темы.
 import { compile } from './gms-compiler.js';
+import { mountInline } from './gms-inline.js';
 
 const $ = (id) => document.getElementById(id);
 const code = $('code'), hl = $('hl'), gutter = $('gutter'), errsEl = $('errs');
-const statusEl = $('status'), frame = $('frame'), prevEmpty = $('prevEmpty');
+const statusEl = $('status'), prevEmpty = $('prevEmpty');
+let sceneHost = $('sceneHost');
 const consoleEl = $('console'), sug = $('sug');
 
 const LS_CODE = 'mf-playground-code';
@@ -24,6 +26,7 @@ const store = {
 const TEMPLATES = {
   'Пустая 2D-сцена': `[
 description = "Описание сцены"
+show description = true;
 
 field width = 20; field height = 12;
 camera type = fixed;
@@ -34,6 +37,7 @@ new Point { name = "A"; pos = (0, 0); text = true("A") }
 ]`,
   'Треугольник и углы': `[
 description = "Сумма углов треугольника: **{sum}°**"
+show description = true;
 
 new Point { name = "A"; pos = (-5, -3); text = true("A") }
 new Point { name = "B"; pos = (5, -3); text = true("B") }
@@ -56,6 +60,7 @@ Update { sum = format(angA.measure + angB.measure + angC.measure, 1); }
 ]`,
   'График с ползунками': `[
 description = "y = a·sin(b·x) при a = {a}, b = {b}"
+show description = true;
 
 float a = 2; float b = 1;
 func f(x) = a * sin(b * x);
@@ -67,6 +72,7 @@ show axes = true; show grid = true;
 ]`,
   'Вкладки': `[
 description = "{info}"
+show description = true;
 
 float tab = 1;
 string info = "";
@@ -86,6 +92,7 @@ Update {
 ]`,
   '3D-сцена': `[
 description = "Перетаскивайте вершины; вращайте сцену мышью"
+show description = true;
 
 field width = 10; field height = 8; field depth = 10;
 camera start rot = (30, 70);
@@ -104,6 +111,7 @@ new Line3D { name = "cd"; pos = (C, D) }
 ]`,
   'Анимация': `[
 description = "Точка движется по окружности, угол {deg}°"
+show description = true;
 
 float phi = 0;
 string deg = "";
@@ -122,6 +130,7 @@ show axes = true;
 ]`,
   'Граф': `[
 description = "Полный граф K{n}: {e} рёбер"
+show description = true;
 
 float n = 5; float built = 0; float g = 0;
 string e = "";
@@ -198,18 +207,13 @@ code.addEventListener('scroll', syncScroll);
 /* ==========================================================================
    Компиляция и просмотр
    ========================================================================== */
-let previewTheme = document.documentElement.classList.contains('light') ? 'light' : 'dark';
 let lastHtml = null;
 let autoRun = store.get(LS_AUTO) !== 'off';
-
-// Скрипт, встраиваемый в сцену: iframe изолирован (sandbox без allow-same-origin),
-// поэтому ошибки выполнения и тему передаём сообщениями.
-const BRIDGE = `<script>(function(){
-function send(t){try{parent.postMessage({type:'mf-pg-error',text:String(t)},'*');}catch(e){}}
-window.addEventListener('error',function(e){send(e.message+(e.lineno?' (строка сцены '+e.lineno+')':''));});
-window.addEventListener('unhandledrejection',function(e){send(e.reason&&e.reason.message||e.reason);});
-var ce=console.error;console.error=function(){var a=[].slice.call(arguments).join(' ');if(!/Failed to load resource/.test(a))send(a);return ce.apply(console,arguments);};
-})();<\/script>`;
+const siteTheme = () => (document.documentElement.classList.contains('light') ? 'light' : 'dark');
+// Песочница компилирует в своём профиле (assets/js/gms/playground.js): сцена на всю
+// область, описание — только по show description = true, тема — из кода
+// (theme = auto по умолчанию — тема сайта). Справочник компилирует без опций.
+const compileScene = (src) => compile(src, { target: 'playground', theme: siteTheme() });
 
 function lineOf(msg) {
   const m = String(msg).match(/строка\s+(\d+)/);
@@ -220,10 +224,37 @@ function setStatus(ok, text) {
   statusEl.textContent = text;
 }
 
+// Сцена показывается прямо на странице, без iframe (assets/js/gms-inline.js).
+let scene = null, mountSeq = 0;
+function sceneError(text) {
+  if (consoleEl.childElementCount > 30) return;
+  const d = document.createElement('div');
+  d.textContent = '⚠ ' + text;
+  consoleEl.appendChild(d);
+}
+async function mountScene(html) {
+  const seq = ++mountSeq;
+  if (scene) { scene.destroy(); scene = null; }
+  consoleEl.innerHTML = '';
+  // новый элемент-хост на каждый запуск: у старого остаётся тень прошлой сцены
+  const host = document.createElement('div');
+  host.className = 'scene-host';
+  sceneHost.replaceWith(host); sceneHost = host;
+  const m = await mountInline(host, html, { onError: sceneError });
+  if (seq !== mountSeq) { m.destroy(); return; }
+  scene = m;
+  prevEmpty.hidden = true;
+}
+// theme = auto: сцена следует за темой сайта (у явной light/dark — переключатель внутри
+// сцены ничего не меняет: geocompilerSetTheme вызывается только для auto).
+new MutationObserver(() => { if (scene && sceneThemeAuto) scene.setTheme(siteTheme()); })
+  .observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+let sceneThemeAuto = true;
+
 function run(force) {
   let res;
   const t0 = performance.now();
-  try { res = compile(code.value); }
+  try { res = compileScene(code.value); }
   catch (e) { res = { success: false, errors: ['Внутренняя ошибка компилятора: ' + e.message] }; }
   const ms = Math.round(performance.now() - t0);
   errsEl.innerHTML = '';
@@ -244,39 +275,16 @@ function run(force) {
   renderEditor();
   if (force || res.html !== lastHtml) {
     lastHtml = res.html;
-    consoleEl.innerHTML = '';
-    frame.srcdoc = injectBridge(res.html);
-    prevEmpty.hidden = true;
+    sceneThemeAuto = /"themeAuto":true/.test(res.html);
+    mountScene(res.html).catch((e) => sceneError(e.message || e));
   }
   return res.html;
-}
-function injectBridge(html) {
-  const i = html.search(/<head[^>]*>/i);
-  if (i < 0) return BRIDGE + html;
-  const j = html.indexOf('>', i) + 1;
-  return html.slice(0, j) + BRIDGE + html.slice(j);
 }
 function plural(n, a, b, c) {
   const m10 = n % 10, m100 = n % 100;
   return m10 === 1 && m100 !== 11 ? a : (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14) ? b : c);
 }
-window.addEventListener('message', (e) => {
-  if (e.source !== frame.contentWindow || !e.data || e.data.type !== 'mf-pg-error') return;
-  if (consoleEl.childElementCount > 30) return;
-  const d = document.createElement('div');
-  d.textContent = '⚠ ' + e.data.text;
-  consoleEl.appendChild(d);
-});
 
-function applyPreviewTheme() {
-  $('pvDark').classList.toggle('on', previewTheme === 'dark');
-  $('pvLight').classList.toggle('on', previewTheme === 'light');
-  frame.style.background = previewTheme === 'dark' ? '#1b1b2a' : '#ffffff';
-  try { frame.contentWindow.postMessage({ type: 'geocompiler-set-theme', theme: previewTheme }, '*'); } catch (e) {}
-}
-frame.addEventListener('load', applyPreviewTheme);
-$('pvDark').onclick = () => { previewTheme = 'dark'; applyPreviewTheme(); };
-$('pvLight').onclick = () => { previewTheme = 'light'; applyPreviewTheme(); };
 $('pvReload').onclick = () => run(true);
 $('bRun').onclick = () => run(true);
 function refreshAuto() { $('bAuto').checked = autoRun; }
@@ -621,7 +629,7 @@ function download(name, text, type) {
 }
 $('bSave').onclick = () => download(fileName.endsWith('.gms') ? fileName : fileName + '.gms', code.value, 'text/plain;charset=utf-8');
 $('bHtml').onclick = () => {
-  const r = compile(code.value);
+  const r = compileScene(code.value);
   if (!r.success) { run(); toast('Сначала исправьте ошибки компиляции'); return; }
   download(fileName.replace(/\.gms$/, '') + '.html', r.html, 'text/html;charset=utf-8');
 };
@@ -797,6 +805,7 @@ window.mfPlayground = {
     return true;
   },
   compile, highlight, toast,
+  get scene() { return scene; },   // текущая встроенная сцена (для отладки и тестов)
 };
 
 function inline(s) {
@@ -975,7 +984,6 @@ function markWords(els, words) {
    Старт
    ========================================================================== */
 refreshAuto();
-applyPreviewTheme();
 movePill();
 setFileName(fileName);
 (async function boot() {

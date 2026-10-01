@@ -55,12 +55,15 @@ import { evaluateStringExpression, parsePublishBlock, parseVariablesAndExpressio
                                'grid color', 'axes color', 'grid adaptive', '2D layer',
                                'show boundary', 'boundary color',
                                'snap', 'snap grid', 'snap distance',
-                               'steps animation', 'steps duration'];
+                               'steps animation', 'steps duration', 'drag smoothing',
+                               // профиль песочницы (assets/js/gms/playground.js); в справочнике не влияют
+                               'show description', 'ui position', 'ui align', 'background', 'scene padding',
+                               'frame radius', 'scene aspect', 'scene max width'];
             const requiredKeys = [];
-            const numericKeys = ['field width', 'field height', 'field depth', 'frame width', 'description size', 'camera start zoom', 'axes size', 'grid size', 'snap grid', 'snap distance', 'camera fov', 'camera near', 'camera far', 'steps duration'];
+            const numericKeys = ['field width', 'field height', 'field depth', 'frame width', 'description size', 'camera start zoom', 'axes size', 'grid size', 'snap grid', 'snap distance', 'camera fov', 'camera near', 'camera far', 'steps duration', 'drag smoothing', 'scene padding', 'frame radius', 'scene max width'];
             // zoom limits = (min, max) дистанция камеры от центра сцены (только 3D)
             // camera start rot = (азимут, полярный угол) в градусах — начальный поворот камеры (только 3D)
-            const tupleKeys = ['camera zoom limits', 'camera start offset', 'zoom limits', 'camera start rot'];
+            const tupleKeys = ['camera zoom limits', 'camera start offset', 'zoom limits', 'camera start rot', 'scene aspect'];
             // Цвет везде в языке пишется без кавычек (#rrggbb, как и в блоках объектов вида
             // "new Point { color = #ff0000 }") — здесь та же конвенция для цветов заголовка.
             const colorKeys = ['field color', 'frame color', 'description color'];
@@ -136,8 +139,9 @@ import { evaluateStringExpression, parsePublishBlock, parseVariablesAndExpressio
                     parsedValue = inner;
                 } else {
                     if (key === 'theme') {
-                        if (value === 'light' || value === 'dark') parsedValue = value;
-                        else { errors.push({ line: lineNum, message: `theme должно быть "light" или "dark"` }); continue; }
+                        // auto — тема хоста/системы; осмысленно в песочнице, в справочнике = dark
+                        if (value === 'light' || value === 'dark' || value === 'auto') parsedValue = value;
+                        else { errors.push({ line: lineNum, message: `theme должно быть "light", "dark" или "auto"` }); continue; }
                     } else if (key === 'camera type') {
                         // Как и theme — ключевое слово без кавычек (camera type = fixed;).
                         // Раньше принималось только в кавычках, а без них — ошибка компиляции.
@@ -146,6 +150,15 @@ import { evaluateStringExpression, parsePublishBlock, parseVariablesAndExpressio
                     } else if (key === 'description align') {
                         if (value === 'left' || value === 'center' || value === 'right') parsedValue = value;
                         else { errors.push({ line: lineNum, message: `description align должно быть "left", "center" или "right"` }); continue; }
+                    } else if (key === 'ui position') {
+                        if (['bottom', 'top', 'left', 'right', 'overlay'].includes(value)) parsedValue = value;
+                        else { errors.push({ line: lineNum, message: `ui position должно быть одним из: bottom, top, left, right, overlay` }); continue; }
+                    } else if (key === 'ui align') {
+                        if (['start', 'center', 'end'].includes(value)) parsedValue = value;
+                        else { errors.push({ line: lineNum, message: `ui align должно быть одним из: start, center, end` }); continue; }
+                    } else if (key === 'background') {
+                        if (value === 'transparent' || /^#[0-9A-Fa-f]{3,8}$/.test(value)) parsedValue = value;
+                        else { errors.push({ line: lineNum, message: `background — цвет #rrggbb без кавычек или transparent` }); continue; }
                     } else if (key === 'steps animation') {
                         if (['fade', 'slide', 'scale', 'none'].includes(value)) parsedValue = value;
                         else { errors.push({ line: lineNum, message: `steps animation должно быть одним из: fade, slide, scale, none` }); continue; }
@@ -169,7 +182,7 @@ import { evaluateStringExpression, parsePublishBlock, parseVariablesAndExpressio
                 const booleanKeys = ['can rotate camera', 'can zoom camera',
                                      'show axes', 'show axis x', 'show axis y', 'show axis z',
                                      'show grid', 'show grid x', 'show grid y', 'show grid z', 'snap', 'grid adaptive',
-                                     'show boundary'];
+                                     'show boundary', 'show description'];
                 if (!booleanKeys.includes(key) && !numericKeys.includes(key) && !tupleKeys.includes(key)) {
                     if (typeof parsedValue !== 'string') parsedValue = String(parsedValue);
                 }

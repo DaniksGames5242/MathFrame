@@ -61,6 +61,11 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
         const snapEnabled = params.snap === true;
         const snapGridStep = (typeof params['snap grid'] === 'number' && params['snap grid'] > 0) ? params['snap grid'] : 1;
         const snapDistancePx = (typeof params['snap distance'] === 'number' && params['snap distance'] >= 0) ? params['snap distance'] : 10;
+        // drag smoothing = секунды — постоянная времени, с которой перетаскиваемый объект
+        // догоняет указатель (0 — без сглаживания, как раньше). По умолчанию — едва заметная
+        // плавность вместо резкого «прилипания» к курсору; на отпускании объект сразу
+        // встаёт точно под указатель.
+        const dragSmoothing = (typeof params['drag smoothing'] === 'number' && params['drag smoothing'] >= 0) ? Math.min(params['drag smoothing'], 1) : 0.05;
 
         // ---- Сетка и оси всей сцены (Задача 6/9) — раньше это работало только у
         // draw Function { grid = true }; теперь это общесценовая настройка, как и в 3D. ----
@@ -474,6 +479,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '    window.snapEnabled = ', String(snapEnabled), ';\n',
             '    const SNAP_GRID_STEP = ', String(snapGridStep), ';\n',
             '    const SNAP_DISTANCE_PX = ', String(snapDistancePx), ';\n',
+            '    const DRAG_SMOOTHING = ', String(dragSmoothing), ';\n',
             '    window.coordinateSystem = \'cartesian\'; // \'cartesian\' | \'polar\' — влияет на вид сетки/осей (draw Function { grid=true })\n',
 
             '    let points = [];\n',
@@ -6657,12 +6663,52 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
               '      }\n',
             '    }\n',
             '\n',
+            '    // ---- Плавность перетаскивания (drag smoothing) ----\n',
+            '    // Между событием мыши/касания и onPointerMove стоит «сглаженный указатель»: он\n',
+            '    // догоняет настоящий экспоненциально с постоянной времени DRAG_SMOOTHING, и\n',
+            '    // onPointerMove получает его координаты. Так плавными становятся все виды\n',
+            '    // перетаскивания сразу (точки, стороны, фигуры, узлы), а их логика (ограничения,\n',
+            '    // столкновения, привязка) не меняется. Перед отпусканием — точная позиция.\n',
+            '    let gcDragTarget = null, gcDragSmooth = null, gcDragRaf = 0, gcDragLast = 0;\n',
+            '    function gcClientXY(e) { const t = e.touches && e.touches[0]; return t ? { x: t.clientX, y: t.clientY } : { x: e.clientX, y: e.clientY }; }\n',
+            '    function gcFeedMove(x, y) { onPointerMove({ clientX: x, clientY: y }); }\n',
+            '    function gcDragStep(ts) {\n',
+            '        gcDragRaf = 0;\n',
+            '        if (dragMode === null || !gcDragTarget) { gcDragSmooth = null; return; }\n',
+            '        const dt = Math.min(0.05, Math.max(0.001, (ts - (gcDragLast || ts)) / 1000 || 0.016));\n',
+            '        gcDragLast = ts;\n',
+            '        const k = 1 - Math.exp(-dt / DRAG_SMOOTHING);\n',
+            '        gcDragSmooth.x += (gcDragTarget.x - gcDragSmooth.x) * k;\n',
+            '        gcDragSmooth.y += (gcDragTarget.y - gcDragSmooth.y) * k;\n',
+            '        const far = Math.abs(gcDragTarget.x - gcDragSmooth.x) + Math.abs(gcDragTarget.y - gcDragSmooth.y) > 0.25;\n',
+            '        if (!far) { gcDragSmooth.x = gcDragTarget.x; gcDragSmooth.y = gcDragTarget.y; }\n',
+            '        gcFeedMove(gcDragSmooth.x, gcDragSmooth.y);\n',
+            '        if (far) { gcDragRaf = requestAnimationFrame(gcDragStep); }\n',
+            '    }\n',
+            '    function onPointerMoveSmooth(e) {\n',
+            '        if (dragMode === null || !(DRAG_SMOOTHING > 0)) { gcDragTarget = null; gcDragSmooth = null; onPointerMove(e); return; }\n',
+            '        if (e.touches && e.cancelable) e.preventDefault();\n',
+            '        const p = gcClientXY(e);\n',
+            '        gcDragTarget = p;\n',
+            '        if (!gcDragSmooth) { gcDragSmooth = { x: p.x, y: p.y }; gcDragLast = 0; gcFeedMove(p.x, p.y); return; }\n',
+            '        if (!gcDragRaf) { gcDragLast = performance.now(); gcDragRaf = requestAnimationFrame(gcDragStep); }\n',
+            '    }\n',
+            '    function onPointerUpSmooth(e) {\n',
+            '        if (gcDragRaf) { cancelAnimationFrame(gcDragRaf); gcDragRaf = 0; }\n',
+            '        if (dragMode !== null && gcDragTarget && gcDragSmooth && (gcDragTarget.x !== gcDragSmooth.x || gcDragTarget.y !== gcDragSmooth.y)) gcFeedMove(gcDragTarget.x, gcDragTarget.y);\n',
+            '        gcDragTarget = null; gcDragSmooth = null;\n',
+            '        onPointerUp(e);\n',
+            '    }\n',
+            '    // Сглаживание начинается от точки нажатия — иначе первый же рывок мыши проходил бы резко.\n',
+            '    function gcDragReset(e) { gcDragTarget = null; gcDragSmooth = gcClientXY(e); gcDragLast = 0; if (gcDragRaf) { cancelAnimationFrame(gcDragRaf); gcDragRaf = 0; } }\n',
+            '    canvas.addEventListener(\'mousedown\', gcDragReset, true);\n',
+            '    canvas.addEventListener(\'touchstart\', gcDragReset, { capture: true, passive: true });\n',
             '    canvas.addEventListener(\'mousedown\', onPointerDown);\n',
-            '    window.addEventListener(\'mousemove\', onPointerMove);\n',
-            '    window.addEventListener(\'mouseup\', onPointerUp);\n',
+            '    window.addEventListener(\'mousemove\', onPointerMoveSmooth);\n',
+            '    window.addEventListener(\'mouseup\', onPointerUpSmooth);\n',
             '    canvas.addEventListener(\'touchstart\', onPointerDown, { passive: false });\n',
-            '    window.addEventListener(\'touchmove\', onPointerMove, { passive: false });\n',
-            '    window.addEventListener(\'touchend\', onPointerUp, { passive: false });\n',
+            '    window.addEventListener(\'touchmove\', onPointerMoveSmooth, { passive: false });\n',
+            '    window.addEventListener(\'touchend\', onPointerUpSmooth, { passive: false });\n',
             '\n',
             '    // ---- Камера: масштабирование колесом и панорамирование (Задача 3) ----\n',
             '    let isPanning = false;\n',

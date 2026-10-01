@@ -14,9 +14,14 @@ import { generate2D } from './gms/render-2d.js';
 import { generate3D } from './gms/render-3d.js';
 import { parseAndValidate } from './gms/validate.js';
 import { combineHtml2D3D } from './gms/combine.js';
+import { applyPlaygroundProfile } from './gms/playground.js';
 
 
-    function compile(sourceCode) {
+    // options.target = 'playground' — профиль песочницы (assets/js/gms/playground.js):
+    // сцена на всю область, описание по запросу, тема из кода (auto → options.theme).
+    // Без опций — прежний вывод для справочника.
+    function compile(sourceCode, options) {
+        const target = options && options.target === 'playground' ? 'playground' : 'reference';
         try {
             const match = sourceCode.match(/\[([\s\S]*)\]/);
             if (!match) {
@@ -42,6 +47,12 @@ import { combineHtml2D3D } from './gms/combine.js';
 
             // Тема (по умолчанию — тёмная) выставляется до разбора команд отрисовки,
             // чтобы объекты без явного цвета получали цвет по умолчанию нужной темы.
+            if (target === 'playground') {
+                // theme = auto (или не задана) — сцена собирается в начальной теме хоста,
+                // дальше её переключает хост/система; флаг auto профиль берёт из params.
+                params.__themeAuto = !(params.theme === 'light' || params.theme === 'dark');
+                if (params.__themeAuto) params.theme = (options.theme === 'light') ? 'light' : 'dark';
+            }
             setCurrentThemeName((params.theme === 'light' || params.theme === 'dark') ? params.theme : 'dark');
 
             const {
@@ -207,6 +218,9 @@ import { combineHtml2D3D } from './gms/combine.js';
                 return { success: false, errors: ['Ошибка генерации HTML'] };
             }
 
+            if (target === 'playground') {
+                html = applyPlaygroundProfile(html, Object.assign({}, params, { theme: params.__themeAuto ? 'auto' : params.theme }), has2D || !has3D, has3D);
+            }
             return { success: true, html };
         } catch (e) {
             return { success: false, errors: [e.message] };

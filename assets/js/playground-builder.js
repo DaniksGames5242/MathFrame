@@ -240,6 +240,7 @@ function generate() {
   const measured = state.objs.filter((o) => o.measure);
   L.push('[');
   L.push('description = ' + (measured.length ? '"{info}"' : str(S.description || 'Сцена из конструктора')));
+  if (measured.length || S.description) L.push('show description = true;');
   L.push('');
   L.push(`field width = ${num(S.width)}; field height = ${num(S.height)};`);
   L.push('camera type = fixed;');
@@ -1226,6 +1227,7 @@ function generate3D() {
   const measured = state.objs.filter((o) => o.measure);
   L.push('[');
   L.push('description = ' + (measured.length ? '"{info}"' : str(S.description || 'Сцена из конструктора')));
+  if (measured.length || S.description) L.push('show description = true;');
   L.push('');
   L.push(`field width = ${num(S.width)}; field height = ${num(S.height)}; field depth = ${num(S.depth)};`);
   L.push(`camera start rot = (${Math.round(S.rotA)}, ${Math.round(S.rotP)});`);
