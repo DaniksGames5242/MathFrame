@@ -234,7 +234,7 @@ export async function mountStructuredEditor(host, opts = {}) {
             const ta = document.createElement('textarea');
             const simple = /^"((?:[^"\\]|\\.)*)"$/.exec(v);
             ta.value = simple ? simple[1].replace(/\\"/g, '"').replace(/\\n/g, '\n') : v;
-            ta.placeholder = 'Текст описания; {имя} — значение переменной, $…$ — формула';
+            ta.placeholder = 'Текст описания; {имя} — значение переменной, \\( … \\) — формула';
             ta.addEventListener('input', () => set(ta.value === '' ? '' : (simple || !v ? '"' + ta.value.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n') + '"' : ta.value)));
             w.append(ta);
         } else {

@@ -32,16 +32,18 @@ Update {
   if (abs(z.pos.x) < 0.12 && z.pos.x != 0) { z.pos.x = 0; }
   // w прилипает к z: равные числа
   if (hypot(w.pos.x - z.pos.x, w.pos.y - z.pos.y) < 0.25 && (w.pos.x != z.pos.x || w.pos.y != z.pos.y)) { w.pos.x = z.pos.x; w.pos.y = z.pos.y; }
-  float a = z.pos.x; float b = z.pos.y;
-  if (abs(a - pa) > 0.00001 || abs(b - pb) > 0.00001) {
-    pa = a; pb = b;
-    ra.pos.x = a; ra.pos.y = 0; ib.pos.x = 0; ib.pos.y = b;
+  if (abs(z.pos.x - pa) > 0.00001 || abs(z.pos.y - pb) > 0.00001) {
+    pa = z.pos.x; pb = z.pos.y;
+    ra.pos.x = pa; ra.pos.y = 0; ib.pos.x = 0; ib.pos.y = pb;
   }
+  // выводы делаются по тем же значениям, что показаны в тексте (с точностью 0,1):
+  // иначе «b = 0.0» могло соседствовать с «число не действительное»
+  float a = round(10 * z.pos.x) / 10; float b = round(10 * z.pos.y) / 10;
   info = "**Алгебраическая форма** — запись z = a + bi, где a = Re z — действительная часть, b = Im z — мнимая. Точка (a; b) плоскости однозначно задаёт число: a·1 + b·i — разложение вектора по 1 и i.\n\n";
   info = info + "z = " + cx(a, b) + ": a = " + num(a) + ", b = " + num(b) + ".";
   if (b == 0) { info = info + " Мнимая часть равна нулю — число **действительное**."; }
   if (a == 0 && b != 0) { info = info + " Действительная часть равна нулю — число **чисто мнимое**."; }
-  float c = w.pos.x; float d = w.pos.y;
+  float c = round(10 * w.pos.x) / 10; float d = round(10 * w.pos.y) / 10;
   info = info + "\n\nw = " + cx(c, d) + ". ";
   if (c == a && d == b) { info = info + "**z = w**: совпали и действительные, и мнимые части."; }
   else { info = info + "**z ≠ w**: равенство комплексных чисел — это два действительных равенства a = c и b = d; здесь a " + "− c = " + num(a - c) + ", b − d = " + num(b - d) + "."; }

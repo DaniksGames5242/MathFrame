@@ -13,9 +13,13 @@ draw Graph { name = "gDis"; graph = "g3"; nodeRadius = 6; labels = false; intera
 new Line { name = "axis"; pos = (LA, LB); interact = false }
 new Point { name = "LA"; pos = (-5.8, 0); dynamic = false; collision = false; active = false }
 new Point { name = "LB"; pos = (5.8, 0); dynamic = false; collision = false; active = false }
-new Point { name = "PA"; pos = (1.5, 0); pauseOnDrag = false; collideWithPoints = false; text = true("a") }
-new Point { name = "PB"; pos = (-1, 0); pauseOnDrag = false; collideWithPoints = false; text = true("b") }
-new Point { name = "PC"; pos = (1, 0); pauseOnDrag = false; collideWithPoints = false; text = true("c") }
+// Направляющая [−1,5; 1,5]: точки a, b, c ходят только по ней — строго по прямой
+new Point { name = "RA"; pos = (-1.5, 0); dynamic = false; collision = false; active = false }
+new Point { name = "RB"; pos = (1.5, 0); dynamic = false; collision = false; active = false }
+new Line { name = "rail"; pos = (RA, RB); interact = false; active = false }
+new Point { name = "PA"; line = "rail"; t = 1; pauseOnDrag = false; collideWithPoints = false; text = true("a") }
+new Point { name = "PB"; line = "rail"; t = 0.1667; pauseOnDrag = false; collideWithPoints = false; text = true("b") }
+new Point { name = "PC"; line = "rail"; t = 0.8333; pauseOnDrag = false; collideWithPoints = false; text = true("c") }
 draw Text { name = "L1p0"; pos = (0, 3.0); text = "0"; size = 0.9; }
 draw Text { name = "L1p1"; pos = (a, 3.0); text = "a"; size = 0.9; }
 draw Text { name = "L1p2"; pos = (a + b, 3.0); text = "a + b"; size = 0.9; }
@@ -51,16 +55,13 @@ string info = "";
 float first = 0; float tab = 1; float a = 1.5; float b = -1; float c = 1; float ka = 99; float kb = 0; float kc = 0;
 Function num(x, d) { if (x < -0.00001) { return "−" + format(-x, d); } return format(abs(x), d); }
 Function term(x) { if (x < -0.00001) { return "(−" + format(-x, 1) + ")"; } return format(abs(x), 1); }
-Function fix(P) {
-  float x = round(2 * P.pos.x) / 2;
-  if (x > 1.5) { x = 1.5; } if (x < -1.5) { x = -1.5; }
-  if (abs(P.pos.x - x) > 0.000001 || abs(P.pos.y) > 0.000001) { P.pos.x = x; P.pos.y = 0; }
-  return x;
-}
+// Значение — координата точки на направляющей, без округления: подписи и стрелки
+// движутся вместе с точкой плавно (раньше шаг 0,5 давал рывки)
+Function fix(P) { return round(100 * P.pos.x) / 100; }
 Function nd(g, id, x, y, t) { addNode(g, id, [x, y], t); }
 Update {
   a = fix(PA); b = fix(PB); c = fix(PC);
-  if (abs(a - ka) + abs(b - kb) + abs(c - kc) > 0.0001 || ka > 50) {
+  if (abs(a - ka) + abs(b - kb) + abs(c - kc) > 0.000001 || ka > 50) {
     ka = a; kb = b; kc = c;
     if (first == 0) { first = 1; gt = newGraph(); repeat (11) { float xx = i - 5; addNode(gt, "t" + format(i, 0), [xx, -0.25]); addNode(gt, "u" + format(i, 0), [xx, 0.25]); addEdge(gt, "t" + format(i, 0), "u" + format(i, 0)); } }
     g1 = newGraph(); g2 = newGraph(); g3 = newGraph();
