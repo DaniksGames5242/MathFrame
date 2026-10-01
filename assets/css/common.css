@@ -726,17 +726,70 @@ html.light .modal { background: rgba(255, 255, 255, .97); }
 .divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
 .divider span { padding: 0 .8rem; }
 
-.social-icons { display: flex; gap: .9rem; justify-content: center; }
+.social-icons { display: flex; flex-direction: column; gap: .6rem; }
 .social-btn {
-  width: 46px; height: 46px; padding: 0; border-radius: 50%;
+  position: relative;
+  width: 100%; min-height: 46px; padding: .6rem 1rem;
+  border-radius: var(--r);
   border: 1px solid var(--border-strong);
   background: var(--bg-sunken);
-  display: flex; align-items: center; justify-content: center;
+  color: var(--text-primary);
+  font-family: var(--font-sans); font-size: .95rem; font-weight: 600;
+  display: flex; align-items: center; justify-content: center; gap: .65rem;
   cursor: pointer;
-  transition: transform var(--t) var(--e-spring), border-color var(--t), background var(--t);
+  transition: transform var(--t) var(--e-spring), border-color var(--t), background var(--t), opacity var(--t);
 }
-.social-btn:hover { transform: translateY(-3px) scale(1.06); border-color: var(--accent); background: var(--accent-soft); }
-.social-btn img, .social-btn svg { width: 22px; height: 22px; }
+.social-btn:hover { transform: translateY(-2px); border-color: var(--accent); background: var(--accent-soft); }
+.social-btn:active { transform: translateY(0) scale(.99); }
+.social-btn img, .social-btn svg { width: 20px; height: 20px; flex: none; }
+
+/* ----- Поля и состояния модалки входа ----- */
+.auth-field { display: flex; flex-direction: column; gap: .35rem; }
+.auth-field > span {
+  font-size: .8rem; font-weight: 600; color: var(--text-secondary);
+}
+.auth-field > span em { font-style: normal; font-weight: 400; color: var(--text-tertiary); margin-left: .3rem; }
+.pw-wrap { position: relative; }
+.pw-wrap input { padding-right: 2.8rem !important; }
+.pw-toggle {
+  position: absolute; right: .35rem; top: 50%; transform: translateY(-50%);
+  width: 34px; height: 34px; border: none; border-radius: 50%;
+  background: none; color: var(--text-tertiary); cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.pw-toggle svg { width: 18px; height: 18px; }
+.pw-toggle.on { color: var(--accent); }
+.pw-toggle:hover { color: var(--text-primary); }
+.auth-link {
+  align-self: center; background: none; border: none; cursor: pointer;
+  color: var(--text-secondary); font-family: var(--font-sans); font-size: .85rem;
+  padding: .35rem .6rem; border-radius: var(--r);
+}
+.auth-link:hover { color: var(--accent); }
+#phone-verify-section input { letter-spacing: .3em; text-align: center; font-size: 1.15rem; }
+.auth-theme { margin-top: 1.3rem; border-top: 1px solid var(--border); padding-top: .9rem; }
+.auth-theme-title {
+  font-weight: 600; font-size: .8rem; margin-bottom: .55rem;
+  color: var(--text-secondary); text-align: center;
+}
+.auth-modal .login-form input, .auth-modal #phone-verify-section input { font-size: 16px; } /* iOS не зумит поле при фокусе */
+
+/* Запрос в процессе: кнопка со спиннером, остальные кнопки приглушены */
+.auth-busy .btn, .auth-busy .social-btn, .auth-busy .auth-tab { pointer-events: none; }
+.auth-busy .social-btn:not(.loading), .auth-busy .btn:not(.loading) { opacity: .55; }
+.btn.loading, .social-btn.loading { color: transparent !important; }
+.btn.loading img, .social-btn.loading img { visibility: hidden; }
+.btn.loading::after, .social-btn.loading::after {
+  content: ''; position: absolute; left: 50%; top: 50%;
+  width: 18px; height: 18px; margin: -9px 0 0 -9px;
+  border: 2px solid var(--text-secondary); border-right-color: transparent;
+  border-radius: 50%; animation: mfSpin .7s linear infinite;
+}
+.btn.primary.loading::after { border-color: #fff; border-right-color: transparent; }
+@keyframes mfSpin { to { transform: rotate(360deg); } }
+
+/* Ручка шторки — только на телефоне */
+.sheet-handle { display: none; }
 
 #recaptcha-container { display: flex; justify-content: center; margin-top: .8rem; }
 
@@ -1168,7 +1221,7 @@ body { padding-top: calc(var(--header-height) + var(--safe-t) + var(--mf-notice-
   .modal-close { width: 44px; height: 44px; font-size: 1.8rem; }
   .account-circle { width: 42px; height: 42px; }
   #app-header nav a { min-height: 48px; display: flex; align-items: center; }
-  .social-btn { width: 48px; height: 48px; }
+  .social-btn { min-height: 48px; }
   .theme-option { width: 46px; height: 46px; }
 }
 
@@ -1275,15 +1328,33 @@ a, button, .section-card, .mf-card, .theme-option, .account-circle {
     overscroll-behavior: contain;
   }
   .modal.active { transform: translateY(0); }
-  /* «Ручка» шторки */
-  .modal::before {
-    content: ''; position: absolute;
-    top: 8px; left: 50%; transform: translateX(-50%);
-    width: 38px; height: 4px; border-radius: 99px;
-    background: var(--border-strong);
-    border: none; opacity: 1;
+  /* Засечки на телефоне не нужны — их место занимает настоящая ручка */
+  .modal::before, .modal::after { display: none; }
+  .modal { transition: opacity var(--t) var(--e-out), transform var(--t-slow) var(--e-out),
+                       max-height var(--t-slow) var(--e-out), border-radius var(--t), visibility var(--t); }
+  .modal.sheet-dragging { transition: none; }
+  /* Развёрнутая на весь экран шторка */
+  .modal.sheet-full {
+    max-height: 100dvh; height: 100dvh;
+    border-radius: 0;
+    padding-top: calc(1.5rem + var(--safe-t, env(safe-area-inset-top, 0px)));
   }
-  .modal::after { display: none; }
+  .sheet-handle {
+    display: block;
+    position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+    width: 96px; height: 26px;
+    border: none; background: none; padding: 0; cursor: grab;
+    touch-action: none; -webkit-tap-highlight-color: transparent;
+  }
+  .modal.sheet-full .sheet-handle { top: var(--safe-t, env(safe-area-inset-top, 0px)); }
+  .sheet-handle::before {
+    content: ''; position: absolute; left: 50%; top: 9px; transform: translateX(-50%);
+    width: 40px; height: 5px; border-radius: 99px;
+    background: var(--border-strong);
+    transition: width var(--t), background var(--t);
+  }
+  .modal.sheet-dragging .sheet-handle::before { width: 52px; background: var(--accent); }
+  .modal-header { touch-action: none; }
   .modal-header { margin-top: .6rem; }
 }
 

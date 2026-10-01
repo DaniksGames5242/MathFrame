@@ -681,8 +681,8 @@ let currentUser = null;
 let populateSettingsRef = null;
 
 // ===== ФУНКЦИЯ ПРЕОБРАЗОВАНИЯ ОШИБОК FIREBASE (расширенная) =====
-function getFirebaseErrorMessage(error) {
-    const code = error.code;
+function getFirebaseErrorMessage(error, provider) {
+    const code = error && error.code;
     switch (code) {
         // Email/пароль
         case 'auth/email-already-in-use': return 'Почта уже используется в существующем аккаунте.';
@@ -690,11 +690,19 @@ function getFirebaseErrorMessage(error) {
         case 'auth/weak-password': return 'Пароль слишком слабый (минимум 6 символов).';
         case 'auth/user-not-found': return 'Пользователь с таким email не найден.';
         case 'auth/wrong-password': return 'Неверный пароль.';
+        case 'auth/invalid-credential':
+        case 'auth/invalid-login-credentials':
+            return provider
+                ? `${provider} вернул некорректный ответ. Попробуйте ещё раз; если повторяется — вход через ${provider} временно недоступен.`
+                : 'Неверный email или пароль.';
+        case 'auth/missing-password': return 'Введите пароль.';
+        case 'auth/missing-email': return 'Введите email.';
         case 'auth/too-many-requests': return 'Слишком много попыток. Попробуйте позже.';
         case 'auth/network-request-failed': return 'Ошибка сети. Проверьте подключение.';
         case 'auth/internal-error': return 'Внутренняя ошибка сервера. Попробуйте позже.';
         case 'auth/user-disabled': return 'Аккаунт отключён. Обратитесь к администратору.';
-        case 'auth/operation-not-allowed': return 'Вход через email/пароль отключён.';
+        case 'auth/operation-not-allowed':
+            return provider ? `Вход через ${provider} пока не включён на сайте.` : 'Этот способ входа отключён.';
         case 'auth/requires-recent-login': return 'Требуется повторная авторизация.';
 
         // Телефон
@@ -706,10 +714,19 @@ function getFirebaseErrorMessage(error) {
 
         // Общие
         case 'auth/popup-closed-by-user': return 'Окно входа было закрыто. Попробуйте снова.';
+        case 'auth/popup-blocked': return 'Браузер заблокировал окно входа. Разрешите всплывающие окна для сайта.';
+        case 'auth/unauthorized-domain': return 'Этот адрес сайта не разрешён для входа. Откройте сайт по основному адресу.';
+        case 'auth/web-storage-unsupported': return 'Браузер блокирует хранилище (приватный режим?). Попробуйте обычное окно.';
+        case 'auth/invalid-oauth-client-id':
+        case 'auth/invalid-oauth-provider': return 'Вход через этого провайдера настроен неверно.';
+        case 'auth/user-token-expired': return 'Сессия устарела. Войдите снова.';
+        case 'auth/captcha-check-failed': return 'Проверка reCAPTCHA не пройдена. Обновите страницу и попробуйте снова.';
+        case 'auth/credential-already-in-use': return 'Этот аккаунт уже привязан к другому пользователю.';
         case 'auth/cancelled-popup-request': return 'Запрос входа был отменён.';
-        case 'auth/account-exists-with-different-credential': return 'Аккаунт уже существует с другим способом входа.';
+        case 'auth/account-exists-with-different-credential':
+            return 'Аккаунт с этой почтой уже создан другим способом. Войдите так же, как в первый раз (email или другая соцсеть).';
 
-        default: return error.message || 'Неизвестная ошибка.';
+        default: return (error && error.message ? error.message.replace(/^Firebase:\s*/, '').replace(/\s*\(auth\/[^)]+\)\.?$/, '') : '') || 'Неизвестная ошибка.';
     }
 }
 
@@ -730,6 +747,9 @@ async function updateUIForAuth(user) {
     if (user) {
         // Проверка email только для парольных аккаунтов
         if (user.providerData.some(p => p.providerId === 'password') && !user.emailVerified) {
+            // Вход/регистрация из модалки сами показывают своё сообщение и
+            // выходят из аккаунта — не перебиваем их здесь.
+            if (window.__mfAuthFlow) return;
             await window.Auth.logout();
             user = null;
             const msgEl = document.getElementById('auth-message');
@@ -817,7 +837,7 @@ function updateHeroButtons(user) {
         loginBtn.style.display = '';
         registerBtn.style.display = '';
         loginBtn.onclick = (e) => { e.preventDefault(); window.openAuthModal(); };
-        registerBtn.onclick = (e) => { e.preventDefault(); window.openAuthModal(); };
+        registerBtn.onclick = (e) => { e.preventDefault(); window.openAuthModal('register'); };
     }
 }
 
@@ -825,58 +845,7 @@ function updateHeroButtons(user) {
 let recaptchaVerifier = null;
 let confirmationResult = null;
 
-function injectAuthModal() {
-    if (document.getElementById('auth-modal')) return;
-
-    const html = `
-    <div class="overlay" id="auth-overlay"></div>
-    <div class="modal" id="auth-modal">
-      <div class="modal-header">
-        <h2>Вход</h2>
-        <button class="modal-close" id="auth-close">✕</button>
-      </div>
-      <div class="auth-message" id="auth-message"></div>
-      <div class="auth-tabs">
-        <button class="auth-tab active" id="tab-login">Войти</button>
-        <button class="auth-tab" id="tab-register">Создать аккаунт</button>
-      </div>
-
-      <div class="login-form" id="login-section">
-        <input type="text" id="login-email-phone" placeholder="Email или телефон" />
-        <input type="password" id="login-password" placeholder="Пароль" />
-        <button class="btn primary" id="login-submit">Войти</button>
-        <button class="btn small" id="forgot-password-btn" style="background:transparent;border:none;color:var(--text-secondary);font-size:0.8rem;margin-top:-0.2rem;">Забыли пароль?</button>
-      </div>
-
-      <div class="login-form" id="register-section" style="display:none;">
-        <input type="text" id="reg-email-phone" placeholder="Email или телефон" />
-        <input type="text" id="reg-nickname" placeholder="Никнейм" />
-        <input type="password" id="reg-password" placeholder="Пароль" />
-        <button class="btn primary" id="register-submit">Зарегистрироваться</button>
-      </div>
-
-      <div id="phone-verify-section">
-        <input type="text" id="verification-code" placeholder="Код из SMS" />
-        <button class="btn primary" id="verify-code-btn">Подтвердить</button>
-        <button class="btn small" id="cancel-phone-verify" style="margin-top:0.5rem;">Назад</button>
-      </div>
-
-      <div class="divider"><span>или</span></div>
-      <div class="social-icons">
-        <button class="social-btn" id="google-login-btn">
-          <img src="${ICON_GOOGLE}" alt="Google" />
-        </button>
-        <button class="social-btn" id="apple-login-btn">
-          <img src="${ICON_APPLE_DARK}" alt="Apple"
-               data-light-src="${ICON_APPLE_LIGHT}"
-               data-dark-src="${ICON_APPLE_DARK}" />
-        </button>
-      </div>
-      <div id="recaptcha-container"></div>
-
-      <div style="margin: 1.2rem 0 0; border-top:1px solid var(--border); padding-top:0.8rem;">
-        <div style="font-weight:600; font-size:0.85rem; margin-bottom:0.6rem; color:var(--text-secondary); text-align:center;">Тема</div>
-        <div id="theme-selector-auth">
+const AUTH_THEME_SELECTOR_HTML = `<div id="theme-selector-auth">
           <button class="theme-option" data-theme="light" title="Светлая">
             <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23fbbf24' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='5'/%3E%3Cline x1='12' y1='1' x2='12' y2='3'/%3E%3Cline x1='12' y1='21' x2='12' y2='23'/%3E%3Cline x1='4.22' y1='4.22' x2='5.64' y2='5.64'/%3E%3Cline x1='18.36' y1='18.36' x2='19.78' y2='19.78'/%3E%3Cline x1='1' y1='12' x2='3' y2='12'/%3E%3Cline x1='21' y1='12' x2='23' y2='12'/%3E%3Cline x1='4.22' y1='19.78' x2='5.64' y2='18.36'/%3E%3Cline x1='18.36' y1='5.64' x2='19.78' y2='4.22'/%3E%3C/svg%3E" alt="Светлая" />
           </button>
@@ -886,7 +855,88 @@ function injectAuthModal() {
           <button class="theme-option" data-theme="system" title="Системная">
             <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='2' y='3' width='20' height='14' rx='2' ry='2'/%3E%3Cline x1='8' y1='21' x2='16' y2='21'/%3E%3Cline x1='12' y1='17' x2='12' y2='21'/%3E%3C/svg%3E" alt="Системная" />
           </button>
-        </div>
+        </div>`;
+
+function injectAuthModal() {
+    if (document.getElementById('auth-modal')) return;
+
+    const themeHTML = AUTH_THEME_SELECTOR_HTML;
+    const eye = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>`;
+    const html = `
+    <div class="overlay" id="auth-overlay"></div>
+    <div class="modal auth-modal" id="auth-modal" role="dialog" aria-modal="true" aria-labelledby="auth-title">
+      <div class="modal-header">
+        <h2 id="auth-title">Вход</h2>
+        <button type="button" class="modal-close" id="auth-close" aria-label="Закрыть">✕</button>
+      </div>
+      <div class="auth-tabs" role="tablist">
+        <button type="button" class="auth-tab active" id="tab-login" role="tab">Войти</button>
+        <button type="button" class="auth-tab" id="tab-register" role="tab">Создать аккаунт</button>
+      </div>
+      <div class="auth-message" id="auth-message" role="status" aria-live="polite"></div>
+
+      <form class="login-form" id="login-section" novalidate>
+        <label class="auth-field">
+          <span>Email или телефон</span>
+          <input type="text" id="login-email-phone" autocomplete="username" inputmode="email"
+                 autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="you@mail.ru или +7…" />
+        </label>
+        <label class="auth-field" id="login-password-field">
+          <span>Пароль</span>
+          <div class="pw-wrap">
+            <input type="password" id="login-password" autocomplete="current-password" placeholder="••••••" />
+            <button type="button" class="pw-toggle" aria-label="Показать пароль" tabindex="-1">${eye}</button>
+          </div>
+        </label>
+        <button type="submit" class="btn primary" id="login-submit">Войти</button>
+        <button type="button" class="auth-link" id="forgot-password-btn">Забыли пароль?</button>
+      </form>
+
+      <form class="login-form" id="register-section" style="display:none;" novalidate>
+        <label class="auth-field">
+          <span>Email</span>
+          <input type="email" id="reg-email-phone" autocomplete="email" inputmode="email"
+                 autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="you@mail.ru" />
+        </label>
+        <label class="auth-field">
+          <span>Никнейм <em>необязательно</em></span>
+          <input type="text" id="reg-nickname" autocomplete="nickname" maxlength="40" placeholder="Как к вам обращаться" />
+        </label>
+        <label class="auth-field">
+          <span>Пароль</span>
+          <div class="pw-wrap">
+            <input type="password" id="reg-password" autocomplete="new-password" placeholder="Не меньше 6 символов" />
+            <button type="button" class="pw-toggle" aria-label="Показать пароль" tabindex="-1">${eye}</button>
+          </div>
+        </label>
+        <button type="submit" class="btn primary" id="register-submit">Зарегистрироваться</button>
+      </form>
+
+      <form id="phone-verify-section" novalidate>
+        <label class="auth-field">
+          <span>Код из SMS</span>
+          <input type="text" id="verification-code" autocomplete="one-time-code" inputmode="numeric" maxlength="6" placeholder="123456" />
+        </label>
+        <button type="submit" class="btn primary" id="verify-code-btn">Подтвердить</button>
+        <button type="button" class="auth-link" id="cancel-phone-verify">← Назад</button>
+      </form>
+
+      <div class="divider" id="auth-divider"><span>или</span></div>
+      <div class="social-icons" id="auth-social">
+        <button type="button" class="social-btn" id="google-login-btn">
+          <img src="${ICON_GOOGLE}" alt="" /><span>Продолжить с Google</span>
+        </button>
+        <button type="button" class="social-btn" id="apple-login-btn">
+          <img src="${ICON_APPLE_DARK}" alt=""
+               data-light-src="${ICON_APPLE_LIGHT}"
+               data-dark-src="${ICON_APPLE_DARK}" /><span>Продолжить с Apple</span>
+        </button>
+      </div>
+      <div id="recaptcha-container"></div>
+
+      <div class="auth-theme">
+        <div class="auth-theme-title">Тема</div>
+        ${themeHTML}
       </div>
     </div>
   `;
@@ -895,43 +945,72 @@ function injectAuthModal() {
     const currentMode = document.documentElement.classList.contains('light') ? 'light' : 'dark';
     updateThemeImages(currentMode);
 
-    const overlay = document.getElementById('auth-overlay');
-    const modal = document.getElementById('auth-modal');
-    const closeBtn = document.getElementById('auth-close');
-    const tabLogin = document.getElementById('tab-login');
-    const tabRegister = document.getElementById('tab-register');
-    const loginSection = document.getElementById('login-section');
-    const registerSection = document.getElementById('register-section');
-    const phoneVerifySection = document.getElementById('phone-verify-section');
-    const messageEl = document.getElementById('auth-message');
+    const $ = (id) => document.getElementById(id);
+    const overlay = $('auth-overlay');
+    const modal = $('auth-modal');
+    const titleEl = $('auth-title');
+    const tabLogin = $('tab-login');
+    const tabRegister = $('tab-register');
+    const loginSection = $('login-section');
+    const registerSection = $('register-section');
+    const phoneVerifySection = $('phone-verify-section');
+    const socialBlock = [$('auth-divider'), $('auth-social')];
+    const messageEl = $('auth-message');
+    let isOpen = false;
 
-    const themeOptionsAuth = modal.querySelectorAll('#theme-selector-auth .theme-option');
-    themeOptionsAuth.forEach(btn => {
+    modal.querySelectorAll('#theme-selector-auth .theme-option').forEach(btn => {
         btn.addEventListener('click', () => {
             const theme = btn.dataset.theme;
-            if (theme === 'system') {
-                applySystemTheme(true, true);
-            } else {
-                applyTheme(theme, true, true);
-            }
+            if (theme === 'system') applySystemTheme(true, true);
+            else applyTheme(theme, true, true);
         });
     });
 
-    function showLoginTab() {
+    modal.querySelectorAll('.pw-toggle').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const input = btn.previousElementSibling;
+            const show = input.type === 'password';
+            input.type = show ? 'text' : 'password';
+            btn.classList.toggle('on', show);
+            btn.setAttribute('aria-label', show ? 'Скрыть пароль' : 'Показать пароль');
+        });
+    });
+
+    // Поле входа: если ввели не email, а телефон — пароль не нужен
+    const loginId = $('login-email-phone');
+    loginId.addEventListener('input', () => {
+        const v = loginId.value.trim();
+        const phone = /^\+?[\d\s()-]{5,}$/.test(v) && !v.includes('@');
+        $('login-password-field').style.display = phone ? 'none' : '';
+        $('login-submit').textContent = phone ? 'Получить код' : 'Войти';
+        $('forgot-password-btn').style.display = phone ? 'none' : '';
+    });
+
+    function setSocialVisible(v) { socialBlock.forEach(el => el.style.display = v ? '' : 'none'); }
+
+    function showLoginTab(keepMessage) {
         tabLogin.classList.add('active');
         tabRegister.classList.remove('active');
+        tabLogin.setAttribute('aria-selected', 'true');
+        tabRegister.setAttribute('aria-selected', 'false');
+        titleEl.textContent = 'Вход';
         loginSection.style.display = 'flex';
         registerSection.style.display = 'none';
         phoneVerifySection.classList.remove('active');
-        clearMessage();
+        setSocialVisible(true);
+        if (!keepMessage) clearMessage();
     }
 
     function showRegisterTab() {
         tabRegister.classList.add('active');
         tabLogin.classList.remove('active');
+        tabRegister.setAttribute('aria-selected', 'true');
+        tabLogin.setAttribute('aria-selected', 'false');
+        titleEl.textContent = 'Регистрация';
         registerSection.style.display = 'flex';
         loginSection.style.display = 'none';
         phoneVerifySection.classList.remove('active');
+        setSocialVisible(true);
         clearMessage();
     }
 
@@ -947,29 +1026,53 @@ function injectAuthModal() {
         messageEl.style.display = 'block';
     }
 
-    function setMessageHTML(html, type = 'info') {
-        messageEl.className = 'auth-message ' + type;
-        messageEl.innerHTML = html;
+    function showVerifyNotice() {
+        messageEl.className = 'auth-message info';
+        messageEl.innerHTML = `Подтвердите email по ссылке из письма. Не пришло — проверьте «Спам» или
+            <span class="resend-link" id="resend-verification-link">отправьте повторно</span>.`;
         messageEl.style.display = 'block';
     }
 
-    function openAuth() {
+    // Кнопка в состоянии «идёт запрос»: блокируем повторные нажатия, пока
+    // предыдущий запрос не завершился (раньше двойной тап слал два запроса).
+    let busy = false;
+    async function withBusy(btn, fn) {
+        if (busy) return;
+        busy = true;
+        modal.classList.add('auth-busy');
+        btn?.classList.add('loading');
+        try { await fn(); }
+        finally {
+            busy = false;
+            modal.classList.remove('auth-busy');
+            btn?.classList.remove('loading');
+        }
+    }
+
+    function resetFields() {
+        ['login-email-phone', 'login-password', 'reg-email-phone', 'reg-nickname', 'reg-password', 'verification-code']
+            .forEach(id => { $(id).value = ''; });
+        modal.querySelectorAll('.pw-wrap input').forEach(i => { i.type = 'password'; });
+        modal.querySelectorAll('.pw-toggle').forEach(b => b.classList.remove('on'));
+        loginId.dispatchEvent(new Event('input'));
+    }
+
+    function openAuth(tab) {
+        const keepMessage = messageEl.style.display === 'block' && !isOpen;
+        isOpen = true;
         document.body.classList.add('no-scroll');
         overlay.style.visibility = 'visible';
         modal.style.visibility = 'visible';
+        modal.classList.remove('sheet-full');
+        modal.scrollTop = 0;
         requestAnimationFrame(() => {
             overlay.classList.add('active');
             modal.classList.add('active');
         });
-        showLoginTab();
-        document.getElementById('login-email-phone').value = '';
-        document.getElementById('login-password').value = '';
-        document.getElementById('reg-email-phone').value = '';
-        document.getElementById('reg-nickname').value = '';
-        document.getElementById('reg-password').value = '';
-        document.getElementById('verification-code').value = '';
+        resetFields();
         confirmationResult = null;
-        clearMessage();
+        if (tab === 'register') showRegisterTab();
+        else showLoginTab(keepMessage);
 
         const currentTheme = localStorage.getItem('theme') || 'system';
         updateAllThemeSelections(currentTheme);
@@ -979,170 +1082,276 @@ function injectAuthModal() {
     window.openAuthModal = openAuth;
 
     function closeAuth() {
+        if (!isOpen) return;
+        isOpen = false;
         overlay.classList.remove('active');
         modal.classList.remove('active');
+        modal.style.transform = '';
         setTimeout(() => {
+            if (isOpen) return;
             overlay.style.visibility = 'hidden';
             modal.style.visibility = 'hidden';
+            modal.classList.remove('sheet-full');
             document.body.classList.remove('no-scroll');
+            clearMessage();
         }, 300);
     }
+    window.closeAuthModal = closeAuth;
 
     overlay.addEventListener('click', closeAuth);
-    closeBtn.addEventListener('click', closeAuth);
-    tabLogin.addEventListener('click', showLoginTab);
+    $('auth-close').addEventListener('click', closeAuth);
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && isOpen) closeAuth(); });
+    tabLogin.addEventListener('click', () => showLoginTab());
     tabRegister.addEventListener('click', showRegisterTab);
+    enableSheetDrag(modal, closeAuth);
 
-    function isEmail(str) { return str.includes('@'); }
+    const isEmail = (str) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(str);
 
     // ===== ВХОД ПО EMAIL =====
     async function handleLoginEmail(email, password) {
         try {
+            window.__mfAuthFlow = 'login';
             const result = await window.Auth.loginWithEmail(email, password);
             if (!result.user.emailVerified) {
+                // Письмо повторно отправляем, пока пользователь ещё авторизован
+                const user = result.user;
+                showVerifyNotice();
+                $('resend-verification-link').onclick = async () => {
+                    try {
+                        await user.sendEmailVerification();
+                        setMessage('Письмо отправлено повторно. Проверьте почту (и папку «Спам»).', 'success');
+                    } catch (e) {
+                        setMessage(getFirebaseErrorMessage(e), 'error');
+                    }
+                };
                 await window.Auth.logout();
-                setMessageHTML(
-                    `Пожалуйста, подтвердите email, перейдя по ссылке в письме. 
-                    Если письмо не пришло, проверьте папку «Спам» или нажмите 
-                    <span class="resend-link" id="resend-verification-link">Отправить повторно</span>.`,
-                    'info'
-                );
-                const resendLink = document.getElementById('resend-verification-link');
-                if (resendLink) {
-                    resendLink.onclick = async () => {
-                        try {
-                            await window.Auth.sendEmailVerification();
-                            setMessage('Письмо отправлено повторно. Проверьте почту (и папку «Спам»).', 'success');
-                        } catch (e) {
-                            setMessage('Ошибка: ' + getFirebaseErrorMessage(e), 'error');
-                        }
-                    };
-                }
                 return;
             }
             closeAuth();
         } catch (error) {
             setMessage(getFirebaseErrorMessage(error), 'error');
+        } finally {
+            window.__mfAuthFlow = null;
         }
     }
 
     // ===== РЕГИСТРАЦИЯ =====
     async function handleRegister(email, password, nickname) {
         try {
+            window.__mfAuthFlow = 'register';
             const result = await window.Auth.registerWithEmail(email, password);
             if (nickname) {
-                await result.user.updateProfile({ displayName: nickname });
+                try { await result.user.updateProfile({ displayName: nickname }); } catch (e) { console.warn(e); }
             }
-            try {
-                await result.user.sendEmailVerification();
-                setMessage('Регистрация успешна! На вашу почту отправлено письмо для подтверждения. Проверьте также папку «Спам».', 'success');
-                showLoginTab();
-            } catch (verifyError) {
-                setMessage('Аккаунт создан, но не удалось отправить письмо подтверждения: ' + getFirebaseErrorMessage(verifyError), 'error');
-                showLoginTab();
+            let verifyError = null;
+            try { await result.user.sendEmailVerification(); } catch (e) { verifyError = e; }
+            await window.Auth.logout();
+            showLoginTab();
+            $('login-email-phone').value = email;
+            loginId.dispatchEvent(new Event('input'));
+            if (verifyError) {
+                setMessage('Аккаунт создан, но письмо подтверждения не отправилось: ' + getFirebaseErrorMessage(verifyError) + ' Попробуйте войти — мы предложим отправить его ещё раз.', 'error');
+            } else {
+                setMessage(`Готово! Мы отправили письмо на ${email}. Подтвердите адрес по ссылке и войдите. Не видите письма — проверьте «Спам».`, 'success');
             }
         } catch (error) {
             setMessage(getFirebaseErrorMessage(error), 'error');
+        } finally {
+            window.__mfAuthFlow = null;
         }
     }
 
     // ===== СБРОС ПАРОЛЯ =====
     async function handleForgotPassword(email) {
-        if (!email) {
-            setMessage('Введите email для сброса пароля.', 'error');
+        if (!isEmail(email)) {
+            setMessage('Введите email в поле выше — пришлём ссылку для сброса пароля.', 'error');
+            $('login-email-phone').focus();
             return;
         }
         try {
             await window.Auth.resetPassword(email);
-            setMessage('Письмо для сброса пароля отправлено. Проверьте почту (и папку «Спам»).', 'success');
+            setMessage('Если такой аккаунт есть, письмо для сброса пароля уже в пути. Проверьте почту (и «Спам»).', 'success');
         } catch (error) {
             setMessage(getFirebaseErrorMessage(error), 'error');
         }
     }
 
-    // ===== ОБРАБОТЧИКИ КНОПОК =====
-    document.getElementById('login-submit').addEventListener('click', async () => {
-        const emailPhone = document.getElementById('login-email-phone').value.trim();
-        const password = document.getElementById('login-password').value;
-        if (!emailPhone) { setMessage('Введите email или телефон', 'error'); return; }
-        if (isEmail(emailPhone)) {
-            if (!password) { setMessage('Введите пароль', 'error'); return; }
-            await handleLoginEmail(emailPhone, password);
-        } else {
-            // Телефон
+    // ===== ОБРАБОТЧИКИ =====
+    loginSection.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const btn = $('login-submit');
+        withBusy(btn, async () => {
+            const emailPhone = loginId.value.trim();
+            const password = $('login-password').value;
+            if (!emailPhone) { setMessage('Введите email или телефон', 'error'); return; }
+            if (emailPhone.includes('@')) {
+                if (!isEmail(emailPhone)) { setMessage('Некорректный формат email.', 'error'); return; }
+                if (!password) { setMessage('Введите пароль', 'error'); $('login-password').focus(); return; }
+                await handleLoginEmail(emailPhone, password);
+                return;
+            }
+            // Телефон: приводим к формату +7XXXXXXXXXX
+            let phone = emailPhone.replace(/[^\d+]/g, '');
+            if (/^8\d{10}$/.test(phone)) phone = '+7' + phone.slice(1);
+            else if (/^\d{10,15}$/.test(phone)) phone = '+' + phone;
             if (!recaptchaVerifier) {
-                try { recaptchaVerifier = window.Auth.createRecaptchaVerifier('recaptcha-container'); } catch (e) { console.warn(e); }
+                try { recaptchaVerifier = window.Auth.createRecaptchaVerifier('recaptcha-container'); } catch (err) { console.warn(err); }
             }
             try {
-                confirmationResult = await window.Auth.loginWithPhoneNumber(emailPhone, recaptchaVerifier);
+                confirmationResult = await window.Auth.loginWithPhoneNumber(phone, recaptchaVerifier);
                 loginSection.style.display = 'none';
                 registerSection.style.display = 'none';
+                setSocialVisible(false);
                 phoneVerifySection.classList.add('active');
-                clearMessage();
+                setMessage(`Код отправлен на ${phone}.`, 'info');
+                setTimeout(() => $('verification-code').focus(), 50);
             } catch (error) {
-                setMessage('Ошибка отправки кода: ' + getFirebaseErrorMessage(error), 'error');
+                setMessage('Не удалось отправить код: ' + getFirebaseErrorMessage(error), 'error');
+                try { recaptchaVerifier?.clear(); } catch (_) {}
                 recaptchaVerifier = null;
             }
-        }
+        });
     });
 
-    document.getElementById('register-submit').addEventListener('click', async () => {
-        const emailPhone = document.getElementById('reg-email-phone').value.trim();
-        const password = document.getElementById('reg-password').value;
-        const nickname = document.getElementById('reg-nickname').value.trim();
-        if (!emailPhone) { setMessage('Введите email или телефон', 'error'); return; }
-        if (isEmail(emailPhone)) {
-            if (!password) { setMessage('Введите пароль', 'error'); return; }
-            await handleRegister(emailPhone, password, nickname);
-        } else {
-            setMessage('Регистрация по телефону не поддерживается. Используйте email.', 'error');
-        }
+    registerSection.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const btn = $('register-submit');
+        withBusy(btn, async () => {
+            const email = $('reg-email-phone').value.trim();
+            const password = $('reg-password').value;
+            const nickname = $('reg-nickname').value.trim();
+            if (!email) { setMessage('Введите email', 'error'); return; }
+            if (!isEmail(email)) { setMessage('Некорректный формат email. Регистрация по телефону не поддерживается — войдите по номеру на вкладке «Войти».', 'error'); return; }
+            if (password.length < 6) { setMessage('Пароль должен быть не короче 6 символов.', 'error'); $('reg-password').focus(); return; }
+            await handleRegister(email, password, nickname);
+        });
     });
 
-    document.getElementById('verify-code-btn').addEventListener('click', async () => {
-        const code = document.getElementById('verification-code').value.trim();
-        if (!code) { setMessage('Введите код', 'error'); return; }
-        if (!confirmationResult) { setMessage('Сначала отправьте код', 'error'); return; }
-        try {
-            await confirmationResult.confirm(code);
-            closeAuth();
-        } catch (error) {
-            setMessage('Неверный код: ' + getFirebaseErrorMessage(error), 'error');
-        }
+    phoneVerifySection.addEventListener('submit', (e) => {
+        e.preventDefault();
+        withBusy($('verify-code-btn'), async () => {
+            const code = $('verification-code').value.trim();
+            if (!code) { setMessage('Введите код', 'error'); return; }
+            if (!confirmationResult) { setMessage('Сначала запросите код', 'error'); return; }
+            try {
+                await confirmationResult.confirm(code);
+                closeAuth();
+            } catch (error) {
+                setMessage(getFirebaseErrorMessage(error), 'error');
+            }
+        });
     });
 
-    document.getElementById('cancel-phone-verify').addEventListener('click', () => {
-        phoneVerifySection.classList.remove('active');
-        loginSection.style.display = 'flex';
-        registerSection.style.display = 'none';
+    $('cancel-phone-verify').addEventListener('click', () => {
         confirmationResult = null;
-        clearMessage();
+        showLoginTab();
     });
 
-    document.getElementById('forgot-password-btn').addEventListener('click', () => {
-        const email = document.getElementById('login-email-phone').value.trim();
-        handleForgotPassword(email);
+    $('forgot-password-btn').addEventListener('click', () => {
+        withBusy(null, () => handleForgotPassword(loginId.value.trim()));
     });
 
-    document.getElementById('google-login-btn').addEventListener('click', async () => {
-        if (!window.Auth) return;
-        try {
-            await window.Auth.loginWithGoogle();
-            closeAuth();
-        } catch (e) {
-            setMessage('Ошибка входа через Google: ' + getFirebaseErrorMessage(e), 'error');
+    function socialHandler(btnId, providerName, login) {
+        const btn = $(btnId);
+        btn.addEventListener('click', () => {
+            if (!window.Auth) { setMessage('Сервис входа ещё загружается. Попробуйте через секунду.', 'error'); return; }
+            // Без await до вызова popup — иначе Safari посчитает окно не
+            // вызванным пользователем и заблокирует его.
+            withBusy(btn, async () => {
+                clearMessage();
+                try {
+                    const result = await login();
+                    if (result) closeAuth();
+                } catch (e) {
+                    if (e.code === 'auth/popup-closed-by-user' || e.code === 'auth/cancelled-popup-request' || e.code === 'auth/user-cancelled') return;
+                    console.error(`[auth] ${providerName}:`, e);
+                    setMessage(`Не удалось войти через ${providerName}: ` + getFirebaseErrorMessage(e, providerName), 'error');
+                }
+            });
+        });
+    }
+    socialHandler('google-login-btn', 'Google', () => window.Auth.loginWithGoogle());
+    socialHandler('apple-login-btn', 'Apple', () => window.Auth.loginWithApple());
+
+    // Возврат после redirect-входа (PWA, встроенные браузеры, заблокированные попапы)
+    const consumeRedirect = () => {
+        window.Auth?.consumeRedirectResult?.().catch(e => {
+            console.error('[auth] redirect:', e);
+            openAuth();
+            setMessage('Не удалось завершить вход: ' + getFirebaseErrorMessage(e), 'error');
+        });
+    };
+    if (window.Auth) consumeRedirect();
+    else document.addEventListener('authReady', consumeRedirect, { once: true });
+}
+
+// ===== ШТОРКА НА ТЕЛЕФОНЕ =====
+// Ручка сверху — настоящая: тянем вниз — закрыть (из полноэкранного режима —
+// сначала свернуть), тянем вверх — развернуть на весь экран, тап — переключить.
+// Тянуть можно за ручку/заголовок, а за остальную часть — только когда
+// содержимое прокручено к самому верху и жест идёт вниз.
+function enableSheetDrag(modal, onClose) {
+    const mq = window.matchMedia('(max-width: 560px)');
+    const handle = document.createElement('button');
+    handle.type = 'button';
+    handle.className = 'sheet-handle';
+    handle.setAttribute('aria-label', 'Развернуть или свернуть');
+    modal.prepend(handle);
+    handle.addEventListener('click', () => {
+        if (mq.matches) modal.classList.toggle('sheet-full');
+    });
+
+    let startY = 0, lastY = 0, lastT = 0, velocity = 0, dy = 0;
+    let tracking = false, dragging = false, fromTop = false;
+
+    modal.addEventListener('touchstart', (e) => {
+        if (!mq.matches || e.touches.length !== 1 || !modal.classList.contains('active')) return;
+        const t = e.target;
+        if (t.closest('input, textarea, select, .modal-close')) return;
+        fromTop = !!t.closest('.sheet-handle, .modal-header');
+        if (!fromTop && modal.scrollTop > 0) return;
+        tracking = true; dragging = false; dy = 0; velocity = 0;
+        startY = lastY = e.touches[0].clientY;
+        lastT = performance.now();
+    }, { passive: true });
+
+    modal.addEventListener('touchmove', (e) => {
+        if (!tracking) return;
+        const y = e.touches[0].clientY;
+        const now = performance.now();
+        velocity = (y - lastY) / Math.max(1, now - lastT);
+        lastY = y; lastT = now;
+        dy = y - startY;
+        if (!dragging) {
+            if (Math.abs(dy) < 6) return;
+            // Жест вверх по содержимому — это обычная прокрутка
+            if (dy < 0 && !fromTop) { tracking = false; return; }
+            dragging = true;
+            modal.classList.add('sheet-dragging');
         }
-    });
+        e.preventDefault();
+        // Вниз — 1:1, вверх — с «резиной»
+        const offset = dy > 0 ? dy : -Math.min(40, Math.sqrt(-dy) * 3);
+        modal.style.transform = `translateY(${offset}px)`;
+    }, { passive: false });
 
-    document.getElementById('apple-login-btn').addEventListener('click', async () => {
-        if (!window.Auth) return;
-        try {
-            await window.Auth.loginWithApple();
-            closeAuth();
-        } catch (e) {
-            setMessage('Ошибка входа через Apple: ' + getFirebaseErrorMessage(e), 'error');
+    const end = () => {
+        if (!tracking) return;
+        tracking = false;
+        if (!dragging) return;
+        dragging = false;
+        modal.classList.remove('sheet-dragging');
+        modal.style.transform = '';
+        const full = modal.classList.contains('sheet-full');
+        if (dy < -50 || velocity < -0.5) {
+            modal.classList.add('sheet-full');
+        } else if (dy > 90 || velocity > 0.6) {
+            if (full && dy < modal.offsetHeight * 0.45) modal.classList.remove('sheet-full');
+            else onClose();
         }
-    });
+    };
+    modal.addEventListener('touchend', end);
+    modal.addEventListener('touchcancel', end);
 }
 
 // ===== МОДАЛЬНОЕ ОКНО НАСТРОЕК =====
@@ -1341,11 +1550,13 @@ function injectSettingsModal() {
         setTimeout(() => {
             overlay.style.visibility = 'hidden';
             modal.style.visibility = 'hidden';
+            modal.classList.remove('sheet-full');
             document.body.classList.remove('no-scroll');
         }, 300);
     }
 
     overlay.addEventListener('click', closeSettings);
+    enableSheetDrag(modal, closeSettings);
     closeBtn.addEventListener('click', closeSettings);
 
     editBtn.addEventListener('click', () => {
