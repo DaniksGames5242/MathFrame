@@ -4,54 +4,71 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <meta name="robots" content="noindex" />
-<script>/* MathFrame: тема до первого кадра (см. common.js › initTheme) */(function(){var d=document.documentElement;try{var t=localStorage.getItem('theme');if(t==='light'||(t!=='dark'&&!matchMedia('(prefers-color-scheme: dark)').matches))d.classList.add('light');}catch(e){}})();</script>
+<script>/* MathFrame: тема до первого кадра + маска перехода между страницами (см. common.js › PAGE TRANSITIONS) */(function(){var d=document.documentElement;try{var t=localStorage.getItem('theme');if(t==='light'||(t!=='dark'&&!matchMedia('(prefers-color-scheme: dark)').matches))d.classList.add('light');}catch(e){}try{var s=sessionStorage.getItem('mf-veil');if(!s)return;sessionStorage.removeItem('mf-veil');var v=JSON.parse(s),n=performance.getEntriesByType&&performance.getEntriesByType('navigation')[0];if(!v||!v.fill||Date.now()-v.t>8000||(n&&n.type&&n.type!=='navigate'))return;window.__mfVeil=v;d.style.setProperty('--mf-veil-fill',v.fill);d.classList.add('mf-veil-on');setTimeout(function(){d.classList.remove('mf-veil-on')},4000);}catch(e){}})();</script>
 <title>Страница не найдена — MathFrame</title>
 <!-- Vercel отдаёт этот файл (404.html в корне) на любой несуществующий адрес, на любой
      глубине пути, — поэтому все ссылки на ресурсы только абсолютные. -->
 <link rel="stylesheet" href="/assets/css/common.css" />
 <style>
 main{
-  max-width:980px;margin:0 auto;
-  padding:clamp(1.5rem,5vw,3.5rem) clamp(1rem,4vw,1.5rem) 4rem;
+  max-width:1120px;margin:0 auto;
+  padding:clamp(1.5rem,5vw,3.2rem) clamp(1rem,4vw,1.5rem) 4rem;
   padding-left:max(clamp(1rem,4vw,1.5rem),var(--safe-l));
   padding-right:max(clamp(1rem,4vw,1.5rem),var(--safe-r));
   padding-bottom:calc(4rem + var(--safe-b));
 }
-.nf{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:clamp(1.5rem,4vw,3rem);align-items:center}
-.nf-kicker{display:inline-flex;align-items:center;gap:.55rem;font-family:ui-monospace,'SF Mono',Menlo,Consolas,monospace;
-  font-size:.74rem;letter-spacing:.16em;text-transform:uppercase;color:var(--text-tertiary)}
-.nf-kicker::before{content:'';width:18px;height:3px;background:repeating-linear-gradient(90deg,var(--accent) 0 3px,transparent 3px 6px)}
-.nf h1{font-family:var(--font-display);font-size:clamp(4.5rem,15vw,8.5rem);line-height:.95;letter-spacing:-.03em;margin:.6rem 0 .4rem}
-.nf h1 em{font-family:var(--font-math);font-style:italic;font-weight:400;color:var(--accent)}
-.nf-lead{font-size:1.15rem;color:var(--text-primary);margin:0 0 .5rem}
-.nf-text{color:var(--text-secondary);line-height:1.6;margin:0 0 1rem;max-width:46ch}
-.nf-path{font-family:ui-monospace,'SF Mono',Menlo,Consolas,monospace;font-size:.85rem;color:var(--text-secondary);
-  background:var(--bg-sunken);border:1px solid var(--border);border-radius:8px;padding:.45rem .7rem;display:inline-block;
-  max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:bottom}
-.nf-formula{font-family:var(--font-math);font-style:italic;font-size:1.05rem;color:var(--text-secondary);margin:1.1rem 0 1.4rem}
-.nf-actions{display:flex;flex-wrap:wrap;gap:.55rem}
-.nf-btn{display:inline-flex;align-items:center;gap:.4rem;padding:.6rem 1rem;border-radius:10px;font-size:.92rem;text-decoration:none;
-  border:1px solid var(--border-strong);color:var(--text-primary);background:var(--bg-card);transition:border-color var(--t),background var(--t)}
-.nf-btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
-@media (hover:hover){.nf-btn:not(.primary):hover{border-color:var(--accent);background:var(--accent-soft)}}
-.nf-plot{background:var(--bg-card);border:1px solid var(--border);border-radius:16px;padding:.6rem;position:relative}
-.nf-plot svg{display:block;width:100%;height:auto}
-.nf-plot .cap{position:absolute;left:1rem;bottom:.7rem;font-size:.78rem;color:var(--text-tertiary)}
-.grid-l{stroke:var(--border)}
-.axis-l{stroke:var(--text-tertiary)}
-.tick{fill:var(--text-tertiary);font:10px ui-monospace,Menlo,Consolas,monospace}
-.curve{fill:none;stroke:var(--accent);stroke-width:2.6;stroke-linecap:round}
-.hole{fill:var(--bg-card);stroke:var(--accent);stroke-width:2.4}
-.hole-label{fill:var(--text-primary);font:italic 15px var(--font-math)}
-.probe{fill:var(--accent)}
-.probe-line{stroke:var(--accent);stroke-dasharray:3 4;opacity:.6}
-.nf-links{margin-top:clamp(2rem,5vw,3rem);display:grid;gap:.7rem;grid-template-columns:repeat(auto-fit,minmax(min(100%,160px),1fr))}
-.nf-links a{display:block;text-decoration:none;background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:.85rem 1rem;color:var(--text-primary);transition:border-color var(--t),background var(--t)}
-@media (hover:hover){.nf-links a:hover{border-color:var(--accent);background:var(--accent-soft)}}
-.nf-links b{display:block;font-size:.95rem;margin-bottom:.15rem}
-.nf-links span{font-size:.8rem;color:var(--text-tertiary)}
-@media (max-width:760px){.nf{grid-template-columns:1fr}}
-@media (prefers-reduced-motion:reduce){.probe,.probe-line{display:none}}
+
+/* ---- первый экран: текст слева, «график ошибки» справа ---- */
+.nf{display:grid;grid-template-columns:minmax(0,.95fr) minmax(0,1.05fr);gap:clamp(1.5rem,4vw,3.5rem);align-items:center}
+.nf-code{font-family:var(--font-display);font-weight:700;font-size:clamp(5.5rem,17vw,10.5rem);line-height:.86;letter-spacing:-.045em;margin:.9rem 0 1.1rem;
+  display:flex;align-items:baseline;gap:.02em;color:var(--text-primary)}
+/* «0» в середине — та самая выколотая точка: кольцо цвета раздела, внутри пусто */
+.nf-code .hole{display:inline-block;width:.62em;height:.62em;border-radius:50%;border:.085em solid var(--accent);transform:translateY(-.06em);
+  box-shadow:0 0 0 .02em var(--accent-soft),0 0 40px var(--accent-glow)}
+.nf h1{font-family:var(--font-display);font-size:clamp(1.45rem,3.2vw,2rem);line-height:1.2;margin:0 0 .7rem}
+.nf-text{color:var(--text-secondary);line-height:1.65;margin:0 0 1.4rem;max-width:44ch}
+.nf-path{font-family:var(--font-mono);font-size:.84em;color:var(--text-primary);background:var(--bg-sunken);border:1px solid var(--border);
+  border-radius:6px;padding:.1rem .45rem;word-break:break-all}
+.nf-actions{display:flex;flex-wrap:wrap;gap:.6rem}
+
+/* ---- интерактивный график ---- */
+.nf-plot{padding:0;overflow:hidden}
+.nf-plot svg{display:block;width:100%;height:auto;touch-action:none;cursor:crosshair}
+.nf-plot-cap{display:flex;justify-content:space-between;gap:1rem;align-items:baseline;padding:.75rem 1.1rem .9rem;border-top:1px solid var(--border);font-size:.86rem;color:var(--text-secondary)}
+.nf-plot-cap .f{font-family:var(--font-math);font-style:italic;color:var(--text-primary)}
+.nf-plot-cap output{font-family:var(--font-mono);font-size:.8rem;color:var(--text-tertiary);white-space:nowrap}
+.nf-plot-cap output.undef{color:var(--accent)}
+.g-minor{stroke:var(--border)}
+.g-axis{stroke:var(--text-tertiary);stroke-width:1.3}
+.g-tick{fill:var(--text-tertiary);font:10px var(--font-mono)}
+.g-curve{fill:none;stroke:var(--accent);stroke-width:2.8;stroke-linecap:round;filter:drop-shadow(0 0 6px var(--accent-glow))}
+.g-hole{fill:var(--bg-raised);stroke:var(--accent);stroke-width:2.6}
+.g-hole-ring{fill:none;stroke:var(--accent);opacity:.35}
+.g-hole-label{fill:var(--text-primary);font:italic 15px var(--font-math)}
+.g-probe{fill:var(--accent)}
+.g-probe-line{stroke:var(--accent);stroke-dasharray:3 4;opacity:.55}
+.g-probe-ghost{fill:none;stroke:var(--accent);stroke-dasharray:2 3;opacity:.8}
+/* одна прорисовка кривой при загрузке */
+.nf-plot.draw .g-curve{stroke-dasharray:var(--len);stroke-dashoffset:var(--len);animation:nfDraw 1.3s var(--e-out) .25s forwards}
+.nf-plot.draw .g-hole,.nf-plot.draw .g-hole-label,.nf-plot.draw .g-hole-ring{opacity:0;animation:nfFade .5s var(--e-out) 1.25s forwards}
+@keyframes nfDraw{to{stroke-dashoffset:0}}
+@keyframes nfFade{to{opacity:1}}
+.nf-plot.draw .g-hole-ring{animation:nfFade .5s var(--e-out) 1.25s forwards,nfPulse 2.4s ease-out 1.8s infinite}
+@keyframes nfPulse{0%{r:9;opacity:.45}100%{r:26;opacity:0}}
+
+/* ---- куда пойти ---- */
+.nf-go{margin-top:clamp(2.5rem,6vw,4rem)}
+.nf-go h2{margin:.4rem 0 1.2rem}
+.nf-cards{display:grid;gap:1rem;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr))}
+a.section-card{display:block;text-decoration:none;color:inherit}
+a.section-card p{color:var(--text-secondary);font-size:.88rem;margin:0}
+a.section-card .likely{display:none;margin-top:.7rem;font-size:.78rem;color:var(--accent)}
+a.section-card.is-likely{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent-soft),var(--shadow)}
+a.section-card.is-likely .likely{display:block}
+
+@media (max-width:860px){.nf{grid-template-columns:1fr}.nf-code{margin-top:.4rem}}
+@media (prefers-reduced-motion:reduce){.nf-plot.draw .g-curve,.nf-plot.draw .g-hole,.nf-plot.draw .g-hole-label,.nf-plot.draw .g-hole-ring{animation:none;stroke-dashoffset:0;opacity:1}}
+html.mf-no-motion .nf-plot.draw .g-curve,html.mf-no-motion .nf-plot.draw .g-hole,html.mf-no-motion .nf-plot.draw .g-hole-label,html.mf-no-motion .nf-plot.draw .g-hole-ring{animation:none;stroke-dashoffset:0;opacity:1}
 </style>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
@@ -63,83 +80,134 @@ main{
 
 <main>
   <section class="nf">
-    <div>
-      <span class="nf-kicker">Ошибка 404</span>
-      <h1>4<em>0</em>4</h1>
-      <p class="nf-lead">Функция не определена в этой точке.</p>
-      <p class="nf-text">Страницы по адресу <span class="nf-path" id="nfPath">/</span> нет — она удалена, переименована или в ссылке опечатка.</p>
-      <p class="nf-formula">x = 404 ∉ D(f) — выколотая точка: слева и справа всё есть, а здесь пусто.</p>
+    <div class="mf-reveal">
+      <span class="mf-label">Ошибка 404</span>
+      <div class="nf-code" aria-hidden="true">4<span class="hole"></span>4</div>
+      <h1>Функция не определена в этой точке</h1>
+      <p class="nf-text">Страницы <span class="nf-path" id="nfPath">/</span> нет: её удалили, переименовали или в ссылке опечатка. Слева и справа от неё сайт на месте — выберите раздел ниже.</p>
       <div class="nf-actions">
-        <a class="nf-btn primary" href="/">На главную</a>
-        <a class="nf-btn" href="/spravochnik/">Открыть справочник</a>
-        <a class="nf-btn" href="#" id="nfBack">← Назад</a>
+        <a class="btn primary" href="/">На главную</a>
+        <a class="btn" href="/spravochnik/">Открыть справочник</a>
+        <button type="button" class="btn" id="nfBack">← Назад</button>
       </div>
     </div>
 
-    <figure class="nf-plot" aria-label="График функции с выколотой точкой">
-      <svg id="nfSvg" viewBox="0 0 420 300" role="img"></svg>
-      <figcaption class="cap">f(x) = (x² − 404x) / (x − 404)</figcaption>
+    <figure class="mf-card nf-plot draw mf-reveal" style="--mf-delay:120ms">
+      <svg id="nfSvg" viewBox="0 0 520 340" role="img" aria-label="График функции с выколотой точкой x = 404"></svg>
+      <figcaption class="nf-plot-cap">
+        <span class="f">f(x) = (x² − 404x) / (x − 404)</span>
+        <output id="nfOut" aria-live="polite">наведите на график</output>
+      </figcaption>
     </figure>
   </section>
 
-  <nav class="nf-links" aria-label="Разделы сайта">
-    <a href="/spravochnik/"><b>Справочник</b><span>Темы, определения и интерактивные примеры</span></a>
-    <a href="/mini-services/"><b>Мини-сервисы</b><span>Калькуляторы и визуализации</span></a>
-    <a href="/playground/"><b>Песочница</b><span>Сцены на языке GMS и конструктор</span></a>
-    <a href="/ai-agent/"><b>AI-агент</b><span>Объяснение и решение задач</span></a>
-    <a href="/forum/"><b>Форум</b><span>Вопросы и обсуждения</span></a>
-  </nav>
+  <section class="nf-go" aria-labelledby="nfGoTitle">
+    <span class="mf-label">Разделы</span>
+    <h2 class="mf-axis-title" id="nfGoTitle">Куда можно пойти</h2>
+    <div class="nf-cards" id="nfCards">
+      <a class="section-card mf-ticks" href="/spravochnik/" data-match="spravochnik|reference|topic|tema">
+        <h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>Справочник</h3>
+        <p>Темы, определения и интерактивные примеры</p>
+        <span class="likely">Похоже, вы искали это</span>
+      </a>
+      <a class="section-card mf-ticks" href="/mini-services/" data-match="mini|service|calc|servis">
+        <h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></svg>Мини-сервисы</h3>
+        <p>Калькуляторы, графики и решатели</p>
+        <span class="likely">Похоже, вы искали это</span>
+      </a>
+      <a class="section-card mf-ticks" href="/playground/" data-match="playground|sandbox|gms|pesochn|ide">
+        <h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>Песочница</h3>
+        <p>Сцены на языке GMS и конструктор</p>
+        <span class="likely">Похоже, вы искали это</span>
+      </a>
+      <a class="section-card mf-ticks" href="/ai-agent/" data-match="ai|agent|chat|gpt">
+        <h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="8" width="16" height="12" rx="3"/><path d="M12 3v5M9 14h.01M15 14h.01"/></svg>AI-агент</h3>
+        <p>Объяснение и решение задач</p>
+        <span class="likely">Похоже, вы искали это</span>
+      </a>
+      <a class="section-card mf-ticks" href="/forum/" data-match="forum|article|post|stat">
+        <h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Форум</h3>
+        <p>Статьи, вопросы и обсуждения</p>
+        <span class="likely">Похоже, вы искали это</span>
+      </a>
+    </div>
+  </section>
 </main>
 
 <div id="app-footer"></div>
 
 <script>
 (function () {
-  // Запрошенный адрес — в текст (textContent, без разметки).
-  var path = decodeURI(location.pathname + location.search);
-  try { document.getElementById('nfPath').textContent = path; } catch (e) {}
+  var path = location.pathname + location.search;
+  try { path = decodeURI(path); } catch (e) {}
+  document.getElementById('nfPath').textContent = path;
+
+  // Раздел, на который похож ошибочный адрес, — подсветить его карточку.
+  var low = path.toLowerCase();
+  var cards = document.querySelectorAll('#nfCards a[data-match]');
+  for (var i = 0; i < cards.length; i++) {
+    if (new RegExp(cards[i].getAttribute('data-match')).test(low)) { cards[i].classList.add('is-likely'); break; }
+  }
+
   document.getElementById('nfBack').addEventListener('click', function (e) {
-    e.preventDefault();
-    if (history.length > 1 && document.referrer) history.back(); else location.href = '/';
+    var sameSite = false;
+    try { sameSite = document.referrer && new URL(document.referrer).origin === location.origin; } catch (x) {}
+    if (sameSite && history.length > 1) history.back();
+    else if (window.mfNavigate) window.mfNavigate('/', e); else location.href = '/';
   });
 
-  // График f(x) = x (после сокращения) с выколотой точкой «404»: подписи осей —
-  // в «сотнях», чтобы точка разрыва пришлась на x = 4,04 ≈ середина поля.
+  /* ---- график: f(x) = (x² − 404x)/(x − 404) = x везде, кроме x = 404 ----
+     Подписи оси — в сотнях, чтобы разрыв пришёлся на середину поля. Наведение
+     ведёт точку по графику и показывает значение; в выколотой точке — «не
+     определено», точка исчезает, остаётся пустое кольцо. */
   var svg = document.getElementById('nfSvg'), NS = 'http://www.w3.org/2000/svg';
-  var W = 420, H = 300, x0 = 0, x1 = 8, y0 = -1, y1 = 7;
-  function X(x) { return 20 + (x - x0) / (x1 - x0) * (W - 40); }
-  function Y(y) { return H - 20 - (y - y0) / (y1 - y0) * (H - 40); }
+  var W = 520, H = 340, PAD = 26, x0 = 0, x1 = 8, y0 = -1, y1 = 7.2, HX = 4.04;
+  function X(x) { return PAD + (x - x0) / (x1 - x0) * (W - 2 * PAD); }
+  function Y(y) { return H - PAD - (y - y0) / (y1 - y0) * (H - 2 * PAD); }
+  function inv(px) { return x0 + (px - PAD) / (W - 2 * PAD) * (x1 - x0); }
   function el(t, a, p) { var e = document.createElementNS(NS, t); for (var k in a) e.setAttribute(k, a[k]); (p || svg).appendChild(e); return e; }
-  for (var gx = x0; gx <= x1; gx++) el('line', { x1: X(gx), y1: Y(y0), x2: X(gx), y2: Y(y1), 'class': 'grid-l' });
-  for (var gy = y0; gy <= y1; gy++) el('line', { x1: X(x0), y1: Y(gy), x2: X(x1), y2: Y(gy), 'class': 'grid-l' });
-  el('line', { x1: X(x0), y1: Y(0), x2: X(x1), y2: Y(0), 'class': 'axis-l', 'stroke-width': 1.4 });
-  el('line', { x1: X(0) + 1, y1: Y(y0), x2: X(0) + 1, y2: Y(y1), 'class': 'axis-l', 'stroke-width': 1.4 });
-  for (var t = 1; t < x1; t++) el('text', { x: X(t), y: Y(0) + 14, 'text-anchor': 'middle', 'class': 'tick' }).textContent = t * 100;
-  // кривая с плавной «волной», но через точку (4.04; 4.04)
-  function f(x) { return x + 0.55 * Math.sin((x - 4.04) * 1.6); }
+  // лёгкая «волна», чтобы кривая была живой, — но через точку (4.04; 4.04)
+  function f(x) { return x + 0.6 * Math.sin((x - HX) * 1.55) * Math.exp(-Math.pow((x - HX) / 3.2, 2)); }
+
+  for (var gx = x0; gx <= x1; gx++) el('line', { x1: X(gx), y1: Y(y0), x2: X(gx), y2: Y(y1), 'class': 'g-minor' });
+  for (var gy = Math.ceil(y0); gy <= y1; gy++) el('line', { x1: X(x0), y1: Y(gy), x2: X(x1), y2: Y(gy), 'class': 'g-minor' });
+  el('line', { x1: X(x0), y1: Y(0), x2: X(x1), y2: Y(0), 'class': 'g-axis' });
+  el('line', { x1: X(0), y1: Y(y0), x2: X(0), y2: Y(y1), 'class': 'g-axis' });
+  for (var t = 1; t < x1; t++) el('text', { x: X(t), y: Y(0) + 15, 'text-anchor': 'middle', 'class': 'g-tick' }).textContent = t * 100;
+
   var d = '';
-  for (var i = 0; i <= 200; i++) { var x = x0 + 0.15 + (x1 - x0 - 0.3) * i / 200; d += (i ? 'L' : 'M') + X(x).toFixed(1) + ' ' + Y(f(x)).toFixed(1); }
-  var curve = el('path', { d: d, 'class': 'curve' });
-  var hx = 4.04, hy = f(hx);
-  el('line', { x1: X(hx), y1: Y(hy), x2: X(hx), y2: Y(0), 'class': 'probe-line' });
-  el('circle', { cx: X(hx), cy: Y(hy), r: 7, 'class': 'hole' });
-  el('text', { x: X(hx) + 12, y: Y(hy) + 22, 'class': 'hole-label' }).textContent = 'x = 404';
-  // точка, которая бежит по графику и «перепрыгивает» разрыв
-  var line = el('line', { 'class': 'probe-line' }), dot = el('circle', { r: 4.5, 'class': 'probe' });
-  var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
-  var len = curve.getTotalLength ? curve.getTotalLength() : 0;
-  function frame(ts) {
-    var s = (ts / 6000) % 1, xp = x0 + 0.15 + (x1 - x0 - 0.3) * s;
-    var hidden = Math.abs(xp - hx) < 0.09;
-    dot.setAttribute('cx', X(xp)); dot.setAttribute('cy', Y(f(xp)));
-    dot.style.opacity = hidden ? 0 : 1;
-    line.setAttribute('x1', X(xp)); line.setAttribute('x2', X(xp)); line.setAttribute('y1', Y(f(xp))); line.setAttribute('y2', Y(0));
-    line.style.opacity = hidden ? 0 : .5;
-    requestAnimationFrame(frame);
+  for (var i2 = 0; i2 <= 260; i2++) { var x = x0 + 0.12 + (x1 - x0 - 0.24) * i2 / 260; d += (i2 ? 'L' : 'M') + X(x).toFixed(1) + ' ' + Y(f(x)).toFixed(1); }
+  var curve = el('path', { d: d, 'class': 'g-curve' });
+  try { svg.parentNode.style.setProperty('--len', Math.ceil(curve.getTotalLength())); } catch (e) {}
+  var hx = X(HX), hy = Y(f(HX));
+  el('circle', { cx: hx, cy: hy, r: 9, 'class': 'g-hole-ring' });
+  el('circle', { cx: hx, cy: hy, r: 7.5, 'class': 'g-hole' });
+  el('text', { x: hx + 14, y: hy + 24, 'class': 'g-hole-label' }).textContent = 'x = 404';
+
+  var line = el('line', { 'class': 'g-probe-line', opacity: 0 });
+  var dot = el('circle', { r: 5.5, 'class': 'g-probe', opacity: 0 });
+  var out = document.getElementById('nfOut');
+  function show(xv) {
+    xv = Math.max(x0 + 0.12, Math.min(x1 - 0.12, xv));
+    var undef = Math.abs(xv - HX) < 0.09;
+    var px = X(xv), py = Y(f(xv));
+    line.setAttribute('x1', px); line.setAttribute('x2', px); line.setAttribute('y1', py); line.setAttribute('y2', Y(0));
+    dot.setAttribute('cx', px); dot.setAttribute('cy', py);
+    dot.setAttribute('opacity', undef ? 0 : 1); line.setAttribute('opacity', undef ? 0 : .55);
+    out.classList.toggle('undef', undef);
+    out.textContent = undef ? 'f(404) — не определено' : 'f(' + Math.round(xv * 100) + ') = ' + Math.round(f(xv) * 100);
   }
-  if (!reduce && len) requestAnimationFrame(frame); else { dot.remove(); line.remove(); }
+  function hide() { dot.setAttribute('opacity', 0); line.setAttribute('opacity', 0); out.classList.remove('undef'); out.textContent = 'наведите на график'; }
+  function fromEvent(e) {
+    var r = svg.getBoundingClientRect();
+    return inv((e.clientX - r.left) * W / r.width);
+  }
+  svg.addEventListener('pointermove', function (e) { show(fromEvent(e)); });
+  svg.addEventListener('pointerdown', function (e) { show(fromEvent(e)); });
+  svg.addEventListener('pointerleave', hide);
 })();
 </script>
+<script src="/assets/js/mathframe-ui.js"></script>
 <script>var PAGE_ROOT = '/';</script>
 <script src="/assets/js/auth.js"></script>
 <script src="/assets/js/common.js"></script>

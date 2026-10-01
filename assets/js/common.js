@@ -1626,9 +1626,11 @@ function renderHeader() {
             // префиксом любого пути и «Главная» подсвечивалась бы везде.
             // Запасной признак — <body data-page>: работает и при открытии
             // файла по «сырому» пути (/pages/home.html, локальный сервер).
-            const isActive = (link.href === '/'
+            // На странице 404 адрес — ошибочный (например, /spravochnik/опечатка):
+            // по нему раздел не подсвечиваем.
+            const isActive = (currentPage !== '404' && (link.href === '/'
                 ? (currentPath === '/' || currentPath === '')
-                : (currentPath === link.href || currentPath.startsWith(link.href)))
+                : (currentPath === link.href || currentPath.startsWith(link.href))))
                 || currentPage === link.page;
             const activeClass = isActive ? ' active' : '';
             const aria = isActive ? ' aria-current="page"' : '';
@@ -1832,21 +1834,55 @@ function mfStartPageLeave(a, e, page) {
     return true;
 }
 
+// Раздел сайта по адресу ссылки — для ссылок без data-nav-page (карточки, подвал,
+// ссылки в тексте, страница 404). Раньше переход анимировался только у ссылок с
+// data-nav-page (шапка и часть карточек главной), остальные уводили резко.
+const MF_PATH_PAGES = [
+    [/^\/(index\.html|pages\/home\.html)?$/, 'home'],
+    [/^\/(spravochnik\/|pages\/spravochnik\.html)/, 'reference'],
+    [/^\/(mini-services\/|pages\/mini-services\.html)/, 'services'],
+    [/^\/(forum\/|pages\/forum\.html)/, 'forum'],
+    [/^\/(ai-agent\/|pages\/ai-agent\.html)/, 'ai-agent'],
+    [/^\/(playground\/|pages\/playground\.html)/, 'playground'],
+    [/^\/(admin\/|pages\/admin\/)/, 'admin'],
+];
+function mfPageFromUrl(url) {
+    for (const [re, page] of MF_PATH_PAGES) if (re.test(url.pathname)) return page;
+    return null;
+}
+
 function mfOnNavClick(e) {
     if (e.defaultPrevented || e.button !== 0) return;
     if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-    const a = e.target.closest && e.target.closest('a[href][data-nav-page]');
-    if (!a) return;
-    if (mfLeaving) { e.preventDefault(); return; }       // двойной клик во время перехода
+    const a = e.target.closest && e.target.closest('a[href]');
+    if (!a || a.hasAttribute('data-no-transition')) return;
     if (a.target && a.target !== '_self') return;
     if (a.hasAttribute('download')) return;
     let url;
     try { url = new URL(a.href, location.href); } catch (err) { return; }
     if (url.origin !== location.origin) return;
-    if (url.pathname === location.pathname && url.search === location.search) return; // та же страница
+    // Та же страница (в т.ч. с другим ?query или #якорем): справочник и другие
+    // разделы переключают содержимое без перезагрузки — не мешаем им.
+    if (url.pathname === location.pathname) return;
+    // Файлы и API — не страницы
+    if (/^\/api\//.test(url.pathname) || /\.(?!html?$)[a-z0-9]{1,5}$/i.test(url.pathname)) return;
+    const page = a.dataset.navPage || mfPageFromUrl(url) || 'home';
+    if (mfLeaving) { e.preventDefault(); return; }       // двойной клик во время перехода
     if (mfMotionOff()) return;
-    if (mfStartPageLeave(a, e, a.dataset.navPage || 'home')) e.preventDefault();
+    if (mfStartPageLeave(a, e, page)) e.preventDefault();
 }
+
+// Переход по адресу из кода (кнопки, «Назад» на 404 и т.п.) — с той же анимацией.
+window.mfNavigate = function (href, ev) {
+    const a = document.createElement('a');
+    a.href = href;
+    const e = ev || { clientX: window.innerWidth / 2, clientY: window.innerHeight / 2, detail: 1 };
+    let url;
+    try { url = new URL(a.href, location.href); } catch (err) { location.href = href; return; }
+    if (mfLeaving) return;
+    if (url.origin !== location.origin || url.pathname === location.pathname || mfMotionOff() ||
+        !mfStartPageLeave(a, e, mfPageFromUrl(url) || 'home')) location.href = href;
+};
 
 function mfRevealPage() {
     const v = window.__mfVeil;
