@@ -1,0 +1,87 @@
+// tools/gms-schema/templates.mjs
+// Шаблоны новых объектов для редактора «Все элементы» (попадают в schema.json › types[].template).
+// «$» в тексте заменяется номером, чтобы имена не совпали с уже существующими.
+// code — для 2D-сцены, code3 — для 3D (у типов, существующих в обоих измерениях).
+// Каждый шаблон проверяется компиляцией в build.mjs.
+export const TEMPLATES = {
+    'Point': { code: 'new Point { name = "P$"; pos = (0, 0); text = true("P$") }', code3: 'new Point3D { name = "P$"; pos = (0, 0, 0); text = true("P$") }' },
+    'Line': {
+        code: 'new Point { name = "L$a"; pos = (-4, -2) }\nnew Point { name = "L$b"; pos = (4, 2) }\nnew Line { name = "l$"; pos = (L$a, L$b) }',
+        code3: 'new Point3D { name = "L$a"; pos = (-3, 0, -2) }\nnew Point3D { name = "L$b"; pos = (3, 2, 2) }\nnew Line3D { name = "l$"; pos = (L$a, L$b) }',
+    },
+    'Figure': {
+        code: 'new Point { name = "F$a"; pos = (-3, -2) }\nnew Point { name = "F$b"; pos = (3, -2) }\nnew Point { name = "F$c"; pos = (0, 3) }\nnew Line { name = "f$ab"; pos = (F$a, F$b) }\nnew Line { name = "f$bc"; pos = (F$b, F$c) }\nnew Line { name = "f$ca"; pos = (F$c, F$a) }\nnew Figure { name = "fig$"; elements = (f$ab, f$bc, f$ca) }',
+        code3: 'new Point3D { name = "F$a"; pos = (-3, 0, -2) }\nnew Point3D { name = "F$b"; pos = (3, 0, -2) }\nnew Point3D { name = "F$c"; pos = (0, 0, 3) }\nnew Figure3D { name = "fig$"; elements = (F$a, F$b, F$c) }\ndraw Filling3D { name = "fill$"; figure = "fig$"; opacity = 0.4 }',
+    },
+    'Primitive': { code: 'new Primitive { name = "body$"; type = cube; edge = 3; opacity = 0.8 }' },
+    'Section': { code: 'new Primitive { name = "sb$"; type = cube; edge = 4; opacity = 0.4 }\nnew Section { name = "sec$"; source = sb$; normal = (1, 1, 1); offset = 0 }' },
+    'Boolean': { code: 'new Primitive { name = "ba$"; type = cube; edge = 3 }\nnew Primitive { name = "bb$"; type = sphere; radius = 2; pos = (1, 1, 1) }\nnew Boolean { name = "bool$"; op = subtract; parts = (ba$, bb$) }' },
+    'Truncate': { code: 'new Primitive { name = "tb$"; type = cube; edge = 3 }\nnew Truncate { name = "tr$"; source = tb$; fraction = 0.3 }' },
+    'Hull': { code: 'new Primitive { name = "ha$"; type = cube; edge = 2 }\nnew Primitive { name = "hb$"; type = sphere; radius = 1; pos = (3, 1, 0) }\nnew Hull { name = "hull$"; parts = (ha$, hb$) }' },
+    'Minkowski': { code: 'new Primitive { name = "ma$"; type = cube; edge = 2 }\nnew Primitive { name = "mb$"; type = octahedron; radius = 1 }\nnew Minkowski { name = "mk$"; parts = (ma$, mb$) }' },
+    'Angle3D': { code: 'new Point3D { name = "G$o"; pos = (0, 0, 0) }\nnew Point3D { name = "G$a"; pos = (4, 0, 0) }\nnew Point3D { name = "G$b"; pos = (0, 3, 2) }\nnew Angle3D { name = "ang$"; type = lineLine; line1 = (G$o, G$a); line2 = (G$o, G$b) }' },
+    'Claster': {
+        code: 'new Point { name = "K$a"; pos = (-2, 0) }\nnew Point { name = "K$b"; pos = (2, 0) }\nnew Claster { name = "cl$"; elements = (K$a, K$b) }',
+        code3: 'new Point3D { name = "K$a"; pos = (-2, 0, 0) }\nnew Point3D { name = "K$b"; pos = (2, 0, 0) }\nnew Claster3D { name = "cl$"; elements = (K$a, K$b) }',
+    },
+    'Angle': { code: 'new Point { name = "A$o"; pos = (0, 0) }\nnew Point { name = "A$a"; pos = (5, 0) }\nnew Point { name = "A$b"; pos = (2, 4) }\nnew Line { name = "a$a"; pos = (A$o, A$a) }\nnew Line { name = "a$b"; pos = (A$o, A$b) }\nnew Angle { name = "ang$"; lines = (a$a, a$b) }\ndraw Angle { name = "dang$"; angle = "ang$"; count = 1 }' },
+    'draw Angle': { code: 'new Point { name = "D$o"; pos = (0, 0) }\nnew Point { name = "D$a"; pos = (5, 0) }\nnew Point { name = "D$b"; pos = (2, 4) }\nnew Line { name = "d$a"; pos = (D$o, D$a) }\nnew Line { name = "d$b"; pos = (D$o, D$b) }\nnew Angle { name = "ang$"; lines = (d$a, d$b) }\ndraw Angle { name = "dang$"; angle = "ang$"; count = 1; measure = true }' },
+    'draw EquallySing': { code: 'new Point { name = "E$a"; pos = (-4, -2) }\nnew Point { name = "E$b"; pos = (0, 3) }\nnew Point { name = "E$c"; pos = (4, -2) }\nnew Line { name = "e$ab"; pos = (E$a, E$b) }\nnew Line { name = "e$bc"; pos = (E$b, E$c) }\ndraw EquallySing { name = "eq$"; edges = (e$ab, e$bc); type = 1 }' },
+    'draw Vector': {
+        code: 'new Point { name = "V$a"; pos = (-3, -1) }\nnew Point { name = "V$b"; pos = (3, 2) }\nnew Line { name = "v$"; pos = (V$a, V$b) }\ndraw Vector { name = "vec$"; edge = "v$" }',
+        code3: 'new Point3D { name = "V$a"; pos = (0, 0, 0) }\nnew Point3D { name = "V$b"; pos = (3, 2, 1) }\nnew Line3D { name = "v$"; pos = (V$a, V$b) }\ndraw Vector3D { name = "vec$"; edge = "v$" }',
+    },
+    'draw InfLine': { code: 'new Point { name = "I$a"; pos = (-2, -1) }\nnew Point { name = "I$b"; pos = (2, 1) }\nnew Line { name = "i$"; pos = (I$a, I$b) }\ndraw InfLine { name = "inf$"; edge = "i$" }' },
+    'draw InfPlane': { code: 'new Point3D { name = "Q$a"; pos = (-2, 0, -2) }\nnew Point3D { name = "Q$b"; pos = (2, 0, -1) }\nnew Point3D { name = "Q$c"; pos = (0, 1, 2) }\ndraw InfPlane { name = "pl$"; points = (Q$a, Q$b, Q$c); opacity = 0.25 }' },
+    'draw Filling': {
+        code: 'new Point { name = "H$a"; pos = (-3, -2) }\nnew Point { name = "H$b"; pos = (3, -2) }\nnew Point { name = "H$c"; pos = (0, 3) }\nnew Line { name = "h$ab"; pos = (H$a, H$b) }\nnew Line { name = "h$bc"; pos = (H$b, H$c) }\nnew Line { name = "h$ca"; pos = (H$c, H$a) }\nnew Figure { name = "hf$"; elements = (h$ab, h$bc, h$ca) }\ndraw Filling { name = "fill$"; figure = "hf$"; opacity = 0.4 }',
+        code3: 'new Point3D { name = "H$a"; pos = (-3, 0, -2) }\nnew Point3D { name = "H$b"; pos = (3, 0, -2) }\nnew Point3D { name = "H$c"; pos = (0, 0, 3) }\nnew Figure3D { name = "hf$"; elements = (H$a, H$b, H$c) }\ndraw Filling3D { name = "fill$"; figure = "hf$"; opacity = 0.4 }',
+    },
+    'draw Punctir': { code: 'new Point { name = "U$a"; pos = (-4, 0) }\nnew Point { name = "U$b"; pos = (4, 0) }\nnew Line { name = "u$"; pos = (U$a, U$b) }\ndraw Punctir { name = "dash$"; edge = "u$" }' },
+    'draw Text': { code: 'draw Text { name = "txt$"; pos = (0, 0); text = "Текст" }', code3: 'draw Text3D { name = "txt$"; pos = (0, 0, 0); text = "Текст" }' },
+    'UI': { code: 'float val$ = 1;\nnew UI { name = "ui$"; type = slider; label = "значение"; variable = val$; min = 0; max = 5; step = 0.1 }' },
+    'Circle': { code: 'new Point { name = "C$"; pos = (0, 0) }\nnew Circle { name = "circ$"; center = C$; radius = 3 }' },
+    'draw Arc': { code: 'new Point { name = "R$o"; pos = (0, 0) }\nnew Point { name = "R$a"; pos = (4, 0) }\nnew Point { name = "R$b"; pos = (0, 4) }\ndraw Arc { name = "arc$"; points = (R$a, R$o, R$b) }' },
+    'Ellipse': { code: 'new Point { name = "O$"; pos = (0, 0) }\nnew Ellipse { name = "ell$"; center = O$; a = 5; b = 3 }' },
+    'Curve': {
+        code: 'new Curve { name = "crv$"; type = parametric; x = "4*cos(2*pi*t)"; y = "3*sin(2*pi*t)"; segments = 200 }',
+        code3: 'new Curve3D { name = "crv$"; type = parametric; x = "3*cos(4*pi*t)"; y = "4*t - 2"; z = "3*sin(4*pi*t)"; segments = 200 }',
+    },
+    'draw Function': { code: 'func fn$(x) = sin(x) * 3;\ndraw Function { name = "gr$"; f = "fn$" }' },
+    'draw Surface': {
+        code: 'func sf$(x, y) = x*x + y*y - 9;\ndraw Surface { name = "srf$"; type = heightfield; f = "sf$"; mode = contour; levels = 8 }',
+        code3: 'func sf$(x, y) = sin(x) * cos(y);\ndraw Surface3D { name = "srf$"; type = parametric; x = "u"; y = "sf$(u, v)"; z = "v"; umin = -4; umax = 4; vmin = -4; vmax = 4; grid = 30 }',
+    },
+    'draw Image': { code: 'draw Image { name = "img$"; src = "/assets/images/logo.png"; pos = (0, 0); width = 4; height = 4 }' },
+    'draw Histogram': { code: 'list hd$ = [1, 2, 2, 3, 3, 3, 4, 4, 5];\ndraw Histogram { name = "hist$"; data = hd$; bins = 5 }' },
+    'draw Field': {
+        code: 'draw Field { name = "fld$"; P = "-y"; Q = "x"; xmin = -8; xmax = 8; ymin = -5; ymax = 5; grid = 12 }',
+        code3: 'draw Field3D { name = "fld$"; P = "-y"; Q = "x"; R = "0.3"; xmin = -4; xmax = 4; ymin = -4; ymax = 4; zmin = -4; zmax = 4; grid = 5 }',
+    },
+    'draw Trajectory': {
+        code: 'draw Field { name = "tf$"; P = "-y"; Q = "x"; grid = 12 }\ndraw Trajectory { name = "trj$"; field = "tf$"; start = (3, 0); steps = 400; dt = 0.02 }',
+        code3: 'draw Trajectory3D { name = "trj$"; P = "-y"; Q = "x"; R = "0.1"; start = (3, 0, 0); steps = 400; dt = 0.02 }',
+    },
+    'draw Graph': { code: 'float gg$ = 0; float gb$ = 0;\ndraw Graph { name = "dg$"; graph = "gg$"; showWeights = false }\nUpdate { if (gb$ == 0) { gb$ = 1; gg$ = newGraph(); addNode(gg$, "a", [-3, 0], "A"); addNode(gg$, "b", [3, 0], "B"); addNode(gg$, "c", [0, 3], "C"); addEdge(gg$, "a", "b"); addEdge(gg$, "b", "c"); } }' },
+    'draw Fractal': { code: 'draw Fractal { name = "fr$"; type = mandelbrot; maxIter = 80 }' },
+    'draw Formula': { code: 'draw Formula { name = "tex$"; pos = (0, 0); latex = "e^{i\\\\pi} + 1 = 0"; size = 1.2 }' },
+    'draw Distribution': { code: 'draw Distribution { name = "dst$"; type = normal; mu = 0; sigma = 1 }' },
+    'draw Locus': { code: 'new Point { name = "W$o"; pos = (0, 0) }\nnew Circle { name = "wc$"; center = W$o; radius = 3 }\nnew Point { name = "W$d"; circle = "wc$"; t = 0.1 }\nnew Point { name = "W$p"; pos = (W$d.pos.x * 1.5, W$d.pos.y * 0.5) }\ndraw Locus { name = "loc$"; point = W$p; driver = W$d }' },
+    'draw Trace': { code: 'new Point { name = "T$"; pos = (2, 1) }\ndraw Trace { name = "trc$"; point = T$ }' },
+    'draw Region': { code: 'func rg$(x, y) = x*x + y*y - 9;\ndraw Region { name = "reg$"; f = "rg$"; op = "<"; rangeX = 6; rangeY = 6 }' },
+    'draw Chart': { code: 'list cd$ = [3, 5, 2, 6, 4];\ndraw Chart { name = "ch$"; type = bar; data = cd$ }' },
+    'draw Tree': { code: 'list td$ = ["корень", ["A", ["A1"], ["A2"]], ["B"]];\ndraw Tree { name = "tree$"; data = td$ }' },
+    'draw Table': { code: 'list tb$ = [["x", "y"], [1, 2], [2, 4]];\ndraw Table { name = "tab$"; data = tb$ }' },
+    'draw Complex': { code: 'draw Complex { name = "cx$"; f = "z^2 - 1"; mode = domain }' },
+    'draw Hyperbolic': { code: 'draw Hyperbolic { name = "hyp$"; model = disk; radius = 5 }' },
+    'draw Bifurcation': { code: 'func bf$(r, x) = r * x * (1 - x);\ndraw Bifurcation { name = "bif$"; f = "bf$"; rmin = 2.5; rmax = 4 }' },
+    'draw Cobweb': { code: 'func cw$(x) = 3.2 * x * (1 - x);\ndraw Cobweb { name = "cob$"; f = "cw$"; x0 = 0.2 }' },
+    'draw IFS': { code: 'list im$ = [[0.5, 0, 0, 0.5, 0, 0], [0.5, 0, 0, 0.5, 0.5, 0], [0.5, 0, 0, 0.5, 0.25, 0.5]];\ndraw IFS { name = "ifs$"; maps = im$; iterations = 20000 }' },
+    'draw Automaton': { code: 'draw Automaton { name = "aut$"; type = elementary; rule = 30 }' },
+    'draw Voronoi': { code: 'list vs$ = [[-3, -2], [2, -1], [0, 3], [4, 2]];\ndraw Voronoi { name = "vor$"; sites = vs$; mode = voronoi }' },
+    'draw Fourier': { code: 'list fp$ = [[3, 0], [0, 3], [-3, 0], [0, -3]];\ndraw Fourier { name = "fou$"; path = fp$; terms = 16 }' },
+    'draw Diagram': { code: 'list dn$ = [["q0", -4, 0], ["q1", 0, 0], ["q2", 4, 0]];\nlist da$ = [["q0", "q1", "a"], ["q1", "q2", "b"]];\ndraw Diagram { name = "dia$"; nodes = dn$; arrows = da$ }' },
+    'draw TensorField': { code: 'draw TensorField { name = "ten$"; Txx = "1"; Tyy = "0.5"; Tzz = "0.3"; grid = 3 }' },
+    'draw Scatter3D': { code: 'list sd$ = [[0, 0, 0], [1, 2, 1], [2, 1, 3], [-1, 1, -2]];\ndraw Scatter3D { name = "sc$"; data = sd$ }' },
+    'draw Histogram3D': { code: 'list hd$ = [[0, 0], [1, 1], [1, 2], [2, 2], [2, 1]];\ndraw Histogram3D { name = "h3$"; data = hd$ }' },
+};

@@ -1,0 +1,6344 @@
+{
+ "generated": "tools/gms-schema/build.mjs",
+ "types": [
+  {
+   "keyword": "new",
+   "type": "Point",
+   "label": "Point",
+   "dim": "both",
+   "dual": true,
+   "hint": "пропущены обязательные поля (name, pos или line/circle/graph/...)",
+   "fields": [
+    {
+     "name": "name",
+     "kind": "string",
+     "label": "Имя",
+     "required": true
+    },
+    {
+     "name": "pos",
+     "kind": "expr",
+     "label": "Положение",
+     "required": true
+    },
+    {
+     "name": "vertex",
+     "kind": "ref"
+    },
+    {
+     "name": "reflect",
+     "kind": "ref"
+    },
+    {
+     "name": "over",
+     "kind": "ref"
+    },
+    {
+     "name": "rotate",
+     "kind": "ref",
+     "label": "Поворот"
+    },
+    {
+     "name": "around",
+     "kind": "ref"
+    },
+    {
+     "name": "axis",
+     "kind": "xyz"
+    },
+    {
+     "name": "homothety",
+     "kind": "ref"
+    },
+    {
+     "name": "center",
+     "kind": "ref",
+     "label": "Центр"
+    },
+    {
+     "name": "translate",
+     "kind": "ref"
+    },
+    {
+     "name": "extend",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "angle",
+     "kind": "expr"
+    },
+    {
+     "name": "ratio",
+     "kind": "expr"
+    },
+    {
+     "name": "ratioY",
+     "kind": "expr"
+    },
+    {
+     "name": "ratioZ",
+     "kind": "expr"
+    },
+    {
+     "name": "dx",
+     "kind": "expr"
+    },
+    {
+     "name": "dy",
+     "kind": "expr"
+    },
+    {
+     "name": "dz",
+     "kind": "expr"
+    },
+    {
+     "name": "u",
+     "kind": "expr"
+    },
+    {
+     "name": "v",
+     "kind": "expr"
+    },
+    {
+     "name": "line",
+     "kind": "expr",
+     "label": "Прямая"
+    },
+    {
+     "name": "t",
+     "kind": "expr"
+    },
+    {
+     "name": "circle",
+     "kind": "expr",
+     "label": "Окружность"
+    },
+    {
+     "name": "graph",
+     "kind": "expr"
+    },
+    {
+     "name": "ellipse",
+     "kind": "expr"
+    },
+    {
+     "name": "curve",
+     "kind": "expr"
+    },
+    {
+     "name": "arc",
+     "kind": "expr"
+    },
+    {
+     "name": "plane",
+     "kind": "expr"
+    },
+    {
+     "name": "figure",
+     "kind": "expr",
+     "label": "Фигура"
+    },
+    {
+     "name": "construct",
+     "kind": "expr"
+    },
+    {
+     "name": "base",
+     "kind": "expr"
+    },
+    {
+     "name": "color",
+     "kind": "color",
+     "label": "Цвет"
+    },
+    {
+     "name": "textColor",
+     "kind": "color",
+     "label": "Цвет текста"
+    },
+    {
+     "name": "dynamic",
+     "kind": "bool",
+     "default": true
+    },
+    {
+     "name": "active",
+     "kind": "bool",
+     "default": true,
+     "label": "Видимость"
+    },
+    {
+     "name": "size",
+     "kind": "number",
+     "default": 1,
+     "label": "Размер"
+    },
+    {
+     "name": "textSize",
+     "kind": "number",
+     "default": 1,
+     "label": "Размер текста"
+    },
+    {
+     "name": "pauseOnDrag",
+     "kind": "bool",
+     "default": true
+    },
+    {
+     "name": "layer",
+     "kind": "number",
+     "default": 40,
+     "label": "Слой"
+    },
+    {
+     "name": "collision",
+     "kind": "bool",
+     "default": true
+    },
+    {
+     "name": "collisionGroup",
+     "kind": "number",
+     "default": 0
+    },
+    {
+     "name": "collisionMask",
+     "kind": "list"
+    },
+    {
+     "name": "collisionMargin",
+     "kind": "number",
+     "default": 0
+    },
+    {
+     "name": "collideWithPoints",
+     "kind": "bool",
+     "default": true
+    },
+    {
+     "name": "collideWithLines",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "collideWithCurves",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "collideWithCircles",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "collideWithEllipses",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "collideWithArcs",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "collideWithFigures",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "collideWithClusters",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "collideWithBoundary",
+     "kind": "bool",
+     "default": true
+    },
+    {
+     "name": "collideWithPrimitives",
+     "kind": "bool",
+     "default": true
+    },
+    {
+     "name": "text",
+     "kind": "expr",
+     "label": "Текст"
+    },
+    {
+     "name": "shape",
+     "kind": "expr"
+    },
+    {
+     "name": "textDir",
+     "kind": "expr"
+    },
+    {
+     "name": "update",
+     "kind": "enum",
+     "options": [
+      "always",
+      "event",
+      "once"
+     ]
+    },
+    {
+     "name": "interact",
+     "kind": "bool",
+     "label": "Перетаскивание"
+    }
+   ],
+   "template": {
+    "code": "new Point { name = \"P$\"; pos = (0, 0); text = true(\"P$\") }",
+    "code3": "new Point3D { name = \"P$\"; pos = (0, 0, 0); text = true(\"P$\") }"
+   }
+  },
+  {
+   "keyword": "new",
+   "type": "Line",
+   "label": "Line",
+   "dim": "both",
+   "dual": true,
+   "hint": "пропущены обязательные поля (name, pos)",
+   "fields": [
+    {
+     "name": "name",
+     "kind": "string",
+     "label": "Имя",
+     "required": true
+    },
+    {
+     "name": "pos",
+     "kind": "expr",
+     "label": "Положение",
+     "required": true
+    },
+    {
+     "name": "reflect",
+     "kind": "ref"
+    },
+    {
+     "name": "rotate",
+     "kind": "ref",
+     "label": "Поворот"
+    },
+    {
+     "name": "homothety",
+     "kind": "ref"
+    },
+    {
+     "name": "translate",
+     "kind": "ref"
+    },
+    {
+     "name": "over",
+     "kind": "ref"
+    },
+    {
+     "name": "around",
+     "kind": "ref"
+    },
+    {
+     "name": "center",
+     "kind": "ref",
+     "label": "Центр"
+    },
+    {
+     "name": "color",
+     "kind": "color",
+     "label": "Цвет"
+    },
+    {
+     "name": "thickness",
+     "kind": "number",
+     "default": 2.5,
+     "label": "Толщина"
+    },
+    {
+     "name": "interact",
+     "kind": "bool",
+     "default": true,
+     "label": "Перетаскивание"
+    },
+    {
+     "name": "active",
+     "kind": "bool",
+     "default": true,
+     "label": "Видимость"
+    },
+    {
+     "name": "layer",
+     "kind": "number",
+     "default": 10,
+     "label": "Слой"
+    },
+    {
+     "name": "angle",
+     "kind": "expr"
+    },
+    {
+     "name": "ratio",
+     "kind": "expr"
+    },
+    {
+     "name": "ratioY",
+     "kind": "expr"
+    },
+    {
+     "name": "dx",
+     "kind": "expr"
+    },
+    {
+     "name": "dy",
+     "kind": "expr"
+    },
+    {
+     "name": "collision",
+     "kind": "bool"
+    },
+    {
+     "name": "collisionGroup",
+     "kind": "number",
+     "default": 0
+    },
+    {
+     "name": "collisionMask",
+     "kind": "list"
+    },
+    {
+     "name": "collisionMargin",
+     "kind": "number",
+     "default": 0
+    },
+    {
+     "name": "collideWithPoints",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "collideWithLines",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "collideWithCurves",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "collideWithCircles",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "collideWithEllipses",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "collideWithArcs",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "collideWithFigures",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "collideWithClusters",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "collideWithBoundary",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "update",
+     "kind": "enum",
+     "options": [
+      "always",
+      "event",
+      "once"
+     ]
+    }
+   ],
+   "template": {
+    "code": "new Point { name = \"L$a\"; pos = (-4, -2) }\nnew Point { name = \"L$b\"; pos = (4, 2) }\nnew Line { name = \"l$\"; pos = (L$a, L$b) }",
+    "code3": "new Point3D { name = \"L$a\"; pos = (-3, 0, -2) }\nnew Point3D { name = \"L$b\"; pos = (3, 2, 2) }\nnew Line3D { name = \"l$\"; pos = (L$a, L$b) }"
+   }
+  },
+  {
+   "keyword": "new",
+   "type": "Figure",
+   "label": "Figure",
+   "dim": "both",
+   "dual": true,
+   "hint": "пропущены обязательные поля (name, elements)",
+   "fields": [
+    {
+     "name": "name",
+     "kind": "string",
+     "label": "Имя",
+     "required": true
+    },
+    {
+     "name": "elements",
+     "kind": "expr",
+     "label": "Элементы",
+     "required": true
+    },
+    {
+     "name": "rotate",
+     "kind": "number",
+     "default": 0,
+     "label": "Поворот"
+    },
+    {
+     "name": "size",
+     "kind": "number",
+     "default": 1,
+     "label": "Размер"
+    },
+    {
+     "name": "sizeX",
+     "kind": "number"
+    },
+    {
+     "name": "sizeY",
+     "kind": "number"
+    },
+    {
+     "name": "flipX",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "flipY",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "interact",
+     "kind": "bool",
+     "default": true,
+     "label": "Перетаскивание"
+    },
+    {
+     "name": "active",
+     "kind": "bool",
+     "default": true,
+     "label": "Видимость"
+    },
+    {
+     "name": "collision",
+     "kind": "bool"
+    },
+    {
+     "name": "collisionGroup",
+     "kind": "number",
+     "default": 0
+    },
+    {
+     "name": "collisionMask",
+     "kind": "list"
+    },
+    {
+     "name": "collisionMargin",
+     "kind": "number",
+     "default": 0
+    },
+    {
+     "name": "collideWithPoints",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "collideWithLines",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "collideWithCurves",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "collideWithCircles",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "collideWithEllipses",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "collideWithArcs",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "collideWithFigures",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "collideWithClusters",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "collideWithBoundary",
+     "kind": "bool",
+     "default": false
+    }
+   ],
+   "template": {
+    "code": "new Point { name = \"F$a\"; pos = (-3, -2) }\nnew Point { name = \"F$b\"; pos = (3, -2) }\nnew Point { name = \"F$c\"; pos = (0, 3) }\nnew Line { name = \"f$ab\"; pos = (F$a, F$b) }\nnew Line { name = \"f$bc\"; pos = (F$b, F$c) }\nnew Line { name = \"f$ca\"; pos = (F$c, F$a) }\nnew Figure { name = \"fig$\"; elements = (f$ab, f$bc, f$ca) }",
+    "code3": "new Point3D { name = \"F$a\"; pos = (-3, 0, -2) }\nnew Point3D { name = \"F$b\"; pos = (3, 0, -2) }\nnew Point3D { name = \"F$c\"; pos = (0, 0, 3) }\nnew Figure3D { name = \"fig$\"; elements = (F$a, F$b, F$c) }\ndraw Filling3D { name = \"fill$\"; figure = \"fig$\"; opacity = 0.4 }"
+   }
+  },
+  {
+   "keyword": "new",
+   "type": "Primitive",
+   "label": "Primitive",
+   "dim": "3D",
+   "dual": false,
+   "hint": "пропущены обязательные поля (name, type — один из: ",
+   "fields": [
+    {
+     "name": "name",
+     "kind": "string",
+     "label": "Имя",
+     "required": true
+    },
+    {
+     "name": "pos",
+     "kind": "xyz",
+     "label": "Положение"
+    },
+    {
+     "name": "rotate",
+     "kind": "xyz",
+     "label": "Поворот"
+    },
+    {
+     "name": "edge",
+     "kind": "number",
+     "default": 2,
+     "label": "Отрезок"
+    },
+    {
+     "name": "width",
+     "kind": "number",
+     "label": "Ширина"
+    },
+    {
+     "name": "height",
+     "kind": "number",
+     "default": 2,
+     "label": "Высота"
+    },
+    {
+     "name": "depth",
+     "kind": "number",
+     "label": "Глубина"
+    },
+    {
+     "name": "radius",
+     "kind": "number",
+     "default": 1.5,
+     "label": "Радиус"
+    },
+    {
+     "name": "tube",
+     "kind": "number"
+    },
+    {
+     "name": "sides",
+     "kind": "number"
+    },
+    {
+     "name": "color",
+     "kind": "color",
+     "label": "Цвет"
+    },
+    {
+     "name": "opacity",
+     "kind": "number",
+     "default": 1,
+     "label": "Непрозрачность"
+    },
+    {
+     "name": "wireframe",
+     "kind": "bool",
+     "default": false,
+     "label": "Каркас"
+    },
+    {
+     "name": "active",
+     "kind": "bool",
+     "default": true,
+     "label": "Видимость"
+    },
+    {
+     "name": "showInfo",
+     "kind": "bool",
+     "default": false,
+     "label": "Показывать сведения"
+    },
+    {
+     "name": "textColor",
+     "kind": "color",
+     "label": "Цвет текста"
+    },
+    {
+     "name": "textSize",
+     "kind": "number",
+     "default": 1,
+     "label": "Размер текста"
+    },
+    {
+     "name": "type",
+     "kind": "enum",
+     "options": [
+      "cube",
+      "box",
+      "sphere",
+      "cylinder",
+      "cone",
+      "pyramid",
+      "prism",
+      "tetrahedron",
+      "octahedron",
+      "dodecahedron",
+      "icosahedron",
+      "torus"
+     ],
+     "label": "Вид"
+    },
+    {
+     "name": "update",
+     "kind": "enum",
+     "options": [
+      "always",
+      "event",
+      "once"
+     ]
+    }
+   ],
+   "template": {
+    "code": "new Primitive { name = \"body$\"; type = cube; edge = 3; opacity = 0.8 }"
+   }
+  },
+  {
+   "keyword": "new",
+   "type": "Section",
+   "label": "Section",
+   "dim": "3D",
+   "dual": false,
+   "hint": "пропущены обязательные поля (name, source)",
+   "fields": [
+    {
+     "name": "name",
+     "kind": "string",
+     "label": "Имя",
+     "required": true
+    },
+    {
+     "name": "source",
+     "kind": "expr",
+     "required": true
+    },
+    {
+     "name": "normal",
+     "kind": "xyz"
+    },
+    {
+     "name": "offset",
+     "kind": "number",
+     "default": 0
+    },
+    {
+     "name": "point",
+     "kind": "xyz"
+    },
+    {
+     "name": "explode",
+     "kind": "number",
+     "default": 0
+    },
+    {
+     "name": "color",
+     "kind": "color",
+     "label": "Цвет"
+    },
+    {
+     "name": "capColor",
+     "kind": "color"
+    },
+    {
+     "name": "opacity",
+     "kind": "number",
+     "default": 1,
+     "label": "Непрозрачность"
+    },
+    {
+     "name": "wireframe",
+     "kind": "bool",
+     "default": false,
+     "label": "Каркас"
+    },
+    {
+     "name": "active",
+     "kind": "bool",
+     "default": true,
+     "label": "Видимость"
+    },
+    {
+     "name": "showInfo",
+     "kind": "bool",
+     "default": false,
+     "label": "Показывать сведения"
+    },
+    {
+     "name": "hideSource",
+     "kind": "bool",
+     "default": true,
+     "label": "Скрыть исходные"
+    },
+    {
+     "name": "textColor",
+     "kind": "color",
+     "label": "Цвет текста"
+    },
+    {
+     "name": "textSize",
+     "kind": "number",
+     "default": 1,
+     "label": "Размер текста"
+    },
+    {
+     "name": "keep",
+     "kind": "enum",
+     "options": [
+      "positive",
+      "negative"
+     ]
+    },
+    {
+     "name": "update",
+     "kind": "enum",
+     "options": [
+      "always",
+      "event",
+      "once"
+     ]
+    }
+   ],
+   "template": {
+    "code": "new Primitive { name = \"sb$\"; type = cube; edge = 4; opacity = 0.4 }\nnew Section { name = \"sec$\"; source = sb$; normal = (1, 1, 1); offset = 0 }"
+   }
+  },
+  {
+   "keyword": "new",
+   "type": "Boolean",
+   "label": "Boolean",
+   "dim": "3D",
+   "dual": false,
+   "hint": "пропущены обязательные поля (name, op — union/intersect/subtract, parts — минимум 2 элемента)",
+   "fields": [
+    {
+     "name": "name",
+     "kind": "string",
+     "label": "Имя",
+     "required": true
+    },
+    {
+     "name": "parts",
+     "kind": "names",
+     "required": true
+    },
+    {
+     "name": "op",
+     "kind": "enum",
+     "options": [
+      "union",
+      "intersect",
+      "subtract"
+     ],
+     "required": true
+    },
+    {
+     "name": "color",
+     "kind": "color",
+     "label": "Цвет"
+    },
+    {
+     "name": "opacity",
+     "kind": "number",
+     "default": 1,
+     "label": "Непрозрачность"
+    },
+    {
+     "name": "wireframe",
+     "kind": "bool",
+     "default": false,
+     "label": "Каркас"
+    },
+    {
+     "name": "active",
+     "kind": "bool",
+     "default": true,
+     "label": "Видимость"
+    },
+    {
+     "name": "showInfo",
+     "kind": "bool",
+     "default": false,
+     "label": "Показывать сведения"
+    },
+    {
+     "name": "hideSource",
+     "kind": "bool",
+     "default": true,
+     "label": "Скрыть исходные"
+    },
+    {
+     "name": "textColor",
+     "kind": "color",
+     "label": "Цвет текста"
+    },
+    {
+     "name": "textSize",
+     "kind": "number",
+     "default": 1,
+     "label": "Размер текста"
+    },
+    {
+     "name": "update",
+     "kind": "enum",
+     "options": [
+      "always",
+      "event",
+      "once"
+     ]
+    }
+   ],
+   "template": {
+    "code": "new Primitive { name = \"ba$\"; type = cube; edge = 3 }\nnew Primitive { name = \"bb$\"; type = sphere; radius = 2; pos = (1, 1, 1) }\nnew Boolean { name = \"bool$\"; op = subtract; parts = (ba$, bb$) }"
+   }
+  },
+  {
+   "keyword": "new",
+   "type": "Truncate",
+   "label": "Truncate",
+   "dim": "3D",
+   "dual": false,
+   "hint": "пропущены обязательные поля (name, source)",
+   "fields": [
+    {
+     "name": "name",
+     "kind": "string",
+     "label": "Имя",
+     "required": true
+    },
+    {
+     "name": "source",
+     "kind": "expr",
+     "required": true
+    },
+    {
+     "name": "fraction",
+     "kind": "number",
+     "default": 0.3
+    },
+    {
+     "name": "color",
+     "kind": "color",
+     "label": "Цвет"
+    },
+    {
+     "name": "opacity",
+     "kind": "number",
+     "default": 1,
+     "label": "Непрозрачность"
+    },
+    {
+     "name": "wireframe",
+     "kind": "bool",
+     "default": false,
+     "label": "Каркас"
+    },
+    {
+     "name": "active",
+     "kind": "bool",
+     "default": true,
+     "label": "Видимость"
+    },
+    {
+     "name": "showInfo",
+     "kind": "bool",
+     "default": false,
+     "label": "Показывать сведения"
+    },
+    {
+     "name": "hideSource",
+     "kind": "bool",
+     "default": true,
+     "label": "Скрыть исходные"
+    },
+    {
+     "name": "textColor",
+     "kind": "color",
+     "label": "Цвет текста"
+    },
+    {
+     "name": "textSize",
+     "kind": "number",
+     "default": 1,
+     "label": "Размер текста"
+    },
+    {
+     "name": "update",
+     "kind": "enum",
+     "options": [
+      "always",
+      "event",
+      "once"
+     ]
+    }
+   ],
+   "template": {
+    "code": "new Primitive { name = \"tb$\"; type = cube; edge = 3 }\nnew Truncate { name = \"tr$\"; source = tb$; fraction = 0.3 }"
+   }
+  },
+  {
+   "keyword": "new",
+   "type": "Hull",
+   "label": "Hull",
+   "dim": "3D",
+   "dual": false,
+   "hint": "пропущены обязательные поля (name, parts — минимум 1 элемент)",
+   "fields": [
+    {
+     "name": "name",
+     "kind": "string",
+     "label": "Имя",
+     "required": true
+    },
+    {
+     "name": "parts",
+     "kind": "names",
+     "required": true
+    },
+    {
+     "name": "color",
+     "kind": "color",
+     "label": "Цвет"
+    },
+    {
+     "name": "opacity",
+     "kind": "number",
+     "default": 1,
+     "label": "Непрозрачность"
+    },
+    {
+     "name": "wireframe",
+     "kind": "bool",
+     "default": false,
+     "label": "Каркас"
+    },
+    {
+     "name": "active",
+     "kind": "bool",
+     "default": true,
+     "label": "Видимость"
+    },
+    {
+     "name": "showInfo",
+     "kind": "bool",
+     "default": false,
+     "label": "Показывать сведения"
+    },
+    {
+     "name": "hideSource",
+     "kind": "bool",
+     "default": true,
+     "label": "Скрыть исходные"
+    },
+    {
+     "name": "textColor",
+     "kind": "color",
+     "label": "Цвет текста"
+    },
+    {
+     "name": "textSize",
+     "kind": "number",
+     "default": 1,
+     "label": "Размер текста"
+    },
+    {
+     "name": "update",
+     "kind": "enum",
+     "options": [
+      "always",
+      "event",
+      "once"
+     ]
+    }
+   ],
+   "template": {
+    "code": "new Primitive { name = \"ha$\"; type = cube; edge = 2 }\nnew Primitive { name = \"hb$\"; type = sphere; radius = 1; pos = (3, 1, 0) }\nnew Hull { name = \"hull$\"; parts = (ha$, hb$) }"
+   }
+  },
+  {
+   "keyword": "new",
+   "type": "Minkowski",
+   "label": "Minkowski",
+   "dim": "3D",
+   "dual": false,
+   "hint": "пропущены обязательные поля (name, parts — минимум 2 элемента)",
+   "fields": [
+    {
+     "name": "name",
+     "kind": "string",
+     "label": "Имя",
+     "required": true
+    },
+    {
+     "name": "parts",
+     "kind": "names",
+     "required": true
+    },
+    {
+     "name": "color",
+     "kind": "color",
+     "label": "Цвет"
+    },
+    {
+     "name": "opacity",
+     "kind": "number",
+     "default": 1,
+     "label": "Непрозрачность"
+    },
+    {
+     "name": "wireframe",
+     "kind": "bool",
+     "default": false,
+     "label": "Каркас"
+    },
+    {
+     "name": "active",
+     "kind": "bool",
+     "default": true,
+     "label": "Видимость"
+    },
+    {
+     "name": "showInfo",
+     "kind": "bool",
+     "default": false,
+     "label": "Показывать сведения"
+    },
+    {
+     "name": "hideSource",
+     "kind": "bool",
+     "default": true,
+     "label": "Скрыть исходные"
+    },
+    {
+     "name": "textColor",
+     "kind": "color",
+     "label": "Цвет текста"
+    },
+    {
+     "name": "textSize",
+     "kind": "number",
+     "default": 1,
+     "label": "Размер текста"
+    },
+    {
+     "name": "update",
+     "kind": "enum",
+     "options": [
+      "always",
+      "event",
+      "once"
+     ]
+    }
+   ],
+   "template": {
+    "code": "new Primitive { name = \"ma$\"; type = cube; edge = 2 }\nnew Primitive { name = \"mb$\"; type = octahedron; radius = 1 }\nnew Minkowski { name = \"mk$\"; parts = (ma$, mb$) }"
+   }
+  },
+  {
+   "keyword": "new",
+   "type": "Angle3D",
+   "label": "Angle3D",
+   "dim": "3D",
+   "dual": false,
+   "hint": "пропущены обязательные поля (name, type — один из: ",
+   "fields": [
+    {
+     "name": "name",
+     "kind": "string",
+     "label": "Имя",
+     "required": true
+    },
+    {
+     "name": "radius",
+     "kind": "number",
+     "default": 1,
+     "label": "Радиус"
+    },
+    {
+     "name": "arc",
+     "kind": "bool",
+     "default": true
+    },
+    {
+     "name": "measure",
+     "kind": "bool",
+     "default": true
+    },
+    {
+     "name": "fractions",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "count",
+     "kind": "number",
+     "default": 1
+    },
+    {
+     "name": "arccolor",
+     "kind": "color"
+    },
+    {
+     "name": "measurecolor",
+     "kind": "color"
+    },
+    {
+     "name": "active",
+     "kind": "bool",
+     "default": true,
+     "label": "Видимость"
+    },
+    {
+     "name": "line1",
+     "kind": "names"
+    },
+    {
+     "name": "line2",
+     "kind": "names"
+    },
+    {
+     "name": "line",
+     "kind": "names",
+     "label": "Прямая"
+    },
+    {
+     "name": "plane",
+     "kind": "names"
+    },
+    {
+     "name": "plane1",
+     "kind": "names"
+    },
+    {
+     "name": "plane2",
+     "kind": "names"
+    },
+    {
+     "name": "edge",
+     "kind": "names",
+     "label": "Отрезок"
+    },
+    {
+     "name": "point1",
+     "kind": "ref"
+    },
+    {
+     "name": "point2",
+     "kind": "ref"
+    },
+    {
+     "name": "vertex",
+     "kind": "ref"
+    },
+    {
+     "name": "rays",
+     "kind": "names"
+    },
+    {
+     "name": "vec1",
+     "kind": "expr"
+    },
+    {
+     "name": "vec2",
+     "kind": "expr"
+    },
+    {
+     "name": "type",
+     "kind": "enum",
+     "options": [
+      "lineLine",
+      "linePlane",
+      "planePlane",
+      "dihedral",
+      "pointAngle",
+      "vectorVector",
+      "solid"
+     ],
+     "label": "Вид"
+    }
+   ],
+   "template": {
+    "code": "new Point3D { name = \"G$o\"; pos = (0, 0, 0) }\nnew Point3D { name = \"G$a\"; pos = (4, 0, 0) }\nnew Point3D { name = \"G$b\"; pos = (0, 3, 2) }\nnew Angle3D { name = \"ang$\"; type = lineLine; line1 = (G$o, G$a); line2 = (G$o, G$b) }"
+   }
+  },
+  {
+   "keyword": "new",
+   "type": "Claster",
+   "label": "Claster",
+   "dim": "both",
+   "dual": true,
+   "hint": "пропущены обязательные поля (name, elements)",
+   "fields": [
+    {
+     "name": "name",
+     "kind": "string",
+     "label": "Имя",
+     "required": true
+    },
+    {
+     "name": "elements",
+     "kind": "expr",
+     "label": "Элементы",
+     "required": true
+    },
+    {
+     "name": "active",
+     "kind": "bool",
+     "default": true,
+     "label": "Видимость"
+    },
+    {
+     "name": "rotate",
+     "kind": "number",
+     "default": 0,
+     "label": "Поворот"
+    },
+    {
+     "name": "interact",
+     "kind": "bool",
+     "default": true,
+     "label": "Перетаскивание"
+    },
+    {
+     "name": "step",
+     "kind": "number",
+     "label": "Шаг"
+    },
+    {
+     "name": "collision",
+     "kind": "bool"
+    },
+    {
+     "name": "collisionGroup",
+     "kind": "number",
+     "default": 0
+    },
+    {
+     "name": "collisionMask",
+     "kind": "list"
+    },
+    {
+     "name": "collisionMargin",
+     "kind": "number",
+     "default": 0
+    },
+    {
+     "name": "collideWithPoints",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "collideWithLines",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "collideWithCurves",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "collideWithCircles",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "collideWithEllipses",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "collideWithArcs",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "collideWithFigures",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "collideWithClusters",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "collideWithBoundary",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "update",
+     "kind": "enum",
+     "options": [
+      "always",
+      "event",
+      "once"
+     ]
+    }
+   ],
+   "template": {
+    "code": "new Point { name = \"K$a\"; pos = (-2, 0) }\nnew Point { name = \"K$b\"; pos = (2, 0) }\nnew Claster { name = \"cl$\"; elements = (K$a, K$b) }",
+    "code3": "new Point3D { name = \"K$a\"; pos = (-2, 0, 0) }\nnew Point3D { name = \"K$b\"; pos = (2, 0, 0) }\nnew Claster3D { name = \"cl$\"; elements = (K$a, K$b) }"
+   }
+  },
+  {
+   "keyword": "new",
+   "type": "Angle",
+   "label": "Angle",
+   "dim": "2D",
+   "dual": false,
+   "hint": "пропущены обязательные поля (name, lines)",
+   "fields": [
+    {
+     "name": "name",
+     "kind": "string",
+     "label": "Имя",
+     "required": true
+    },
+    {
+     "name": "lines",
+     "kind": "expr",
+     "required": true
+    },
+    {
+     "name": "lock",
+     "kind": "bool",
+     "default": false
+    }
+   ],
+   "template": {
+    "code": "new Point { name = \"A$o\"; pos = (0, 0) }\nnew Point { name = \"A$a\"; pos = (5, 0) }\nnew Point { name = \"A$b\"; pos = (2, 4) }\nnew Line { name = \"a$a\"; pos = (A$o, A$a) }\nnew Line { name = \"a$b\"; pos = (A$o, A$b) }\nnew Angle { name = \"ang$\"; lines = (a$a, a$b) }\ndraw Angle { name = \"dang$\"; angle = \"ang$\"; count = 1 }"
+   }
+  },
+  {
+   "keyword": "draw",
+   "type": "Angle",
+   "label": "draw Angle",
+   "dim": "2D",
+   "dual": false,
+   "hint": "пропущено обязательное поле (angle)",
+   "fields": [
+    {
+     "name": "name",
+     "kind": "string",
+     "label": "Имя",
+     "required": true
+    },
+    {
+     "name": "angle",
+     "kind": "expr",
+     "required": true
+    },
+    {
+     "name": "arc",
+     "kind": "bool",
+     "default": true
+    },
+    {
+     "name": "measure",
+     "kind": "bool",
+     "default": true
+    },
+    {
+     "name": "arccolor",
+     "kind": "color"
+    },
+    {
+     "name": "measurecolor",
+     "kind": "color"
+    },
+    {
+     "name": "fractions",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "layer",
+     "kind": "number",
+     "default": 5,
+     "label": "Слой"
+    },
+    {
+     "name": "radius",
+     "kind": "expr",
+     "label": "Радиус"
+    },
+    {
+     "name": "side",
+     "kind": "expr"
+    },
+    {
+     "name": "count",
+     "kind": "expr"
+    },
+    {
+     "name": "update",
+     "kind": "enum",
+     "options": [
+      "always",
+      "event",
+      "once"
+     ]
+    }
+   ],
+   "template": {
+    "code": "new Point { name = \"D$o\"; pos = (0, 0) }\nnew Point { name = \"D$a\"; pos = (5, 0) }\nnew Point { name = \"D$b\"; pos = (2, 4) }\nnew Line { name = \"d$a\"; pos = (D$o, D$a) }\nnew Line { name = \"d$b\"; pos = (D$o, D$b) }\nnew Angle { name = \"ang$\"; lines = (d$a, d$b) }\ndraw Angle { name = \"dang$\"; angle = \"ang$\"; count = 1; measure = true }"
+   }
+  },
+  {
+   "keyword": "draw",
+   "type": "EquallySing",
+   "label": "draw EquallySing",
+   "dim": "any",
+   "dual": false,
+   "hint": "пропущены обязательные поля (edges)",
+   "fields": [
+    {
+     "name": "name",
+     "kind": "string",
+     "label": "Имя",
+     "required": true
+    },
+    {
+     "name": "edges",
+     "kind": "expr",
+     "required": true
+    },
+    {
+     "name": "color",
+     "kind": "color",
+     "label": "Цвет"
+    },
+    {
+     "name": "layer",
+     "kind": "number",
+     "default": 80,
+     "label": "Слой"
+    },
+    {
+     "name": "type",
+     "kind": "expr",
+     "label": "Вид"
+    },
+    {
+     "name": "update",
+     "kind": "enum",
+     "options": [
+      "always",
+      "event",
+      "once"
+     ]
+    }
+   ],
+   "template": {
+    "code": "new Point { name = \"E$a\"; pos = (-4, -2) }\nnew Point { name = \"E$b\"; pos = (0, 3) }\nnew Point { name = \"E$c\"; pos = (4, -2) }\nnew Line { name = \"e$ab\"; pos = (E$a, E$b) }\nnew Line { name = \"e$bc\"; pos = (E$b, E$c) }\ndraw EquallySing { name = \"eq$\"; edges = (e$ab, e$bc); type = 1 }"
+   }
+  },
+  {
+   "keyword": "draw",
+   "type": "Vector",
+   "label": "draw Vector",
+   "dim": "both",
+   "dual": true,
+   "hint": "пропущены обязательные поля (edge)",
+   "fields": [
+    {
+     "name": "name",
+     "kind": "string",
+     "label": "Имя",
+     "required": true
+    },
+    {
+     "name": "edge",
+     "kind": "expr",
+     "label": "Отрезок",
+     "required": true
+    },
+    {
+     "name": "color",
+     "kind": "color",
+     "label": "Цвет"
+    },
+    {
+     "name": "length",
+     "kind": "number"
+    },
+    {
+     "name": "thickness",
+     "kind": "number",
+     "label": "Толщина"
+    },
+    {
+     "name": "layer",
+     "kind": "number",
+     "default": 70,
+     "label": "Слой"
+    },
+    {
+     "name": "pos",
+     "kind": "expr",
+     "label": "Положение"
+    },
+    {
+     "name": "direct",
+     "kind": "expr"
+    },
+    {
+     "name": "update",
+     "kind": "enum",
+     "options": [
+      "always",
+      "event",
+      "once"
+     ]
+    }
+   ],
+   "template": {
+    "code": "new Point { name = \"V$a\"; pos = (-3, -1) }\nnew Point { name = \"V$b\"; pos = (3, 2) }\nnew Line { name = \"v$\"; pos = (V$a, V$b) }\ndraw Vector { name = \"vec$\"; edge = \"v$\" }",
+    "code3": "new Point3D { name = \"V$a\"; pos = (0, 0, 0) }\nnew Point3D { name = \"V$b\"; pos = (3, 2, 1) }\nnew Line3D { name = \"v$\"; pos = (V$a, V$b) }\ndraw Vector3D { name = \"vec$\"; edge = \"v$\" }"
+   }
+  },
+  {
+   "keyword": "draw",
+   "type": "InfLine",
+   "label": "draw InfLine",
+   "dim": "any",
+   "dual": false,
+   "hint": "пропущены обязательные поля (line)",
+   "fields": [
+    {
+     "name": "name",
+     "kind": "string",
+     "label": "Имя",
+     "required": true
+    },
+    {
+     "name": "color",
+     "kind": "color",
+     "label": "Цвет"
+    },
+    {
+     "name": "thickness",
+     "kind": "number",
+     "label": "Толщина"
+    },
+    {
+     "name": "dotline",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "layer",
+     "kind": "number",
+     "default": 50,
+     "label": "Слой"
+    },
+    {
+     "name": "edge",
+     "kind": "expr",
+     "label": "Отрезок"
+    },
+    {
+     "name": "limit",
+     "kind": "expr"
+    },
+    {
+     "name": "update",
+     "kind": "enum",
+     "options": [
+      "always",
+      "event",
+      "once"
+     ]
+    }
+   ],
+   "template": {
+    "code": "new Point { name = \"I$a\"; pos = (-2, -1) }\nnew Point { name = \"I$b\"; pos = (2, 1) }\nnew Line { name = \"i$\"; pos = (I$a, I$b) }\ndraw InfLine { name = \"inf$\"; edge = \"i$\" }"
+   }
+  },
+  {
+   "keyword": "draw",
+   "type": "InfPlane",
+   "label": "draw InfPlane",
+   "dim": "3D",
+   "dual": false,
+   "hint": "пропущены обязательные поля (name и figure/points)",
+   "fields": [
+    {
+     "name": "name",
+     "kind": "string",
+     "label": "Имя",
+     "required": true
+    },
+    {
+     "name": "figure",
+     "kind": "string",
+     "label": "Фигура"
+    },
+    {
+     "name": "color",
+     "kind": "color",
+     "label": "Цвет"
+    },
+    {
+     "name": "opacity",
+     "kind": "number",
+     "default": 0.35,
+     "label": "Непрозрачность"
+    },
+    {
+     "name": "size",
+     "kind": "number",
+     "label": "Размер"
+    },
+    {
+     "name": "grid",
+     "kind": "bool",
+     "default": false,
+     "label": "Сетка"
+    },
+    {
+     "name": "fade",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "active",
+     "kind": "bool",
+     "default": true,
+     "label": "Видимость"
+    },
+    {
+     "name": "layer",
+     "kind": "number",
+     "default": 25,
+     "label": "Слой"
+    },
+    {
+     "name": "update",
+     "kind": "enum",
+     "options": [
+      "always",
+      "event",
+      "once"
+     ]
+    },
+    {
+     "name": "points",
+     "kind": "names",
+     "label": "Точки"
+    }
+   ],
+   "template": {
+    "code": "new Point3D { name = \"Q$a\"; pos = (-2, 0, -2) }\nnew Point3D { name = \"Q$b\"; pos = (2, 0, -1) }\nnew Point3D { name = \"Q$c\"; pos = (0, 1, 2) }\ndraw InfPlane { name = \"pl$\"; points = (Q$a, Q$b, Q$c); opacity = 0.25 }"
+   }
+  },
+  {
+   "keyword": "draw",
+   "type": "Filling",
+   "label": "draw Filling",
+   "dim": "both",
+   "dual": true,
+   "hint": "пропущены обязательные поля (figure, или line+side, или circle+from+to, или func — площадь под графиком/между графиками)",
+   "fields": [
+    {
+     "name": "name",
+     "kind": "string",
+     "label": "Имя",
+     "required": true
+    },
+    {
+     "name": "figure",
+     "kind": "expr",
+     "label": "Фигура",
+     "required": true
+    },
+    {
+     "name": "func",
+     "kind": "expr",
+     "required": true
+    },
+    {
+     "name": "side",
+     "kind": "ref"
+    },
+    {
+     "name": "from",
+     "kind": "ref"
+    },
+    {
+     "name": "to",
+     "kind": "ref"
+    },
+    {
+     "name": "xmin",
+     "kind": "number",
+     "label": "x от"
+    },
+    {
+     "name": "xmax",
+     "kind": "number",
+     "label": "x до"
+    },
+    {
+     "name": "segments",
+     "kind": "number",
+     "label": "Сегменты"
+    },
+    {
+     "name": "color",
+     "kind": "color",
+     "label": "Цвет"
+    },
+    {
+     "name": "layer",
+     "kind": "number",
+     "default": 30,
+     "label": "Слой"
+    },
+    {
+     "name": "opacity",
+     "kind": "number",
+     "default": 0.5,
+     "label": "Непрозрачность"
+    },
+    {
+     "name": "line",
+     "kind": "expr",
+     "label": "Прямая"
+    },
+    {
+     "name": "circle",
+     "kind": "expr",
+     "label": "Окружность"
+    },
+    {
+     "name": "shape",
+     "kind": "expr"
+    },
+    {
+     "name": "arc",
+     "kind": "expr"
+    },
+    {
+     "name": "mode",
+     "kind": "expr",
+     "label": "Режим"
+    },
+    {
+     "name": "func2",
+     "kind": "expr"
+    },
+    {
+     "name": "update",
+     "kind": "enum",
+     "options": [
+      "always",
+      "event",
+      "once"
+     ]
+    }
+   ],
+   "template": {
+    "code": "new Point { name = \"H$a\"; pos = (-3, -2) }\nnew Point { name = \"H$b\"; pos = (3, -2) }\nnew Point { name = \"H$c\"; pos = (0, 3) }\nnew Line { name = \"h$ab\"; pos = (H$a, H$b) }\nnew Line { name = \"h$bc\"; pos = (H$b, H$c) }\nnew Line { name = \"h$ca\"; pos = (H$c, H$a) }\nnew Figure { name = \"hf$\"; elements = (h$ab, h$bc, h$ca) }\ndraw Filling { name = \"fill$\"; figure = \"hf$\"; opacity = 0.4 }",
+    "code3": "new Point3D { name = \"H$a\"; pos = (-3, 0, -2) }\nnew Point3D { name = \"H$b\"; pos = (3, 0, -2) }\nnew Point3D { name = \"H$c\"; pos = (0, 0, 3) }\nnew Figure3D { name = \"hf$\"; elements = (H$a, H$b, H$c) }\ndraw Filling3D { name = \"fill$\"; figure = \"hf$\"; opacity = 0.4 }"
+   }
+  },
+  {
+   "keyword": "draw",
+   "type": "Punctir",
+   "label": "draw Punctir",
+   "dim": "any",
+   "dual": false,
+   "hint": "пропущены обязательные поля (line)",
+   "fields": [
+    {
+     "name": "name",
+     "kind": "string",
+     "label": "Имя",
+     "required": true
+    },
+    {
+     "name": "color",
+     "kind": "color",
+     "label": "Цвет"
+    },
+    {
+     "name": "thickness",
+     "kind": "number",
+     "label": "Толщина"
+    },
+    {
+     "name": "layer",
+     "kind": "number",
+     "default": 60,
+     "label": "Слой"
+    },
+    {
+     "name": "edge",
+     "kind": "expr",
+     "label": "Отрезок"
+    },
+    {
+     "name": "pattern",
+     "kind": "expr"
+    },
+    {
+     "name": "update",
+     "kind": "enum",
+     "options": [
+      "always",
+      "event",
+      "once"
+     ]
+    }
+   ],
+   "template": {
+    "code": "new Point { name = \"U$a\"; pos = (-4, 0) }\nnew Point { name = \"U$b\"; pos = (4, 0) }\nnew Line { name = \"u$\"; pos = (U$a, U$b) }\ndraw Punctir { name = \"dash$\"; edge = \"u$\" }"
+   }
+  },
+  {
+   "keyword": "draw",
+   "type": "Text",
+   "label": "draw Text",
+   "dim": "both",
+   "dual": true,
+   "hint": "пропущены обязательные поля (name, pos)",
+   "fields": [
+    {
+     "name": "name",
+     "kind": "string",
+     "label": "Имя",
+     "required": true
+    },
+    {
+     "name": "pos",
+     "kind": "tuple",
+     "label": "Положение",
+     "required": true
+    },
+    {
+     "name": "layer",
+     "kind": "number",
+     "default": 45,
+     "label": "Слой"
+    },
+    {
+     "name": "text",
+     "kind": "expr",
+     "label": "Текст"
+    },
+    {
+     "name": "active",
+     "kind": "expr",
+     "label": "Видимость"
+    },
+    {
+     "name": "color",
+     "kind": "expr",
+     "label": "Цвет"
+    },
+    {
+     "name": "size",
+     "kind": "expr",
+     "label": "Размер"
+    },
+    {
+     "name": "align",
+     "kind": "enum",
+     "options": [
+      "left",
+      "center",
+      "right"
+     ],
+     "label": "Выравнивание"
+    },
+    {
+     "name": "update",
+     "kind": "enum",
+     "options": [
+      "always",
+      "event",
+      "once"
+     ]
+    }
+   ],
+   "template": {
+    "code": "draw Text { name = \"txt$\"; pos = (0, 0); text = \"Текст\" }",
+    "code3": "draw Text3D { name = \"txt$\"; pos = (0, 0, 0); text = \"Текст\" }"
+   }
+  },
+  {
+   "keyword": "new",
+   "type": "UI",
+   "label": "UI",
+   "dim": "any",
+   "dual": false,
+   "hint": "пропущены обязательные поля (type и его параметры)",
+   "fields": [
+    {
+     "name": "name",
+     "kind": "string",
+     "label": "Имя",
+     "required": true
+    },
+    {
+     "name": "type",
+     "kind": "enum",
+     "options": [
+      "button",
+      "toggle",
+      "input",
+      "slider",
+      "select"
+     ],
+     "label": "Вид",
+     "required": true
+    },
+    {
+     "name": "color",
+     "kind": "color",
+     "label": "Цвет"
+    },
+    {
+     "name": "textcolor",
+     "kind": "color"
+    },
+    {
+     "name": "active",
+     "kind": "bool",
+     "default": true,
+     "label": "Видимость"
+    },
+    {
+     "name": "x",
+     "kind": "number"
+    },
+    {
+     "name": "y",
+     "kind": "number"
+    },
+    {
+     "name": "width",
+     "kind": "number",
+     "label": "Ширина"
+    },
+    {
+     "name": "height",
+     "kind": "number",
+     "label": "Высота"
+    },
+    {
+     "name": "radius",
+     "kind": "number",
+     "default": 4,
+     "label": "Радиус"
+    },
+    {
+     "name": "stepper",
+     "kind": "bool",
+     "default": true
+    },
+    {
+     "name": "layer",
+     "kind": "number",
+     "default": 100,
+     "label": "Слой"
+    },
+    {
+     "name": "label",
+     "kind": "expr",
+     "label": "Подпись"
+    },
+    {
+     "name": "variable",
+     "kind": "expr",
+     "label": "Переменная"
+    },
+    {
+     "name": "funcName",
+     "kind": "expr"
+    },
+    {
+     "name": "default",
+     "kind": "expr",
+     "label": "Значение по умолчанию"
+    },
+    {
+     "name": "action",
+     "kind": "expr",
+     "label": "Действие"
+    },
+    {
+     "name": "inputtype",
+     "kind": "enum",
+     "options": [
+      "number",
+      "text",
+      "formula"
+     ]
+    },
+    {
+     "name": "min",
+     "kind": "expr",
+     "label": "Минимум"
+    },
+    {
+     "name": "max",
+     "kind": "expr",
+     "label": "Максимум"
+    },
+    {
+     "name": "step",
+     "kind": "expr",
+     "label": "Шаг"
+    },
+    {
+     "name": "options",
+     "kind": "list"
+    },
+    {
+     "name": "labels",
+     "kind": "list"
+    }
+   ],
+   "template": {
+    "code": "float val$ = 1;\nnew UI { name = \"ui$\"; type = slider; label = \"значение\"; variable = val$; min = 0; max = 5; step = 0.1 }"
+   }
+  },
+  {
+   "keyword": "new",
+   "type": "Circle",
+   "label": "Circle",
+   "dim": "2D",
+   "dual": false,
+   "hint": "пропущены обязательные поля (name, center, radius)",
+   "fields": [
+    {
+     "name": "name",
+     "kind": "string",
+     "label": "Имя",
+     "required": true
+    },
+    {
+     "name": "center",
+     "kind": "ref",
+     "label": "Центр",
+     "required": true
+    },
+    {
+     "name": "radius",
+     "kind": "expr",
+     "label": "Радиус",
+     "required": true
+    },
+    {
+     "name": "color",
+     "kind": "color",
+     "label": "Цвет"
+    },
+    {
+     "name": "thickness",
+     "kind": "number",
+     "default": 1.5,
+     "label": "Толщина"
+    },
+    {
+     "name": "layer",
+     "kind": "number",
+     "default": 20,
+     "label": "Слой"
+    },
+    {
+     "name": "active",
+     "kind": "bool",
+     "default": true,
+     "label": "Видимость"
+    },
+    {
+     "name": "type",
+     "kind": "expr",
+     "label": "Вид"
+    },
+    {
+     "name": "points",
+     "kind": "expr",
+     "label": "Точки"
+    },
+    {
+     "name": "collision",
+     "kind": "bool"
+    },
+    {
+     "name": "collisionGroup",
+     "kind": "number",
+     "default": 0
+    },
+    {
+     "name": "collisionMask",
+     "kind": "list"
+    },
+    {
+     "name": "collisionMargin",
+     "kind": "number",
+     "default": 0
+    },
+    {
+     "name": "collideWithPoints",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "collideWithLines",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "collideWithCurves",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "collideWithCircles",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "collideWithEllipses",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "collideWithArcs",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "collideWithFigures",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "collideWithClusters",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "collideWithBoundary",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "update",
+     "kind": "enum",
+     "options": [
+      "always",
+      "event",
+      "once"
+     ]
+    }
+   ],
+   "template": {
+    "code": "new Point { name = \"C$\"; pos = (0, 0) }\nnew Circle { name = \"circ$\"; center = C$; radius = 3 }"
+   }
+  },
+  {
+   "keyword": "draw",
+   "type": "Arc",
+   "label": "draw Arc",
+   "dim": "2D",
+   "dual": false,
+   "hint": "пропущены обязательные поля (name и center+from+to или points)",
+   "fields": [
+    {
+     "name": "name",
+     "kind": "string",
+     "label": "Имя",
+     "required": true
+    },
+    {
+     "name": "points",
+     "kind": "expr",
+     "label": "Точки",
+     "required": true
+    },
+    {
+     "name": "color",
+     "kind": "color",
+     "label": "Цвет"
+    },
+    {
+     "name": "thickness",
+     "kind": "number",
+     "default": 2,
+     "label": "Толщина"
+    },
+    {
+     "name": "active",
+     "kind": "bool",
+     "default": true,
+     "label": "Видимость"
+    },
+    {
+     "name": "layer",
+     "kind": "number",
+     "default": 20,
+     "label": "Слой"
+    },
+    {
+     "name": "center",
+     "kind": "ref",
+     "label": "Центр"
+    },
+    {
+     "name": "from",
+     "kind": "ref"
+    },
+    {
+     "name": "to",
+     "kind": "ref"
+    },
+    {
+     "name": "type",
+     "kind": "expr",
+     "label": "Вид"
+    },
+    {
+     "name": "radius",
+     "kind": "expr",
+     "label": "Радиус"
+    },
+    {
+     "name": "update",
+     "kind": "enum",
+     "options": [
+      "always",
+      "event",
+      "once"
+     ]
+    },
+    {
+     "name": "collision",
+     "kind": "bool"
+    },
+    {
+     "name": "collisionGroup",
+     "kind": "number",
+     "default": 0
+    },
+    {
+     "name": "collisionMask",
+     "kind": "list"
+    },
+    {
+     "name": "collisionMargin",
+     "kind": "number",
+     "default": 0
+    },
+    {
+     "name": "collideWithPoints",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "collideWithLines",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "collideWithCurves",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "collideWithCircles",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "collideWithEllipses",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "collideWithArcs",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "collideWithFigures",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "collideWithClusters",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "collideWithBoundary",
+     "kind": "bool",
+     "default": false
+    }
+   ],
+   "template": {
+    "code": "new Point { name = \"R$o\"; pos = (0, 0) }\nnew Point { name = \"R$a\"; pos = (4, 0) }\nnew Point { name = \"R$b\"; pos = (0, 4) }\ndraw Arc { name = \"arc$\"; points = (R$a, R$o, R$b) }"
+   }
+  },
+  {
+   "keyword": "new",
+   "type": "Ellipse",
+   "label": "Ellipse",
+   "dim": "2D",
+   "dual": false,
+   "hint": "пропущены обязательные поля (name, center, a, b или points/foci)",
+   "fields": [
+    {
+     "name": "name",
+     "kind": "string",
+     "label": "Имя",
+     "required": true
+    },
+    {
+     "name": "center",
+     "kind": "ref",
+     "label": "Центр",
+     "required": true
+    },
+    {
+     "name": "a",
+     "kind": "expr",
+     "required": true
+    },
+    {
+     "name": "b",
+     "kind": "expr",
+     "required": true
+    },
+    {
+     "name": "color",
+     "kind": "color",
+     "label": "Цвет"
+    },
+    {
+     "name": "thickness",
+     "kind": "number",
+     "default": 2,
+     "label": "Толщина"
+    },
+    {
+     "name": "active",
+     "kind": "bool",
+     "default": true,
+     "label": "Видимость"
+    },
+    {
+     "name": "dynamic",
+     "kind": "bool",
+     "default": true
+    },
+    {
+     "name": "layer",
+     "kind": "number",
+     "default": 20,
+     "label": "Слой"
+    },
+    {
+     "name": "focus1",
+     "kind": "ref"
+    },
+    {
+     "name": "focus2",
+     "kind": "ref"
+    },
+    {
+     "name": "rotate",
+     "kind": "number",
+     "default": 0,
+     "label": "Поворот"
+    },
+    {
+     "name": "type",
+     "kind": "expr",
+     "label": "Вид"
+    },
+    {
+     "name": "points",
+     "kind": "expr",
+     "label": "Точки"
+    },
+    {
+     "name": "update",
+     "kind": "enum",
+     "options": [
+      "always",
+      "event",
+      "once"
+     ]
+    },
+    {
+     "name": "collision",
+     "kind": "bool"
+    },
+    {
+     "name": "collisionGroup",
+     "kind": "number",
+     "default": 0
+    },
+    {
+     "name": "collisionMask",
+     "kind": "list"
+    },
+    {
+     "name": "collisionMargin",
+     "kind": "number",
+     "default": 0
+    },
+    {
+     "name": "collideWithPoints",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "collideWithLines",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "collideWithCurves",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "collideWithCircles",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "collideWithEllipses",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "collideWithArcs",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "collideWithFigures",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "collideWithClusters",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "collideWithBoundary",
+     "kind": "bool",
+     "default": false
+    }
+   ],
+   "template": {
+    "code": "new Point { name = \"O$\"; pos = (0, 0) }\nnew Ellipse { name = \"ell$\"; center = O$; a = 5; b = 3 }"
+   }
+  },
+  {
+   "keyword": "new",
+   "type": "Curve",
+   "label": "Curve",
+   "dim": "both",
+   "dual": true,
+   "hint": "пропущены обязательные поля (name и points или x+y)",
+   "fields": [
+    {
+     "name": "name",
+     "kind": "string",
+     "label": "Имя",
+     "required": true
+    },
+    {
+     "name": "center",
+     "kind": "ref",
+     "label": "Центр"
+    },
+    {
+     "name": "start",
+     "kind": "ref"
+    },
+    {
+     "name": "turns",
+     "kind": "number",
+     "default": 3
+    },
+    {
+     "name": "a",
+     "kind": "number",
+     "default": 0
+    },
+    {
+     "name": "b",
+     "kind": "number",
+     "default": 1
+    },
+    {
+     "name": "radius",
+     "kind": "number",
+     "default": 2,
+     "label": "Радиус"
+    },
+    {
+     "name": "segments",
+     "kind": "number",
+     "default": 50,
+     "label": "Сегменты"
+    },
+    {
+     "name": "color",
+     "kind": "color",
+     "label": "Цвет"
+    },
+    {
+     "name": "thickness",
+     "kind": "number",
+     "default": 2,
+     "label": "Толщина"
+    },
+    {
+     "name": "active",
+     "kind": "bool",
+     "default": true,
+     "label": "Видимость"
+    },
+    {
+     "name": "layer",
+     "kind": "number",
+     "default": 20,
+     "label": "Слой"
+    },
+    {
+     "name": "showFrenet",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "frenetCount",
+     "kind": "number",
+     "default": 8
+    },
+    {
+     "name": "frenetScale",
+     "kind": "number"
+    },
+    {
+     "name": "x",
+     "kind": "expr"
+    },
+    {
+     "name": "y",
+     "kind": "expr"
+    },
+    {
+     "name": "z",
+     "kind": "expr"
+    },
+    {
+     "name": "colorBy",
+     "kind": "enum",
+     "options": [
+      "none",
+      "curvature",
+      "torsion"
+     ]
+    },
+    {
+     "name": "type",
+     "kind": "expr",
+     "label": "Вид"
+    },
+    {
+     "name": "collision",
+     "kind": "bool"
+    },
+    {
+     "name": "collisionGroup",
+     "kind": "number",
+     "default": 0
+    },
+    {
+     "name": "collisionMask",
+     "kind": "list"
+    },
+    {
+     "name": "collisionMargin",
+     "kind": "number",
+     "default": 0
+    },
+    {
+     "name": "collideWithPoints",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "collideWithLines",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "collideWithCurves",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "collideWithCircles",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "collideWithEllipses",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "collideWithArcs",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "collideWithFigures",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "collideWithClusters",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "collideWithBoundary",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "update",
+     "kind": "enum",
+     "options": [
+      "always",
+      "event",
+      "once"
+     ]
+    }
+   ],
+   "template": {
+    "code": "new Curve { name = \"crv$\"; type = parametric; x = \"4*cos(2*pi*t)\"; y = \"3*sin(2*pi*t)\"; segments = 200 }",
+    "code3": "new Curve3D { name = \"crv$\"; type = parametric; x = \"3*cos(4*pi*t)\"; y = \"4*t - 2\"; z = \"3*sin(4*pi*t)\"; segments = 200 }"
+   }
+  },
+  {
+   "keyword": "draw",
+   "type": "Function",
+   "label": "draw Function",
+   "dim": "2D",
+   "dual": false,
+   "hint": "пропущены обязательные поля (name, f)",
+   "fields": [
+    {
+     "name": "name",
+     "kind": "string",
+     "label": "Имя",
+     "required": true
+    },
+    {
+     "name": "f",
+     "kind": "expr",
+     "label": "Функция f",
+     "required": true
+    },
+    {
+     "name": "xmin",
+     "kind": "number",
+     "default": -10,
+     "label": "x от"
+    },
+    {
+     "name": "xmax",
+     "kind": "number",
+     "default": 10,
+     "label": "x до"
+    },
+    {
+     "name": "segments",
+     "kind": "number",
+     "default": 100,
+     "label": "Сегменты"
+    },
+    {
+     "name": "color",
+     "kind": "color",
+     "label": "Цвет"
+    },
+    {
+     "name": "thickness",
+     "kind": "number",
+     "default": 2,
+     "label": "Толщина"
+    },
+    {
+     "name": "active",
+     "kind": "bool",
+     "default": true,
+     "label": "Видимость"
+    },
+    {
+     "name": "layer",
+     "kind": "number",
+     "default": 20,
+     "label": "Слой"
+    },
+    {
+     "name": "grid",
+     "kind": "bool",
+     "default": false,
+     "label": "Сетка"
+    },
+    {
+     "name": "gridStep",
+     "kind": "number",
+     "default": 1
+    },
+    {
+     "name": "extend",
+     "kind": "bool"
+    },
+    {
+     "name": "extendDistance",
+     "kind": "number"
+    },
+    {
+     "name": "mode",
+     "kind": "enum",
+     "options": [
+      "auto",
+      "manual"
+     ],
+     "label": "Режим"
+    },
+    {
+     "name": "update",
+     "kind": "enum",
+     "options": [
+      "always",
+      "event",
+      "once"
+     ]
+    }
+   ],
+   "template": {
+    "code": "func fn$(x) = sin(x) * 3;\ndraw Function { name = \"gr$\"; f = \"fn$\" }"
+   }
+  },
+  {
+   "keyword": "draw",
+   "type": "Surface",
+   "label": "draw Surface",
+   "dim": "both",
+   "dual": true,
+   "hint": "пропущены обязательные поля (name, f)",
+   "fields": [
+    {
+     "name": "name",
+     "kind": "string",
+     "label": "Имя",
+     "required": true
+    },
+    {
+     "name": "f",
+     "kind": "expr",
+     "label": "Функция f",
+     "required": true
+    },
+    {
+     "name": "xmin",
+     "kind": "number",
+     "default": -5,
+     "label": "x от"
+    },
+    {
+     "name": "xmax",
+     "kind": "number",
+     "default": 5,
+     "label": "x до"
+    },
+    {
+     "name": "ymin",
+     "kind": "number",
+     "default": -5,
+     "label": "y от"
+    },
+    {
+     "name": "ymax",
+     "kind": "number",
+     "default": 5,
+     "label": "y до"
+    },
+    {
+     "name": "zmin",
+     "kind": "number",
+     "default": -5,
+     "label": "z от"
+    },
+    {
+     "name": "zmax",
+     "kind": "number",
+     "default": 5,
+     "label": "z до"
+    },
+    {
+     "name": "umin",
+     "kind": "number",
+     "default": -5
+    },
+    {
+     "name": "umax",
+     "kind": "number",
+     "default": 5
+    },
+    {
+     "name": "vmin",
+     "kind": "number",
+     "default": -5
+    },
+    {
+     "name": "vmax",
+     "kind": "number",
+     "default": 5
+    },
+    {
+     "name": "grid",
+     "kind": "number",
+     "default": 20,
+     "label": "Сетка"
+    },
+    {
+     "name": "color",
+     "kind": "color",
+     "label": "Цвет"
+    },
+    {
+     "name": "active",
+     "kind": "bool",
+     "default": true,
+     "label": "Видимость"
+    },
+    {
+     "name": "layer",
+     "kind": "number",
+     "default": 20,
+     "label": "Слой"
+    },
+    {
+     "name": "angle",
+     "kind": "number",
+     "default": 30
+    },
+    {
+     "name": "levels",
+     "kind": "number",
+     "default": 8
+    },
+    {
+     "name": "level",
+     "kind": "number"
+    },
+    {
+     "name": "opacity",
+     "kind": "number",
+     "default": 0.85,
+     "label": "Непрозрачность"
+    },
+    {
+     "name": "x",
+     "kind": "expr"
+    },
+    {
+     "name": "y",
+     "kind": "expr"
+    },
+    {
+     "name": "z",
+     "kind": "expr"
+    },
+    {
+     "name": "type",
+     "kind": "expr",
+     "label": "Вид"
+    },
+    {
+     "name": "mode",
+     "kind": "expr",
+     "label": "Режим"
+    },
+    {
+     "name": "update",
+     "kind": "enum",
+     "options": [
+      "always",
+      "event",
+      "once"
+     ]
+    }
+   ],
+   "template": {
+    "code": "func sf$(x, y) = x*x + y*y - 9;\ndraw Surface { name = \"srf$\"; type = heightfield; f = \"sf$\"; mode = contour; levels = 8 }",
+    "code3": "func sf$(x, y) = sin(x) * cos(y);\ndraw Surface3D { name = \"srf$\"; type = parametric; x = \"u\"; y = \"sf$(u, v)\"; z = \"v\"; umin = -4; umax = 4; vmin = -4; vmax = 4; grid = 30 }"
+   }
+  },
+  {
+   "keyword": "draw",
+   "type": "Image",
+   "label": "draw Image",
+   "dim": "any",
+   "dual": false,
+   "hint": "пропущены обязательные поля (name, src, pos)",
+   "fields": [
+    {
+     "name": "name",
+     "kind": "string",
+     "label": "Имя",
+     "required": true
+    },
+    {
+     "name": "pos",
+     "kind": "ref",
+     "label": "Положение",
+     "required": true
+    },
+    {
+     "name": "src",
+     "kind": "expr",
+     "required": true
+    },
+    {
+     "name": "rotate",
+     "kind": "xyz",
+     "label": "Поворот"
+    },
+    {
+     "name": "billboard",
+     "kind": "bool",
+     "default": true,
+     "label": "Всегда к камере"
+    },
+    {
+     "name": "width",
+     "kind": "number",
+     "default": 5,
+     "label": "Ширина"
+    },
+    {
+     "name": "height",
+     "kind": "number",
+     "default": 5,
+     "label": "Высота"
+    },
+    {
+     "name": "opacity",
+     "kind": "number",
+     "default": 1,
+     "label": "Непрозрачность"
+    },
+    {
+     "name": "active",
+     "kind": "bool",
+     "default": true,
+     "label": "Видимость"
+    },
+    {
+     "name": "layer",
+     "kind": "number",
+     "default": 15,
+     "label": "Слой"
+    },
+    {
+     "name": "update",
+     "kind": "enum",
+     "options": [
+      "always",
+      "event",
+      "once"
+     ]
+    }
+   ],
+   "template": {
+    "code": "draw Image { name = \"img$\"; src = \"/assets/images/logo.png\"; pos = (0, 0); width = 4; height = 4 }"
+   }
+  },
+  {
+   "keyword": "draw",
+   "type": "Histogram",
+   "label": "draw Histogram",
+   "dim": "any",
+   "dual": false,
+   "hint": "пропущены обязательные поля (name, data)",
+   "fields": [
+    {
+     "name": "name",
+     "kind": "string",
+     "label": "Имя",
+     "required": true
+    },
+    {
+     "name": "data",
+     "kind": "expr",
+     "label": "Данные",
+     "required": true
+    },
+    {
+     "name": "bins",
+     "kind": "number",
+     "default": 10
+    },
+    {
+     "name": "color",
+     "kind": "color",
+     "default": "#4a90d9",
+     "label": "Цвет"
+    },
+    {
+     "name": "active",
+     "kind": "bool",
+     "default": true,
+     "label": "Видимость"
+    },
+    {
+     "name": "layer",
+     "kind": "number",
+     "default": 20,
+     "label": "Слой"
+    },
+    {
+     "name": "rotate",
+     "kind": "xyz",
+     "label": "Поворот"
+    },
+    {
+     "name": "billboard",
+     "kind": "bool",
+     "default": true,
+     "label": "Всегда к камере"
+    },
+    {
+     "name": "anchor",
+     "kind": "enum",
+     "default": "world",
+     "options": [
+      "world",
+      "screen"
+     ]
+    },
+    {
+     "name": "width",
+     "kind": "number",
+     "default": 8,
+     "label": "Ширина"
+    },
+    {
+     "name": "height",
+     "kind": "number",
+     "default": 5,
+     "label": "Высота"
+    },
+    {
+     "name": "panelWidth",
+     "kind": "number",
+     "default": 6
+    },
+    {
+     "name": "panelHeight",
+     "kind": "number",
+     "default": 4
+    },
+    {
+     "name": "pos",
+     "kind": "tuple",
+     "label": "Положение"
+    },
+    {
+     "name": "update",
+     "kind": "enum",
+     "options": [
+      "always",
+      "event",
+      "once"
+     ]
+    }
+   ],
+   "template": {
+    "code": "list hd$ = [1, 2, 2, 3, 3, 3, 4, 4, 5];\ndraw Histogram { name = \"hist$\"; data = hd$; bins = 5 }"
+   }
+  },
+  {
+   "keyword": "draw",
+   "type": "Field",
+   "label": "draw Field",
+   "dim": "both",
+   "dual": true,
+   "hint": "пропущены обязательные поля (name, P, Q)",
+   "fields": [
+    {
+     "name": "name",
+     "kind": "string",
+     "label": "Имя",
+     "required": true
+    },
+    {
+     "name": "P",
+     "kind": "expr",
+     "required": true
+    },
+    {
+     "name": "Q",
+     "kind": "expr",
+     "required": true
+    },
+    {
+     "name": "xmin",
+     "kind": "number",
+     "default": -25,
+     "label": "x от"
+    },
+    {
+     "name": "xmax",
+     "kind": "number",
+     "default": 25,
+     "label": "x до"
+    },
+    {
+     "name": "ymin",
+     "kind": "number",
+     "default": -15,
+     "label": "y от"
+    },
+    {
+     "name": "ymax",
+     "kind": "number",
+     "default": 15,
+     "label": "y до"
+    },
+    {
+     "name": "zmin",
+     "kind": "number",
+     "default": -15,
+     "label": "z от"
+    },
+    {
+     "name": "zmax",
+     "kind": "number",
+     "default": 15,
+     "label": "z до"
+    },
+    {
+     "name": "grid",
+     "kind": "number",
+     "default": 15,
+     "label": "Сетка"
+    },
+    {
+     "name": "scale",
+     "kind": "number",
+     "default": 1
+    },
+    {
+     "name": "color",
+     "kind": "color",
+     "default": "#888888",
+     "label": "Цвет"
+    },
+    {
+     "name": "active",
+     "kind": "bool",
+     "default": true,
+     "label": "Видимость"
+    },
+    {
+     "name": "layer",
+     "kind": "number",
+     "default": 10,
+     "label": "Слой"
+    },
+    {
+     "name": "R",
+     "kind": "expr"
+    },
+    {
+     "name": "update",
+     "kind": "enum",
+     "options": [
+      "always",
+      "event",
+      "once"
+     ]
+    }
+   ],
+   "template": {
+    "code": "draw Field { name = \"fld$\"; P = \"-y\"; Q = \"x\"; xmin = -8; xmax = 8; ymin = -5; ymax = 5; grid = 12 }",
+    "code3": "draw Field3D { name = \"fld$\"; P = \"-y\"; Q = \"x\"; R = \"0.3\"; xmin = -4; xmax = 4; ymin = -4; ymax = 4; zmin = -4; zmax = 4; grid = 5 }"
+   }
+  },
+  {
+   "keyword": "draw",
+   "type": "Trajectory",
+   "label": "draw Trajectory",
+   "dim": "both",
+   "dual": true,
+   "hint": "пропущены обязательные поля (name, start, и один из: system / field / P+Q)",
+   "fields": [
+    {
+     "name": "name",
+     "kind": "string",
+     "label": "Имя",
+     "required": true
+    },
+    {
+     "name": "system",
+     "kind": "expr",
+     "required": true
+    },
+    {
+     "name": "start",
+     "kind": "expr",
+     "required": true
+    },
+    {
+     "name": "steps",
+     "kind": "number",
+     "default": 200
+    },
+    {
+     "name": "dt",
+     "kind": "number",
+     "default": 0.05
+    },
+    {
+     "name": "color",
+     "kind": "color",
+     "default": "#ff0000",
+     "label": "Цвет"
+    },
+    {
+     "name": "thickness",
+     "kind": "number",
+     "default": 2,
+     "label": "Толщина"
+    },
+    {
+     "name": "active",
+     "kind": "bool",
+     "default": true,
+     "label": "Видимость"
+    },
+    {
+     "name": "layer",
+     "kind": "number",
+     "default": 15,
+     "label": "Слой"
+    },
+    {
+     "name": "P",
+     "kind": "expr"
+    },
+    {
+     "name": "Q",
+     "kind": "expr"
+    },
+    {
+     "name": "R",
+     "kind": "expr"
+    },
+    {
+     "name": "update",
+     "kind": "enum",
+     "options": [
+      "always",
+      "event",
+      "once"
+     ]
+    }
+   ],
+   "template": {
+    "code": "draw Field { name = \"tf$\"; P = \"-y\"; Q = \"x\"; grid = 12 }\ndraw Trajectory { name = \"trj$\"; field = \"tf$\"; start = (3, 0); steps = 400; dt = 0.02 }",
+    "code3": "draw Trajectory3D { name = \"trj$\"; P = \"-y\"; Q = \"x\"; R = \"0.1\"; start = (3, 0, 0); steps = 400; dt = 0.02 }"
+   }
+  },
+  {
+   "keyword": "draw",
+   "type": "Graph",
+   "label": "draw Graph",
+   "dim": "any",
+   "dual": false,
+   "hint": "пропущены обязательные поля (name, graph)",
+   "fields": [
+    {
+     "name": "name",
+     "kind": "string",
+     "label": "Имя",
+     "required": true
+    },
+    {
+     "name": "graph",
+     "kind": "expr",
+     "required": true
+    },
+    {
+     "name": "color",
+     "kind": "color",
+     "label": "Цвет"
+    },
+    {
+     "name": "nodeColor",
+     "kind": "color"
+    },
+    {
+     "name": "edgeColor",
+     "kind": "color"
+    },
+    {
+     "name": "labelColor",
+     "kind": "color"
+    },
+    {
+     "name": "nodeRadius",
+     "kind": "number",
+     "default": 9
+    },
+    {
+     "name": "directed",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "showWeights",
+     "kind": "bool",
+     "default": true
+    },
+    {
+     "name": "labels",
+     "kind": "bool",
+     "default": true
+    },
+    {
+     "name": "highlightColor",
+     "kind": "color",
+     "default": "#e8590c"
+    },
+    {
+     "name": "interactive",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "active",
+     "kind": "bool",
+     "default": true,
+     "label": "Видимость"
+    },
+    {
+     "name": "layer",
+     "kind": "number",
+     "default": 20,
+     "label": "Слой"
+    },
+    {
+     "name": "rotate",
+     "kind": "xyz",
+     "label": "Поворот"
+    },
+    {
+     "name": "billboard",
+     "kind": "bool",
+     "default": true,
+     "label": "Всегда к камере"
+    },
+    {
+     "name": "anchor",
+     "kind": "enum",
+     "default": "world",
+     "options": [
+      "world",
+      "screen"
+     ]
+    },
+    {
+     "name": "edgeWidth",
+     "kind": "number",
+     "default": 2
+    },
+    {
+     "name": "panelWidth",
+     "kind": "number",
+     "default": 8
+    },
+    {
+     "name": "panelHeight",
+     "kind": "number",
+     "default": 6
+    },
+    {
+     "name": "highlight",
+     "kind": "expr"
+    },
+    {
+     "name": "highlightEdges",
+     "kind": "expr"
+    },
+    {
+     "name": "pos",
+     "kind": "tuple",
+     "label": "Положение"
+    },
+    {
+     "name": "edgeCap",
+     "kind": "enum",
+     "options": [
+      "butt",
+      "square",
+      "round"
+     ]
+    },
+    {
+     "name": "update",
+     "kind": "enum",
+     "options": [
+      "always",
+      "event",
+      "once"
+     ]
+    }
+   ],
+   "template": {
+    "code": "float gg$ = 0; float gb$ = 0;\ndraw Graph { name = \"dg$\"; graph = \"gg$\"; showWeights = false }\nUpdate { if (gb$ == 0) { gb$ = 1; gg$ = newGraph(); addNode(gg$, \"a\", [-3, 0], \"A\"); addNode(gg$, \"b\", [3, 0], \"B\"); addNode(gg$, \"c\", [0, 3], \"C\"); addEdge(gg$, \"a\", \"b\"); addEdge(gg$, \"b\", \"c\"); } }"
+   }
+  },
+  {
+   "keyword": "draw",
+   "type": "Fractal",
+   "label": "draw Fractal",
+   "dim": "any",
+   "dual": false,
+   "hint": "пропущены обязательные поля (name; для julia — cRe и cIm)",
+   "fields": [
+    {
+     "name": "name",
+     "kind": "string",
+     "label": "Имя",
+     "required": true
+    },
+    {
+     "name": "cRe",
+     "kind": "expr",
+     "required": true
+    },
+    {
+     "name": "cIm",
+     "kind": "expr",
+     "required": true
+    },
+    {
+     "name": "maxIter",
+     "kind": "number",
+     "default": 80
+    },
+    {
+     "name": "quality",
+     "kind": "number",
+     "default": 2,
+     "label": "Качество"
+    },
+    {
+     "name": "adaptiveIter",
+     "kind": "bool",
+     "default": true
+    },
+    {
+     "name": "periodicityCheck",
+     "kind": "bool",
+     "default": true
+    },
+    {
+     "name": "opacity",
+     "kind": "number",
+     "default": 1,
+     "label": "Непрозрачность"
+    },
+    {
+     "name": "active",
+     "kind": "bool",
+     "default": true,
+     "label": "Видимость"
+    },
+    {
+     "name": "layer",
+     "kind": "number",
+     "default": -100,
+     "label": "Слой"
+    },
+    {
+     "name": "rotate",
+     "kind": "xyz",
+     "label": "Поворот"
+    },
+    {
+     "name": "size",
+     "kind": "number",
+     "default": 1.5,
+     "label": "Размер"
+    },
+    {
+     "name": "power",
+     "kind": "number",
+     "default": 8
+    },
+    {
+     "name": "iterations",
+     "kind": "number"
+    },
+    {
+     "name": "maxSteps",
+     "kind": "number",
+     "default": 128
+    },
+    {
+     "name": "color",
+     "kind": "color",
+     "default": "#4a90d9",
+     "label": "Цвет"
+    },
+    {
+     "name": "color2",
+     "kind": "color",
+     "default": "#ffaa44"
+    },
+    {
+     "name": "billboard",
+     "kind": "bool",
+     "default": true,
+     "label": "Всегда к камере"
+    },
+    {
+     "name": "panelWidth",
+     "kind": "number",
+     "default": 8
+    },
+    {
+     "name": "panelHeight",
+     "kind": "number",
+     "default": 8
+    },
+    {
+     "name": "centerRe",
+     "kind": "number"
+    },
+    {
+     "name": "centerIm",
+     "kind": "number",
+     "default": 0
+    },
+    {
+     "name": "scale",
+     "kind": "number",
+     "default": 1.5
+    },
+    {
+     "name": "type",
+     "kind": "enum",
+     "options": [
+      "mandelbrot",
+      "julia",
+      "burningship",
+      "mandelbulb",
+      "mengersponge",
+      "sierpinski3d"
+     ],
+     "label": "Вид"
+    },
+    {
+     "name": "palette",
+     "kind": "enum",
+     "options": [
+      "fire",
+      "ocean",
+      "gray",
+      "rainbow"
+     ],
+     "label": "Палитра"
+    },
+    {
+     "name": "pos",
+     "kind": "tuple",
+     "label": "Положение"
+    },
+    {
+     "name": "update",
+     "kind": "enum",
+     "options": [
+      "always",
+      "event",
+      "once"
+     ]
+    }
+   ],
+   "template": {
+    "code": "draw Fractal { name = \"fr$\"; type = mandelbrot; maxIter = 80 }"
+   }
+  },
+  {
+   "keyword": "draw",
+   "type": "Formula",
+   "label": "draw Formula",
+   "dim": "2D",
+   "dual": false,
+   "hint": "пропущены обязательные поля (name, pos, latex)",
+   "fields": [
+    {
+     "name": "name",
+     "kind": "string",
+     "label": "Имя",
+     "required": true
+    },
+    {
+     "name": "latex",
+     "kind": "expr",
+     "required": true
+    },
+    {
+     "name": "pos",
+     "kind": "tuple",
+     "label": "Положение",
+     "required": true
+    },
+    {
+     "name": "size",
+     "kind": "number",
+     "default": 1,
+     "label": "Размер"
+    },
+    {
+     "name": "color",
+     "kind": "color",
+     "label": "Цвет"
+    },
+    {
+     "name": "background",
+     "kind": "color",
+     "default": "transparent"
+    },
+    {
+     "name": "display",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "active",
+     "kind": "bool",
+     "default": true,
+     "label": "Видимость"
+    },
+    {
+     "name": "layer",
+     "kind": "number",
+     "default": 60,
+     "label": "Слой"
+    },
+    {
+     "name": "text",
+     "kind": "expr",
+     "label": "Текст"
+    },
+    {
+     "name": "align",
+     "kind": "enum",
+     "options": [
+      "left",
+      "center",
+      "right"
+     ],
+     "label": "Выравнивание"
+    },
+    {
+     "name": "update",
+     "kind": "enum",
+     "options": [
+      "always",
+      "event",
+      "once"
+     ]
+    }
+   ],
+   "template": {
+    "code": "draw Formula { name = \"tex$\"; pos = (0, 0); latex = \"e^{i\\\\pi} + 1 = 0\"; size = 1.2 }"
+   }
+  },
+  {
+   "keyword": "draw",
+   "type": "Distribution",
+   "label": "draw Distribution",
+   "dim": "2D",
+   "dual": false,
+   "hint": "пропущено обязательное поле (name) или некорректные параметры распределения (type — normal/binomial/poisson/uniform/exponential)",
+   "fields": [
+    {
+     "name": "name",
+     "kind": "string",
+     "label": "Имя",
+     "required": true
+    },
+    {
+     "name": "mu",
+     "kind": "number",
+     "default": 0
+    },
+    {
+     "name": "sigma",
+     "kind": "number",
+     "default": 1
+    },
+    {
+     "name": "n",
+     "kind": "number",
+     "default": 20
+    },
+    {
+     "name": "p",
+     "kind": "number",
+     "default": 0.5
+    },
+    {
+     "name": "lambda",
+     "kind": "number",
+     "default": 4
+    },
+    {
+     "name": "a",
+     "kind": "number",
+     "default": 0
+    },
+    {
+     "name": "b",
+     "kind": "number",
+     "default": 1
+    },
+    {
+     "name": "xmin",
+     "kind": "number",
+     "label": "x от"
+    },
+    {
+     "name": "xmax",
+     "kind": "number",
+     "label": "x до"
+    },
+    {
+     "name": "kmax",
+     "kind": "number"
+    },
+    {
+     "name": "segments",
+     "kind": "number",
+     "default": 200,
+     "label": "Сегменты"
+    },
+    {
+     "name": "color",
+     "kind": "color",
+     "label": "Цвет"
+    },
+    {
+     "name": "thickness",
+     "kind": "number",
+     "default": 2,
+     "label": "Толщина"
+    },
+    {
+     "name": "opacity",
+     "kind": "number",
+     "default": 1,
+     "label": "Непрозрачность"
+    },
+    {
+     "name": "filled",
+     "kind": "bool",
+     "default": true
+    },
+    {
+     "name": "highlightFrom",
+     "kind": "number"
+    },
+    {
+     "name": "highlightTo",
+     "kind": "number"
+    },
+    {
+     "name": "highlightColor",
+     "kind": "color",
+     "default": "#e07a5f"
+    },
+    {
+     "name": "highlightOpacity",
+     "kind": "number",
+     "default": 0.5
+    },
+    {
+     "name": "active",
+     "kind": "bool",
+     "default": true,
+     "label": "Видимость"
+    },
+    {
+     "name": "layer",
+     "kind": "number",
+     "default": 20,
+     "label": "Слой"
+    },
+    {
+     "name": "anchor",
+     "kind": "enum",
+     "default": "world",
+     "options": [
+      "world",
+      "screen"
+     ]
+    },
+    {
+     "name": "type",
+     "kind": "enum",
+     "options": [
+      "normal",
+      "binomial",
+      "poisson",
+      "uniform",
+      "exponential"
+     ],
+     "label": "Вид"
+    },
+    {
+     "name": "update",
+     "kind": "enum",
+     "options": [
+      "always",
+      "event",
+      "once"
+     ]
+    }
+   ],
+   "template": {
+    "code": "draw Distribution { name = \"dst$\"; type = normal; mu = 0; sigma = 1 }"
+   }
+  },
+  {
+   "keyword": "draw",
+   "type": "Locus",
+   "label": "draw Locus",
+   "dim": "2D",
+   "dual": false,
+   "hint": "пропущены обязательные поля (name, point, driver)",
+   "fields": [
+    {
+     "name": "name",
+     "kind": "string",
+     "label": "Имя",
+     "required": true
+    },
+    {
+     "name": "point",
+     "kind": "ref",
+     "required": true
+    },
+    {
+     "name": "driver",
+     "kind": "ref",
+     "required": true
+    },
+    {
+     "name": "samples",
+     "kind": "number",
+     "default": 200
+    },
+    {
+     "name": "from",
+     "kind": "number",
+     "default": 0
+    },
+    {
+     "name": "to",
+     "kind": "number",
+     "default": 1
+    },
+    {
+     "name": "color",
+     "kind": "color",
+     "default": "#d9534f",
+     "label": "Цвет"
+    },
+    {
+     "name": "thickness",
+     "kind": "number",
+     "default": 2,
+     "label": "Толщина"
+    },
+    {
+     "name": "dashed",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "active",
+     "kind": "bool",
+     "default": true,
+     "label": "Видимость"
+    },
+    {
+     "name": "layer",
+     "kind": "number",
+     "default": 18,
+     "label": "Слой"
+    },
+    {
+     "name": "update",
+     "kind": "enum",
+     "options": [
+      "always",
+      "event",
+      "once"
+     ]
+    }
+   ],
+   "template": {
+    "code": "new Point { name = \"W$o\"; pos = (0, 0) }\nnew Circle { name = \"wc$\"; center = W$o; radius = 3 }\nnew Point { name = \"W$d\"; circle = \"wc$\"; t = 0.1 }\nnew Point { name = \"W$p\"; pos = (W$d.pos.x * 1.5, W$d.pos.y * 0.5) }\ndraw Locus { name = \"loc$\"; point = W$p; driver = W$d }"
+   }
+  },
+  {
+   "keyword": "draw",
+   "type": "Trace",
+   "label": "draw Trace",
+   "dim": "any",
+   "dual": false,
+   "hint": "пропущены обязательные поля (name, point)",
+   "fields": [
+    {
+     "name": "name",
+     "kind": "string",
+     "label": "Имя",
+     "required": true
+    },
+    {
+     "name": "point",
+     "kind": "ref",
+     "required": true
+    },
+    {
+     "name": "maxPoints",
+     "kind": "number",
+     "default": 400
+    },
+    {
+     "name": "minDist",
+     "kind": "number",
+     "default": 0.05
+    },
+    {
+     "name": "color",
+     "kind": "color",
+     "default": "#0275d8",
+     "label": "Цвет"
+    },
+    {
+     "name": "thickness",
+     "kind": "number",
+     "default": 2,
+     "label": "Толщина"
+    },
+    {
+     "name": "fade",
+     "kind": "bool",
+     "default": true
+    },
+    {
+     "name": "active",
+     "kind": "bool",
+     "default": true,
+     "label": "Видимость"
+    },
+    {
+     "name": "layer",
+     "kind": "number",
+     "default": 18,
+     "label": "Слой"
+    },
+    {
+     "name": "update",
+     "kind": "enum",
+     "options": [
+      "always",
+      "event",
+      "once"
+     ]
+    }
+   ],
+   "template": {
+    "code": "new Point { name = \"T$\"; pos = (2, 1) }\ndraw Trace { name = \"trc$\"; point = T$ }"
+   }
+  },
+  {
+   "keyword": "draw",
+   "type": "Region",
+   "label": "draw Region",
+   "dim": "any",
+   "dual": false,
+   "hint": "пропущены обязательные поля (name, f)",
+   "fields": [
+    {
+     "name": "name",
+     "kind": "string",
+     "label": "Имя",
+     "required": true
+    },
+    {
+     "name": "f",
+     "kind": "expr",
+     "label": "Функция f",
+     "required": true
+    },
+    {
+     "name": "color",
+     "kind": "color",
+     "label": "Цвет"
+    },
+    {
+     "name": "thickness",
+     "kind": "number",
+     "default": 2.5,
+     "label": "Толщина"
+    },
+    {
+     "name": "opacity",
+     "kind": "number",
+     "default": 0.35,
+     "label": "Непрозрачность"
+    },
+    {
+     "name": "quality",
+     "kind": "number",
+     "default": 3,
+     "label": "Качество"
+    },
+    {
+     "name": "border",
+     "kind": "bool",
+     "default": true
+    },
+    {
+     "name": "active",
+     "kind": "bool",
+     "default": true,
+     "label": "Видимость"
+    },
+    {
+     "name": "layer",
+     "kind": "number",
+     "default": 5,
+     "label": "Слой"
+    },
+    {
+     "name": "rotate",
+     "kind": "xyz",
+     "label": "Поворот"
+    },
+    {
+     "name": "billboard",
+     "kind": "bool",
+     "default": true,
+     "label": "Всегда к камере"
+    },
+    {
+     "name": "level",
+     "kind": "number",
+     "default": 0
+    },
+    {
+     "name": "level2",
+     "kind": "number",
+     "default": 0
+    },
+    {
+     "name": "panelWidth",
+     "kind": "number",
+     "default": 8
+    },
+    {
+     "name": "panelHeight",
+     "kind": "number",
+     "default": 8
+    },
+    {
+     "name": "rangeX",
+     "kind": "number",
+     "default": 6
+    },
+    {
+     "name": "rangeY",
+     "kind": "number",
+     "default": 6
+    },
+    {
+     "name": "op",
+     "kind": "expr"
+    },
+    {
+     "name": "f2",
+     "kind": "expr"
+    },
+    {
+     "name": "op2",
+     "kind": "expr"
+    },
+    {
+     "name": "combine",
+     "kind": "enum",
+     "options": [
+      "and",
+      "or"
+     ]
+    },
+    {
+     "name": "pos",
+     "kind": "tuple",
+     "label": "Положение"
+    },
+    {
+     "name": "update",
+     "kind": "enum",
+     "options": [
+      "always",
+      "event",
+      "once"
+     ]
+    }
+   ],
+   "template": {
+    "code": "func rg$(x, y) = x*x + y*y - 9;\ndraw Region { name = \"reg$\"; f = \"rg$\"; op = \"<\"; rangeX = 6; rangeY = 6 }"
+   }
+  },
+  {
+   "keyword": "draw",
+   "type": "Chart",
+   "label": "draw Chart",
+   "dim": "any",
+   "dual": false,
+   "hint": "пропущены обязательные поля (name, data)",
+   "fields": [
+    {
+     "name": "name",
+     "kind": "string",
+     "label": "Имя",
+     "required": true
+    },
+    {
+     "name": "data",
+     "kind": "expr",
+     "label": "Данные",
+     "required": true
+    },
+    {
+     "name": "rotate",
+     "kind": "xyz",
+     "label": "Поворот"
+    },
+    {
+     "name": "billboard",
+     "kind": "bool",
+     "default": true,
+     "label": "Всегда к камере"
+    },
+    {
+     "name": "anchor",
+     "kind": "enum",
+     "default": "world",
+     "options": [
+      "world",
+      "screen"
+     ]
+    },
+    {
+     "name": "width",
+     "kind": "number",
+     "default": 10,
+     "label": "Ширина"
+    },
+    {
+     "name": "height",
+     "kind": "number",
+     "default": 6,
+     "label": "Высота"
+    },
+    {
+     "name": "radius",
+     "kind": "number",
+     "default": 4,
+     "label": "Радиус"
+    },
+    {
+     "name": "pointSize",
+     "kind": "number",
+     "default": 4
+    },
+    {
+     "name": "color",
+     "kind": "color",
+     "default": "#4a90d9",
+     "label": "Цвет"
+    },
+    {
+     "name": "regression",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "showValues",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "showAxes",
+     "kind": "bool",
+     "default": true
+    },
+    {
+     "name": "markers",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "horizontal",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "volume",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "thickness",
+     "kind": "number",
+     "default": 1,
+     "label": "Толщина"
+    },
+    {
+     "name": "explode",
+     "kind": "number",
+     "default": 0
+    },
+    {
+     "name": "startAngle",
+     "kind": "number",
+     "default": 0
+    },
+    {
+     "name": "innerRadius",
+     "kind": "number",
+     "default": 0
+    },
+    {
+     "name": "active",
+     "kind": "bool",
+     "default": true,
+     "label": "Видимость"
+    },
+    {
+     "name": "layer",
+     "kind": "number",
+     "default": 22,
+     "label": "Слой"
+    },
+    {
+     "name": "labelSize",
+     "kind": "number",
+     "default": 1
+    },
+    {
+     "name": "labelColor",
+     "kind": "color"
+    },
+    {
+     "name": "labelOffset",
+     "kind": "number",
+     "default": 1.18
+    },
+    {
+     "name": "labelDigits",
+     "kind": "number",
+     "default": 0
+    },
+    {
+     "name": "interactive",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "labels",
+     "kind": "expr"
+    },
+    {
+     "name": "type",
+     "kind": "enum",
+     "options": [
+      "scatter",
+      "line",
+      "bar",
+      "pie",
+      "box"
+     ],
+     "label": "Вид"
+    },
+    {
+     "name": "pos",
+     "kind": "tuple",
+     "label": "Положение"
+    },
+    {
+     "name": "labelFormat",
+     "kind": "expr"
+    },
+    {
+     "name": "palette",
+     "kind": "names",
+     "label": "Палитра"
+    },
+    {
+     "name": "roughness",
+     "kind": "number"
+    },
+    {
+     "name": "metalness",
+     "kind": "number"
+    },
+    {
+     "name": "opacity",
+     "kind": "number",
+     "label": "Непрозрачность"
+    },
+    {
+     "name": "flatShading",
+     "kind": "bool"
+    },
+    {
+     "name": "segments",
+     "kind": "number",
+     "label": "Сегменты"
+    },
+    {
+     "name": "update",
+     "kind": "enum",
+     "options": [
+      "always",
+      "event",
+      "once"
+     ]
+    }
+   ],
+   "template": {
+    "code": "list cd$ = [3, 5, 2, 6, 4];\ndraw Chart { name = \"ch$\"; type = bar; data = cd$ }"
+   }
+  },
+  {
+   "keyword": "draw",
+   "type": "Tree",
+   "label": "draw Tree",
+   "dim": "any",
+   "dual": false,
+   "hint": "пропущены обязательные поля (name, data)",
+   "fields": [
+    {
+     "name": "name",
+     "kind": "string",
+     "label": "Имя",
+     "required": true
+    },
+    {
+     "name": "data",
+     "kind": "expr",
+     "label": "Данные",
+     "required": true
+    },
+    {
+     "name": "rotate",
+     "kind": "xyz",
+     "label": "Поворот"
+    },
+    {
+     "name": "billboard",
+     "kind": "bool",
+     "default": true,
+     "label": "Всегда к камере"
+    },
+    {
+     "name": "anchor",
+     "kind": "enum",
+     "default": "world",
+     "options": [
+      "world",
+      "screen"
+     ]
+    },
+    {
+     "name": "spacing",
+     "kind": "number",
+     "default": 2.2
+    },
+    {
+     "name": "levelGap",
+     "kind": "number",
+     "default": 2.2
+    },
+    {
+     "name": "nodeRadius",
+     "kind": "number",
+     "default": 11
+    },
+    {
+     "name": "color",
+     "kind": "color",
+     "label": "Цвет"
+    },
+    {
+     "name": "edgeColor",
+     "kind": "color",
+     "default": "#90a4ae"
+    },
+    {
+     "name": "labelColor",
+     "kind": "color"
+    },
+    {
+     "name": "boxed",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "panelWidth",
+     "kind": "number",
+     "default": 8
+    },
+    {
+     "name": "panelHeight",
+     "kind": "number",
+     "default": 6
+    },
+    {
+     "name": "active",
+     "kind": "bool",
+     "default": true,
+     "label": "Видимость"
+    },
+    {
+     "name": "layer",
+     "kind": "number",
+     "default": 22,
+     "label": "Слой"
+    },
+    {
+     "name": "pos",
+     "kind": "tuple",
+     "label": "Положение"
+    },
+    {
+     "name": "update",
+     "kind": "enum",
+     "options": [
+      "always",
+      "event",
+      "once"
+     ]
+    }
+   ],
+   "template": {
+    "code": "list td$ = [\"корень\", [\"A\", [\"A1\"], [\"A2\"]], [\"B\"]];\ndraw Tree { name = \"tree$\"; data = td$ }"
+   }
+  },
+  {
+   "keyword": "draw",
+   "type": "Table",
+   "label": "draw Table",
+   "dim": "any",
+   "dual": false,
+   "hint": "пропущены обязательные поля (name, data)",
+   "fields": [
+    {
+     "name": "name",
+     "kind": "string",
+     "label": "Имя",
+     "required": true
+    },
+    {
+     "name": "data",
+     "kind": "expr",
+     "label": "Данные",
+     "required": true
+    },
+    {
+     "name": "rotate",
+     "kind": "xyz",
+     "label": "Поворот"
+    },
+    {
+     "name": "billboard",
+     "kind": "bool",
+     "default": true,
+     "label": "Всегда к камере"
+    },
+    {
+     "name": "anchor",
+     "kind": "enum",
+     "default": "world",
+     "options": [
+      "world",
+      "screen"
+     ]
+    },
+    {
+     "name": "cellWidth",
+     "kind": "number",
+     "default": 3
+    },
+    {
+     "name": "cellHeight",
+     "kind": "number",
+     "default": 1.4
+    },
+    {
+     "name": "header",
+     "kind": "bool",
+     "default": true
+    },
+    {
+     "name": "borders",
+     "kind": "bool",
+     "default": true
+    },
+    {
+     "name": "color",
+     "kind": "color",
+     "label": "Цвет"
+    },
+    {
+     "name": "headerBg",
+     "kind": "color",
+     "default": "#eceff1"
+    },
+    {
+     "name": "borderColor",
+     "kind": "color",
+     "default": "#90a4ae"
+    },
+    {
+     "name": "fontSize",
+     "kind": "number",
+     "default": 1
+    },
+    {
+     "name": "panelWidth",
+     "kind": "number",
+     "default": 8
+    },
+    {
+     "name": "panelHeight",
+     "kind": "number",
+     "default": 5
+    },
+    {
+     "name": "interactive",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "active",
+     "kind": "bool",
+     "default": true,
+     "label": "Видимость"
+    },
+    {
+     "name": "layer",
+     "kind": "number",
+     "default": 22,
+     "label": "Слой"
+    },
+    {
+     "name": "pos",
+     "kind": "tuple",
+     "label": "Положение"
+    },
+    {
+     "name": "align",
+     "kind": "enum",
+     "options": [
+      "left",
+      "center",
+      "right"
+     ],
+     "label": "Выравнивание"
+    },
+    {
+     "name": "update",
+     "kind": "enum",
+     "options": [
+      "always",
+      "event",
+      "once"
+     ]
+    }
+   ],
+   "template": {
+    "code": "list tb$ = [[\"x\", \"y\"], [1, 2], [2, 4]];\ndraw Table { name = \"tab$\"; data = tb$ }"
+   }
+  },
+  {
+   "keyword": "draw",
+   "type": "Complex",
+   "label": "draw Complex",
+   "dim": "any",
+   "dual": false,
+   "hint": "пропущены обязательные поля (name, f)",
+   "fields": [
+    {
+     "name": "name",
+     "kind": "string",
+     "label": "Имя",
+     "required": true
+    },
+    {
+     "name": "f",
+     "kind": "expr",
+     "label": "Функция f",
+     "required": true
+    },
+    {
+     "name": "rotate",
+     "kind": "xyz",
+     "label": "Поворот"
+    },
+    {
+     "name": "billboard",
+     "kind": "bool",
+     "default": true,
+     "label": "Всегда к камере"
+    },
+    {
+     "name": "quality",
+     "kind": "number",
+     "default": 2,
+     "label": "Качество"
+    },
+    {
+     "name": "contours",
+     "kind": "bool",
+     "default": true
+    },
+    {
+     "name": "opacity",
+     "kind": "number",
+     "default": 1,
+     "label": "Непрозрачность"
+    },
+    {
+     "name": "active",
+     "kind": "bool",
+     "default": true,
+     "label": "Видимость"
+    },
+    {
+     "name": "layer",
+     "kind": "number",
+     "default": -90,
+     "label": "Слой"
+    },
+    {
+     "name": "panelWidth",
+     "kind": "number",
+     "default": 8
+    },
+    {
+     "name": "panelHeight",
+     "kind": "number",
+     "default": 8
+    },
+    {
+     "name": "centerRe",
+     "kind": "number",
+     "default": 0
+    },
+    {
+     "name": "centerIm",
+     "kind": "number",
+     "default": 0
+    },
+    {
+     "name": "scale",
+     "kind": "number",
+     "default": 3
+    },
+    {
+     "name": "mode",
+     "kind": "enum",
+     "options": [
+      "domain",
+      "phase",
+      "modulus"
+     ],
+     "label": "Режим"
+    },
+    {
+     "name": "pos",
+     "kind": "tuple",
+     "label": "Положение"
+    },
+    {
+     "name": "update",
+     "kind": "enum",
+     "options": [
+      "always",
+      "event",
+      "once"
+     ]
+    }
+   ],
+   "template": {
+    "code": "draw Complex { name = \"cx$\"; f = \"z^2 - 1\"; mode = domain }"
+   }
+  },
+  {
+   "keyword": "draw",
+   "type": "Hyperbolic",
+   "label": "draw Hyperbolic",
+   "dim": "any",
+   "dual": false,
+   "hint": "пропущено обязательное поле (name)",
+   "fields": [
+    {
+     "name": "name",
+     "kind": "string",
+     "label": "Имя",
+     "required": true
+    },
+    {
+     "name": "depth",
+     "kind": "number",
+     "default": 3,
+     "label": "Глубина"
+    },
+    {
+     "name": "radius",
+     "kind": "number",
+     "default": 8,
+     "label": "Радиус"
+    },
+    {
+     "name": "showBoundary",
+     "kind": "bool",
+     "default": true
+    },
+    {
+     "name": "color",
+     "kind": "color",
+     "label": "Цвет"
+    },
+    {
+     "name": "tileColor",
+     "kind": "color",
+     "default": "#5b8db8"
+    },
+    {
+     "name": "thickness",
+     "kind": "number",
+     "default": 1.4,
+     "label": "Толщина"
+    },
+    {
+     "name": "active",
+     "kind": "bool",
+     "default": true,
+     "label": "Видимость"
+    },
+    {
+     "name": "layer",
+     "kind": "number",
+     "default": 12,
+     "label": "Слой"
+    },
+    {
+     "name": "geodesics",
+     "kind": "expr"
+    },
+    {
+     "name": "points",
+     "kind": "expr",
+     "label": "Точки"
+    },
+    {
+     "name": "model",
+     "kind": "enum",
+     "options": [
+      "disk",
+      "halfplane",
+      "ball",
+      "halfspace"
+     ]
+    },
+    {
+     "name": "tiling",
+     "kind": "expr"
+    },
+    {
+     "name": "pos",
+     "kind": "tuple",
+     "label": "Положение"
+    },
+    {
+     "name": "update",
+     "kind": "enum",
+     "options": [
+      "always",
+      "event",
+      "once"
+     ]
+    }
+   ],
+   "template": {
+    "code": "draw Hyperbolic { name = \"hyp$\"; model = disk; radius = 5 }"
+   }
+  },
+  {
+   "keyword": "draw",
+   "type": "Bifurcation",
+   "label": "draw Bifurcation",
+   "dim": "any",
+   "dual": false,
+   "hint": "пропущены обязательные поля (name, f)",
+   "fields": [
+    {
+     "name": "name",
+     "kind": "string",
+     "label": "Имя",
+     "required": true
+    },
+    {
+     "name": "f",
+     "kind": "expr",
+     "label": "Функция f",
+     "required": true
+    },
+    {
+     "name": "rotate",
+     "kind": "xyz",
+     "label": "Поворот"
+    },
+    {
+     "name": "billboard",
+     "kind": "bool",
+     "default": true,
+     "label": "Всегда к камере"
+    },
+    {
+     "name": "anchor",
+     "kind": "enum",
+     "default": "world",
+     "options": [
+      "world",
+      "screen"
+     ]
+    },
+    {
+     "name": "rmin",
+     "kind": "number",
+     "default": 2.4
+    },
+    {
+     "name": "rmax",
+     "kind": "number",
+     "default": 4
+    },
+    {
+     "name": "ymin",
+     "kind": "number",
+     "default": 0,
+     "label": "y от"
+    },
+    {
+     "name": "ymax",
+     "kind": "number",
+     "default": 1,
+     "label": "y до"
+    },
+    {
+     "name": "x0",
+     "kind": "number",
+     "default": 0.5
+    },
+    {
+     "name": "skip",
+     "kind": "number",
+     "default": 200
+    },
+    {
+     "name": "keep",
+     "kind": "number",
+     "default": 120
+    },
+    {
+     "name": "quality",
+     "kind": "number",
+     "default": 2,
+     "label": "Качество"
+    },
+    {
+     "name": "color",
+     "kind": "color",
+     "default": "#1a237e",
+     "label": "Цвет"
+    },
+    {
+     "name": "active",
+     "kind": "bool",
+     "default": true,
+     "label": "Видимость"
+    },
+    {
+     "name": "layer",
+     "kind": "number",
+     "default": 15,
+     "label": "Слой"
+    },
+    {
+     "name": "panelWidth",
+     "kind": "number",
+     "default": 8
+    },
+    {
+     "name": "panelHeight",
+     "kind": "number",
+     "default": 5
+    },
+    {
+     "name": "pos",
+     "kind": "tuple",
+     "label": "Положение"
+    },
+    {
+     "name": "box",
+     "kind": "tuple"
+    },
+    {
+     "name": "update",
+     "kind": "enum",
+     "options": [
+      "always",
+      "event",
+      "once"
+     ]
+    }
+   ],
+   "template": {
+    "code": "func bf$(r, x) = r * x * (1 - x);\ndraw Bifurcation { name = \"bif$\"; f = \"bf$\"; rmin = 2.5; rmax = 4 }"
+   }
+  },
+  {
+   "keyword": "draw",
+   "type": "Cobweb",
+   "label": "draw Cobweb",
+   "dim": "any",
+   "dual": false,
+   "hint": "пропущены обязательные поля (name, f)",
+   "fields": [
+    {
+     "name": "name",
+     "kind": "string",
+     "label": "Имя",
+     "required": true
+    },
+    {
+     "name": "f",
+     "kind": "expr",
+     "label": "Функция f",
+     "required": true
+    },
+    {
+     "name": "rotate",
+     "kind": "xyz",
+     "label": "Поворот"
+    },
+    {
+     "name": "billboard",
+     "kind": "bool",
+     "default": true,
+     "label": "Всегда к камере"
+    },
+    {
+     "name": "anchor",
+     "kind": "enum",
+     "default": "world",
+     "options": [
+      "world",
+      "screen"
+     ]
+    },
+    {
+     "name": "steps",
+     "kind": "number",
+     "default": 40
+    },
+    {
+     "name": "xmin",
+     "kind": "number",
+     "default": 0,
+     "label": "x от"
+    },
+    {
+     "name": "xmax",
+     "kind": "number",
+     "default": 1,
+     "label": "x до"
+    },
+    {
+     "name": "color",
+     "kind": "color",
+     "default": "#c62828",
+     "label": "Цвет"
+    },
+    {
+     "name": "curveColor",
+     "kind": "color",
+     "default": "#1565c0"
+    },
+    {
+     "name": "showDiagonal",
+     "kind": "bool",
+     "default": true
+    },
+    {
+     "name": "active",
+     "kind": "bool",
+     "default": true,
+     "label": "Видимость"
+    },
+    {
+     "name": "layer",
+     "kind": "number",
+     "default": 16,
+     "label": "Слой"
+    },
+    {
+     "name": "panelWidth",
+     "kind": "number",
+     "default": 6
+    },
+    {
+     "name": "panelHeight",
+     "kind": "number",
+     "default": 6
+    },
+    {
+     "name": "x0",
+     "kind": "expr"
+    },
+    {
+     "name": "pos",
+     "kind": "tuple",
+     "label": "Положение"
+    },
+    {
+     "name": "update",
+     "kind": "enum",
+     "options": [
+      "always",
+      "event",
+      "once"
+     ]
+    }
+   ],
+   "template": {
+    "code": "func cw$(x) = 3.2 * x * (1 - x);\ndraw Cobweb { name = \"cob$\"; f = \"cw$\"; x0 = 0.2 }"
+   }
+  },
+  {
+   "keyword": "draw",
+   "type": "IFS",
+   "label": "draw IFS",
+   "dim": "any",
+   "dual": false,
+   "hint": "пропущены обязательные поля (name, maps)",
+   "fields": [
+    {
+     "name": "name",
+     "kind": "string",
+     "label": "Имя",
+     "required": true
+    },
+    {
+     "name": "maps",
+     "kind": "expr",
+     "required": true
+    },
+    {
+     "name": "iterations",
+     "kind": "number",
+     "default": 40000
+    },
+    {
+     "name": "color",
+     "kind": "color",
+     "default": "#1b5e20",
+     "label": "Цвет"
+    },
+    {
+     "name": "pointSize",
+     "kind": "number",
+     "default": 1
+    },
+    {
+     "name": "active",
+     "kind": "bool",
+     "default": true,
+     "label": "Видимость"
+    },
+    {
+     "name": "layer",
+     "kind": "number",
+     "default": 14,
+     "label": "Слой"
+    },
+    {
+     "name": "scale",
+     "kind": "number",
+     "default": 1
+    },
+    {
+     "name": "pos",
+     "kind": "tuple",
+     "label": "Положение"
+    },
+    {
+     "name": "update",
+     "kind": "enum",
+     "options": [
+      "always",
+      "event",
+      "once"
+     ]
+    }
+   ],
+   "template": {
+    "code": "list im$ = [[0.5, 0, 0, 0.5, 0, 0], [0.5, 0, 0, 0.5, 0.5, 0], [0.5, 0, 0, 0.5, 0.25, 0.5]];\ndraw IFS { name = \"ifs$\"; maps = im$; iterations = 20000 }"
+   }
+  },
+  {
+   "keyword": "draw",
+   "type": "Automaton",
+   "label": "draw Automaton",
+   "dim": "any",
+   "dual": false,
+   "hint": "пропущено обязательное поле (name)",
+   "fields": [
+    {
+     "name": "name",
+     "kind": "string",
+     "label": "Имя",
+     "required": true
+    },
+    {
+     "name": "rotate",
+     "kind": "xyz",
+     "label": "Поворот"
+    },
+    {
+     "name": "billboard",
+     "kind": "bool",
+     "default": true,
+     "label": "Всегда к камере"
+    },
+    {
+     "name": "anchor",
+     "kind": "enum",
+     "default": "world",
+     "options": [
+      "world",
+      "screen"
+     ]
+    },
+    {
+     "name": "rule",
+     "kind": "number",
+     "default": 30
+    },
+    {
+     "name": "cells",
+     "kind": "number",
+     "default": 101
+    },
+    {
+     "name": "steps",
+     "kind": "number",
+     "default": 60
+    },
+    {
+     "name": "cellSize",
+     "kind": "number",
+     "default": 0.25
+    },
+    {
+     "name": "color",
+     "kind": "color",
+     "label": "Цвет"
+    },
+    {
+     "name": "active",
+     "kind": "bool",
+     "default": true,
+     "label": "Видимость"
+    },
+    {
+     "name": "layer",
+     "kind": "number",
+     "default": 16,
+     "label": "Слой"
+    },
+    {
+     "name": "panelWidth",
+     "kind": "number",
+     "default": 8
+    },
+    {
+     "name": "panelHeight",
+     "kind": "number",
+     "default": 8
+    },
+    {
+     "name": "init",
+     "kind": "expr"
+    },
+    {
+     "name": "generation",
+     "kind": "expr"
+    },
+    {
+     "name": "type",
+     "kind": "enum",
+     "options": [
+      "elementary",
+      "life"
+     ],
+     "label": "Вид"
+    },
+    {
+     "name": "pos",
+     "kind": "tuple",
+     "label": "Положение"
+    },
+    {
+     "name": "update",
+     "kind": "enum",
+     "options": [
+      "always",
+      "event",
+      "once"
+     ]
+    }
+   ],
+   "template": {
+    "code": "draw Automaton { name = \"aut$\"; type = elementary; rule = 30 }"
+   }
+  },
+  {
+   "keyword": "draw",
+   "type": "Voronoi",
+   "label": "draw Voronoi",
+   "dim": "any",
+   "dual": false,
+   "hint": "пропущено обязательное поле (name)",
+   "fields": [
+    {
+     "name": "name",
+     "kind": "string",
+     "label": "Имя",
+     "required": true
+    },
+    {
+     "name": "quality",
+     "kind": "number",
+     "default": 3,
+     "label": "Качество"
+    },
+    {
+     "name": "color",
+     "kind": "color",
+     "label": "Цвет"
+    },
+    {
+     "name": "showSites",
+     "kind": "bool",
+     "default": true
+    },
+    {
+     "name": "filled",
+     "kind": "bool",
+     "default": true
+    },
+    {
+     "name": "opacity",
+     "kind": "number",
+     "default": 0.45,
+     "label": "Непрозрачность"
+    },
+    {
+     "name": "active",
+     "kind": "bool",
+     "default": true,
+     "label": "Видимость"
+    },
+    {
+     "name": "layer",
+     "kind": "number",
+     "default": 8,
+     "label": "Слой"
+    },
+    {
+     "name": "rangeX",
+     "kind": "number",
+     "default": 8
+    },
+    {
+     "name": "rangeY",
+     "kind": "number",
+     "default": 8
+    },
+    {
+     "name": "rangeZ",
+     "kind": "number",
+     "default": 8
+    },
+    {
+     "name": "resolution",
+     "kind": "number",
+     "default": 18
+    },
+    {
+     "name": "sites",
+     "kind": "expr"
+    },
+    {
+     "name": "mode",
+     "kind": "enum",
+     "options": [
+      "voronoi",
+      "delaunay",
+      "hull"
+     ],
+     "label": "Режим"
+    },
+    {
+     "name": "pos",
+     "kind": "tuple",
+     "label": "Положение"
+    },
+    {
+     "name": "update",
+     "kind": "enum",
+     "options": [
+      "always",
+      "event",
+      "once"
+     ]
+    }
+   ],
+   "template": {
+    "code": "list vs$ = [[-3, -2], [2, -1], [0, 3], [4, 2]];\ndraw Voronoi { name = \"vor$\"; sites = vs$; mode = voronoi }"
+   }
+  },
+  {
+   "keyword": "draw",
+   "type": "Fourier",
+   "label": "draw Fourier",
+   "dim": "2D",
+   "dual": false,
+   "hint": "пропущены обязательные поля (name, path)",
+   "fields": [
+    {
+     "name": "name",
+     "kind": "string",
+     "label": "Имя",
+     "required": true
+    },
+    {
+     "name": "path",
+     "kind": "expr",
+     "required": true
+    },
+    {
+     "name": "terms",
+     "kind": "number",
+     "default": 24
+    },
+    {
+     "name": "speed",
+     "kind": "number",
+     "default": 0.25
+    },
+    {
+     "name": "showCircles",
+     "kind": "bool",
+     "default": true
+    },
+    {
+     "name": "color",
+     "kind": "color",
+     "default": "#ad1457",
+     "label": "Цвет"
+    },
+    {
+     "name": "circleColor",
+     "kind": "color",
+     "default": "#9e9e9e"
+    },
+    {
+     "name": "active",
+     "kind": "bool",
+     "default": true,
+     "label": "Видимость"
+    },
+    {
+     "name": "layer",
+     "kind": "number",
+     "default": 24,
+     "label": "Слой"
+    },
+    {
+     "name": "update",
+     "kind": "enum",
+     "options": [
+      "always",
+      "event",
+      "once"
+     ]
+    }
+   ],
+   "template": {
+    "code": "list fp$ = [[3, 0], [0, 3], [-3, 0], [0, -3]];\ndraw Fourier { name = \"fou$\"; path = fp$; terms = 16 }"
+   }
+  },
+  {
+   "keyword": "draw",
+   "type": "Diagram",
+   "label": "draw Diagram",
+   "dim": "2D",
+   "dual": false,
+   "hint": "пропущены обязательные поля (name, nodes)",
+   "fields": [
+    {
+     "name": "name",
+     "kind": "string",
+     "label": "Имя",
+     "required": true
+    },
+    {
+     "name": "nodes",
+     "kind": "expr",
+     "required": true
+    },
+    {
+     "name": "anchor",
+     "kind": "enum",
+     "default": "world",
+     "options": [
+      "world",
+      "screen"
+     ]
+    },
+    {
+     "name": "nodeRadius",
+     "kind": "number",
+     "default": 14
+    },
+    {
+     "name": "boxed",
+     "kind": "bool",
+     "default": false
+    },
+    {
+     "name": "curved",
+     "kind": "bool",
+     "default": true
+    },
+    {
+     "name": "color",
+     "kind": "color",
+     "label": "Цвет"
+    },
+    {
+     "name": "arrowColor",
+     "kind": "color"
+    },
+    {
+     "name": "labelColor",
+     "kind": "color"
+    },
+    {
+     "name": "active",
+     "kind": "bool",
+     "default": true,
+     "label": "Видимость"
+    },
+    {
+     "name": "layer",
+     "kind": "number",
+     "default": 24,
+     "label": "Слой"
+    },
+    {
+     "name": "arrows",
+     "kind": "expr"
+    },
+    {
+     "name": "accepting",
+     "kind": "expr"
+    },
+    {
+     "name": "update",
+     "kind": "enum",
+     "options": [
+      "always",
+      "event",
+      "once"
+     ]
+    }
+   ],
+   "template": {
+    "code": "list dn$ = [[\"q0\", -4, 0], [\"q1\", 0, 0], [\"q2\", 4, 0]];\nlist da$ = [[\"q0\", \"q1\", \"a\"], [\"q1\", \"q2\", \"b\"]];\ndraw Diagram { name = \"dia$\"; nodes = dn$; arrows = da$ }"
+   }
+  },
+  {
+   "keyword": "draw",
+   "type": "TensorField",
+   "label": "draw TensorField",
+   "dim": "3D",
+   "dual": false,
+   "hint": "пропущены обязательные поля (name, Txx, Tyy, Tzz)",
+   "fields": [
+    {
+     "name": "name",
+     "kind": "string",
+     "label": "Имя",
+     "required": true
+    },
+    {
+     "name": "Txx",
+     "kind": "expr",
+     "required": true
+    },
+    {
+     "name": "Tyy",
+     "kind": "expr",
+     "required": true
+    },
+    {
+     "name": "Tzz",
+     "kind": "expr",
+     "required": true
+    },
+    {
+     "name": "xmin",
+     "kind": "number",
+     "default": -10,
+     "label": "x от"
+    },
+    {
+     "name": "xmax",
+     "kind": "number",
+     "default": 10,
+     "label": "x до"
+    },
+    {
+     "name": "ymin",
+     "kind": "number",
+     "default": -10,
+     "label": "y от"
+    },
+    {
+     "name": "ymax",
+     "kind": "number",
+     "default": 10,
+     "label": "y до"
+    },
+    {
+     "name": "zmin",
+     "kind": "number",
+     "default": -10,
+     "label": "z от"
+    },
+    {
+     "name": "zmax",
+     "kind": "number",
+     "default": 10,
+     "label": "z до"
+    },
+    {
+     "name": "grid",
+     "kind": "number",
+     "default": 4,
+     "label": "Сетка"
+    },
+    {
+     "name": "scale",
+     "kind": "number",
+     "default": 1
+    },
+    {
+     "name": "color",
+     "kind": "color",
+     "default": "#4a90d9",
+     "label": "Цвет"
+    },
+    {
+     "name": "active",
+     "kind": "bool",
+     "default": true,
+     "label": "Видимость"
+    },
+    {
+     "name": "layer",
+     "kind": "number",
+     "default": 10,
+     "label": "Слой"
+    },
+    {
+     "name": "colorBy",
+     "kind": "enum",
+     "options": [
+      "none",
+      "trace"
+     ]
+    },
+    {
+     "name": "Txy",
+     "kind": "expr"
+    },
+    {
+     "name": "Txz",
+     "kind": "expr"
+    },
+    {
+     "name": "Tyz",
+     "kind": "expr"
+    },
+    {
+     "name": "update",
+     "kind": "enum",
+     "options": [
+      "always",
+      "event",
+      "once"
+     ]
+    }
+   ],
+   "template": {
+    "code": "draw TensorField { name = \"ten$\"; Txx = \"1\"; Tyy = \"0.5\"; Tzz = \"0.3\"; grid = 3 }"
+   }
+  },
+  {
+   "keyword": "draw",
+   "type": "Scatter3D",
+   "label": "draw Scatter3D",
+   "dim": "3D",
+   "dual": false,
+   "hint": "пропущено обязательное поле (name, data)",
+   "fields": [
+    {
+     "name": "name",
+     "kind": "string",
+     "label": "Имя",
+     "required": true
+    },
+    {
+     "name": "data",
+     "kind": "expr",
+     "label": "Данные",
+     "required": true
+    },
+    {
+     "name": "pos",
+     "kind": "xyz",
+     "label": "Положение"
+    },
+    {
+     "name": "pointSize",
+     "kind": "number",
+     "default": 0.25
+    },
+    {
+     "name": "color",
+     "kind": "color",
+     "default": "#4a90d9",
+     "label": "Цвет"
+    },
+    {
+     "name": "showBox",
+     "kind": "bool",
+     "default": true
+    },
+    {
+     "name": "active",
+     "kind": "bool",
+     "default": true,
+     "label": "Видимость"
+    },
+    {
+     "name": "layer",
+     "kind": "number",
+     "default": 20,
+     "label": "Слой"
+    },
+    {
+     "name": "colorBy",
+     "kind": "enum",
+     "options": [
+      "none",
+      "value",
+      "z"
+     ]
+    },
+    {
+     "name": "shape",
+     "kind": "enum",
+     "options": [
+      "sphere",
+      "cube",
+      "box",
+      "octahedron",
+      "tetrahedron",
+      "icosahedron",
+      "flat",
+      "point"
+     ]
+    },
+    {
+     "name": "palette",
+     "kind": "names",
+     "label": "Палитра"
+    },
+    {
+     "name": "roughness",
+     "kind": "number"
+    },
+    {
+     "name": "metalness",
+     "kind": "number"
+    },
+    {
+     "name": "opacity",
+     "kind": "number",
+     "label": "Непрозрачность"
+    },
+    {
+     "name": "flatShading",
+     "kind": "bool"
+    },
+    {
+     "name": "segments",
+     "kind": "number",
+     "label": "Сегменты"
+    }
+   ],
+   "template": {
+    "code": "list sd$ = [[0, 0, 0], [1, 2, 1], [2, 1, 3], [-1, 1, -2]];\ndraw Scatter3D { name = \"sc$\"; data = sd$ }"
+   }
+  },
+  {
+   "keyword": "draw",
+   "type": "Histogram3D",
+   "label": "draw Histogram3D",
+   "dim": "3D",
+   "dual": false,
+   "hint": "пропущено обязательное поле (name, data)",
+   "fields": [
+    {
+     "name": "name",
+     "kind": "string",
+     "label": "Имя",
+     "required": true
+    },
+    {
+     "name": "data",
+     "kind": "expr",
+     "label": "Данные",
+     "required": true
+    },
+    {
+     "name": "binsX",
+     "kind": "number",
+     "default": 8
+    },
+    {
+     "name": "binsY",
+     "kind": "number",
+     "default": 8
+    },
+    {
+     "name": "pos",
+     "kind": "xyz",
+     "label": "Положение"
+    },
+    {
+     "name": "width",
+     "kind": "number",
+     "default": 10,
+     "label": "Ширина"
+    },
+    {
+     "name": "depth",
+     "kind": "number",
+     "default": 10,
+     "label": "Глубина"
+    },
+    {
+     "name": "heightScale",
+     "kind": "number",
+     "default": 5
+    },
+    {
+     "name": "xmin",
+     "kind": "number",
+     "label": "x от"
+    },
+    {
+     "name": "xmax",
+     "kind": "number",
+     "label": "x до"
+    },
+    {
+     "name": "ymin",
+     "kind": "number",
+     "label": "y от"
+    },
+    {
+     "name": "ymax",
+     "kind": "number",
+     "label": "y до"
+    },
+    {
+     "name": "color",
+     "kind": "color",
+     "default": "#4a90d9",
+     "label": "Цвет"
+    },
+    {
+     "name": "showAxes",
+     "kind": "bool",
+     "default": true
+    },
+    {
+     "name": "active",
+     "kind": "bool",
+     "default": true,
+     "label": "Видимость"
+    },
+    {
+     "name": "layer",
+     "kind": "number",
+     "default": 20,
+     "label": "Слой"
+    },
+    {
+     "name": "colorBy",
+     "kind": "enum",
+     "options": [
+      "none",
+      "count"
+     ]
+    },
+    {
+     "name": "palette",
+     "kind": "names",
+     "label": "Палитра"
+    },
+    {
+     "name": "roughness",
+     "kind": "number"
+    },
+    {
+     "name": "metalness",
+     "kind": "number"
+    },
+    {
+     "name": "opacity",
+     "kind": "number",
+     "label": "Непрозрачность"
+    },
+    {
+     "name": "flatShading",
+     "kind": "bool"
+    },
+    {
+     "name": "segments",
+     "kind": "number",
+     "label": "Сегменты"
+    }
+   ],
+   "template": {
+    "code": "list hd$ = [[0, 0], [1, 1], [1, 2], [2, 2], [2, 1]];\ndraw Histogram3D { name = \"h3$\"; data = hd$ }"
+   }
+  }
+ ],
+ "scene": [
+  {
+   "key": "description",
+   "kind": "text",
+   "group": "Описание"
+  },
+  {
+   "key": "description align",
+   "kind": "enum",
+   "group": "Описание",
+   "options": [
+    "left",
+    "center",
+    "right"
+   ]
+  },
+  {
+   "key": "can rotate camera",
+   "kind": "bool",
+   "group": "Камера"
+  },
+  {
+   "key": "can zoom camera",
+   "kind": "bool",
+   "group": "Камера"
+  },
+  {
+   "key": "zoom limits",
+   "kind": "tuple",
+   "group": "Камера"
+  },
+  {
+   "key": "camera start zoom",
+   "kind": "number",
+   "group": "Камера"
+  },
+  {
+   "key": "camera start rot",
+   "kind": "tuple",
+   "group": "Камера"
+  },
+  {
+   "key": "camera zoom limits",
+   "kind": "tuple",
+   "group": "Камера"
+  },
+  {
+   "key": "camera start offset",
+   "kind": "tuple",
+   "group": "Камера"
+  },
+  {
+   "key": "camera type",
+   "kind": "enum",
+   "group": "Камера",
+   "options": [
+    "fixed",
+    "pan",
+    "orbit"
+   ]
+  },
+  {
+   "key": "camera projection",
+   "kind": "qenum",
+   "group": "Камера",
+   "options": [
+    "perspective",
+    "orthographic"
+   ]
+  },
+  {
+   "key": "camera fov",
+   "kind": "number",
+   "group": "Камера"
+  },
+  {
+   "key": "camera near",
+   "kind": "number",
+   "group": "Камера"
+  },
+  {
+   "key": "camera far",
+   "kind": "number",
+   "group": "Камера"
+  },
+  {
+   "key": "field width",
+   "kind": "number",
+   "group": "Поле"
+  },
+  {
+   "key": "field height",
+   "kind": "number",
+   "group": "Поле"
+  },
+  {
+   "key": "field depth",
+   "kind": "number",
+   "group": "Поле"
+  },
+  {
+   "key": "field color",
+   "kind": "color",
+   "group": "Поле"
+  },
+  {
+   "key": "frame color",
+   "kind": "color",
+   "group": "Поле"
+  },
+  {
+   "key": "frame width",
+   "kind": "number",
+   "group": "Поле"
+  },
+  {
+   "key": "description color",
+   "kind": "color",
+   "group": "Описание"
+  },
+  {
+   "key": "description size",
+   "kind": "number",
+   "group": "Описание"
+  },
+  {
+   "key": "theme",
+   "kind": "enum",
+   "group": "Песочница",
+   "options": [
+    "light",
+    "dark",
+    "auto"
+   ]
+  },
+  {
+   "key": "show axes",
+   "kind": "bool",
+   "group": "Оси и сетка"
+  },
+  {
+   "key": "show axis x",
+   "kind": "bool",
+   "group": "Оси и сетка"
+  },
+  {
+   "key": "show axis y",
+   "kind": "bool",
+   "group": "Оси и сетка"
+  },
+  {
+   "key": "show axis z",
+   "kind": "bool",
+   "group": "Оси и сетка"
+  },
+  {
+   "key": "axes size",
+   "kind": "number",
+   "group": "Оси и сетка"
+  },
+  {
+   "key": "show grid",
+   "kind": "bool",
+   "group": "Оси и сетка"
+  },
+  {
+   "key": "show grid x",
+   "kind": "bool",
+   "group": "Оси и сетка"
+  },
+  {
+   "key": "show grid y",
+   "kind": "bool",
+   "group": "Оси и сетка"
+  },
+  {
+   "key": "show grid z",
+   "kind": "bool",
+   "group": "Оси и сетка"
+  },
+  {
+   "key": "grid size",
+   "kind": "number",
+   "group": "Оси и сетка"
+  },
+  {
+   "key": "grid color",
+   "kind": "qcolor",
+   "group": "Оси и сетка"
+  },
+  {
+   "key": "axes color",
+   "kind": "qcolor",
+   "group": "Оси и сетка"
+  },
+  {
+   "key": "grid adaptive",
+   "kind": "bool",
+   "group": "Оси и сетка"
+  },
+  {
+   "key": "2D layer",
+   "kind": "string",
+   "group": "Прочее"
+  },
+  {
+   "key": "show boundary",
+   "kind": "bool",
+   "group": "Прочее"
+  },
+  {
+   "key": "boundary color",
+   "kind": "qcolor",
+   "group": "Прочее"
+  },
+  {
+   "key": "snap",
+   "kind": "bool",
+   "group": "Привязка"
+  },
+  {
+   "key": "snap grid",
+   "kind": "number",
+   "group": "Оси и сетка"
+  },
+  {
+   "key": "snap distance",
+   "kind": "number",
+   "group": "Привязка"
+  },
+  {
+   "key": "steps animation",
+   "kind": "enum",
+   "group": "Шаги",
+   "options": [
+    "fade",
+    "slide",
+    "scale",
+    "none"
+   ]
+  },
+  {
+   "key": "steps duration",
+   "kind": "number",
+   "group": "Шаги"
+  },
+  {
+   "key": "drag smoothing",
+   "kind": "number",
+   "group": "Песочница"
+  },
+  {
+   "key": "show description",
+   "kind": "bool",
+   "group": "Описание"
+  },
+  {
+   "key": "ui position",
+   "kind": "enum",
+   "group": "Песочница",
+   "options": [
+    "bottom",
+    "top",
+    "left",
+    "right",
+    "overlay"
+   ]
+  },
+  {
+   "key": "ui align",
+   "kind": "enum",
+   "group": "Песочница",
+   "options": [
+    "start",
+    "center",
+    "end"
+   ]
+  },
+  {
+   "key": "background",
+   "kind": "color",
+   "group": "Поле"
+  },
+  {
+   "key": "scene padding",
+   "kind": "number",
+   "group": "Поле"
+  },
+  {
+   "key": "frame radius",
+   "kind": "number",
+   "group": "Поле"
+  },
+  {
+   "key": "scene aspect",
+   "kind": "tuple",
+   "group": "Поле"
+  },
+  {
+   "key": "scene max width",
+   "kind": "number",
+   "group": "Поле"
+  }
+ ]
+}
