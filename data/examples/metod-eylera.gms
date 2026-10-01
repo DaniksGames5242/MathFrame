@@ -15,7 +15,7 @@ draw Function { name = "gEx"; f = "exact"; xmin = -8; xmax = 8; segments = 400; 
 draw Graph { name = "gEu"; graph = "ge"; nodeColor = #f59e0b; edgeColor = #f59e0b; nodeRadius = 4; labels = false; interactive = false; showWeights = false; layer = 30 }
 new Point { name = "M0"; pos = (-7, 3); text = true("M₀"); pauseOnDrag = false; layer = 60 }
 
-new UI { name = "sEq"; type = select; label = "уравнение"; variable = eq; options = ("lin", "exp", "gauss"); labels = ("y′ = x − y", "y′ = 0.3y", "y′ = −xy/2"); default = "lin" }
+new UI { name = "sEq"; type = select; label = "уравнение"; variable = eq; options = ("lin", "exp", "gauss"); labels = ("y′ = x − y", "y′ = 0,3y", "y′ = −xy/2"); default = "lin" }
 new UI { name = "sH"; type = slider; label = "шаг h"; variable = h; min = 0.1; max = 2; step = 0.05; default = 0.6 }
 
 // ---- Логика ----

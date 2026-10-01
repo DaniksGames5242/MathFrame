@@ -23,7 +23,7 @@ draw Text { name = "z4"; pos = (zx(4), -4.4); text = "4"; size = 0.9 }
 draw Graph { name = "gOne"; graph = "g1"; edgeColor = #22c55e; edgeWidth = 8; nodeRadius = 0; labels = false; interactive = false; showWeights = false; layer = 10 }
 draw Text { name = "one"; pos = (-5.9, 4.5); text = "одно слагаемое X"; size = 0.9; color = #22c55e }
 
-new UI { name = "sD"; type = select; label = "X"; variable = dist; options = ("die", "skew", "coin", "two"); labels = ("честная кость 1…6", "кость с перекосом", "0/1 с P(1) = 0.1", "только 1 или 6"); default = "skew" }
+new UI { name = "sD"; type = select; label = "X"; variable = dist; options = ("die", "skew", "coin", "two"); labels = ("честная кость 1…6", "кость с перекосом", "0/1 с P(1) = 0,1", "только 1 или 6"); default = "skew" }
 new UI { name = "sN"; type = slider; label = "n"; variable = n; min = 1; max = 40; step = 1; default = 3 }
 
 // ---- Логика ----

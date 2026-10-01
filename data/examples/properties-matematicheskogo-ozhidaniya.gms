@@ -17,12 +17,12 @@ draw Graph { name = "gEZ"; graph = "gez"; edgeColor = #22c55e; edgeWidth = 3; no
 draw Text { name = "lx"; pos = (-7.7, 4.6); text = "X"; size = 1; align = left; color = #3b82f6 }
 draw Text { name = "ly"; pos = (-6.9, 4.6); text = "Y"; size = 1; align = left; color = #f59e0b }
 draw Text { name = "lz"; pos = (-6.1, 4.6); text = "aX + bY"; size = 1; align = left; color = #22c55e }
-draw Text { name = "p0"; pos = (-6.5, -4.6); text = "ω₁  p = 0.10"; size = 0.85 }
-draw Text { name = "p1"; pos = (-3.9, -4.6); text = "ω₂  p = 0.20"; size = 0.85 }
-draw Text { name = "p2"; pos = (-1.3, -4.6); text = "ω₃  p = 0.25"; size = 0.85 }
-draw Text { name = "p3"; pos = (1.3, -4.6); text = "ω₄  p = 0.20"; size = 0.85 }
-draw Text { name = "p4"; pos = (3.9, -4.6); text = "ω₅  p = 0.15"; size = 0.85 }
-draw Text { name = "p5"; pos = (6.5, -4.6); text = "ω₆  p = 0.10"; size = 0.85 }
+draw Text { name = "p0"; pos = (-6.5, -4.6); text = "ω₁  p = 0,10"; size = 0.85 }
+draw Text { name = "p1"; pos = (-3.9, -4.6); text = "ω₂  p = 0,20"; size = 0.85 }
+draw Text { name = "p2"; pos = (-1.3, -4.6); text = "ω₃  p = 0,25"; size = 0.85 }
+draw Text { name = "p3"; pos = (1.3, -4.6); text = "ω₄  p = 0,20"; size = 0.85 }
+draw Text { name = "p4"; pos = (3.9, -4.6); text = "ω₅  p = 0,15"; size = 0.85 }
+draw Text { name = "p5"; pos = (6.5, -4.6); text = "ω₆  p = 0,10"; size = 0.85 }
 new Point { name = "X0"; pos = (-7.05, 2.0); pauseOnDrag = false; collision = false; color = #3b82f6 }
 new Point { name = "Y0"; pos = (-5.95, 1.0); pauseOnDrag = false; collision = false; color = #f59e0b }
 new Point { name = "X1"; pos = (-4.45, -1.0); pauseOnDrag = false; collision = false; color = #3b82f6 }

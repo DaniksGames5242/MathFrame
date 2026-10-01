@@ -1419,6 +1419,13 @@ function injectSettingsModal() {
           <input type="checkbox" class="st-switch-input" id="anim-toggle-settings" />
           <span class="st-switch" aria-hidden="true"></span>
         </label>
+        <div class="st-row st-row-lang">
+          <span class="st-row-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/></svg></span>
+          <span class="st-row-text"><b>Язык</b><small>Пока влияет на запись чисел в интерактивных примерах: 2,5 (русский) или 2.5 (английский)</small></span>
+          <span class="st-seg" id="st-lang" role="radiogroup" aria-label="Язык">
+            <button type="button" role="radio" data-lang="ru">Русский</button><button type="button" role="radio" data-lang="en">English</button>
+          </span>
+        </div>
       </section>
 
       <section class="st-section" aria-labelledby="st-acc">
@@ -1494,6 +1501,19 @@ function injectSettingsModal() {
         btn.disabled = true; btn.classList.add('is-busy');
         try { await fn(); } finally { btn.disabled = false; btn.classList.remove('is-busy'); }
     }
+
+    // ===== Язык (mf-lang): пока — десятичный разделитель в сценах GMS =====
+    const langBox = $('st-lang');
+    const getLang = () => { try { return localStorage.getItem('mf-lang') === 'en' ? 'en' : 'ru'; } catch (e) { return 'ru'; } };
+    const paintLang = () => langBox.querySelectorAll('[data-lang]').forEach(b => { const on = b.dataset.lang === getLang(); b.classList.toggle('on', on); b.setAttribute('aria-checked', String(on)); });
+    paintLang();
+    langBox.addEventListener('click', (e) => {
+        const b = e.target.closest('[data-lang]'); if (!b || b.dataset.lang === getLang()) return;
+        try { localStorage.setItem('mf-lang', b.dataset.lang); } catch (er) {}
+        document.documentElement.lang = b.dataset.lang;
+        paintLang();
+        say(b.dataset.lang === 'en' ? 'Числа в примерах — с точкой (2.5). Откройте пример заново, чтобы увидеть.' : 'Числа в примерах — с запятой (2,5). Откройте пример заново, чтобы увидеть.', 'ok');
+    });
 
     // ===== Тема =====
     modal.querySelectorAll('#theme-selector-settings .st-theme').forEach(btn => {

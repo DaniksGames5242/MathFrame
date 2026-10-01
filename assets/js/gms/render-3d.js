@@ -2194,7 +2194,7 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             // a = radians(alpha) давало NaN, и всё, что от него зависело (точки, плоскости),
             // молча превращалось в NaN.
             '    radians: function(deg) { return deg * Math.PI / 180; }, degrees: function(rad) { return rad * 180 / Math.PI; },\n',
-            '    format: function(x, d) { return (typeof x === \'number\' && isFinite(x)) ? x.toFixed(d === undefined ? 2 : d) : String(x); },\n',
+            '    format: function(x, d) { if (!(typeof x === \'number\' && isFinite(x))) return String(x); var t = x.toFixed(d === undefined ? 2 : d); var sep; try { sep = localStorage.getItem(\'mf-lang\') === \'en\' ? \'.\' : \',\'; } catch (e) { sep = \',\'; } return sep === \',\' ? t.replace(\'.\', \',\') : t; },\n',
             '    // === Массивы/статистика/случайные числа (портировано из GL_BUILTINS в 2D — раньше\n',
             '    // отсутствовали в 3D вовсе, поэтому range/randomNormal/push и т.п. в Start/Update тихо\n',
             '    // возвращали NaN, и циклы генерации данных (draw Histogram/Chart/Scatter3D) не выполнялись). ----\n',

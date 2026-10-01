@@ -5,7 +5,7 @@ camera type = fixed;
 show axes = true;
 string sel = "3"; string info = "";
 new Point { name = "P"; pos = (3, 0); dynamic = false; collision = false; color = #3b82f6 }
-new UI { type = select; label = "число"; variable = sel; options = ("−4", "0", "3", "1/2", "1.5", "√2", "π"); labels = ("−4", "0", "3", "1/2", "1.5", "√2", "π"); default = "3" }
+new UI { type = select; label = "число"; variable = sel; options = ("−4", "0", "3", "1/2", "1.5", "√2", "π"); labels = ("−4", "0", "3", "1/2", "1,5", "√2", "π"); default = "3" }
 Update {
   float v = 3; string sets = "целое, рациональное, действительное";
   if (sel == "−4") { v = -4; sets = "целое, рациональное, действительное"; }

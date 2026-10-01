@@ -16,6 +16,6 @@ Update {
   float rad = deg * 3.1416 / 180;
   B.pos.x = R * cos(rad); B.pos.y = R * sin(rad);
   float S = 0.5 * R * R * rad;
-  info = "**Площадь сектора** OAB окружности радиуса R = " + format(R, 1) + " при центральном угле θ = " + format(deg, 0) + "° (" + format(rad, 2) + " рад) равна S = ½R²θ = 0.5 × " + format(R, 1) + "² × " + format(rad, 2) + " ≈ " + format(S, 2) + ".";
+  info = "**Площадь сектора** OAB окружности радиуса R = " + format(R, 1) + " при центральном угле θ = " + format(deg, 0) + "° (" + format(rad, 2) + " рад) равна S = ½R²θ = 0,5 × " + format(R, 1) + "² × " + format(rad, 2) + " ≈ " + format(S, 2) + ".";
 }
 ]

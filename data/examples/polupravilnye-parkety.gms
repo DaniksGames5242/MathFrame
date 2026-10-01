@@ -14,7 +14,7 @@ new Circle { name = "w"; center = "V"; radius = 1.4; color = "transparent" }
 new Point { name = "A"; circle = "w"; t = 0 }
 draw Graph { name = "mesh"; graph = "g"; nodeRadius = 0; labels = false; interactive = false; showWeights = false }
 
-new UI { name = "sC"; type = select; label = "конфигурация"; variable = cfg; options = ("c0", "c1", "c2", "c3", "c4", "c5", "c6", "c7"); labels = ("3.12.12", "4.8.8", "3.6.3.6", "3.4.6.4", "3.3.3.3.6", "3.3.3.4.4", "3.3.3.3.3.4", "3.4.3.4"); default = "c2" }
+new UI { name = "sC"; type = select; label = "конфигурация"; variable = cfg; options = ("c0", "c1", "c2", "c3", "c4", "c5", "c6", "c7"); labels = ("3,12,12", "4,8.8", "3,6.3,6", "3,4.6,4", "3,3.3,3.6", "3,3.3,4.4", "3,3.3,3.3,4", "3,4.3,4"); default = "c2" }
 
 // ---- Логика ----
 string cfg = "c2";

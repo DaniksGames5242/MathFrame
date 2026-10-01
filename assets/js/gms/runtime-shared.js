@@ -51,6 +51,8 @@
                 indent + '  const placeholders = [];\n',
                 indent + '  function stash(html) { const idx = placeholders.length; placeholders.push(html); return \'\\u0000\' + idx + \'\\u0001\'; }\n',
                 indent + '  function renderTex(tex, display) {\n',
+                indent + '    // десятичная запятая в формуле — без лишнего пробела: 2{,}5\n',
+                indent + '    tex = String(tex).replace(/(\\d),(\\d)/g, \'$1{,}$2\');\n',
                 indent + '    try { return (typeof katex !== \'undefined\') ? katex.renderToString(tex, { throwOnError: false, displayMode: display }) : tex; }\n',
                 indent + '    catch (e) { return tex; }\n',
                 indent + '  }\n',

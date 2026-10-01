@@ -10,6 +10,6 @@ draw Function { name = "gc"; f = "g"; xmin = -6.28; xmax = 6.28; color = #f59e0b
 new UI { type = slider; label = "правая часть C"; variable = C; min = -1.4; max = 1.4; step = 0.1; default = 1 }
 Update {
   string r = "уравнение имеет решения"; if (abs(C) > 1.4142) { r = "уравнение не имеет решений"; }
-  info = "**Замена t = sin x + cos x = √2·sin(x + π/4)** сводит sin x + cos x = C к уравнению t = C.\n\nОбласть значений t — [−√2; √2] ≈ [−1.41; 1.41], поэтому при C = " + format(C, 2) + " " + r + ".";
+  info = "**Замена t = sin x + cos x = √2·sin(x + π/4)** сводит sin x + cos x = C к уравнению t = C.\n\nОбласть значений t — [−√2; √2] ≈ [−1,41; 1,41], поэтому при C = " + format(C, 2) + " " + r + ".";
 }
 ]

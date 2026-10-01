@@ -10,6 +10,6 @@ new UI { type = slider; label = "x"; variable = n; min = 0.1; max = 20; step = 0
 Update {
   float v = pow(1 + 1 / n, n);
   P.pos.x = n; P.pos.y = v;
-  info = "**Второй замечательный предел:** lim(x→∞) (1 + 1/x)ˣ = e ≈ 2.71828.\n\nПри x = " + format(n, 1) + ": (1 + 1/x)ˣ = " + format(v, 4) + ". С ростом x значение приближается к e.";
+  info = "**Второй замечательный предел:** lim(x→∞) (1 + 1/x)ˣ = e ≈ 2,71828.\n\nПри x = " + format(n, 1) + ": (1 + 1/x)ˣ = " + format(v, 4) + ". С ростом x значение приближается к e.";
 }
 ]

@@ -15,8 +15,8 @@ new Point { name = "PY"; pos = (0, 0); text = true("y"); dynamic = false; collis
 new Point { name = "PZ"; pos = (0, 0); text = true("z"); dynamic = false; collision = false }
 
 new UI { name = "sW"; type = slider; label = "w (ось z)"; variable = w; min = 0.1; max = 0.99; step = 0.01; default = 0.47 }
-new UI { name = "bTyp"; type = button; label = "w = 0.47 (типовая диметрия)"; action = "w = 0.47" }
-new UI { name = "bIso"; type = button; label = "w = 0.82 (изометрия)"; action = "w = 0.82" }
+new UI { name = "bTyp"; type = button; label = "w = 0,47 (типовая диметрия)"; action = "w = 0.47" }
+new UI { name = "bIso"; type = button; label = "w = 0,82 (изометрия)"; action = "w = 0.82" }
 
 float w = 0.47; float key = -1; string info = "";
 float u = 0; float cp = 0.7071; float sp = 0.7071; float sn = 0; float e = 6; float ox = 0; float oy = 0;
@@ -56,6 +56,6 @@ Update {
   float axy = ang(cp, -sp * sn, -sp, -cp * sn); float axz = ang(cp, -sp * sn, 0, w);
   string kind = "";
   if (abs(w - u) < 0.012) { kind = "\n\nПри w = u все три коэффициента равны: это уже **изометрия**."; }
-  info = "**Диметрия** — два коэффициента искажения равны: u = v = " + format(u, 2) + ", третий w = " + format(w, 2) + " отличается.\n\n**Связь:** 2u² + w² = 2 · " + format(u * u, 3) + " + " + format(w * w, 3) + " = " + format(2 * u * u + w * w, 2) + ". Задав w, получаем u = √((2 − w²)/2).\n\n**Углы между проекциями осей:** (x, y) = " + format(axy, 1) + "°, (x, z) = (y, z) = " + format(axz, 1) + "°; сумма " + format(axy + 2 * axz, 0) + "°. При w = 0.47 они равны 97.1° и 131.4°.\n\n**Окружность** на верхней грани (в плоскости осей x, y) проецируется в эллипс: большая ось равна диаметру d, малая — d · w = " + format(w, 2) + " d." + kind;
+  info = "**Диметрия** — два коэффициента искажения равны: u = v = " + format(u, 2) + ", третий w = " + format(w, 2) + " отличается.\n\n**Связь:** 2u² + w² = 2 · " + format(u * u, 3) + " + " + format(w * w, 3) + " = " + format(2 * u * u + w * w, 2) + ". Задав w, получаем u = √((2 − w²)/2).\n\n**Углы между проекциями осей:** (x, y) = " + format(axy, 1) + "°, (x, z) = (y, z) = " + format(axz, 1) + "°; сумма " + format(axy + 2 * axz, 0) + "°. При w = 0,47 они равны 97,1° и 131,4°.\n\n**Окружность** на верхней грани (в плоскости осей x, y) проецируется в эллипс: большая ось равна диаметру d, малая — d · w = " + format(w, 2) + " d." + kind;
 }
 ]

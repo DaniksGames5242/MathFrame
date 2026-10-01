@@ -14,7 +14,7 @@ draw Field { name = "fld"; P = "fpx(x, y)"; Q = "fpy(x, y)"; xmin = -8; xmax = 8
 draw Graph { name = "gIn"; graph = "gi"; nodeColor = #f59e0b; nodeRadius = 17; labels = false; interactive = false; showWeights = false; layer = 40 }
 new Point { name = "A1"; pos = (-2, 1); text = true("a₁: Res = 1"); pauseOnDrag = false; color = #ef4444; layer = 60 }
 new Point { name = "A2"; pos = (1.5, -0.5); text = true("a₂: Res = 2"); pauseOnDrag = false; color = #ef4444; layer = 60 }
-new Point { name = "A3"; pos = (4.5, 2.5); text = true("a₃: Res = −1.5"); pauseOnDrag = false; color = #ef4444; layer = 60 }
+new Point { name = "A3"; pos = (4.5, 2.5); text = true("a₃: Res = −1,5"); pauseOnDrag = false; color = #ef4444; layer = 60 }
 new Point { name = "K"; pos = (-0.5, 0.3); text = true("K"); pauseOnDrag = false; color = #3b82f6; size = 0.8 }
 new Point { name = "RP"; pos = (3.1, 0.3); pauseOnDrag = false; color = #3b82f6; size = 0.8 }
 new Circle { name = "cont"; center = K; radius = RP; color = #3b82f6; thickness = 3 }
@@ -66,6 +66,6 @@ Update {
   if (isIn(A3)) { sumIn = sumIn + c3; addNode(gi, "a3", [A3.pos.x, A3.pos.y]); inside = inside + " a₃"; }
   if (inside == "") { inside = " нет"; }
 
-  info = "**Вычет** функции f в изолированной особой точке a — коэффициент c₋₁ при (z − a)⁻¹ в её ряде Лорана; для простого полюса Res_(z=a) f = lim (z − a)f(z). **Теорема о вычетах:** интеграл по замкнутому контуру, обходящему особые точки против часовой стрелки, равен ∮ f dz = 2πi · Σ Res — сумме вычетов в точках **внутри** контура.\n\nf(z) = 1/(z − a₁) + 2/(z − a₂) − 1.5/(z − a₃). Внутри контура:" + inside + ", Σ Res = " + num(sumIn) + ", 2πi · Σ Res = " + num(2 * pi * sumIn) + "i.\n\nЧисленно по окружности: ∮ f dz ≈ " + num(Ir) + " + " + num(Ii) + "i.";
+  info = "**Вычет** функции f в изолированной особой точке a — коэффициент c₋₁ при (z − a)⁻¹ в её ряде Лорана; для простого полюса Res_(z=a) f = lim (z − a)f(z). **Теорема о вычетах:** интеграл по замкнутому контуру, обходящему особые точки против часовой стрелки, равен ∮ f dz = 2πi · Σ Res — сумме вычетов в точках **внутри** контура.\n\nf(z) = 1/(z − a₁) + 2/(z − a₂) − 1,5/(z − a₃). Внутри контура:" + inside + ", Σ Res = " + num(sumIn) + ", 2πi · Σ Res = " + num(2 * pi * sumIn) + "i.\n\nЧисленно по окружности: ∮ f dz ≈ " + num(Ir) + " + " + num(Ii) + "i.";
 }
 ]

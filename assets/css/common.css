@@ -924,6 +924,13 @@ html.light .st-badge.warn { color: #b45309; }
   transition: background var(--t);
 }
 .st-row[hidden] { display: none; }
+.st-row-lang { cursor: default; border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--bg-sunken); margin-top: .5rem; }
+.st-row-lang:hover { background: var(--bg-sunken); }
+@media (max-width: 520px) { .st-row-lang { flex-wrap: wrap; } .st-row-lang .st-seg { margin-left: auto; } }
+.st-seg { display: inline-flex; padding: 2px; gap: 2px; border: 1px solid var(--border-strong); border-radius: 999px; background: var(--bg-sunken); }
+.st-seg button { font: inherit; font-size: .8rem; border: 0; background: transparent; color: var(--text-secondary); padding: .3rem .75rem; border-radius: 999px; cursor: pointer; }
+.st-seg button.on { background: var(--accent-soft); color: var(--text-primary); box-shadow: inset 0 0 0 1px var(--accent); }
+.st-seg button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .st-list .st-row + .st-row { border-top: 1px solid var(--border); }
 .st-row:hover { background: var(--accent-soft); }
 .st-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }

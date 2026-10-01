@@ -477,6 +477,9 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             // иначе на экранах с devicePixelRatio > 1 картинка была мыльной.
             '    let gcDpr = 1;\n',
             '    const GC_MIN_LOGICAL_WIDTH = 480;\n',
+            '    // Десятичный разделитель: запятая (стандарт сайта), точка — если в настройках сайта\n',
+            '    // выбран английский язык (localStorage mf-lang = en).\n',
+            '    window.__gcDecSep = (function() { try { return localStorage.getItem(\'mf-lang\') === \'en\' ? \'.\' : \',\'; } catch (e) { return \',\'; } })();\n',
             '    let gcCssK = 1;   // CSS-пикселей экрана на логический пиксель сцены (<1 на узком экране)\n',
             '    const camera = { zoom: ', String(cameraStartZoom), ', offsetX: ', String(cameraStartOffset[0]), ', offsetY: ', String(cameraStartOffset[1]), ', zoomMin: ', String(cameraZoomLimits[0]), ', zoomMax: ', String(cameraZoomLimits[1]), ' };\n',
             '    window.camera = camera;\n',
@@ -2352,7 +2355,8 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '      return Math.abs(m - 2) < 0.01 ? 4 : 5;\n',
             '    }\n',
             '    function __gcFmtTick(v, decimals) {\n',
-            '      const t = String(parseFloat(v.toFixed(decimals)));\n',
+            '      let t = String(parseFloat(v.toFixed(decimals)));\n',
+            '      if (window.__gcDecSep === \',\') t = t.replace(\'.\', \',\');\n',
             '      return t.charAt(0) === \'-\' ? \'−\' + t.slice(1) : t;\n',
             '    }\n',
             '    function __gcGridAxes(step, o) {\n',
@@ -8157,6 +8161,11 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
         return { mean: m, lower: m - half, upper: m + half, level: lv, margin: half };
     };
 
+    // Число → строка с десятичным разделителем сайта (см. window.__gcDecSep)
+    function __gcDec(s) {
+        const sep = (typeof window !== 'undefined' && window.__gcDecSep) || ',';
+        return sep === '.' ? String(s) : String(s).replace(/([0-9])[.]([0-9])/g, '$1,$2');
+    }
     const GL_BUILTINS = {
         isKeyDown: (key) => !!(window.__gcKeysDown && window.__gcKeysDown.has(String(key).toLowerCase())),
         animate: (varName, to, duration, easing, delay, mode) => { glAnimate(varName, to, duration, easing, delay, mode); return null; },
@@ -8730,14 +8739,14 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
         lerp: (a, b, t) => a + (b - a) * t,
         fract: (x) => x - Math.floor(x),
         roundTo: (x, d) => { const k = Math.pow(10, d === undefined ? 0 : d); return Math.round(x * k) / k; },
-        format: (x, d) => (typeof x === 'number' && isFinite(x)) ? x.toFixed(d === undefined ? 2 : d) : String(x),
+        format: (x, d) => (typeof x === 'number' && isFinite(x)) ? __gcDec(x.toFixed(d === undefined ? 2 : d)) : String(x),
         str: (x) => {
             if (glIsComplex(x)) return x.re + (x.im >= 0 ? '+' : '') + x.im + 'i';
             if (glIsRat(x)) return glRatToString(x);
             if (typeof x === 'bigint') return String(x);
-            return String(x);
+            return typeof x === 'number' ? __gcDec(String(x)) : String(x);
         },
-        num: (s) => parseFloat(s),
+        num: (s) => parseFloat(String(s).replace(',', '.')),
         mod: (a, b) => ((a % b) + b) % b, // истинный модуль: mod(-1, 5) = 4
 
         // === Теория чисел и комбинаторика ===
@@ -11459,7 +11468,8 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             if (glIsMat(l) && glIsMat(r)) return glMatMatMul(l, r);
         }
         if (op === '/' && typeof r === 'number' && (glIsVec(l) || glIsMat(l))) return glIsMat(l) ? l.map(row => row.map(x => x / r)) : l.map(x => x / r);
-        if (op === '+') return l + r; // строковая конкатенация как раньше
+        // строковая конкатенация; числа — с десятичным разделителем сайта
+        if (op === '+') return (typeof l === 'number' ? __gcDec(String(l)) : l) + (typeof r === 'number' ? __gcDec(String(r)) : r);
         throw new Error('Неподдерживаемая операция "' + op + '" для данных операндов');
     }
     function glApplyCompound(cur, val, op) {
