@@ -232,6 +232,14 @@ export function quantity(model, pts, q) {
       const names = (q.of || V.join('')).split('');
       return Math.abs(polyArea(names.map(P)));
     }
+    case 'trig': {
+      const a = quantity(model, pts, { kind: 'angle', angle: q.angle }) * Math.PI / 180;
+      return q.fn === 'sin' ? Math.sin(a) : q.fn === 'cos' ? Math.cos(a) : q.fn === 'ctg' ? 1 / Math.tan(a) : Math.tan(a);
+    }
+    case 'midline': {
+      const C = model.spec.C;
+      return (V2.dist(P(C[0]), P(C[3])) + V2.dist(P(C[1]), P(C[2]))) / 2;
+    }
     case 'inradius': case 'circumradius': case 'centersDist': {
       const [A, B, C] = V.slice(0, 3).map(P);
       const c = triCircles(A, B, C);
@@ -272,6 +280,10 @@ function residuals(model, p, opts) {
       })); break;
       case 'mult': out.push(safe(() => (quantity(model, pts, { kind: 'length', seg: g.a }) - g.k * quantity(model, pts, { kind: 'length', seg: g.b })) / L)); break;
       case 'diff': out.push(safe(() => (quantity(model, pts, { kind: 'length', seg: g.a }) - quantity(model, pts, { kind: 'length', seg: g.b }) - g.value) / L)); break;
+      case 'midline': out.push(safe(() => {
+        const C = model.spec.C;
+        return ((V2.dist(pts[C[0]], pts[C[3]]) + V2.dist(pts[C[1]], pts[C[2]])) / 2 - g.value) / L;
+      })); break;
       case 'onLine': out.push(safe(() => {
         const A = pts[g.seg[0]], B = pts[g.seg[1]], X = pts[g.point];
         return V2.cross(V2.sub(B, A), V2.sub(X, A)) / (V2.len(V2.sub(B, A)) || 1) / L;
@@ -282,6 +294,12 @@ function residuals(model, p, opts) {
   for (const c of model.spec.cons) {
     const v = safe(() => c.f(model.spec.C.map(n => pts[n])));
     (c.soft ? soft : out).push(c.w * (c.len ? v / L : v));
+  }
+  // «угол B тупой / острый»
+  for (const g of model.ir.given) {
+    if (g.kind !== 'obtuse' && g.kind !== 'acute') continue;
+    let a; try { a = quantity(model, pts, { kind: 'angle', angle: g.angle }); } catch (e) { continue; }
+    soft.push(g.kind === 'obtuse' ? Math.min(0, a - 95) / 30 : Math.max(0, a - 85) / 30);
   }
   // Точка построения — на самой стороне (а не на продолжении): мягко.
   for (const c of model.ir.constructions) {
@@ -373,6 +391,7 @@ export function buildModel(ir) {
     if (g.kind === 'perimeter') lens.push(g.value / n);
     if (g.kind === 'area') lens.push(Math.sqrt(g.value / (Math.abs(polyArea(defPts)) / (defMean * defMean) || 1)));
     if (g.kind === 'diff') lens.push(Math.abs(g.value) * 2);
+    if (g.kind === 'midline') lens.push(g.value);
   }
   const s = lens.length ? lens.reduce((a, b) => a + b, 0) / lens.length / defMean : 1;
   model.scale = defMean * s;

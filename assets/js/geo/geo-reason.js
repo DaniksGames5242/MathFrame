@@ -27,6 +27,8 @@ const FIG_RU = {
   square: 'квадрата', trapezoid: 'трапеции', quadrilateral: 'четырёхугольника',
 };
 
+function trapCfor(fig, model) { return fig.type === 'trapezoid' && model.spec && model.spec.C; }
+
 /* ================= числа ================= */
 function gcd(a, b) { a = Math.abs(a); b = Math.abs(b); while (b) { [a, b] = [b, a % b]; } return a; }
 // Число → { s: строка, exact }: целые, простые дроби, k√m, (k√m)/n, иначе ≈ 2 знака.
@@ -225,6 +227,8 @@ export function solveProblem(ir, model) {
   };
   const sideKeys = () => V.map((v, i) => Q.len(v, V[(i + 1) % V.length]));
 
+  let trapC = fig.type === 'trapezoid' ? model.spec.C : null;
+  const trigWanted = [];
   /* ---- 1. данные ---- */
   const givenKeys = new Set();
   const qKey = q => {
@@ -233,6 +237,29 @@ export function solveProblem(ir, model) {
     if (q.kind === 'perimeter') return Q.per(q.of || V.join(''));
     if (q.kind === 'area') return Q.area(q.of || V.join(''));
     if (q.kind === 'inradius' || q.kind === 'circumradius' || q.kind === 'centersDist') return circVar(q.kind);
+    if (q.kind === 'trig') {
+      const ak = q.angle.length === 3 ? Q.ang(q.angle[0], q.angle[1], q.angle[2]) : angV(q.angle);
+      const fnm = q.fn === 'tan' ? 'tg' : q.fn;
+      const k = 'T:' + fnm + ':' + ak;
+      if (!Q.vars.has(k)) {
+        const av = Q.vars.get(ak);
+        const r = av.value * Math.PI / 180;
+        const F = fnm === 'sin' ? Math.sin : fnm === 'cos' ? Math.cos : fnm === 'ctg' ? (x => 1 / Math.tan(x)) : Math.tan;
+        Q.vars.set(k, { key: k, type: 'trig', name: fnm + ' ' + av.name, fnm, ang: ak, value: F(r) });
+        // через угол
+        add(fn([k, ak], x => x[0] - F(x[1] * Math.PI / 180), { kind: 'trigOfAngle', fnm, cost: 3 }));
+        trigWanted.push({ k, ak, fnm });
+      }
+      return k;
+    }
+    if (q.kind === 'midline' && trapC) {
+      const k = 'M:mid';
+      if (!Q.vars.has(k)) {
+        Q.vars.set(k, { key: k, type: 'len', name: 'm', value: (Q.vars.get(Q.len(trapC[0], trapC[3])).value + Q.vars.get(Q.len(trapC[1], trapC[2])).value) / 2 });
+        add(lin([[k, 2], [Q.len(trapC[0], trapC[3]), -1], [Q.len(trapC[1], trapC[2]), -1]], 0, { kind: 'half', why: 'средняя линия трапеции равна полусумме оснований', cost: 1 }));
+      }
+      return k;
+    }
     return null;
   };
   // Вписанная (центр I, радиус r) и описанная (центр O, радиус R) окружности треугольника.
@@ -245,6 +272,7 @@ export function solveProblem(ir, model) {
     }
     return k;
   };
+  ir.find.filter(f => f.kind === 'trig').forEach(f => qKey(f));   // нужны до формул ниже
   for (const g of ir.given) {
     if (['length', 'angle', 'perimeter', 'area'].includes(g.kind)) {
       const k = qKey(g); if (!k) continue;
@@ -256,6 +284,9 @@ export function solveProblem(ir, model) {
     } else if (g.kind === 'mult') {
       const a = Q.len(g.a[0], g.a[1]), b = Q.len(g.b[0], g.b[1]);
       add(lin([[a, 1], [b, -g.k]], 0, { kind: 'cond', why: 'по условию', cost: 1 }));
+    } else if (g.kind === 'midline' && trapCfor(fig, model)) {
+      const C = model.spec.C;
+      add(lin([[Q.len(C[0], C[3]), 1], [Q.len(C[1], C[2]), 1]], 2 * g.value, { kind: 'cond', why: 'средняя линия трапеции равна полусумме оснований: ' + C[0] + C[3] + ' + ' + C[1] + C[2] + ' = 2 · ' + num(g.value), cost: 1, midline: g.value }));
     } else if (g.kind === 'diff') {
       const a = Q.len(g.a[0], g.a[1]), b = Q.len(g.b[0], g.b[1]);
       add(lin([[a, 1], [b, -1]], g.value, { kind: 'cond', why: 'по условию', cost: 1 }));
@@ -275,9 +306,7 @@ export function solveProblem(ir, model) {
     addPar(V[0] + V[1], V[2] + V[3], 'противоположные стороны ' + figRu);
     addPar(V[1] + V[2], V[0] + V[3], 'противоположные стороны ' + figRu);
   }
-  let trapC = null;
   if (t === 'trapezoid') {
-    trapC = model.spec.C;
     addPar(trapC[0] + trapC[3], trapC[1] + trapC[2], 'основания трапеции');
   }
 
@@ -302,6 +331,11 @@ export function solveProblem(ir, model) {
   }
   if (t === 'rhombus' || t === 'square') for (let i = 1; i < 4; i++) eqLen(S[0], S[i], 'все стороны ' + figRu + ' равны');
   if (t === 'rectangle' || t === 'square') V.forEach(v => setVal(angV(v), 90, 'все углы ' + figRu + ' прямые'));
+  if (t === 'square') {
+    add(fn([Q.area(V.join('')), S[0]], x => x[0] - x[1] * x[1], { kind: 'sqArea', cost: 1 }));
+    add(fn([Q.len(V[0], V[2]), S[0]], x => x[0] - x[1] * Math.SQRT2, { kind: 'sqDiag', cost: 1 }));
+    add(fn([Q.area(V.join('')), Q.len(V[0], V[2])], x => x[0] - x[1] * x[1] / 2, { kind: 'sqAreaD', cost: 1 }));
+  }
   if (t === 'triangle') {
     const k = [angV(V[0]), angV(V[1]), angV(V[2])];
     if (fig.rightAngle) setVal(angV(fig.rightAngle), 90, fig.rightWhy || ('по условию угол ' + fig.rightAngle + ' прямой'));
@@ -361,6 +395,16 @@ export function solveProblem(ir, model) {
       const why = c.kind === 'median' ? Q.vars.get(Q.len(c.vertex, c.point)).name + ' — медиана' : c.point + ' — середина ' + Q.vars.get(Q.len(s[0], s[1])).name;
       eqLen(Q.len(s[0], c.point), Q.len(c.point, s[1]), why);
       add(lin([[Q.len(s[0], s[1]), 1], [Q.len(s[0], c.point), -2]], 0, { kind: 'half', why, cost: 1 }));
+    }
+    if (c.kind === 'altitude' && G.pts[c.point] && c.target && t === 'triangle' && (fig.isosceles || fig.base || fig.equilateral)) {
+      const base = fig.base || (V[0] + V[2]);
+      const apex = V.find(x => !base.includes(x));
+      const same = c.target === base || c.target === base[1] + base[0];
+      if ((c.vertex === apex && same) || fig.equilateral) {
+        const tg = c.target;
+        eqLen(Q.len(tg[0], c.point), Q.len(c.point, tg[1]), 'в равнобедренном треугольнике высота, проведённая к основанию, является медианой');
+        add(lin([[Q.len(tg[0], tg[1]), 1], [Q.len(tg[0], c.point), -2]], 0, { kind: 'half', why: 'в равнобедренном треугольнике высота, проведённая к основанию, является медианой', cost: 1 }));
+      }
     }
     if (c.kind === 'altitude' && G.pts[c.point]) {
       const who = Q.vars.get(Q.len(c.vertex, c.point)).name;
@@ -502,6 +546,18 @@ export function solveProblem(ir, model) {
     add(fn([Q.area(tri), ab, bc, ca], x => { const s = (x[1] + x[2] + x[3]) / 2; return x[0] - Math.sqrt(Math.max(0, s * (s - x[1]) * (s - x[2]) * (s - x[3]))); }, { kind: 'heron', tri, cost: 5 }));
     add(lin([[Q.per(tri), 1], [ab, -1], [bc, -1], [ca, -1]], 0, { kind: 'perimeter', why: 'периметр треугольника ' + tri + ' — сумма сторон', cost: 1 }));
   }
+  // sin/cos/tg угла в прямоугольном треугольнике — отношение сторон.
+  for (const tw of trigWanted) for (const T of triInfo) {
+    const angs = { [T.a]: T.A, [T.b]: T.B, [T.c]: T.C };
+    const at = Object.keys(angs).find(v => angs[v] === tw.ak);
+    if (!at) continue;
+    const r = Object.keys(angs).find(v => v !== at && Math.abs(Q.vars.get(angs[v]).value - 90) < 1e-6);
+    if (!r) continue;
+    const other = [T.a, T.b, T.c].find(v => v !== at && v !== r);
+    const opp = Q.len(r, other), adj = Q.len(r, at), hyp = Q.len(at, other);
+    const pair = { sin: [opp, hyp], cos: [adj, hyp], tg: [opp, adj], ctg: [adj, opp] }[tw.fnm];
+    add(fn([tw.k, pair[0], pair[1]], x => x[0] * x[2] - x[1], { kind: 'trigRatio', fnm: tw.fnm, tri: T.tri, requires: [angs[r]], cost: 1 }));
+  }
   // Радиусы вписанной и описанной окружностей, расстояние между центрами (Эйлер).
   if (V.length === 3 && ir.find.some(f => CIRC[f.kind])) {
     const r = circVar('inradius'), R = circVar('circumradius'), d = circVar('centersDist');
@@ -520,6 +576,27 @@ export function solveProblem(ir, model) {
       }
     }
   }
+  // Высота из вершины прямого угла: h² = AH·HB, катет² = проекция·гипотенуза.
+  for (const c of ir.constructions) {
+    if (c.kind !== 'altitude' || !G.pts[c.point] || !c.target) continue;
+    const [p1, p2] = c.target.split(''); const v = c.vertex, h = c.point;
+    const right = Q.ang(p1, v, p2);
+    if (!right || Math.abs(Q.vars.get(right).value - 90) > 1e-6) continue;
+    const ch = Q.len(v, h), ah = Q.len(p1, h), hb = Q.len(h, p2), hyp = Q.len(p1, p2);
+    add(fn([ch, ah, hb], x => x[0] * x[0] - x[1] * x[2], { kind: 'gmean', requires: [right], cost: 2, what: 'h' }));
+    add(fn([Q.len(v, p1), ah, hyp], x => x[0] * x[0] - x[1] * x[2], { kind: 'gmean', requires: [right], cost: 2, what: 'leg' }));
+    add(fn([Q.len(v, p2), hb, hyp], x => x[0] * x[0] - x[1] * x[2], { kind: 'gmean', requires: [right], cost: 2, what: 'leg' }));
+  }
+  // Средняя линия треугольника: середины двух сторон.
+  const mids = ir.constructions.filter(c => c.kind === 'midpoint' && G.pts[c.point] && c.seg);
+  for (let i = 0; i < mids.length; i++) for (let j = i + 1; j < mids.length; j++) {
+    const a = mids[i], b = mids[j];
+    const common = a.seg.split('').find(x => b.seg.includes(x));
+    if (!common || V.length !== 3) continue;
+    const third = V.filter(x => x !== common).join('');
+    if (third.length !== 2) continue;
+    add(lin([[Q.len(third[0], third[1]), 1], [Q.len(a.point, b.point), -2]], 0, { kind: 'half', why: a.point + b.point + ' — средняя линия треугольника, она равна половине стороны ' + third, cost: 1 }));
+  }
   // площадь через высоты (любая построенная высота к стороне фигуры/треугольника)
   for (const c of ir.constructions) {
     if (c.kind !== 'altitude' || !G.pts[c.point] || !c.target) continue;
@@ -530,10 +607,14 @@ export function solveProblem(ir, model) {
     if (t === 'trapezoid') {
       const C = trapC; const b1 = Q.len(C[0], C[3]), b2 = Q.len(C[1], C[2]);
       if ([b1, b2].includes(base)) add(fn([Q.area(V.join('')), b1, b2, h], x => x[0] - (x[1] + x[2]) / 2 * x[3], { kind: 'area_trap', cost: 2 }));
+      const ml = ir.given.find(g => g.kind === 'midline');
+      if (ml && [b1, b2].includes(base)) add(fn([Q.area(V.join('')), h], x => x[0] - ml.value * x[1], { kind: 'area_mid', m: ml.value, cost: 1 }));
     }
   }
   // Две высоты из концов верхнего основания трапеции (или параллелограмма).
   const alts = ir.constructions.filter(c => c.kind === 'altitude' && G.pts[c.point] && c.target);
+  // в прямоугольной трапеции боковая сторона при прямых углах сама — высота
+  if (t === 'trapezoid' && fig.rightTrap && trapC) alts.push({ kind: 'altitude', vertex: trapC[1], point: trapC[0], target: trapC[0] + trapC[3] });
   for (let i = 0; i < alts.length; i++) for (let j = i + 1; j < alts.length; j++) {
     const h1 = alts[i], h2 = alts[j];
     const same = (h1.target === h2.target || h1.target === h2.target[1] + h2.target[0]);
@@ -613,14 +694,17 @@ export function solveProblem(ir, model) {
 function unitFor(v, unit) {
   if (!v) return '';
   if (v.type === 'ang') return '°';
+  if (v.type === 'trig') return '';
   if (v.type === 'area') return unit ? unit + '²' : '';
   return unit || '';
 }
+function Q_angName(v) { return v.name.replace(/^\S+\s+/, ''); }
 function displayQ(v) {
   if (!v) return '?';
   if (v.type === 'ang') return ANG(v.name);
   if (v.type === 'area') return I('S') + '<sub>' + v.name + '</sub>';
   if (v.type === 'per') return I('P') + '<sub>' + v.name + '</sub>';
+  if (v.type === 'trig') return v.fnm + ' ' + ANG(Q_angName(v));
   return I(v.name);
 }
 function withUnit(s, v, unit) {
@@ -764,6 +848,7 @@ function tryVariable(Q, eqs, state, targets) {
   const cands = [];
   for (const e of linEqs) if ((e.kind === 'ratio' || e.kind === 'cond') ) for (const [k] of e.terms) if (!known.has(k)) cands.push({ k, coef: e.kind === 'ratio' ? (k === e.a ? e.ratio[0] : e.ratio[1]) : 1 });
   for (const tk of targets) if (!known.has(tk)) cands.push({ k: tk, coef: 1 });
+  for (const e of linEqs) if (e.kind === 'perimeter' || e.kind === 'cond') for (const [k] of e.terms) if (!known.has(k) && Q.vars.get(k).type === 'len') cands.push({ k, coef: 1 });
   const tried = new Set();
   for (const cand of cands) {
     if (tried.has(cand.k)) continue; tried.add(cand.k);
@@ -794,13 +879,24 @@ function tryVariable(Q, eqs, state, targets) {
       }
       if (!progress) break;
     }
+    // Нелинейное уравнение, все величины которого выражены через x (Пифагор и т. п.)
+    if (solvedX === null) {
+      for (const e of eqs) {
+        if (e.type !== 'fn' || (e.requires && !e.requires.every(k => known.has(k)))) continue;
+        if (!e.vars.every(k => aff.has(k))) continue;
+        if (!e.vars.some(k => Math.abs(aff.get(k).a) > 1e-12)) continue;
+        const x0 = Q.vars.get(cand.k).value / (cand.coef || 1);
+        const xs = solve1D(x => e.f(e.vars.map(k => aff.get(k).a * x + aff.get(k).b)), x0);
+        if (xs !== null && Math.abs(xs - x0) < 1e-6 * Math.max(1, Math.abs(x0))) { solvedX = xs; solveEq = e; break; }
+      }
+    }
     if (solvedX === null) continue;
     const xv = solvedX;
     const realOf = k => aff.get(k).a * xv + aff.get(k).b;
     // сверка с моделью
     if (Math.abs(realOf(cand.k) - Q.vars.get(cand.k).value) > 1e-4 * Math.max(1, Q.vars.get(cand.k).value)) continue;
     // Записываем найденное как «известное» с особым шагом
-    const step = { kind: 'xvar', cand, exprs: exprs.filter(x => x.eq), aff, x: xv, solveEq };
+    const step = { kind: 'xvar', cand, exprs: exprs.filter(x => x.eq), aff, x: xv, solveEq, targets };
     for (const ex of exprs) {
       if (!known.has(ex.key)) known.set(ex.key, { value: realOf(ex.key), eq: { kind: 'xval', type: 'x', xstep: step }, inputs: [], anc: new Set(), cost: 1, round: state.round });
     }
@@ -1070,6 +1166,43 @@ function renderFormula(k, e, known, Q, unit) {
       const [d, R, r] = V;
       return 'По формуле Эйлера расстояние между центрами описанной и вписанной окружностей ' + nm(d) + ' = √(R² − 2Rr) = √(' + n(R) + '² − 2 · ' + n(R) + ' · ' + n(r) + ') = √' + num(vv(R) ** 2 - 2 * vv(R) * vv(r)) + ' ' + approx + ' ' + ans + '.';
     }
+    case 'trigRatio': {
+      const [T, a, b] = V;
+      const words = { sin: 'отношение противолежащего катета к гипотенузе', cos: 'отношение прилежащего катета к гипотенузе', tg: 'отношение противолежащего катета к прилежащему', ctg: 'отношение прилежащего катета к противолежащему' }[e.fnm];
+      if (k === T) return 'В прямоугольном треугольнике ' + I(e.tri) + ' ' + nm(T) + ' — ' + words + ': ' + nm(T) + ' = ' + nm(a) + ' / ' + nm(b) + ' = ' + n(a) + ' / ' + n(b) + ' ' + approx + ' ' + ans + '.';
+      return 'В прямоугольном треугольнике ' + I(e.tri) + ' ' + nm(T) + ' = ' + nm(a) + ' / ' + nm(b) + ', откуда ' + nm(k) + ' ' + approx + ' ' + ans + '.';
+    }
+    case 'trigOfAngle': {
+      const [T, a] = V;
+      if (k === T) return nm(T) + ' = ' + e.fnm + ' ' + n(a) + '° ' + approx + ' ' + ans + '.';
+      return 'Так как ' + nm(T) + ' = ' + n(T) + ', ' + nm(k) + ' ' + approx + ' ' + ans + '.';
+    }
+    case 'area_mid': {
+      const [S, h] = V;
+      return 'Площадь трапеции равна произведению средней линии на высоту: ' + nm(S) + ' = m · ' + nm(h) + ' = ' + num(e.m) + ' · ' + n(h) + ' ' + approx + ' ' + ans + '.';
+    }
+    case 'sqArea': {
+      const [S, a] = V;
+      if (k === S) return 'Площадь квадрата равна квадрату стороны: ' + nm(S) + ' = ' + nm(a) + '² = ' + n(a) + '² ' + approx + ' ' + ans + '.';
+      return 'Площадь квадрата равна квадрату стороны, поэтому ' + nm(a) + ' = √' + nm(S) + ' = √' + n(S) + ' ' + approx + ' ' + ans + '.';
+    }
+    case 'sqDiag': {
+      const [d, a] = V;
+      if (k === d) return 'Диагональ квадрата в √2 раз больше стороны: ' + nm(d) + ' = ' + nm(a) + '·√2 = ' + n(a) + '·√2 ' + approx + ' ' + ans + '.';
+      return 'Диагональ квадрата в √2 раз больше стороны: ' + nm(a) + ' = ' + nm(d) + ' / √2 = ' + n(d) + ' / √2 ' + approx + ' ' + ans + '.';
+    }
+    case 'sqAreaD': {
+      const [S, d] = V;
+      if (k === S) return 'Площадь квадрата равна половине квадрата диагонали: ' + nm(S) + ' = ' + nm(d) + '² / 2 = ' + n(d) + '² / 2 ' + approx + ' ' + ans + '.';
+      return 'Площадь квадрата равна половине квадрата диагонали: ' + nm(d) + ' = √(2' + nm(S) + ') = √(2 · ' + n(S) + ') ' + approx + ' ' + ans + '.';
+    }
+    case 'gmean': {
+      const [x, a, b] = V;
+      const lead = e.what === 'h' ? 'Высота прямоугольного треугольника, проведённая к гипотенузе, — среднее пропорциональное отрезков гипотенузы: ' : 'Катет — среднее пропорциональное гипотенузы и своей проекции на неё: ';
+      if (k === x) return lead + nm(x) + ' = √(' + nm(a) + ' · ' + nm(b) + ') = √(' + n(a) + ' · ' + n(b) + ')' + sqEnd(vv(a) * vv(b), vv(k), approx, ans) + '.';
+      const o = k === a ? b : a;
+      return lead + nm(x) + '² = ' + nm(a) + ' · ' + nm(b) + ', откуда ' + nm(k) + ' = ' + nm(x) + '² / ' + nm(o) + ' = ' + n(x) + '² / ' + n(o) + ' ' + approx + ' ' + ans + '.';
+    }
     case 'medianLen': {
       const [m, a, b, c] = V;
       if (k === m) return 'По формуле длины медианы: ' + nm(m) + ' = ½·√(2' + nm(a) + '² + 2' + nm(b) + '² − ' + nm(c) + '²) = ½·√(2·' + n(a) + '² + 2·' + n(b) + '² − ' + n(c) + '²) = ½·√' + num(2 * vv(a) ** 2 + 2 * vv(b) ** 2 - vv(c) ** 2) + ' ' + approx + ' ' + ans + '.';
@@ -1101,11 +1234,28 @@ function renderX(step, Q, unit) {
     return ax + (b > 0 ? ' + ' : ' − ') + num(Math.abs(b));
   };
   let html = 'Пусть ' + nm(c.k) + ' = ' + affS(c.k) + '. ';
-  const rest = step.exprs.filter(x => x.key !== c.k);
+  // в тексте — только величины, которые нужны уравнению или ответу
+  const needed = new Set((step.solveEq.type === 'fn' ? step.solveEq.vars : step.solveEq.terms.map(t => t[0])).concat(step.targets || []));
+  // и цепочка, по которой они выражены через x
+  for (let changed = true; changed;) {
+    changed = false;
+    for (const x of step.exprs) if (needed.has(x.key) && x.eq) for (const [k2] of x.eq.terms) if (!needed.has(k2) && step.exprs.some(y => y.key === k2)) { needed.add(k2); changed = true; }
+  }
+  const rest = step.exprs.filter(x => x.key !== c.k && needed.has(x.key));
+  step.exprs = step.exprs.filter(x => x.key === c.k || needed.has(x.key));
   if (rest.length) {
     html += 'Тогда ' + rest.map(x => nm(x.key) + ' = ' + affS(x.key) + (x.eq.why && x.eq.kind !== 'segsum' ? ' (' + x.eq.why + ')' : x.eq.kind === 'ratio' ? ' (по условию)' : '')).join(', ') + '. ';
   }
   const e = step.solveEq;
+  if (e.type === 'fn') {
+    const nmx = k => { const t = affS(k); return /^[\d,]+$/.test(t) || t === 'x' ? t : '(' + t + ')'; };
+    let eqText = '';
+    if (e.kind === 'pyth') eqText = 'по теореме Пифагора ' + nmx(e.vars[1]) + '² + ' + nmx(e.vars[2]) + '² = ' + nmx(e.vars[0]) + '²';
+    else eqText = 'получаем уравнение относительно x';
+    html += eqText[0].toUpperCase() + eqText.slice(1) + ', откуда <b>x = ' + num(step.x) + '</b>.';
+    const vals2 = step.exprs.map(x => nm(x.key) + ' = ' + withUnit(num(aff.get(x.key).a * step.x + aff.get(x.key).b), Q.vars.get(x.key), unit));
+    return html + ' Значит, ' + [nm(c.k) + ' = ' + withUnit(num(aff.get(c.k).a * step.x), Q.vars.get(c.k), unit)].concat(vals2).join(', ') + '.';
+  }
   // Уравнение: слагаемые с x — слева, известные числа — справа.
   const xt = e.terms.filter(([k]) => Math.abs(aff.get(k).a) > 1e-12);
   let rhs = e.rhs;

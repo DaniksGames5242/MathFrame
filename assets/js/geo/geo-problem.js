@@ -43,10 +43,12 @@ export function validateIr(ir) {
     if (g.kind === 'mult') return isSeg(g.a) && isSeg(g.b) && g.k > 0;
     if (g.kind === 'diff') return isSeg(g.a) && isSeg(g.b) && Number.isFinite(g.value);
     if (g.kind === 'onLine') return isName(g.point) && isSeg(g.seg);
+    if (g.kind === 'midline') return g.value > 0 && fig.type === 'trapezoid';
+    if (g.kind === 'obtuse' || g.kind === 'acute') return typeof g.angle === 'string' && g.angle.length >= 1;
     return false;
   });
   ir.constructions = (ir.constructions || []).filter(c => c && typeof c === 'object' && typeof c.kind === 'string');
-  ir.find = (ir.find || []).filter(f => f && ['length', 'angle', 'area', 'perimeter', 'inradius', 'circumradius', 'centersDist'].includes(f.kind));
+  ir.find = (ir.find || []).filter(f => f && ['length', 'angle', 'area', 'perimeter', 'inradius', 'circumradius', 'centersDist', 'trig', 'midline'].includes(f.kind));
   if (!ir.find.length) throw new Error('не понятно, что нужно найти');
   // Все упомянутые точки должны быть вершинами фигуры или точками построений.
   const known = new Set(V.concat(ir.constructions.map(c => c.point).filter(Boolean)));
@@ -94,10 +96,10 @@ function auxCandidates(ir) {
     const bs = fig.bases || [V[0] + V[3], V[1] + V[2]];
     const top = bs[1], bottom = bs[0];
     const have = v => ir.constructions.some(c => c.kind === 'altitude' && c.vertex === v);
-    const h1 = have(top[0]) ? null : { kind: 'altitude', vertex: top[0], target: bottom, point: nameFor('H'), aux: true };
+    const h1 = have(top[0]) || fig.rightTrap ? null : { kind: 'altitude', vertex: top[0], target: bottom, point: nameFor('H'), aux: true };
     if (h1) out.push([h1]);
     const h2 = have(top[1]) ? null : { kind: 'altitude', vertex: top[1], target: bottom, point: freeName({ constructions: ir.constructions.concat(h1 ? [h1] : []), given: ir.given }, V, 'K'), aux: true };
-    if (h2) out.push([h1, h2].filter(Boolean));
+    if (h2) { out.push([h2]); if (h1) out.push([h1, h2]); }
   }
   if (['parallelogram', 'rhombus'].includes(t)) out.push([{ kind: 'altitude', vertex: V[1], target: V[0] + V[3], point: nameFor('H'), aux: true }]);
   if (t === 'triangle') {
@@ -140,7 +142,7 @@ export async function solveGeometryProblem(text, opts) {
 
 // Похоже ли на геометрическую задачу: → null или текст ошибки.
 const GEO_WORDS = /треуг|параллелограм|ромб|квадрат|прямоугольн|трапец|четырехуг|многоуг|окружн|круг|угол|угл[аоуы]|сторон|отрез|точк|прям[аоуы]|биссектр|медиан|высот|диагонал|радиус|диаметр|хорд|касател|секущ|площад|периметр|вектор|плоскост|куб|пирамид|призм|шар|сфер|конус|цилиндр|параллелепип|тетраэдр|катет|гипотенуз|основани|вершин|перпендикул|параллельн|∠|△/;
-const TASK_WORDS = /найд|вычисл|докаж|определ|чему\s+равн|сколько|как[аоуи][йяем]|в\s+каком|постро|покаж|\?/;
+const TASK_WORDS = /найд|найти|вычисл|докаж|определ|чему\s+равн|сколько|как[аоуи][йяем]|в\s+каком|постро|покаж|\?/;
 export function checkProblemText(text) {
   const t = normalizeMarkup(text).toLowerCase().replace(/\s+/g, ' ').trim();
   if (t.replace(/[^a-zа-я0-9]/g, '').length < 12) return 'Слишком короткое условие. Напишите задачу полностью: что дано и что нужно найти.';
@@ -196,6 +198,20 @@ function solveIrUnsafe(ir, opts) {
   if (!model.consistent) {
     return { ok: false, error: 'Данные задачи противоречат друг другу: такой фигуры не существует (или условие распознано неверно). Проверьте числа в условии.', ir };
   }
+  // Искомое «sin A» → угол A (значение пересчитаем в конце); «большая/меньшая
+  // сторона, диагональ», «угол ромба» — выбираем по построенной модели.
+  const trigFinds = [];
+  ir.find = ir.find.map(f => {
+    if (f.pick) {
+      const V = ir.figure.vertices;
+      const sides = V.map((v, i) => (i === V.length - 1 ? V[0] + v : v + V[i + 1]));
+      const L = sg => evalQ(model, { kind: 'length', seg: sg });
+      if (f.pick === 'max' || f.pick === 'min') { const arr = sides.slice().sort((a, b) => L(a) - L(b)); return { kind: 'length', seg: f.pick === 'max' ? arr[arr.length - 1] : arr[0] }; }
+      if (f.pick === 'maxDiag' || f.pick === 'minDiag') { const d = [V[0] + V[2], V[1] + V[3]].sort((a, b) => L(a) - L(b)); return { kind: 'length', seg: f.pick === 'maxDiag' ? d[1] : d[0] }; }
+      if (f.pick === 'acute') { const a = evalQ(model, { kind: 'angle', angle: V[0] }); return { kind: 'angle', angle: a <= 90 + 1e-9 ? V[0] : V[1] }; }
+    }
+    return f;
+  });
   // Недостающие данные: выбираем «средние» значения и достраиваем модель для чертежа.
   const undetermined = ir.find.filter(f => { try { return !isDetermined(model, f); } catch (e) { return true; } });
   const assumed = assumedQuantities(model).map(a => ({ q: a.q, value: niceValue(a.q, a.value) }));
