@@ -866,6 +866,38 @@
         try { mf.field.setExpr(text); } catch (e) { photoStatus.textContent = 'Не удалось вставить распознанный пример: ' + text; photoStatus.className = 'gp-status gp-err'; return; }
         recompute();
       }, function (text, kind) { photoStatus.textContent = text || ''; photoStatus.className = 'gp-status' + (kind ? ' gp-' + kind : ''); });
+      // Формулировка, которую калькулятор не понимает (текстовая задача, нестандартная
+      // запись), — решает нейросеть; всё нематематическое отклоняется.
+      var aiBox = el('details', 'gp-algai', p);
+      el('summary', null, aiBox, 'Не получается записать формулой? Опишите задачу словами');
+      var aiTa = el('textarea', 'more-textarea', aiBox);
+      aiTa.rows = 3; aiTa.placeholder = 'Например: «Сумма двух чисел 25, а их разность 7. Найдите числа.»';
+      var aiRow = el('div', 'gp-row', aiBox);
+      var aiBtn = el('button', 'mini gp-solve', aiRow, 'Решить'); aiBtn.type = 'button';
+      var aiStatus = el('div', 'gp-status', aiBox);
+      var aiOut = el('div', 'gp-out', aiBox);
+      function aiSolve(text) {
+        aiOut.innerHTML = '';
+        aiStatus.className = 'gp-status gp-busy'; aiStatus.textContent = 'Решаю с помощью нейросети…';
+        aiBtn.disabled = true;
+        import('/assets/js/geo/geo-ai.js').then(function (m) { return m.aiSolveAlgebra(text); }).then(function (d) {
+          aiStatus.textContent = ''; aiStatus.className = 'gp-status';
+          el('div', 'gp-h', aiOut, 'Решение');
+          var ol = el('ol', 'gp-steps', aiOut);
+          d.steps.forEach(function (st) { el('li', null, ol, aiTex(st)); });
+          var ans = el('div', 'gp-answer', aiOut);
+          el('span', 'gp-answer-lbl', ans, 'Ответ');
+          el('span', 'gp-answer-val', ans, aiTex(d.answer));
+          el('div', 'gp-note', aiOut, 'Решено нейросетью — проверьте рассуждения.');
+          if (d.linear) {
+            var use = el('button', 'mini', aiOut, 'Подставить в калькулятор: ' + d.linear); use.type = 'button';
+            use.addEventListener('click', function () { try { mf.field.setExpr(d.linear); recompute(null, true); } catch (e) {} });
+          }
+        }).catch(function (e) {
+          aiStatus.className = 'gp-status gp-err'; aiStatus.textContent = (e && e.message) || String(e);
+        }).then(function () { aiBtn.disabled = false; });
+      }
+      aiBtn.addEventListener('click', function () { aiSolve(aiTa.value.trim()); });
       // В отличие от построителя графиков, здесь система ДОЛЖНА быть доступна —
       // клавиатура создаётся с allowSystem по умолчанию (true), просто убеждаемся,
       // что makeField не выключил её.
@@ -948,7 +980,16 @@
 
       function renderSolverResult(res) {
         checkWrap.hidden = true; checkWrap.innerHTML = '';
-        if (res.error) { setBadge(res.internal ? 'Ошибка' : 'Не получилось решить'); showError(res.error.replace(/\$([^$]+)\$/g, function (_, t) { return latexToPlainText(t).replace(/\\[a-z]+\s?/g, ''); })); errWrap.innerHTML = richText('Не получилось: ' + res.error); return; }
+        if (res.error) {
+          setBadge(res.internal ? 'Ошибка' : 'Не получилось решить'); showError(res.error.replace(/\$([^$]+)\$/g, function (_, t) { return latexToPlainText(t).replace(/\\[a-z]+\s?/g, ''); })); errWrap.innerHTML = richText('Не получилось: ' + res.error);
+          // Запись калькулятор не понял — предлагаем решить нейросетью (редкий случай).
+          var lin = mf.field.expr();
+          if (lin && lin.trim()) {
+            var b = el('button', 'mini gp-ai-try', errWrap, 'Решить с помощью нейросети'); b.type = 'button';
+            b.addEventListener('click', function () { aiBox.open = true; aiTa.value = lin; aiSolve(lin); aiBox.scrollIntoView({ block: 'nearest' }); });
+          }
+          return;
+        }
         setBadge(res.badge, res.kind);
         methodRow.hidden = true; methodRow.innerHTML = '';
         if (res.methods && res.methods.list.length > 1 && set.detail !== 'brief') {

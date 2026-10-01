@@ -67,3 +67,21 @@ export async function aiSolveGeometry(text) {
   if (!Array.isArray(d.steps) || !d.steps.length) throw new Error('нейросеть не вернула решения');
   return d;
 }
+
+// Алгебра: формулировка, которую не понял калькулятор (текстовая задача и т. п.).
+// Нематематический текст отсекается и здесь, и на сервере.
+const MATH_WORDS = /уравнен|неравенств|систем|выражен|упрост|вычисл|реш|найд|корн|производн|интеграл|предел|функци|график|дроб|процент|скорост|сумм|разност|произведен|частн|степен|логарифм|синус|косинус|тангенс|числ|множител|многочлен|прогресс|модул/;
+export function checkMathText(text) {
+  const t = String(text || '').toLowerCase().trim();
+  if (t.replace(/\s/g, '').length < 2) return 'Слишком короткий запрос.';
+  const formula = /\d|[=<>^√∫∑π]|\b[a-z]\b|\b(sin|cos|tg|tan|log|ln|sqrt|lim)\b/.test(t);
+  if (!formula && !MATH_WORDS.test(t)) return 'Некорректный запрос: калькулятор решает только математические выражения, уравнения и задачи.';
+  return null;
+}
+export async function aiSolveAlgebra(text) {
+  const bad = checkMathText(text);
+  if (bad) throw new Error(bad);
+  const d = await post({ task: 'algebra', text });
+  if (!Array.isArray(d.steps) || !d.steps.length) throw new Error('нейросеть не вернула решения');
+  return d;
+}

@@ -320,3 +320,6 @@ html.mf-no-motion .svc-bar, html.mf-no-motion .mf-copy { transition: none; }
 .gp-answer-val i { font-style: italic; }
 .gp-note { font-size: .86rem; color: var(--text-secondary); margin: .3rem 0; line-height: 1.5; }
 .gp-note.gp-warn { padding: .55rem .75rem; border-radius: var(--r-sm); border: 1px solid rgba(245, 158, 11, .45); background: rgba(245, 158, 11, .1); color: var(--text-primary); margin: 0 0 .8rem; }
+.gp-algai { margin: .4rem 0 .8rem; }
+.gp-algai summary { cursor: pointer; font-size: .86rem; color: var(--text-secondary); margin-bottom: .5rem; }
+.gp-ai-try { display: block; margin-top: .5rem; }
