@@ -50,6 +50,11 @@
       "source": "/pages/admin/hierarchy-editor.html",
       "destination": "/admin/hierarchy-editor/",
       "permanent": true
+    },
+    {
+      "source": "/pages/admin/review.html",
+      "destination": "/admin/review/",
+      "permanent": true
     }
   ],
   "rewrites": [
@@ -88,6 +93,10 @@
     {
       "source": "/admin/hierarchy-editor/",
       "destination": "/pages/admin/hierarchy-editor.html"
+    },
+    {
+      "source": "/admin/review/",
+      "destination": "/pages/admin/review.html"
     }
   ],
   "headers": [
@@ -152,6 +161,10 @@
     },
     "api/llm.js": {
       "maxDuration": 60
+    },
+    "api/review-notes.js": {
+      "maxDuration": 60,
+      "includeFiles": "data/topics/config.json"
     },
     "api/chat.js": {
       "maxDuration": 60,

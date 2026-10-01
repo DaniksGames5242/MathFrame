@@ -114,12 +114,12 @@ export function parseGms(src, sceneKeys) {
                     if (src[end] === ';') end++;
                     pushRaw(i);
                     segs.push({ t: 'param', key, value: src.slice(j, stop).trim(), raw: src.slice(i, end) });
-                    i = end - 1; rawStart = end; lineStart = false;
+                    i = end - 1; rawStart = end; lineStart = src[end - 1] === ';';
                     continue;
                 }
             }
         }
-        if (!/\s/.test(c)) lineStart = false;
+        if (!/\s/.test(c)) lineStart = depth === 1 && c === ';';   // `field width = 16; field height = 10;`
         if (c === '(' || c === '[' || c === '{') { depth++; if (i === open && depth !== 1) depth = 1; }
         else if (c === ')' || c === ']' || c === '}') depth--;
     }
