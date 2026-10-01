@@ -16,7 +16,13 @@
 
 const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/';
 
+const { identify, bearerToken } = require('./chat')._internal;
+
 module.exports = async (req, res) => {
+  // Только администраторы (редактор иерархии): иначе сервер был бы открытым прокси.
+  const who = await identify(bearerToken(req)).catch(() => null);
+  if (!who) { res.status(401).json({ error: 'Войдите в аккаунт администратора.' }); return; }
+  if (who.role !== 'owner' && who.role !== 'admin') { res.status(403).json({ error: 'Только для администраторов.' }); return; }
   const key = req.headers['x-gemini-key'];
   if (!key || typeof key !== 'string') {
     res.status(400).json({ error: 'Отсутствует заголовок x-gemini-key.' });

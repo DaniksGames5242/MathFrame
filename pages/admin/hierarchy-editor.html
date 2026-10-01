@@ -5625,6 +5625,12 @@
   // (api/gemini.js) instead of hitting Google directly; the key is still
   // only ever typed into this browser, just forwarded by our server rather
   // than sent straight from the browser.
+  // Ретрансляторы api/gemini.js и api/llm.js пускают только администраторов:
+  // к запросу добавляется токен входа (иначе сервер можно было бы использовать как прокси).
+  async function relayAuthHeader(){
+    try { const u = window.Auth && window.Auth.getCurrentUser && window.Auth.getCurrentUser(); if (u) return { authorization: 'Bearer ' + await u.getIdToken() }; } catch (e) {}
+    return {};
+  }
   function geminiFetch(path, apiKey, opts){
     opts = opts || {};
     const headers = Object.assign(
@@ -5638,7 +5644,7 @@
     // to fetch() (harmless if it were, but keeps the init object honest).
     const fetchOpts = Object.assign({}, opts, { headers });
     delete fetchOpts.stream;
-    return fetch(url, fetchOpts);
+    return relayAuthHeader().then(a => { Object.assign(fetchOpts.headers, a); return fetch(url, fetchOpts); });
   }
 
   // Alternative providers for accounts whose Gemini free tier is region/
@@ -5693,7 +5699,7 @@
     const url = '/api/llm?provider=' + encodeURIComponent(provider) + '&path=' + encodeURIComponent(path) + (opts.stream ? '&stream=1' : '');
     const fetchOpts = Object.assign({}, opts, { headers });
     delete fetchOpts.stream;
-    return fetch(url, fetchOpts);
+    return relayAuthHeader().then(a => { Object.assign(fetchOpts.headers, a); return fetch(url, fetchOpts); });
   }
 
   // Mistral: only mistral-medium-latest currently works — it's the default,
