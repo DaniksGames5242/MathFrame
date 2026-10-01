@@ -399,6 +399,11 @@
         if (isNum(n.a, 1)) return n.b;
         if (isNum(n.b, 1)) return n.a;
         if (isNum(n.a) && isNum(n.b)) return num(n.a.v * n.b.v);
+        // числовые множители собираем вместе: 4·(3·x²) → 12·x², (3·x)·4 → 12·x
+        if (isNum(n.a) && n.b.t === '*' && isNum(n.b.a)) return simp({ t: '*', a: num(n.a.v * n.b.a.v), b: n.b.b });
+        if (isNum(n.b) && n.a.t === '*' && isNum(n.a.a)) return simp({ t: '*', a: num(n.b.v * n.a.a.v), b: n.a.b });
+        if (isNum(n.b) && !isNum(n.a)) return simp({ t: '*', a: n.b, b: n.a });
+        if (!isNum(n.a) && n.b.t === '*' && isNum(n.b.a)) return simp({ t: '*', a: n.b.a, b: { t: '*', a: n.a, b: n.b.b } });
         break;
       case '/':
         if (isNum(n.a, 0)) return num(0);

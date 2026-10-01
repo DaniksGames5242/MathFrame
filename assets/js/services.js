@@ -2491,25 +2491,29 @@
         var x = parseFloat(String(inp.value).replace(',', '.'));
         out.innerHTML = '';
         if (!isFinite(x)) { el('div', 'sub', out, 'введите число'); return; }
-        var eps = 2e-6, found = [];
+        // Точность ввода: «0.7853982» — 7 знаков, значит совпадение проверяем до ½·10⁻⁷.
+        var dec = (String(inp.value).replace(',', '.').split('.')[1] || '').replace(/[^0-9]/g, '').length;
+        var eps = Math.max(1e-12, 0.51 * Math.pow(10, -dec)), found = [];
+        // простейшая дробь n/d, совпадающая с x в пределах tol (знаменатель ≤ maxD)
+        function smallFrac(v, tol, maxD) {
+          for (var d = 1; d <= maxD; d++) { var nn = Math.round(v * d); if (Math.abs(v - nn / d) <= tol) return { n: nn, d: d }; }
+          return null;
+        }
+        // «Простая» дробь: знаменатель не больше, чем позволяет точность ввода
+        var fr = smallFrac(x, eps, Math.min(100000, Math.max(10, Math.pow(10, Math.floor(dec / 2)))));
+        if (fr && fr.d > 1) found.push(['дробь', fr.n + '/' + fr.d]);
+        else if (fr && dec === 0) found.push(['целое', String(fr.n)]);
 
-        var fr = MFMath.toFraction(x, 100000);
-        if (fr) found.push(['дробь', fr.n + '/' + fr.d]);
-
-        // √n
+        // √n и k√n
         var sq = x * x;
-        if (Math.abs(sq - Math.round(sq)) < eps * Math.max(1, sq) && Math.round(sq) > 1)
+        if (Math.abs(sq - Math.round(sq)) <= 2 * Math.abs(x) * eps + 1e-12 && Math.round(sq) > 1 && Math.abs(Math.sqrt(Math.round(sq)) - Math.round(Math.sqrt(Math.round(sq)))) > 1e-9)
           found.push(['корень', '\u221A' + Math.round(sq)]);
 
-        // доли π
-        var op = x / Math.PI, fp = MFMath.toFraction(op, 400);
-        if (fp && Math.abs(op - fp.n / fp.d) < eps)
-          found.push(['через \u03C0', (fp.n === 1 ? '' : fp.n) + '\u03C0' + (fp.d === 1 ? '' : '/' + fp.d)]);
-
-        // доли e
-        var oe = x / Math.E, fe = MFMath.toFraction(oe, 400);
-        if (fe && Math.abs(oe - fe.n / fe.d) < eps)
-          found.push(['через e', (fe.n === 1 ? '' : fe.n) + 'e' + (fe.d === 1 ? '' : '/' + fe.d)]);
+        // доли π и e
+        var fp = smallFrac(x / Math.PI, eps / Math.PI, 400);
+        if (fp && fp.n !== 0) found.push(['через \u03C0', (Math.abs(fp.n) === 1 ? (fp.n < 0 ? '−' : '') : fp.n) + '\u03C0' + (fp.d === 1 ? '' : '/' + fp.d)]);
+        var fe = smallFrac(x / Math.E, eps / Math.E, 400);
+        if (fe && fe.n !== 0) found.push(['через e', (Math.abs(fe.n) === 1 ? (fe.n < 0 ? '−' : '') : fe.n) + 'e' + (fe.d === 1 ? '' : '/' + fe.d)]);
 
         // (1+√5)/2 и подобные квадратичные иррациональности: ищем целые p,q,r
         for (var q = 2; q <= 12 && found.length < 6; q++) {
@@ -2519,6 +2523,8 @@
           }
         }
 
+        // нашёлся «красивый» вид (π, √, e) — громоздкая дробь-приближение не нужна
+        if (found.some(function (f) { return f[0] !== 'дробь' && f[0] !== 'целое'; })) found = found.filter(function (f) { return !(f[0] === 'дробь' && fr && fr.d > 100); });
         if (!found.length) { el('div', 'sub', out, 'точного вида не нашлось'); return; }
         var dl = el('dl', 'kv', out);
         found.forEach(function (f) { el('dt', null, dl, f[0]); el('dd', null, dl, f[1]); });
@@ -3017,6 +3023,8 @@
       if (lim.exists) moreResults(out, [['предел', lim.value]]);
       else { out.innerHTML=''; el('div','err',out,'предел не существует (слева ' + moreFmt(lim.left) + ', справа ' + moreFmt(lim.right) + ')'); }
     }
+    // числовые поля тоже пересчитывают результат (не только формула)
+    c.querySelectorAll('input').forEach(function (i) { i.addEventListener('input', calc); });
     calc();
   }
   function buildNthDerivUI(c) {
@@ -3035,6 +3043,8 @@
       for (var i = 0; i < n; i++) { var next = MFMath.d(cur, v); if (!next) { el('div','err',out,'не удалось продифференцировать'); return; } cur = MFMath.simplify(next); }
       el('div', 'big', out).innerHTML = texToHtml(MFMath.tex(cur));
     }
+    // числовые поля тоже пересчитывают результат (не только формула)
+    c.querySelectorAll('input').forEach(function (i) { i.addEventListener('input', calc); });
     calc();
   }
   function buildIntegralUI(c) {
@@ -3050,6 +3060,8 @@
       var val = MFMath.integrate(function (x) { return comp.at(x); }, a, b);
       moreResults(out, [['интеграл (численно, Симпсон)', val]]);
     }
+    // числовые поля тоже пересчитывают результат (не только формула)
+    c.querySelectorAll('input').forEach(function (i) { i.addEventListener('input', calc); });
     calc();
   }
   function buildSeriesUI(c) {
@@ -3077,6 +3089,8 @@
       moreResults(out, [['сумма (≈' + count + ' членов)', sum]]);
       if (infinite && !converged) el('div', 'sub', out, 'похоже, ряд сходится медленно или расходится — результат приближённый');
     }
+    // числовые поля тоже пересчитывают результат (не только формула)
+    c.querySelectorAll('input').forEach(function (i) { i.addEventListener('input', calc); });
     calc();
   }
   function buildTaylorUI(c) {
@@ -3104,6 +3118,8 @@
       el('div', 'big', out).innerHTML = texToHtml(terms || '0');
       el('div', 'sub', out, 'многочлен Тейлора степени ' + N + ' в окрестности x₀=' + x0);
     }
+    // числовые поля тоже пересчитывают результат (не только формула)
+    c.querySelectorAll('input').forEach(function (i) { i.addEventListener('input', calc); });
     calc();
   }
 
