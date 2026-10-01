@@ -154,7 +154,8 @@
       "maxDuration": 60
     },
     "api/chat.js": {
-      "maxDuration": 60
+      "maxDuration": 60,
+      "includeFiles": "data/topics/config.json"
     },
     "api/simplify.js": {
       "maxDuration": 60
