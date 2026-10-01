@@ -167,6 +167,9 @@ async function solveLocalOrIr(text, opts) {
   if (parsed.ok) {
     let local = null;
     try { validateIr(ir); local = solveIr(ir, Object.assign({}, opts, { source: 'local', notes: [], partial: parsed.unknown.length ? parsed.unknown : null })); } catch (e) { local = null; }
+    // Искомое совпадает с данным — значит, условие понято неверно (например, «третью сторону»).
+    const sameAsGiven = ir.find.some(f => ir.given.some(g => g.kind === f.kind && ((f.seg && g.seg && f.seg.split('').sort().join('') === g.seg.split('').sort().join('')) || (f.angle && g.angle === f.angle) || ((f.kind === 'area' || f.kind === 'perimeter') && (f.of || null) === (g.of || null)))));
+    if (sameAsGiven) local = Object.assign({}, local, { ok: false, error: 'Не удалось понять, что нужно найти.' });
     const clean = local && local.ok && local.method !== 'coords' && !local.undetermined;
     const leftoverData = parsed.unknown.some(u => /\d/.test(u));
     if (clean && (!leftoverData || !opts.ai)) {
@@ -254,6 +257,13 @@ function solveIrUnsafe(ir, opts) {
   }
   if (undetermined.length) {
     notes.push('Данных в условии недостаточно, чтобы однозначно найти ' + undetermined.map(f => RU_Q[f.kind] + (f.seg ? ' ' + f.seg : f.angle ? ' ' + f.angle : '')).join(', ') + ': ответ зависит от величин, которых нет в условии. Решение дано для чертежа, где ' + assumedText.replace(/^для чертежа принято /, '').replace(/ \(в условии не задано\)$/, '') + '.');
+  }
+  // «сумма углов B и C»
+  const grp = answers.filter(a => a.f && a.f.sumGroup);
+  if (grp.length > 1) {
+    const total = grp.reduce((t, a) => t + a.value, 0);
+    steps.push({ html: grp.map(a => a.name).join(' + ') + ' = ' + grp.map(a => num(a.value) + '°').join(' + ') + ' = <b>' + num(total) + '°</b>.', kind: 'sum' });
+    answers = answers.filter(a => !(a.f && a.f.sumGroup)).concat([{ f: grp[0].f, name: grp.map(a => a.name).join(' + '), value: total, unit: '°' }]);
   }
   let gms = '';
   try { gms = buildGms(usedIr, drawModel, sol, { theme: opts.theme, assumedText }); } catch (e) { notes.push('Чертёж не построен: ' + e.message); }

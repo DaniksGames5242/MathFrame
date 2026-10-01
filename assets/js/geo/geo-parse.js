@@ -417,7 +417,7 @@ export function parseProblem(src) {
     ir.given.push({ kind: 'angle', angle: /противолеж/.test(m[3]) ? o[0] : o[1], value: parseNumber(m[4]) });
   });
   // «гипотенуза равна 25, один из катетов равен 7», «катет равен 7»
-  each(new RegExp('(?:один\\s+из\\s+катетов|(?<![а-я])катет[а-я]*(?:\\s+(?:прямоугольного|этого|данного)\\s+треугольника)?)' + EQ + NUM + UNIT), m => {
+  each(new RegExp('(?:один\\s+из\\s+катетов|(?<![а-я])катет[а-я]*(?:\\s+(?:прямоугольного|этого|данного)\\s+треугольника)?)' + WEQ + NUM + UNIT), m => {
     if (!fig || fig.type !== 'triangle') return false;
     const { r, o } = legsOf(); ir.given.push({ kind: 'length', seg: o[0] + r, value: parseNumber(m[1]) });
   });
@@ -477,6 +477,17 @@ export function parseProblem(src) {
     ir.given.push({ kind: 'angleRatio', a: V[1], b: V[2], ratio: [r[1], r[2]] });
     ir.xAngle = { angle: V[0], k: r[0] };
   });
+  // «боковая сторона на 5 больше (меньше) основания» / «… в 2 раза больше основания»
+  each(new RegExp('боков[а-я]*\\s+сторон[а-я]*\\s+на\\s+' + NUM + UNIT + '\\s+(больше|меньше|длиннее|короче)\\s+основани[а-я]*'), m => {
+    if (!fig || fig.type !== 'triangle') return false;
+    const b = fig.base || (V[0] + V[2]); fig.base = b; fig.isosceles = true; const ap = V.find(x => !b.includes(x)); const v = parseNumber(m[1]);
+    ir.given.push({ kind: 'diff', a: b[0] + ap, b, value: /больше|длиннее/.test(m[3]) ? v : -v });
+  });
+  each(new RegExp('основани[а-я]*\\s+на\\s+' + NUM + UNIT + '\\s+(больше|меньше|длиннее|короче)\\s+боков[а-я]*\\s+сторон[а-я]*'), m => {
+    if (!fig || fig.type !== 'triangle') return false;
+    const b = fig.base || (V[0] + V[2]); fig.base = b; fig.isosceles = true; const ap = V.find(x => !b.includes(x)); const v = parseNumber(m[1]);
+    ir.given.push({ kind: 'diff', a: b, b: b[0] + ap, value: /больше|длиннее/.test(m[3]) ? v : -v });
+  });
   // «один катет на 2 больше другого»
   each(new RegExp('один\\s+(?:из\\s+)?катет[а-я]*\\s+на\\s+' + NUM + UNIT + '\\s+(больше|меньше|длиннее|короче)\\s+друг[а-я]*'), m => {
     if (!fig || fig.type !== 'triangle') return false;
@@ -534,8 +545,14 @@ export function parseProblem(src) {
   // Касательная и секущая из внешней точки: «из точки P, лежащей вне окружности радиуса 5,
   // проведены касательная PA и секущая PB, проходящая через центр… расстояние от P до центра 13»
   const tan = text.match(/касательн[а-я]*\s+([A-Z])([A-Z])/);
-  const rad = text.match(new RegExp('окружност[а-я]*\\s+(?:с\\s+центром\\s+([A-Z])\\s+(?:и\\s+)?)?радиус[а-я]*\\s+(?:равн[а-я]*\\s+)?' + NUM));
+  let rad = text.match(new RegExp('окружност[а-я]*\\s+(?:с\\s+центром\\s+([A-Z])\\s+(?:и\\s+)?)?радиус[а-я]*\\s+(?:равн[а-я]*\\s+)?' + NUM));
+  if (!rad) { const r2 = text.match(new RegExp('окружност[а-я]*\\s+радиус[а-я]*\\s+' + NUM + UNIT + '\\s+с\\s+центром\\s+([A-Z])')); if (r2) rad = [r2[0], r2[3], r2[1]]; }
   let dist = text.match(new RegExp('расстояние\\s+от\\s+(?:точки\\s+)?([A-Z])\\s+до\\s+центра(?:\\s+окружности)?(?:\\s+([A-Z]))?' + EQ + NUM));
+  if (!dist && tan && rad) {
+    const P0 = tan[1], O0 = rad[1] || 'O';
+    const d3 = text.match(new RegExp('(?:' + O0 + P0 + '|' + P0 + O0 + ')\\s*=\\s*' + NUM));
+    if (d3) dist = [d3[0], P0, O0, d3[1]];
+  }
   if (!dist) { const d2 = text.match(new RegExp('(?:из\\s+)?точк[а-я]*\\s+([A-Z])\\s*,?\\s+(?:удален|удалён|отстоящ|находящ)[а-я]*\\s+от\\s+центра(?:\\s+окружности)?(?:\\s+([A-Z]))?\\s+на\\s+(?:расстояние\\s+)?' + NUM)); if (d2) dist = [d2[0], d2[1], d2[2], d2[3]]; }
   const tanLen = text.match(new RegExp('касательн[а-я]*\\s+([A-Z])([A-Z])\\s+к\\s+окружност[а-я]*\\s+с\\s+центром\\s+([A-Z])\\s+и\\s+радиус[а-я]*\\s+' + NUM + '\\s+(?:равн[а-я]*|=)\\s+' + NUM));
   if (!fig && tanLen) {
@@ -569,7 +586,7 @@ export function parseProblem(src) {
   let fm;
   const findMask = text;   // искомое берём из полного текста: «найдите высоту CH» уже разобрано как построение
   while ((fm = findRe.exec(findMask))) {
-    const body = fm[1].replace(/\s(?:со|с)\s+(?:сторон|катет|гипотенуз|основани|диагонал|периметр|радиус|высот)[а-я]*(?:\s+[\d.,√]+(?:\s*(?:см|мм|дм|м))?(?:\s*,?\s*(?:и\s+)?(?:(?:с\s+)?(?:высот|диагонал)[а-я]*\s+)?[\d.,√]+(?:\s*(?:см|мм|дм|м))?)*)?/g, ' ').split(/,?\s+(?:если|при\s+условии|когда|зная|учитывая)\s+/)[0];
+    const body = fm[1].split(/\s(?:с|со)\s+(?=(?:основани|сторон|катет|гипотенуз|диагонал|высот|радиус|угл|периметр|площад)[а-я]*\s)/)[0].replace(/\s(?:со|с)\s+(?:сторон|катет|гипотенуз|основани|диагонал|периметр|радиус|высот)[а-я]*(?:\s+[\d.,√]+(?:\s*(?:см|мм|дм|м))?(?:\s*,?\s*(?:и\s+)?(?:(?:с\s+)?(?:высот|диагонал)[а-я]*\s+)?[\d.,√]+(?:\s*(?:см|мм|дм|м))?)*)?/g, ' ').split(/,?\s+(?:если|при\s+условии|когда|зная|учитывая)\s+/)[0];
     let consumedAll = parseFindList(body, ir, V);
     if (consumedAll) eat(fm.index, fm[0].length);
   }
@@ -683,6 +700,7 @@ function parseFindList(body, ir, V) {
   // упоминания фигуры внутри искомого («угол C треугольника ABC») — не искомое
   s = s.replace(/(?:треугольник|параллелограмм|ромб|квадрат|прямоугольник|трапеци|четырехугольник)[а-я]*\s+([A-Z]{3,4})\b/g, (w, nm) => (nm === V.join('') && !/площад|периметр/.test(s) ? ' ' : w));
   // sin/cos/tg угла
+  s = s.replace(/(синус|косинус|тангенс|котангенс)[а-я]*\s+(?:угла\s+)?([A-Z]{1,3})\b/g, (w, f, a) => { push({ kind: 'trig', fn: { синус: 'sin', косинус: 'cos', тангенс: 'tg', котангенс: 'ctg' }[f], angle: a }); return ' '; });
   s = s.replace(/(sin|cos|tg|tan|ctg)\s*∠?\s*([A-Z]{1,3})\b/g, (w, f, a) => { push({ kind: 'trig', fn: f === 'tan' ? 'tg' : f, angle: a }); return ' '; });
   // средняя линия трапеции
   s = s.replace(/(?:длин[а-я]*\s+)?(?:ее\s+|её\s+|его\s+)?средн[а-я]*\s+лини[а-я]*(?:\s+трапеции)?/g, () => { push({ kind: 'midline' }); return ' '; });
@@ -695,6 +713,14 @@ function parseFindList(body, ir, V) {
   // «другую диагональ», «меньшую/большую диагональ», «диагональ» (уже выше), «сторону» (одну)
   s = s.replace(/(друг|меньш|больш)[а-я]*\s+диагонал[а-я]*/g, (w, k) => { push({ kind: 'length', seg: k === 'друг' ? V[1] + V[3] : V[0] + V[2], pick: k === 'меньш' ? 'minDiag' : k === 'больш' ? 'maxDiag' : undefined }); return ' '; });
   s = s.replace(/(?<!(?:больш|меньш)[а-я]*\s)(?:угол\s+(?:ромба|параллелограмма|трапеции))/g, () => { push({ kind: 'angle', angle: V[0], pick: 'acute' }); return ' '; });
+  s = s.replace(/треть[а-я]*\s+сторон[а-я]*/g, () => { const have = new Set(ir.given.filter(g => g.kind === 'length').map(g => g.seg.split('').sort().join(''))); const sides = V.map((v, i) => (i === V.length - 1 ? V[0] + v : v + V[i + 1])); push({ kind: 'length', seg: sides.find(x => !have.has(x.split('').sort().join(''))) || sides[1] }); return ' '; });
+  s = s.replace(/сумм[а-я]*\s+углов\s+([A-Z]{1,3})\s+и\s+([A-Z]{1,3})/g, (w, a, b) => { push({ kind: 'angle', angle: a, sumGroup: 1 }); push({ kind: 'angle', angle: b, sumGroup: 1 }); return ' '; });
+  s = s.replace(/(?<![а-я])основани[ея](?![а-я])(?!\s+[A-Z])/g, () => {
+    const f = ir.figure;
+    if (f.type === 'triangle') push({ kind: 'length', seg: f.base || (V[0] + V[2]) });
+    else if (f.type === 'trapezoid') push({ kind: 'length', seg: trapBases(f)[1] });
+    return ' ';
+  });
   // «третий угол», «другой (острый) угол», «угол при вершине/основании», «боковую сторону», «другой катет», «большую/меньшую сторону»
   s = s.replace(/третий\s+угол/g, () => { const have = new Set(ir.given.filter(g => g.kind === 'angle').map(g => g.angle)); push({ kind: 'angle', angle: V.find(x => !have.has(x)) || V[2] }); return ' '; });
   s = s.replace(/друг[а-я]*\s+(?:острый\s+)?угол/g, () => { const have = new Set(ir.given.filter(g => g.kind === 'angle').map(g => g.angle)); const r = ir.figure.rightAngle; push({ kind: 'angle', angle: V.find(x => !have.has(x) && x !== r) || V[1] }); return ' '; });

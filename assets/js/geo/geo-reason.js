@@ -590,6 +590,8 @@ export function solveProblem(ir, model) {
     add(fn([r, S0, P0], x => x[0] * x[2] - 2 * x[1], { kind: 'inr', cost: 2 }));
     add(fn([R, a, b, c, S0], x => 4 * x[0] * x[4] - x[1] * x[2] * x[3], { kind: 'circR', cost: 2 }));
     add(fn([d, R, r], x => x[0] * x[0] - x[1] * x[1] + 2 * x[1] * x[2], { kind: 'euler', cost: 2 }));
+    // теорема синусов: сторона = 2R · sin противолежащего угла
+    for (const [side, opp] of [[a, angV(V[0])], [b, angV(V[1])], [c, angV(V[2])]]) add(fn([R, side, opp], x => 2 * x[0] * Math.sin(x[2] * Math.PI / 180) - x[1], { kind: 'sineR', cost: 2 }));
     for (const T of triInfo) if (T.tri.split('').sort().join('') === V.slice().sort().join('')) {
       for (const [v, s2] of [[T.a, T.bc], [T.b, T.ca], [T.c, T.ab]]) {
         const ang = { [T.a]: T.A, [T.b]: T.B, [T.c]: T.C }[v];
@@ -1207,6 +1209,11 @@ function renderFormula(k, e, known, Q, unit) {
       const [T, a] = V;
       if (k === T) return nm(T) + ' = ' + e.fnm + ' ' + n(a) + '° ' + approx + ' ' + ans + '.';
       return 'Так как ' + nm(T) + ' = ' + n(T) + ', ' + nm(k) + ' ' + approx + ' ' + ans + '.';
+    }
+    case 'sineR': {
+      const [R, a, A] = V;
+      if (k === R) return 'По теореме синусов ' + nm(a) + ' / sin ' + nm(A) + ' = 2R, откуда R = ' + nm(a) + ' / (2 sin ' + nm(A) + ') = ' + n(a) + ' / (2 · sin ' + n(A) + '°) ' + approx + ' ' + ans + '.';
+      return 'По теореме синусов ' + nm(a) + ' = 2R · sin ' + nm(A) + ', откуда ' + nm(k) + ' ' + approx + ' ' + ans + '.';
     }
     case 'area_midv': {
       const [S, m, h] = V;
