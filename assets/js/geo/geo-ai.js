@@ -85,3 +85,18 @@ export async function aiSolveAlgebra(text) {
   if (!Array.isArray(d.steps) || !d.steps.length) throw new Error('нейросеть не вернула решения');
   return d;
 }
+
+// Команда со формулой («Решите уравнение x² − 5x + 6 = 0», «Упростите $\\frac{x^2-1}{x-1}$»,
+// «Вычислите 2^10») → формула для калькулятора. null — если это не «команда + формула».
+import { normalizeMarkup } from './geo-markup.js';
+export function extractFormula(text) {
+  let t = normalizeMarkup(String(text || '')).trim();
+  const cmd = /^(?:пожалуйста\s*,?\s*)?(?:реши(?:те)?|решить|найди(?:те)?|найти|вычисли(?:те)?|вычислить|упрости(?:те)?|упростить|посчитай(?:те)?|сколько\s+будет|чему\s+равно|разложи(?:те)?\s+на\s+множители|раскрой(?:те)?\s+скобки)\s*(?:уравнение|неравенство|систему(?:\s+уравнений)?|выражение|значение(?:\s+выражения)?|пример|корни(?:\s+уравнения)?)?\s*:?\s*/i;
+  const m = t.match(cmd);
+  if (m) t = t.slice(m[0].length);
+  t = t.replace(/[.?!]+$/, '').trim();
+  // в формуле не должно остаться русских слов (кроме разделителя систем)
+  if (!t || /[а-яё]{2,}/i.test(t.replace(/\s+и\s+/g, ';'))) return null;
+  t = t.replace(/\s+и\s+/g, ';').replace(/\s*;\s*/g, ';');
+  return t;
+}

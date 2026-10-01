@@ -863,7 +863,7 @@
       var photoRow = el('div', 'gp-row gp-row-tight', p);
       var photoStatus = el('div', 'gp-status', p);
       photoButton(photoRow, 'algebra', function (text) {
-        try { mf.field.setExpr(text); } catch (e) { photoStatus.textContent = 'Не удалось вставить распознанный пример: ' + text; photoStatus.className = 'gp-status gp-err'; return; }
+        try { mf.field.setExpr(window.MFMath && MFMath.normalizeLinear ? MFMath.normalizeLinear(text) : text); } catch (e) { photoStatus.textContent = 'Не удалось вставить распознанный пример: ' + text; photoStatus.className = 'gp-status gp-err'; return; }
         recompute();
       }, function (text, kind) { photoStatus.textContent = text || ''; photoStatus.className = 'gp-status' + (kind ? ' gp-' + kind : ''); });
       // Формулировка, которую калькулятор не понимает (текстовая задача, нестандартная
@@ -878,6 +878,23 @@
       var aiOut = el('div', 'gp-out', aiBox);
       function aiSolve(text) {
         aiOut.innerHTML = '';
+        // Сначала — сам калькулятор: «Решите уравнение …» с формулой нейросеть не нужна.
+        import('/assets/js/geo/geo-ai.js').then(function (m) {
+          var f = m.extractFormula(text);
+          if (f && window.MFMath) {
+            var lin = MFMath.normalizeLinear(f);
+            var rows = lin.indexOf(';') >= 0 ? lin.split(';') : null;
+            var r = rows ? MFSolver.solve({ rows: rows }) : MFSolver.solve({ linear: lin });
+            if (!r.error) {
+              try { mf.field.setExpr(rows ? rows.join(';') : lin); recompute(null, true); } catch (e) {}
+              aiStatus.className = 'gp-status gp-info'; aiStatus.textContent = 'Формула распознана и решена калькулятором (выше).';
+              return;
+            }
+          }
+          aiSolveRemote(text);
+        });
+      }
+      function aiSolveRemote(text) {
         aiStatus.className = 'gp-status gp-busy'; aiStatus.textContent = 'Решаю с помощью нейросети…';
         aiBtn.disabled = true;
         import('/assets/js/geo/geo-ai.js').then(function (m) { return m.aiSolveAlgebra(text); }).then(function (d) {

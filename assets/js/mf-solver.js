@@ -2818,7 +2818,8 @@
     OPTS.dec = !!opts.dec; LAST.tex = null; LAST.step = null; LAST.tex = null; LAST.step = null;
     var cx = { pref: opts.pref || {} };
     try {
-      var res = input.rows ? solveSystem(input.rows, cx) : solveSingle(input.linear, cx);
+      var norm = MF.normalizeLinear || function (x) { return x; };
+      var res = input.rows ? solveSystem(input.rows.map(function (r) { return typeof r === 'string' ? norm(r) : r; }), cx) : solveSingle(norm(input.linear), cx);
       res.methods = cx.methods || null;
       return res;
     } catch (e) {

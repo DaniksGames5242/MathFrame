@@ -1875,7 +1875,62 @@
     solveComplexLinearSystem: solveComplexLinearSystem
   };
 
+  // Записи функций «из других сервисов» → запись калькулятора (иначе незнакомое имя
+  // читалось бы как произведение букв r·o·o·t): root(n, x), nthroot(x, n), sqrt[n](x),
+  // cbrt(x) → (x)^(1/(n)); log(b, x), logb(x, b) → log_(b)(x); arcsin → asin и т. п.
+  function normalizeLinear(src) {
+    var s = String(src || '');
+    // Unicode-степени x² → x^2, простые дроби ½ → (1/2), десятичная запятая 0,5 → 0.5, |x| → abs(x)
+    var SUP = { '⁰': '0', '¹': '1', '²': '2', '³': '3', '⁴': '4', '⁵': '5', '⁶': '6', '⁷': '7', '⁸': '8', '⁹': '9', '⁻': '-' };
+    s = s.replace(/[⁰¹²³⁴⁵⁶⁷⁸⁹⁻]+/g, function (m) { var t = ''; for (var i = 0; i < m.length; i++) t += SUP[m[i]]; return '^' + (t.length > 1 ? '(' + t + ')' : t); });
+    var VULG = { '½': '1/2', '⅓': '1/3', '⅔': '2/3', '¼': '1/4', '¾': '3/4', '⅕': '1/5', '⅛': '1/8' };
+    s = s.replace(/(\d)\s*([½⅓⅔¼¾⅕⅛])/g, function (m, d, f) { return '(' + d + '+' + VULG[f] + ')'; }).replace(/[½⅓⅔¼¾⅕⅛]/g, function (f) { return '(' + VULG[f] + ')'; });
+    s = s.replace(/(\d),(\d)/g, '$1.$2');
+    if (s.indexOf('|') >= 0) {
+      var out = '', open = false;
+      for (var k = 0; k < s.length; k++) {
+        if (s[k] !== '|') { out += s[k]; continue; }
+        // открывающая — в начале, после оператора или скобки
+        var prev = out.replace(/\s+$/, '').slice(-1);
+        if (!open && (prev === '' || /[-+*/^(=<>≤≥≠,;]/.test(prev))) { out += 'abs('; open = true; }
+        else if (open) { out += ')'; open = false; }
+        else { out += 'abs('; open = true; }
+      }
+      s = out + (open ? ')' : '');
+    }
+    s = s.replace(/\\/g, '').replace(/[×·⋅∙]/g, '*').replace(/÷/g, '/').replace(/−/g, '-').replace(/√/g, 'sqrt');
+    function args(str, open) {   // аргументы вызова, начиная с «(» в позиции open → { list, end }
+      var d = 0, cur = '', list = [];
+      for (var i = open; i < str.length; i++) {
+        var ch = str[i];
+        if (ch === '(' || ch === '[') { if (d > 0) cur += ch; d++; continue; }
+        if (ch === ')' || ch === ']') { d--; if (d === 0) { list.push(cur); return { list: list, end: i + 1 }; } cur += ch; continue; }
+        if (ch === ',' && d === 1) { list.push(cur); cur = ''; continue; }
+        cur += ch;
+      }
+      return null;
+    }
+    s = s.replace(/sqrt\s*\[([^\]]+)\]\s*\(/g, 'root($1,');
+    var guard = 0, re = /(nthroot|root|cbrt|logb|log)\s*(?=\()/g, m;
+    while ((m = re.exec(s)) && guard++ < 50) {
+      var name = m[1], at = m.index + m[0].length;
+      var a = args(s, at); if (!a) continue;
+      var r = null;
+      if (name === 'cbrt' && a.list.length === 1) r = '(' + a.list[0] + ')^(1/3)';
+      else if (name === 'root' && a.list.length === 2) r = '(' + a.list[1] + ')^(1/(' + a.list[0] + '))';
+      else if (name === 'root' && a.list.length === 1) r = 'sqrt(' + a.list[0] + ')';
+      else if (name === 'nthroot' && a.list.length === 2) r = '(' + a.list[0] + ')^(1/(' + a.list[1] + '))';
+      else if (name === 'log' && a.list.length === 2) r = 'log_(' + a.list[0] + ')(' + a.list[1] + ')';
+      else if (name === 'logb' && a.list.length === 2) r = 'log_(' + a.list[1] + ')(' + a.list[0] + ')';
+      if (r === null) continue;
+      s = s.slice(0, m.index) + r + s.slice(a.end); re.lastIndex = m.index;
+    }
+    s = s.replace(/\barc(sin|cos|tg|ctg|tan|cot)\b/g, 'a$1').replace(/\btan\b/g, 'tg').replace(/\bcot\b/g, 'ctg');
+    return s;
+  }
+
   global.MFMath = {
+    normalizeLinear: normalizeLinear,
     parse: parse, evalAst: evalAst, compile: compile,
     d: d, simplify: simplify, tex: tex, fmtNum: fmtNum,
     varsIn: function (n) { return Object.keys(varsIn(n)); },
