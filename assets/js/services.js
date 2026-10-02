@@ -3547,7 +3547,288 @@
     gen();
   }
 
+  /* ---- «Другие»: системы счисления, проценты, пропорция, дроби, римские числа,
+     округление — специализированные калькуляторы ---- */
+  function escHtml(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function txtField(container, label, val) {
+    var l = el('label', 'f', container); el('span', null, l, label);
+    var i = el('input', null, l); i.type = 'text'; i.value = val || ''; i.spellcheck = false;
+    return i;
+  }
+  var DIGITS36 = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  // Число в системе base (2..36) → { sign, int: BigInt, frac: [цифры] }; null при ошибке.
+  function parseBaseNum(raw, base) {
+    var s = String(raw).trim().toUpperCase().replace(/\s|_/g, '').replace(',', '.');
+    if (!s) return null;
+    var sign = 1;
+    if (s[0] === '-' || s[0] === '+') { if (s[0] === '-') sign = -1; s = s.slice(1); }
+    var parts = s.split('.');
+    if (parts.length > 2 || (!parts[0] && !parts[1])) return null;
+    var B = BigInt(base), n = 0n, frac = [];
+    for (var i = 0; i < parts[0].length; i++) {
+      var d = DIGITS36.indexOf(parts[0][i]); if (d < 0 || d >= base) return null;
+      n = n * B + BigInt(d);
+    }
+    var fs = parts[1] || '';
+    for (var j = 0; j < fs.length; j++) {
+      var d2 = DIGITS36.indexOf(fs[j]); if (d2 < 0 || d2 >= base) return null;
+      frac.push(d2);
+    }
+    return { sign: sign, int: n, frac: frac };
+  }
+  // Дробная часть как точная дробь num/den (BigInt).
+  function fracToRatio(frac, base) {
+    var num = 0n, den = 1n, B = BigInt(base);
+    frac.forEach(function (d) { num = num * B + BigInt(d); den *= B; });
+    return { num: num, den: den };
+  }
+  function formatBaseNum(v, base, maxFrac) {
+    var s = v.int.toString(base).toUpperCase();
+    var r = fracToRatio(v.frac, v.fromBase), num = r.num, den = r.den, B = BigInt(base), out = '', seen = {}, rep = -1;
+    if (num) {
+      for (var k = 0; k < maxFrac && num; k++) {
+        var key = num.toString();
+        if (seen[key] !== undefined) { rep = seen[key]; break; }
+        seen[key] = out.length;
+        num *= B; out += DIGITS36[Number(num / den)]; num %= den;
+      }
+      if (rep >= 0) out = out.slice(0, rep) + '(' + out.slice(rep) + ')';
+      else if (num) out += '…';
+      s += '.' + out;
+    }
+    return (v.sign < 0 && (v.int || v.frac.some(Boolean)) ? '-' : '') + s;
+  }
+  function buildBaseCalcUI(c) {
+    var g = el('div', 'grid2', c);
+    var iVal = txtField(g, 'число', '255.75');
+    var iFrom = txtField(g, 'из основания (2–36)', '10');
+    var iTo = txtField(g, 'в основание (2–36)', '2');
+    var out = el('div', 'out', c);
+    var steps = el('div', 'alg-check', c);
+    function conv() {
+      out.innerHTML = ''; steps.innerHTML = ''; steps.hidden = true;
+      var from = parseInt(iFrom.value, 10), to = parseInt(iTo.value, 10);
+      if (!(from >= 2 && from <= 36) || !(to >= 2 && to <= 36)) { el('div', 'err', out, 'основание должно быть от 2 до 36'); return; }
+      var v = parseBaseNum(iVal.value, from);
+      if (!iVal.value.trim()) return;
+      if (!v) { el('div', 'err', out, 'в системе с основанием ' + from + ' такой записи нет (цифры: ' + DIGITS36.slice(0, from) + ')'); return; }
+      v.fromBase = from;
+      el('div', 'big', out, escHtml(formatBaseNum(v, to, 40)) + '<sub>' + to + '</sub>');
+      var dl = el('dl', 'kv', out);
+      [[2, 'двоичная'], [8, 'восьмеричная'], [10, 'десятичная'], [16, 'шестнадцатеричная']].forEach(function (b) {
+        el('dt', null, dl, b[1]); el('dd', null, dl, escHtml(formatBaseNum(v, b[0], 24)));
+      });
+      // Ход решения: целая часть — делением на основание, дробная — умножением.
+      if (v.int <= 0xFFFFFFFFn) {
+        steps.hidden = false;
+        el('div', 'alg-check-h', steps, 'Ход перевода');
+        var lines = [];
+        if (from !== 10) {
+          var ds = v.int.toString(from).toUpperCase(), terms = [];
+          for (var i = 0; i < ds.length; i++) terms.push(DIGITS36.indexOf(ds[i]) + '·' + from + '<sup>' + (ds.length - 1 - i) + '</sup>');
+          lines.push('Целая часть в десятичную: ' + terms.join(' + ') + ' = ' + v.int.toString(10));
+        }
+        if (to !== 10) {
+          var n = v.int, T = BigInt(to), divs = [];
+          if (!n) divs.push('0');
+          while (n && divs.length < 40) { divs.push(n + ' : ' + to + ' = ' + (n / T) + ', остаток ' + DIGITS36[Number(n % T)]); n /= T; }
+          lines.push('Делим на ' + to + ', остатки читаем снизу вверх:<br>' + divs.join('<br>'));
+          if (v.frac.length) {
+            var r = fracToRatio(v.frac, from), num = r.num, den = r.den, mul = [];
+            for (var k = 0; k < 8 && num; k++) {
+              var before = Number(num) / Number(den); num *= T;
+              mul.push(before.toPrecision(6).replace(/\.?0+$/, '') + ' · ' + to + ' → цифра ' + DIGITS36[Number(num / den)]);
+              num %= den;
+            }
+            lines.push('Дробную часть умножаем на ' + to + ', целые части читаем сверху вниз:<br>' + mul.join('<br>'));
+          }
+        }
+        lines.forEach(function (t) { el('div', null, steps, t); });
+      }
+    }
+    [iVal, iFrom, iTo].forEach(function (i) { i.addEventListener('input', conv); });
+    conv();
+  }
+  function buildBaseArithUI(c) {
+    var g = el('div', 'grid2', c);
+    var iA = txtField(g, 'первое число', '1011');
+    var iB = txtField(g, 'второе число', '110');
+    var iBase = txtField(g, 'основание (2–36)', '2');
+    var l = el('label', 'f', g); el('span', null, l, 'действие');
+    var op = el('select', null, l);
+    [['+', 'сложение'], ['-', 'вычитание'], ['*', 'умножение'], ['/', 'деление (целое и остаток)'],
+     ['&', 'AND'], ['|', 'OR'], ['^', 'XOR'], ['<<', 'сдвиг влево'], ['>>', 'сдвиг вправо']].forEach(function (o) {
+      var opt = el('option', null, op, o[1]); opt.value = o[0];
+    });
+    var out = el('div', 'out', c);
+    function calc() {
+      out.innerHTML = '';
+      var base = parseInt(iBase.value, 10);
+      if (!(base >= 2 && base <= 36)) { el('div', 'err', out, 'основание должно быть от 2 до 36'); return; }
+      var a = parseBaseNum(iA.value, base), b = parseBaseNum(iB.value, base);
+      if (!a || !b || a.frac.length || b.frac.length) { el('div', 'err', out, 'введите целые числа в системе с основанием ' + base); return; }
+      var A = a.int * BigInt(a.sign), Bv = b.int * BigInt(b.sign), r, extra = null;
+      switch (op.value) {
+        case '+': r = A + Bv; break;
+        case '-': r = A - Bv; break;
+        case '*': r = A * Bv; break;
+        case '/': if (!Bv) { el('div', 'err', out, 'деление на ноль'); return; } r = A / Bv; extra = A % Bv; break;
+        case '&': r = A & Bv; break;
+        case '|': r = A | Bv; break;
+        case '^': r = A ^ Bv; break;
+        case '<<': if (Bv < 0n || Bv > 4096n) { el('div', 'err', out, 'сдвиг от 0 до 4096'); return; } r = A << Bv; break;
+        case '>>': if (Bv < 0n || Bv > 4096n) { el('div', 'err', out, 'сдвиг от 0 до 4096'); return; } r = A >> Bv; break;
+      }
+      function f(x, bs) { return (x < 0n ? '-' + (-x).toString(bs) : x.toString(bs)).toUpperCase(); }
+      el('div', 'big', out, f(r, base) + '<sub>' + base + '</sub>' + (extra !== null ? ', остаток ' + f(extra, base) : ''));
+      var dl = el('dl', 'kv', out);
+      el('dt', null, dl, 'в десятичной'); el('dd', null, dl, A + ' ' + op.value.replace('*', '×') + ' ' + Bv + ' = ' + r + (extra !== null ? ' (ост. ' + extra + ')' : ''));
+      if (base !== 2) { el('dt', null, dl, 'в двоичной'); el('dd', null, dl, f(r, 2)); }
+      if (base !== 16) { el('dt', null, dl, 'в шестнадцатеричной'); el('dd', null, dl, f(r, 16)); }
+    }
+    [iA, iB, iBase].forEach(function (i) { i.addEventListener('input', calc); });
+    op.addEventListener('change', calc);
+    calc();
+  }
+  function buildRomanUI(c) {
+    var g = el('div', 'grid2', c);
+    var iIn = txtField(g, 'арабское или римское число', '2026');
+    var out = el('div', 'out', c);
+    var R = [[1000, 'M'], [900, 'CM'], [500, 'D'], [400, 'CD'], [100, 'C'], [90, 'XC'], [50, 'L'], [40, 'XL'], [10, 'X'], [9, 'IX'], [5, 'V'], [4, 'IV'], [1, 'I']];
+    function toRoman(n) { var s = ''; R.forEach(function (p) { while (n >= p[0]) { s += p[1]; n -= p[0]; } }); return s; }
+    function conv() {
+      out.innerHTML = '';
+      var s = iIn.value.trim().toUpperCase();
+      if (!s) return;
+      if (/^\d+$/.test(s)) {
+        var n = parseInt(s, 10);
+        if (n < 1 || n > 3999) { el('div', 'err', out, 'римскими цифрами записываются числа от 1 до 3999'); return; }
+        el('div', 'big', out, toRoman(n));
+        var parts = [], m = n;
+        R.forEach(function (p) { while (m >= p[0]) { parts.push(p[1] + ' = ' + p[0]); m -= p[0]; } });
+        el('div', 'alg-check', out, parts.join(', '));
+      } else if (/^[IVXLCDM]+$/.test(s)) {
+        var V = { I: 1, V: 5, X: 10, L: 50, C: 100, D: 500, M: 1000 }, t = 0;
+        for (var i = 0; i < s.length; i++) { var a = V[s[i]], b = V[s[i + 1]] || 0; t += a < b ? -a : a; }
+        if (toRoman(t) !== s) { el('div', 'err', out, 'запись некорректна; правильно: ' + (t > 0 && t < 4000 ? toRoman(t) + ' = ' + t : '—')); return; }
+        el('div', 'big', out, String(t));
+      } else el('div', 'err', out, 'введите число 1–3999 или римскую запись из I, V, X, L, C, D, M');
+    }
+    iIn.addEventListener('input', conv); conv();
+  }
+  function buildPercentUI(c) {
+    function block(title, la, va, lb, vb, f) {
+      var box = el('div', 'conv-block', c); el('div', 'conv-block-h', box, title);
+      var g = el('div', 'grid2', box), a = moreField(g, la, va), b = moreField(g, lb, vb), out = el('div', 'out', box);
+      function r() { out.innerHTML = ''; var x = moreNum(a), y = moreNum(b); if (x === null || y === null) return; var v = f(x, y); el('div', 'big', out, v === null ? '—' : v); }
+      a.addEventListener('input', r); b.addEventListener('input', r); r();
+    }
+    block('Сколько составляет p% от числа', 'p, %', '15', 'число', '240', function (p, n) { return moreFmt(n * p / 100); });
+    block('Сколько процентов одно число от другого', 'часть', '36', 'целое', '240', function (a, b) { return b ? moreFmt(a / b * 100) + ' %' : null; });
+    block('Число по его части и проценту', 'часть', '36', 'это p, %', '15', function (a, p) { return p ? moreFmt(a * 100 / p) : null; });
+    block('Изменение в процентах', 'было', '80', 'стало', '100', function (a, b) { return a ? (b >= a ? '+' : '') + moreFmt((b - a) / a * 100) + ' %' : null; });
+    block('Прибавить / вычесть процент', 'число', '1000', 'p, % (минус — вычесть)', '20', function (n, p) { return moreFmt(n * (1 + p / 100)); });
+  }
+  function buildProportionUI(c) {
+    el('div', 'conv-block-h', c, 'a : b = c : x — оставьте одно поле пустым');
+    var g = el('div', 'grid2', c);
+    var f = [moreField(g, 'a', '3'), moreField(g, 'b', '5'), moreField(g, 'c', '12'), moreField(g, 'x', '')];
+    var out = el('div', 'out', c);
+    function r() {
+      out.innerHTML = '';
+      var v = f.map(moreNum), empty = v.map(function (x, i) { return x === null ? i : -1; }).filter(function (i) { return i >= 0; });
+      if (empty.length !== 1) { el('div', 'err', out, 'нужно ровно одно пустое поле'); return; }
+      var k = empty[0], a = v[0], b = v[1], cc = v[2], d = v[3], res;
+      // a·d = b·c
+      if (k === 0) res = d ? b * cc / d : NaN;
+      if (k === 1) res = cc ? a * d / cc : NaN;
+      if (k === 2) res = b ? a * d / b : NaN;
+      if (k === 3) res = a ? b * cc / a : NaN;
+      if (!isFinite(res)) { el('div', 'err', out, 'деление на ноль'); return; }
+      el('div', 'big', out, ['a', 'b', 'c', 'x'][k] + ' = ' + moreFmt(res));
+      el('div', 'alg-check', out, 'по основному свойству пропорции: произведение крайних членов равно произведению средних (a·x = b·c)');
+    }
+    f.forEach(function (i) { i.addEventListener('input', r); }); r();
+  }
+  function bgcd(a, b) { a = a < 0n ? -a : a; b = b < 0n ? -b : b; while (b) { var t = a % b; a = b; b = t; } return a; }
+  function parseFrac(s) {
+    s = String(s).trim().replace(',', '.').replace(/\s+/g, ' ');
+    var m;
+    if ((m = s.match(/^(-?)(\d+) (\d+)\/(\d+)$/))) { var w = BigInt(m[2]), n = BigInt(m[3]), d = BigInt(m[4]); if (!d) return null; var t = w * d + n; return { n: m[1] ? -t : t, d: d }; }
+    if ((m = s.match(/^(-?\d+)\/(-?\d+)$/))) { var dd = BigInt(m[2]); if (!dd) return null; return { n: BigInt(m[1]) * (dd < 0n ? -1n : 1n), d: dd < 0n ? -dd : dd }; }
+    if ((m = s.match(/^(-?)(\d*)\.(\d+)$/)) || (m = s.match(/^(-?)(\d+)$/))) {
+      var fr = m[3] || '', den = 10n ** BigInt(fr.length), num = BigInt((m[2] || '0') + fr);
+      return { n: m[1] ? -num : num, d: den };
+    }
+    return null;
+  }
+  function reduceFrac(f) { var g = bgcd(f.n, f.d) || 1n; return { n: f.n / g, d: f.d / g }; }
+  function buildFractionUI(c) {
+    el('div', 'conv-block-h', c, 'Формат: 3/4, 1 2/3 (смешанная), -5/6 или 0.25');
+    var g = el('div', 'grid2', c);
+    var iA = txtField(g, 'первая дробь', '1 2/3');
+    var iB = txtField(g, 'вторая дробь', '3/4');
+    var l = el('label', 'f', g); el('span', null, l, 'действие');
+    var op = el('select', null, l);
+    [['+', '+'], ['-', '−'], ['*', '×'], ['/', ':']].forEach(function (o) { var opt = el('option', null, op, o[1]); opt.value = o[0]; });
+    var out = el('div', 'out', c);
+    function show(f) {
+      var s = f.d === 1n ? String(f.n) : f.n + '/' + f.d;
+      var an = f.n < 0n ? -f.n : f.n;
+      if (f.d !== 1n && an > f.d) s += ' = ' + (f.n < 0n ? '-' : '') + (an / f.d) + ' ' + (an % f.d) + '/' + f.d;
+      return s;
+    }
+    function r() {
+      out.innerHTML = '';
+      var a = parseFrac(iA.value), b = parseFrac(iB.value);
+      if (!a || !b) { el('div', 'err', out, 'не удаётся прочитать дробь'); return; }
+      var res;
+      if (op.value === '+') res = { n: a.n * b.d + b.n * a.d, d: a.d * b.d };
+      if (op.value === '-') res = { n: a.n * b.d - b.n * a.d, d: a.d * b.d };
+      if (op.value === '*') res = { n: a.n * b.n, d: a.d * b.d };
+      if (op.value === '/') { if (!b.n) { el('div', 'err', out, 'деление на ноль'); return; } res = { n: a.n * b.d * (b.n < 0n ? -1n : 1n), d: a.d * (b.n < 0n ? -b.n : b.n) }; }
+      var red = reduceFrac(res);
+      el('div', 'big', out, escHtml(show(red)));
+      var dl = el('dl', 'kv', out);
+      el('dt', null, dl, 'до сокращения'); el('dd', null, dl, res.n + '/' + res.d);
+      el('dt', null, dl, 'десятичная'); el('dd', null, dl, moreFmt(Number(red.n) / Number(red.d)));
+      var ca = reduceFrac(a), cb = reduceFrac(b);
+      el('dt', null, dl, 'общий знаменатель'); el('dd', null, dl, String(ca.d * cb.d / (bgcd(ca.d, cb.d) || 1n)));
+    }
+    [iA, iB].forEach(function (i) { i.addEventListener('input', r); }); op.addEventListener('change', r); r();
+  }
+  function buildRoundUI(c) {
+    var g = el('div', 'grid2', c);
+    var iN = txtField(g, 'число', '3.14159265');
+    var iD = moreField(g, 'знаков после запятой', '2');
+    var out = el('div', 'out', c);
+    function r() {
+      out.innerHTML = '';
+      var x = parseFloat(String(iN.value).replace(',', '.')), d = Math.round(moreNum(iD) || 0);
+      if (!isFinite(x)) return;
+      if (d < 0 || d > 15) { el('div', 'err', out, 'знаков: от 0 до 15'); return; }
+      var k = Math.pow(10, d);
+      el('div', 'big', out, (Math.round(x * k) / k).toFixed(d));
+      var dl = el('dl', 'kv', out);
+      [['вниз (floor)', Math.floor(x * k) / k], ['вверх (ceil)', Math.ceil(x * k) / k], ['отбросить (trunc)', Math.trunc(x * k) / k]].forEach(function (p) {
+        el('dt', null, dl, p[0]); el('dd', null, dl, p[1].toFixed(d));
+      });
+      el('dt', null, dl, 'до ' + (d || 1) + ' знач. цифр'); el('dd', null, dl, String(Number(x.toPrecision(Math.max(1, d)))));
+      el('dt', null, dl, 'стандартный вид'); el('dd', null, dl, x.toExponential(Math.max(0, d)).replace(/e([+-]\d+)/, function (_, e) { return ' · 10<sup>' + Number(e) + '</sup>'; }));
+    }
+    [iN, iD].forEach(function (i) { i.addEventListener('input', r); }); r();
+  }
+
   var MORE_CATEGORIES = [
+    { id: 'other', label: 'Другие', tools: [
+      { id: 'basecalc', label: 'Системы счисления', build: buildBaseCalcUI },
+      { id: 'basearith', label: 'Арифметика в системах счисления', build: buildBaseArithUI },
+      { id: 'fractions', label: 'Обыкновенные дроби', build: buildFractionUI },
+      { id: 'percent', label: 'Проценты', build: buildPercentUI },
+      { id: 'proportion', label: 'Пропорция', build: buildProportionUI },
+      { id: 'roman', label: 'Римские числа', build: buildRomanUI },
+      { id: 'round', label: 'Округление и стандартный вид', build: buildRoundUI }
+    ]},
     { id: 'calc2', label: 'Матанализ', tools: [
       { id: 'limit', label: 'Предел функции', build: buildLimitUI },
       { id: 'nthderiv', label: 'Производная n-го порядка', build: buildNthDerivUI },
@@ -3612,7 +3893,7 @@
 
   var svcMore = {
     id: 'more', glyph: '⋯', title: 'Ещё',
-    sub: '35+ специализированных инструментов',
+    sub: '40+ специализированных инструментов',
     mount: function (host) {
       var p = panel(host, 'Ещё инструменты');
       var catRow = el('div', 'conv-chips', p);
@@ -3627,7 +3908,12 @@
         cat.tools.forEach(function (t) {
           var b = el('button', 'geo-subchip', toolRow, t.label); b.type = 'button'; b.dataset.id = t.id;
           b.classList.toggle('on', t.id === activeTool);
-          b.addEventListener('click', function () { activeTool = t.id; renderTools(); renderBody(); });
+          b.addEventListener('click', function () {
+            if (activeTool === t.id) return;
+            activeTool = t.id;
+            toolRow.querySelectorAll('.geo-subchip').forEach(function (x) { x.classList.toggle('on', x.dataset.id === activeTool); });
+            renderBody();
+          });
         });
       }
       function renderBody() {
@@ -3642,6 +3928,7 @@
       MORE_CATEGORIES.forEach(function (cat) {
         var b = el('button', 'conv-chip', catRow, cat.label); b.type = 'button'; b.dataset.id = cat.id;
         b.addEventListener('click', function () {
+          if (activeCat === cat.id) return;
           activeCat = cat.id; activeTool = cat.tools[0].id;
           catRow.querySelectorAll('.conv-chip').forEach(function (x) { x.classList.toggle('on', x.dataset.id === activeCat); });
           renderTools(); renderBody();
@@ -3757,7 +4044,7 @@
     var reducedMotion = false;
     try { reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
     if (!reducedMotion) {
-      var POP_SELECTOR = '.out, .alg-answer, .alg-steps, .alg-badge, .kv, .matrix-out, .calc-display, .pascal-wrap, .conv-output, .geo-subchips';
+      var POP_SELECTOR = '.out, .alg-answer, .alg-steps, .alg-badge, .kv, .matrix-out, .calc-display, .pascal-wrap, .conv-output';
       var popQueue = new Set();
       var popScheduled = false;
       function flushPop() {
@@ -3801,6 +4088,10 @@
       var chipObserver = new MutationObserver(function (mutations) {
         mutations.forEach(function (m) {
           var el2 = m.target;
+          // Только момент «включения»: раньше сюда попадало и само добавление
+          // mf-chip-pop (тоже смена class) — анимация перезапускалась по кругу
+          // каждый кадр, и активный чип непрерывно дёргался/мигал.
+          if (/(^|\s)on(\s|$)/.test(m.oldValue || '')) return;
           if (el2.nodeType === 1 && el2.classList && el2.classList.contains('on') &&
               (el2.classList.contains('conv-chip') || el2.classList.contains('geo-subchip'))) {
             chipQueue.add(el2);
@@ -3808,7 +4099,7 @@
         });
         if (chipQueue.size && !chipScheduled) { chipScheduled = true; requestAnimationFrame(flushChipPop); }
       });
-      chipObserver.observe(work, { attributes: true, attributeFilter: ['class'], subtree: true });
+      chipObserver.observe(work, { attributes: true, attributeOldValue: true, attributeFilter: ['class'], subtree: true });
     }
   }
 
