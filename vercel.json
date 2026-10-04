@@ -37,6 +37,11 @@
       "permanent": true
     },
     {
+      "source": "/pages/board.html",
+      "destination": "/board/",
+      "permanent": true
+    },
+    {
       "source": "/pages/admin/admin.html",
       "destination": "/admin/",
       "permanent": true
@@ -81,6 +86,10 @@
     {
       "source": "/playground/",
       "destination": "/pages/playground.html"
+    },
+    {
+      "source": "/board/",
+      "destination": "/pages/board.html"
     },
     {
       "source": "/admin/",

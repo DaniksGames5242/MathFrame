@@ -1573,6 +1573,7 @@ a, button, .section-card, .mf-card, .theme-option, .account-circle {
                            --accent-soft:rgba(62,194,164,.14);  --accent-glow:rgba(62,194,164,.38); }
 [data-page="playground"] { --accent:#8b7bff; --accent-hover:#a495ff; --accent-2:#ff8fb8; --accent-3:#ffd166;
                            --accent-soft:rgba(139,123,255,.15); --accent-glow:rgba(139,123,255,.40); }
+[data-page="board"]      { --accent:#f2a25c; --accent-hover:#f5b77e; --accent-2:#5cc8ff; --accent-3:#7ee3b0; --accent-soft:rgba(242,162,92,.12); --accent-glow:rgba(242,162,92,.30); }
 [data-page="admin"]      { --accent:#7d90b0; --accent-hover:#94a6c4; --accent-2:#7ee3b0; --accent-3:#ffb066;
                            --accent-soft:rgba(125,144,176,.14); --accent-glow:rgba(125,144,176,.32); }
 [data-page="ai-agent"]   { --accent:#9b6bff; --accent-hover:#b08bff; --accent-2:#5cc8ff; --accent-3:#f2b45c;
@@ -1586,6 +1587,7 @@ html.light [data-page="reference"]  { --accent:color-mix(in oklch, #4a48d8 85%, 
 html.light [data-page="forum"]      { --accent:color-mix(in oklch, #0d7fae 85%, gray 15%); --accent-hover:color-mix(in oklch, #0a6b93 85%, gray 15%); --accent-2:#0f9c6b; --accent-soft:rgba(13,127,174,.10); --accent-glow:rgba(13,127,174,.22); }
 html.light [data-page="services"]   { --accent:color-mix(in oklch, #0f8a72 85%, gray 15%); --accent-hover:color-mix(in oklch, #0b715e 85%, gray 15%); --accent-2:#0f7fc4; --accent-soft:rgba(15,138,114,.10); --accent-glow:rgba(15,138,114,.22); }
 html.light [data-page="playground"] { --accent:color-mix(in oklch, #5b46d6 85%, gray 15%); --accent-hover:color-mix(in oklch, #4a37b8 85%, gray 15%); --accent-2:#c2437a; --accent-soft:rgba(91,70,214,.10); --accent-glow:rgba(91,70,214,.22); }
+html.light [data-page="board"]      { --accent:color-mix(in oklch, #c2621a 85%, gray 15%); --accent-hover:color-mix(in oklch, #a35214 85%, gray 15%); --accent-2:#0f7fc4; --accent-soft:rgba(194,98,26,.10); --accent-glow:rgba(194,98,26,.22); }
 html.light [data-page="admin"]      { --accent:#465a78; --accent-hover:#374861; --accent-2:#0f9c6b; --accent-soft:rgba(70,90,120,.10); --accent-glow:rgba(70,90,120,.20); }
 html.light [data-page="ai-agent"]   { --accent:color-mix(in oklch, #6d3fd6 85%, gray 15%); --accent-hover:color-mix(in oklch, #5a31b8 85%, gray 15%); --accent-2:#0f7fc4; --accent-soft:rgba(109,63,214,.10); --accent-glow:rgba(109,63,214,.22); }
 
@@ -1617,6 +1619,7 @@ html.light [data-page="ai-agent"]   { --accent:color-mix(in oklch, #6d3fd6 85%, 
   --page-color-forum:      #3fb5e8;  /* небесный */
   --page-color-ai-agent:   #9b6bff;  /* фиолет */
   --page-color-playground: #8b7bff;
+  --page-color-board:      #f2a25c;  /* мел */
   --page-color-admin:      #7d90b0;
 }
 html.light {
@@ -1628,6 +1631,7 @@ html.light {
   --page-color-forum:      color-mix(in oklch, #0d7fae 85%, gray 15%);
   --page-color-ai-agent:   color-mix(in oklch, #6d3fd6 85%, gray 15%);
   --page-color-playground: color-mix(in oklch, #5b46d6 85%, gray 15%);
+  --page-color-board:      color-mix(in oklch, #c2621a 85%, gray 15%);
   --page-color-admin:      #465a78;
 }
 
@@ -1639,6 +1643,7 @@ html.light {
 #app-header nav a[data-nav-page="forum"]       { --nav-c: var(--page-color-forum); }
 #app-header nav a[data-nav-page="ai-agent"]    { --nav-c: var(--page-color-ai-agent); }
 #app-header nav a[data-nav-page="playground"]  { --nav-c: var(--page-color-playground); }
+#app-header nav a[data-nav-page="board"]       { --nav-c: var(--page-color-board); }
 #app-header nav a[data-nav-page="admin"]       { --nav-c: var(--page-color-admin); }
 
 /* Наведение — лёгкий намёк на цвет раздела, куда ведёт пункт */

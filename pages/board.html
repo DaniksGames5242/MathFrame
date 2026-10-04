@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<script>/* MathFrame: тема до первого кадра + маска перехода между страницами (см. common.js › PAGE TRANSITIONS) */(function(){var d=document.documentElement;try{var t=localStorage.getItem('theme');if(t==='light'||(t!=='dark'&&!matchMedia('(prefers-color-scheme: dark)').matches))d.classList.add('light');}catch(e){}try{var s=sessionStorage.getItem('mf-veil');if(!s)return;sessionStorage.removeItem('mf-veil');var v=JSON.parse(s),n=performance.getEntriesByType&&performance.getEntriesByType('navigation')[0];if(!v||!v.fill||Date.now()-v.t>8000||(n&&n.type&&n.type!=='navigate'))return;window.__mfVeil=v;d.style.setProperty('--mf-veil-fill',v.fill);d.classList.add('mf-veil-on');setTimeout(function(){d.classList.remove('mf-veil-on')},4000);}catch(e){}})();</script>
+<title>Электронная доска — MathFrame</title>
+<meta name="description" content="Электронная доска для объяснений и решения задач: перо, фигуры, текст, клетка, бесконечное поле, экспорт в PNG." />
+<link rel="stylesheet" href="/assets/css/common.css" />
+<style>
+main{
+  max-width:1400px;margin:0 auto;
+  padding:1rem clamp(.6rem,3vw,1.5rem) 2rem;
+  padding-left:max(clamp(.6rem,3vw,1.5rem),var(--safe-l));
+  padding-right:max(clamp(.6rem,3vw,1.5rem),var(--safe-r));
+}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+
+.bd{
+  display:flex;flex-direction:column;
+  background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;
+  height:calc(100dvh - 8.5rem);min-height:420px
+}
+.bd.full{position:fixed;inset:0;z-index:1000;height:100dvh;border-radius:0;border:0;background:var(--bg-body)}
+
+.bd-bar{
+  display:flex;flex-wrap:wrap;gap:.35rem;align-items:center;
+  padding:.45rem .55rem;border-bottom:1px solid var(--border);background:var(--bg-raised)
+}
+.bd-grp{display:flex;gap:.25rem;align-items:center;padding-right:.4rem;margin-right:.1rem;border-right:1px solid var(--border)}
+.bd-grp:last-child{border-right:0}
+.bd-btn{
+  min-width:38px;height:38px;padding:0 .45rem;display:inline-flex;align-items:center;justify-content:center;
+  border-radius:var(--r-sm);border:1px solid transparent;background:transparent;
+  color:var(--text-secondary);font:inherit;font-size:.8rem;cursor:pointer;
+  transition:color var(--t),border-color var(--t),background var(--t)
+}
+.bd-btn svg{width:20px;height:20px}
+@media (hover:hover){ .bd-btn:hover{color:var(--accent);background:var(--accent-soft)} }
+.bd-btn.on{color:var(--accent);border-color:var(--accent);background:var(--accent-soft)}
+.bd-btn:disabled{opacity:.35;cursor:default}
+.bd-sw{
+  width:26px;height:26px;border-radius:50%;border:2px solid var(--border-strong);cursor:pointer;padding:0;
+  transition:transform .1s
+}
+.bd-sw.on{outline:2px solid var(--accent);outline-offset:2px}
+.bd-sw input{opacity:0;width:100%;height:100%;cursor:pointer}
+.bd-size{display:inline-flex;align-items:center;justify-content:center}
+.bd-size i{display:block;border-radius:50%;background:currentColor}
+.bd-sel{
+  height:34px;border-radius:var(--r-sm);border:1px solid var(--border-strong);
+  background:var(--bg-sunken);color:var(--text-primary);font:inherit;font-size:.8rem;padding:0 .4rem
+}
+.bd-zoom{font-family:var(--font-mono);font-size:.75rem;color:var(--text-tertiary);min-width:3.2em;text-align:center}
+
+.bd-stage{position:relative;flex:1;min-height:0;touch-action:none;overflow:hidden}
+.bd-stage canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+.bd-stage.t-pan{cursor:grab}
+.bd-stage.t-pan.drag{cursor:grabbing}
+.bd-stage.t-text{cursor:text}
+.bd-stage.t-draw{cursor:crosshair}
+.bd-text{
+  position:absolute;min-width:4ch;padding:0;margin:0;border:1px dashed var(--accent);outline:none;
+  background:transparent;resize:none;overflow:hidden;white-space:pre;line-height:1.25;
+  font-family:var(--font-display, sans-serif)
+}
+.bd-hint{
+  position:absolute;left:.7rem;bottom:.55rem;font-size:.74rem;color:var(--text-tertiary);
+  pointer-events:none;max-width:calc(100% - 1.4rem)
+}
+@media (max-width:640px){
+  .bd{height:calc(100dvh - 7rem)}
+  .bd-bar{gap:.2rem;padding:.35rem}
+  .bd-grp{padding-right:.25rem}
+  .bd-btn{min-width:34px;height:34px;padding:0 .3rem}
+  .bd-hint{display:none}
+}
+</style>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
+</head>
+<body data-page="board">
+
+<div id="app-header"></div>
+
+<main>
+  <h1 class="sr-only">Электронная доска</h1>
+  <section class="bd" id="board" aria-label="Электронная доска">
+    <div class="bd-bar" id="bdBar">
+      <div class="bd-grp" id="bdTools" role="toolbar" aria-label="Инструменты"></div>
+      <div class="bd-grp" id="bdColors" aria-label="Цвет"></div>
+      <div class="bd-grp" id="bdSizes" aria-label="Толщина"></div>
+      <div class="bd-grp">
+        <select class="bd-sel" id="bdBg" title="Фон доски" aria-label="Фон доски">
+          <option value="cells">Клетка</option>
+          <option value="grid">Координаты</option>
+          <option value="lines">Линейка</option>
+          <option value="none">Чистый</option>
+        </select>
+      </div>
+      <div class="bd-grp">
+        <button class="bd-btn" id="bdUndo" title="Отменить (Ctrl+Z)" aria-label="Отменить"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg></button>
+        <button class="bd-btn" id="bdRedo" title="Повторить (Ctrl+Y)" aria-label="Повторить"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 14 5-5-5-5"/><path d="M20 9H9a5 5 0 0 0 0 10h3"/></svg></button>
+        <button class="bd-btn" id="bdClear" title="Очистить доску" aria-label="Очистить доску"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg></button>
+      </div>
+      <div class="bd-grp">
+        <button class="bd-btn" id="bdZoomOut" title="Отдалить" aria-label="Отдалить">−</button>
+        <button class="bd-btn bd-zoom" id="bdZoom" title="Сбросить масштаб и положение">100%</button>
+        <button class="bd-btn" id="bdZoomIn" title="Приблизить" aria-label="Приблизить">+</button>
+      </div>
+      <div class="bd-grp">
+        <button class="bd-btn" id="bdSave" title="Скачать PNG" aria-label="Скачать PNG"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg></button>
+        <button class="bd-btn" id="bdFull" title="Во весь экран (F)" aria-label="Во весь экран"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+      </div>
+    </div>
+    <div class="bd-stage t-draw" id="bdStage">
+      <canvas id="bdCanvas"></canvas>
+      <div class="bd-hint">Колесо — масштаб, пробел или средняя кнопка — сдвиг, двумя пальцами — сдвиг и масштаб. Доска сохраняется в браузере.</div>
+    </div>
+  </section>
+</main>
+
+<div id="app-footer"></div>
+
+<script src="/assets/js/mathframe-ui.js"></script>
+<script src="/assets/js/board.js"></script>
+<script>var PAGE_ROOT = '/';</script>
+<script src="/assets/js/auth.js"></script>
+<script src="/assets/js/common.js"></script>
+</body>
+</html>

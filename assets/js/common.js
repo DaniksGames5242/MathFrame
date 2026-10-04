@@ -1717,6 +1717,7 @@ function renderHeader() {
         { href: '/forum/', text: 'Форум', page: 'forum' },
         { href: '/ai-agent/', text: 'AI‑агент', page: 'ai-agent' },
         { href: '/playground/', text: 'Песочница', page: 'playground' },
+        { href: '/board/', text: 'Доска', page: 'board' },
     ];
 
     const currentPath = window.location.pathname;
@@ -1946,6 +1947,7 @@ const MF_PATH_PAGES = [
     [/^\/(forum\/|pages\/forum\.html)/, 'forum'],
     [/^\/(ai-agent\/|pages\/ai-agent\.html)/, 'ai-agent'],
     [/^\/(playground\/|pages\/playground\.html)/, 'playground'],
+    [/^\/(board\/|pages\/board\.html)/, 'board'],
     [/^\/(admin\/|pages\/admin\/)/, 'admin'],
 ];
 function mfPageFromUrl(url) {
