@@ -68,7 +68,58 @@ main{
   position:absolute;left:.7rem;bottom:.55rem;font-size:.74rem;color:var(--text-tertiary);
   pointer-events:none;max-width:calc(100% - 1.4rem)
 }
+.bd-stage.t-select{cursor:default}
+.bd-stage.drop{outline:2px dashed var(--accent);outline-offset:-6px}
+.bd-collab{margin-left:auto;gap:.4rem}
+.bd-share{gap:.35rem;color:var(--accent);border-color:var(--accent)}
+.bd-share svg{width:18px;height:18px}
+.bd-leave{display:none}
+.bd.is-shared .bd-leave{display:inline-flex}
+.bd.is-shared .bd-share span{display:none}
+.bd-people{display:flex}
+.bd-ava{
+  width:26px;height:26px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;
+  color:#fff;font-size:.72rem;font-weight:700;border:2px solid var(--bg-raised);margin-left:-6px
+}
+.bd-ava:first-child{margin-left:0}
+.bd-ava.more{background:var(--text-tertiary)}
+.bd-status{
+  position:absolute;right:.6rem;top:.5rem;font-size:.74rem;padding:.2rem .55rem;border-radius:999px;
+  background:var(--bg-raised);border:1px solid var(--border);color:var(--text-secondary);pointer-events:none
+}
+.bd-status:empty{display:none}
+.bd-status::before{content:'';display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:.4rem;background:var(--text-tertiary);vertical-align:1px}
+.bd-status[data-kind=ok]::before{background:#30a46c}
+.bd-status[data-kind=error]{color:#e5484d;border-color:#e5484d}
+.bd-status[data-kind=error]::before{background:#e5484d}
+.bd-toast{
+  position:absolute;left:50%;bottom:1rem;transform:translate(-50%,1rem);opacity:0;pointer-events:none;
+  background:var(--bg-raised);border:1px solid var(--border-strong);border-radius:var(--r-sm);
+  padding:.5rem .8rem;font-size:.85rem;transition:opacity .2s,transform .2s;max-width:90%
+}
+.bd-toast.show{opacity:1;transform:translate(-50%,0)}
+.bd-dlg{position:fixed;inset:0;z-index:1100;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:1rem}
+.bd-dlg[hidden]{display:none}
+.bd-dlg-card{
+  background:var(--bg-raised);border:1px solid var(--border);border-radius:var(--r-lg);
+  padding:1.2rem;max-width:480px;width:100%;box-shadow:0 20px 60px -20px rgba(0,0,0,.5)
+}
+.bd-dlg-card h2{font-size:1.15rem;margin-bottom:.5rem}
+.bd-dlg-card p{color:var(--text-secondary);font-size:.9rem;margin:.4rem 0}
+.bd-dlg-note{font-size:.8rem!important;color:var(--text-tertiary)!important}
+.bd-link-row{display:flex;gap:.4rem;margin:.8rem 0}
+.bd-link-row input{
+  flex:1;min-width:0;padding:.5rem .6rem;border-radius:var(--r-sm);border:1px solid var(--border-strong);
+  background:var(--bg-sunken);color:var(--text-primary);font:inherit;font-size:.85rem
+}
+.mini-btn{
+  font:inherit;font-size:.85rem;padding:.45rem .8rem;border-radius:var(--r-sm);cursor:pointer;
+  border:1px solid var(--accent);background:var(--accent-soft);color:var(--accent);white-space:nowrap
+}
+.bd-dlg-act{display:flex;justify-content:flex-end;margin-top:.6rem}
 @media (max-width:640px){
+  .bd-collab{margin-left:0}
+  .bd-share span{display:none}
   .bd{height:calc(100dvh - 7rem)}
   .bd-bar{gap:.2rem;padding:.35rem}
   .bd-grp{padding-right:.25rem}
@@ -110,15 +161,37 @@ main{
         <button class="bd-btn" id="bdZoomIn" title="Приблизить" aria-label="Приблизить">+</button>
       </div>
       <div class="bd-grp">
+        <button class="bd-btn" id="bdImg" title="Вставить изображение (I) — можно и перетащить файл или вставить Ctrl+V" aria-label="Вставить изображение"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="m21 16-5-5L5 20"/></svg></button>
+        <input type="file" id="bdFile" accept="image/*" multiple hidden>
         <button class="bd-btn" id="bdSave" title="Скачать PNG" aria-label="Скачать PNG"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg></button>
         <button class="bd-btn" id="bdFull" title="Во весь экран (F)" aria-label="Во весь экран"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+      </div>
+      <div class="bd-grp bd-collab">
+        <div class="bd-people" id="bdPeople"></div>
+        <button class="bd-btn bd-share" id="bdShare" title="Поделиться ссылкой — рисовать вместе"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4"/></svg><span>Поделиться</span></button>
+        <button class="bd-btn bd-leave" id="bdLeave" title="Вернуться к своей личной доске">Моя доска</button>
       </div>
     </div>
     <div class="bd-stage t-draw" id="bdStage">
       <canvas id="bdCanvas"></canvas>
-      <div class="bd-hint">Колесо — масштаб, пробел или средняя кнопка — сдвиг, двумя пальцами — сдвиг и масштаб. Доска сохраняется в браузере.</div>
+      <div class="bd-status" id="bdStatus" aria-live="polite"></div>
+      <div class="bd-toast" id="bdToast" role="status"></div>
+      <div class="bd-hint">Колесо — масштаб, пробел или средняя кнопка — сдвиг, двумя пальцами — сдвиг и масштаб. Картинку можно перетащить на доску или вставить Ctrl+V.</div>
     </div>
   </section>
+
+  <div class="bd-dlg" id="bdShareDlg" hidden>
+    <div class="bd-dlg-card" role="dialog" aria-modal="true" aria-labelledby="bdShareTtl">
+      <h2 id="bdShareTtl">Общая доска</h2>
+      <p>Отправьте ссылку — все, кто её откроет, смогут рисовать на этой доске вместе с вами в реальном времени.</p>
+      <div class="bd-link-row">
+        <input id="bdLink" readonly aria-label="Ссылка на доску">
+        <button class="mini-btn" id="bdCopy">Копировать</button>
+      </div>
+      <p class="bd-dlg-note">Рисовать может любой, у кого есть ссылка, — делитесь ей только с теми, с кем работаете.</p>
+      <div class="bd-dlg-act"><button class="mini-btn" data-close>Готово</button></div>
+    </div>
+  </div>
 </main>
 
 <div id="app-footer"></div>

@@ -657,6 +657,23 @@ service cloud.firestore {
         allow delete: if isAdmin();
       }
     }
+    // Электронная доска (/board/?b=&lt;id&gt;, assets/js/board.js): рисует любой, кто знает ссылку
+    // (id — 20 случайных символов). Объекты — items, курсоры и черновики штрихов — peers.
+    match /boards/{bid} {
+      allow read: if true;
+      allow create: if bid.size() &gt;= 16
+        &amp;&amp; request.resource.data.keys().hasOnly(['bg', 'createdAt', 'updatedAt', 'owner']);
+      allow update: if onlyChanged(['bg', 'updatedAt']);
+      allow delete: if isSuper() || (signedIn() &amp;&amp; resource.data.owner == request.auth.uid);
+      match /items/{iid} {
+        allow read: if true;
+        allow write: if exists(/databases/$(database)/documents/boards/$(bid));
+      }
+      match /peers/{pid} {
+        allow read: if true;
+        allow write: if exists(/databases/$(database)/documents/boards/$(bid));
+      }
+    }
     // AI-чаты: владелец — полностью; администраторы — только чтение (статистика в панели)
     match /aiChats/{uid}/chats/{chatId} {
       allow read, write: if request.auth.uid == uid;
