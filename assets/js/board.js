@@ -803,7 +803,7 @@
         if (shared && bcfg.drafts) for (const p of shared.peers.values()) if (p.draft && fresh(p)) extra.push(p.draft);
         if (cur && cur.t !== 'erase') extra.push(cur);
         if (geo) extra.push(geo);
-        drawList(ctx, items.concat(extra));
+        drawList(ctx, items.filter((i) => !i.hid).concat(extra));
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         drawSolveBtns();
         drawHand();
@@ -828,9 +828,10 @@
     //  3) узлы клетки, 4) точка на отрезке/стороне/окружности. Найденная точка подсвечивается.
     let snapHint = null, snapAlt = false;
     // настройки доски (меню-шестерёнка): привязка и чужие курсоры; хранятся в этом браузере
-    const CFG_DEF = { hd: 3, hf: false, hm: true, hl: 'ru', snap: true, sV: true, sM: true, sG: true, sO: true, sR: 11, cur: true, names: true, drafts: true };
+    const CFG_DEF = { hd: 3, hf: false, hm: false, hl: 'ru', snap: true, sV: true, sM: true, sG: true, sO: true, sR: 11, cur: true, names: true, drafts: true };
     const bcfg = Object.assign({}, CFG_DEF, lsGet('mf-board-cfg', {}));
-    if (bcfg.cv !== 2) { bcfg.hd = CFG_DEF.hd; bcfg.cv = 2; }   // новая задержка по умолчанию — 3 с
+    if (bcfg.cv !== 2 && bcfg.cv !== 3) bcfg.hd = CFG_DEF.hd;      // новая задержка по умолчанию — 3 с
+    if (bcfg.cv !== 3) { bcfg.hm = false; bcfg.cv = 3; }              // формулы теперь без нейросети
     function snap(w, except) {
         snapHint = null;
         if (snapAlt || !bcfg.snap) return w;
@@ -839,7 +840,7 @@
         const tryPt = (x, y, k, rr) => { const d = Math.hypot(x - w.x, y - w.y); if (d < (rr || bd) && d < bd + 1e-9) { bd = d; best = { x, y }; kind = k; } };
         const segs = [];
         for (const it of items) {
-            if (except && except.has(it.id)) continue;
+            if ((except && except.has(it.id)) || it.hid) continue;
             if (!bcfg.sV) { if (it.t === 'line' || it.t === 'arrow') segs.push([it.x1, it.y1, it.x2, it.y2]); else if (it.t === 'poly') { const n = it.p.length / 2; for (let i = 0; i < n; i++) { const j = (i + 1) % n; if (j || it.cl) segs.push([it.p[2 * i], it.p[2 * i + 1], it.p[2 * j], it.p[2 * j + 1]]); } } continue; }
             if (it.t === 'point') tryPt(it.x, it.y, 'v');
             else if (it.t === 'line' || it.t === 'arrow') { tryPt(it.x1, it.y1, 'v'); tryPt(it.x2, it.y2, 'v'); segs.push([it.x1, it.y1, it.x2, it.y2]); }
@@ -887,6 +888,7 @@
     function allEdges() {
         const E = [];
         for (const it of items) {
+            if (it.hid) continue;
             if (it.t === 'line' || it.t === 'arrow') E.push([it.x1, it.y1, it.x2, it.y2]);
             else if (it.t === 'poly') {
                 const n = it.p.length / 2;
@@ -1821,6 +1823,7 @@
     }
     // inside — считать попаданием и внутренность замкнутой фигуры (для выделения, не для ластика)
     function hit(it, x, y, r, inside) {
+        if (it.hid) return false;                       // скрытое решение
         if (it.rot && ROT[it.t]) { const f = frameOf(it), q = rotPt(x, y, f.cx, f.cy, -it.rot); x = q.x; y = q.y; }
         if (inside && it.t === 'poly' && it.cl && pointInPoly(it.p, x, y)) return true;
         if (inside && (it.t === 'rect' || it.t === 'ellipse' || it.t === 'circle')) {
@@ -1926,7 +1929,7 @@
         const chk = (k, t, sub) => `<label class="bd-chk${sub ? ' bd-sub' : ''}"><input type="checkbox" data-cfg="${k}"> ${t}</label>`;
         $('bdCfgMenu').innerHTML = '<h4>Распознавание почерка</h4><label>Задержка, с <input type="range" data-cfg="hd" min="1" max="20"><b id="bdHdV"></b></label>' +
             chk('hf', 'Рамка вокруг распознаваемой надписи') +
-            chk('hm', 'Формулы — нейросетью <small>(дроби, степени; с лимитом запросов)</small>') +
+            chk('hm', 'Формулы — нейросетью <small>(точнее на сложных, но с лимитом запросов)</small>') +
             '<label>Язык письма <select data-cfg="hl"><option value="ru">русский</option><option value="en">английский</option><option value="uk">украинский</option></select></label>' +
             '<h4>Привязка</h4>' + chk('snap', 'Включена <small>(Alt — временно без неё)</small>') +
             chk('sV', 'к точкам и вершинам', 1) + chk('sM', 'к серединам отрезков', 1) + chk('sG', 'к узлам клетки', 1) + chk('sO', 'к точкам на отрезках', 1) +
@@ -2284,13 +2287,19 @@
         ctx.save();
         ctx.font = '600 12px ' + (css('--font-display') || 'sans-serif');
         ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
-        for (const it of items) {
+        const show = new Set(solving.keys());
+        if (tool === 'select' && sel.length === 1) show.add(sel[0]);
+        for (const it of [...show].map(byId).filter(Boolean)) {
             if (!SOLVABLE(it)) continue;
             const b = bounds(it), s = toScreen(b.x, b.y), e = toScreen(b.x + b.w, b.y + b.h);
             if (e.x < 0 || e.y < 0 || s.x > W || s.y > H) continue;
             const st = solving.get(it.id), busy = !!st;
-            const label = !busy ? '✓ Решить' : st.total > 1 ? 'Решаю ' + st.done + ' из ' + st.total + '…' : st.total ? 'Решаю…' : 'Распознаю…';
-            const w = ctx.measureText(label).width + 16, h = 22, x = Math.min(Math.max(4, s.x), W - w - 4), y = Math.max(4, s.y - h - 6);
+            const sols = items.filter((x) => x.sol === it.id), shown = sols.some((x) => !x.hid);
+            const label = !busy ? (!sols.length ? '✓ Решить' : shown ? 'Скрыть решение' : 'Показать решение') : st.total > 1 ? 'Решаю ' + st.done + ' из ' + st.total + '…' : st.total ? 'Решаю…' : 'Распознаю…';
+            const w = ctx.measureText(label).width + 16, h = 22;
+            // слева от рамки выделения (сверху над ней — ручка поворота и крестик); не влезает — под объектом
+            let x = s.x - w - 12, y = s.y - 4;
+            if (x < 4) { x = Math.min(Math.max(4, s.x), W - w - 4); y = Math.min(H - h - 4, e.y + 10); }
             ctx.fillStyle = busy ? (css('--text-tertiary') || '#888') : '#30a46c';
             ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x, y, w, h, 11) : ctx.rect(x, y, w, h); ctx.fill();
             ctx.fillStyle = '#fff'; ctx.fillText(label, x + 8, y + h / 2 + .5);
@@ -2457,6 +2466,15 @@
         }
         return t.length > 160 ? t.slice(0, 157) + '…' : t;
     }
+    // Решить → Скрыть решение → Показать решение: решение не удаляется, а прячется (hid),
+    // поэтому показывается снова мгновенно, без повторного решения; «Отменить» тоже работает.
+    function solveToggle(it) {
+        const sols = items.filter((x) => x.sol === it.id);
+        if (!sols.length) return solveItem(it);
+        const hide = sols.some((x) => !x.hid);
+        commit({ mod: sols.map((x) => { const n = clone(x); if (hide) n.hid = 1; else delete n.hid; return [clone(x), n]; }) });
+        sel = [it.id]; render();
+    }
     async function solveItem(it) {
         if (solving.has(it.id)) return;
         const prog = { done: 0, total: 0 };
@@ -2509,7 +2527,7 @@
                 y += gap;
             }
             const list = made.map((x, k) => Object.assign(x, { id: rid(12), z: newZ() + k * 1e-3 }));
-            if (commit({ add: list }) !== false) { setTool('select'); sel = list.map((x) => x.id); }
+            if (commit({ add: list }) !== false) { setTool('select'); sel = [it.id]; }
         } catch (e) {
             toast('Не удалось решить: ' + (e && e.message ? e.message : e));
         } finally { solving.delete(it.id); render(); }
@@ -2578,13 +2596,15 @@
     // без ключа и без лимита, хорошо понимает русский прописной; формулы (дроби, степени) — не умеет.
     // Строки разделяем сами (по вертикали), каждую распознаём отдельно.
     function splitLines(strokes) {
-        const bx = strokes.map((it) => ({ it, b: bounds(it) })).sort((p, q) => (p.b.y + p.b.h / 2) - (q.b.y + q.b.h / 2));
-        const hs = bx.map((x) => x.b.h).sort((p, q) => p - q), med = hs[Math.floor(hs.length / 2)] || 20;
+        // строки — по заметным разрывам в проекции на вертикаль (дробь — числитель, черта,
+        // знаменатель — остаётся одной строкой: промежутки в ней меньше высоты символа)
+        const bx = strokes.map((it) => ({ it, q: rb(it) })).sort((p, q) => p.q.y - q.q.y);
+        const med = median(bx.map((x) => x.q.h).filter((h) => h > 2)) || 20;
         const lines = [];
         for (const x of bx) {
-            const cy = x.b.y + x.b.h / 2, ln = lines[lines.length - 1];
-            if (ln && cy - ln.bottom < med * .35 && cy < ln.bottom + med * .6) { ln.list.push(x.it); ln.bottom = Math.max(ln.bottom, x.b.y + x.b.h); }
-            else lines.push({ list: [x.it], bottom: x.b.y + x.b.h });
+            const ln = lines[lines.length - 1];
+            if (ln && x.q.y <= ln.bottom + med * .6) { ln.list.push(x.it); ln.bottom = Math.max(ln.bottom, x.q.y + x.q.h); }
+            else lines.push({ list: [x.it], bottom: x.q.y + x.q.h });
         }
         return lines.map((l) => l.list);
     }
@@ -2601,16 +2621,99 @@
         });
         const d = await r.json();
         if (d[0] !== 'SUCCESS') throw new Error('сервис распознавания недоступен');
-        return (d[1] && d[1][0] && d[1][0][1]) || [];
+        return ((d[1] && d[1][0] && d[1][0][1]) || []).filter((c) => c !== 'scribble');   // «scribble» — жест «зачеркнуть», не текст
     }
-    // похоже ли на формулу: дробная черта (длинный горизонтальный штрих, над и под ним — штрихи)
-    // или в распознанном есть цифры и знаки действий
-    function looksMath(strokes, text) {
-        if (/[0-9=+×÷^√<>±∫∑]|(^|\s)[-*/](\s|$)/.test(text)) return true;
-        const bs = strokes.map(bounds);
-        return bs.some((f, i) => f.w > f.h * 4 && f.w > 12 && bs.some((u, j) => j !== i && u.y + u.h < f.y + f.h / 2 && u.x < f.x + f.w && u.x + u.w > f.x)
-            && bs.some((d, j) => j !== i && d.y > f.y + f.h / 2 && d.x < f.x + f.w && d.x + d.w > f.x));
+    // ---- формулы без лимита: структуру (дроби, степени, индексы, корни) разбираем сами по
+    // расположению штрихов, а каждый «ряд» символов распознаёт тот же бесплатный сервис.
+    const rb = (it) => { const f = frameOf(it); return { x: f.cx - f.w / 2, y: f.cy - f.h / 2, w: f.w, h: f.h, cx: f.cx, cy: f.cy }; };
+    const unionB = (list) => {
+        let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
+        for (const it of list) { const q = rb(it); x1 = Math.min(x1, q.x); y1 = Math.min(y1, q.y); x2 = Math.max(x2, q.x + q.w); y2 = Math.max(y2, q.y + q.h); }
+        return { x: x1, y: y1, w: x2 - x1, h: y2 - y1, cx: (x1 + x2) / 2, cy: (y1 + y2) / 2 };
+    };
+    // дробная черта: длинный горизонтальный штрих, над и под которым (в его ширину) есть штрихи
+    function fracBar(strokes) {
+        let best = null;
+        for (const f of strokes) {
+            const q = rb(f);
+            if (q.w < 3 * Math.max(q.h, 1) || q.w < 8) continue;
+            const inX = (o) => { const c = rb(o).cx; return c > q.x && c < q.x + q.w; };
+            const above = strokes.filter((o) => o !== f && inX(o) && rb(o).cy < q.cy);
+            const below = strokes.filter((o) => o !== f && inX(o) && rb(o).cy > q.cy);
+            if (above.length && below.length && (!best || q.w > best.q.w)) best = { f, q, above, below };
+        }
+        return best;
     }
+    // знак корня: штрих, низшая точка которого в левой части, а правый конец — наверху;
+    // внутри его рамки справа — подкоренное
+    function isRadical(it) {
+        const q = rb(it), p = it.p;
+        if (!p || q.w < 10 || q.h < 10) return false;
+        let lo = 0, ri = 0;
+        for (let i = 0; i < p.length; i += 2) { if (p[i + 1] > p[lo + 1]) lo = i; if (p[i] > p[ri]) ri = i; }
+        const n = p.length / 2, li = lo / 2;
+        // «галочка»: низшая точка — внутри штриха (не на конце), начало выше неё, правый конец наверху
+        return li > n * .05 && li < n * .75 && p[1] < p[lo + 1] - q.h * .15 && p[lo] < q.x + q.w * .45 && p[ri + 1] < q.y + q.h * .3 && q.w > q.h * .8;
+    }
+    // символы ряда: штрихи, перекрывающиеся по горизонтали, — один символ
+    function symbols(strokes) {
+        const arr = strokes.map((it) => ({ it, q: rb(it) })).sort((a, c) => a.q.x - c.q.x), out = [];
+        for (const s of arr) {
+            const L = out[out.length - 1];
+            if (L && s.q.x < L.x2 - Math.min(s.q.w, L.x2 - L.x1) * .3) { L.list.push(s.it); L.x2 = Math.max(L.x2, s.q.x + s.q.w); L.y1 = Math.min(L.y1, s.q.y); L.y2 = Math.max(L.y2, s.q.y + s.q.h); }
+            else out.push({ list: [s.it], x1: s.q.x, x2: s.q.x + s.q.w, y1: s.q.y, y2: s.q.y + s.q.h });
+        }
+        return out.map((c) => Object.assign(c, { h: c.y2 - c.y1, cy: (c.y1 + c.y2) / 2 }));
+    }
+    const median = (a) => { const b = a.slice().sort((x, y) => x - y); return b.length ? b[Math.floor(b.length / 2)] : 0; };
+    function g2tex(t) {
+        return String(t).replace(/×/g, '\\times ').replace(/[·*]/g, '\\cdot ').replace(/÷/g, '\\div ').replace(/≤/g, '\\le ').replace(/≥/g, '\\ge ')
+            .replace(/≠/g, '\\ne ').replace(/±/g, '\\pm ').replace(/π/g, '\\pi ').replace(/∞/g, '\\infty ').replace(/√/g, '\\surd ').trim();
+    }
+    async function gMath(strokes) { const c = await googleInk(strokes, 'en'); return g2tex(c[0] || ''); }
+    // разметка ряда: роли символов (основа / степень / индекс), корни внутри
+    function rowPlan(strokes) {
+        const sy = symbols(strokes);
+        const tall = sy.filter((c) => c.h > 0), H = median(tall.map((c) => c.h)) || 1, C = median(tall.filter((c) => c.h > H * .35).map((c) => c.cy));
+        let prevBase = false;
+        return sy.map((c) => {
+            const flat = c.h < H * .35;
+            const rad = c.list.length > 1 && c.list.find((it) => isRadical(it) && rb(it).w > (c.x2 - c.x1) * .6);
+            let role = 'base';
+            if (!flat && !rad && prevBase && c.h < H * .85) { if (c.cy < C - H * .3) role = 'sup'; else if (c.cy > C + H * .3) role = 'sub'; }
+            if (role === 'base') prevBase = true;
+            return Object.assign(c, { role, rad });
+        });
+    }
+    const hasStructure = (strokes) => !!fracBar(strokes) || rowPlan(strokes).some((c) => c.role !== 'base' || c.rad);
+    async function parseMath(strokes) {
+        if (!strokes.length) return '';
+        const fb = fracBar(strokes);
+        if (fb) {
+            const used = new Set([fb.f, ...fb.above, ...fb.below]);
+            const rest = strokes.filter((o) => !used.has(o));
+            const left = rest.filter((o) => rb(o).cx <= fb.q.x), right = rest.filter((o) => rb(o).cx >= fb.q.x + fb.q.w);
+            const [l, n, d, r] = await Promise.all([parseMath(left), parseMath(fb.above), parseMath(fb.below), parseMath(right)]);
+            return l + '\\frac{' + n + '}{' + d + '}' + r;
+        }
+        // ряд: подряд идущие символы одной роли распознаём вместе
+        const plan = rowPlan(strokes), runs = [];
+        for (const c of plan) {
+            const L = runs[runs.length - 1];
+            if (c.rad) runs.push({ role: c.role, rad: c });
+            else if (L && !L.rad && L.role === c.role) L.list.push(...c.list);
+            else runs.push({ role: c.role, list: c.list.slice() });
+        }
+        const parts = await Promise.all(runs.map(async (r) => {
+            if (r.rad) {
+                const sign = r.rad.rad, inside = r.rad.list.filter((o) => o !== sign);
+                return '\\sqrt{' + (await parseMath(inside)) + '}';
+            }
+            return r.role === 'base' ? gMath(r.list) : parseMath(r.list);
+        }));
+        return runs.map((r, i) => (r.role === 'sup' ? '^{' + parts[i] + '}' : r.role === 'sub' ? '_{' + parts[i] + '}' : parts[i])).join('');
+    }
+    const mathy = (t) => /[0-9=+×÷^√<>±]/.test(t) && !/[а-яё]{3,}/i.test(t);
     async function handOcrAi(strokes) {
         const b = boxOf(strokes), pad = Math.max(16, b.h * .15);
         // картинка: крупные буквы, ровная линия ~6 px (петли связного письма не слипаются)
@@ -2633,17 +2736,20 @@
         try {
             const strokes = ids.map(byId).filter(Boolean), b = boxOf(strokes);
             const lines = splitLines(strokes);
-            let text = '', gErr = null;
-            // 1) бесплатно и без лимита — по штрихам
-            try {
-                const res = await Promise.all(lines.map((l) => googleInk(l, bcfg.hl || 'ru')));
-                text = res.map((c) => c[0] || '').join('\n').trim();
-            } catch (e) { gErr = e; }
-            // 2) формулы — нейросетью (точнее, но с лимитом); если она недоступна — остаётся вариант Google
-            if (bcfg.hm && (gErr || !text || looksMath(strokes, text))) {
-                try { const t = await handOcrAi(strokes); if (t) text = t; }
-                catch (e) { if (!text) throw e; toast('Формулу распознать нейросетью не удалось (' + (e && e.message ? e.message : e) + ') — вставлен простой вариант'); }
-            }
+            let gErr = null;
+            // по строкам: формула (дробь, степень, корень или цифры со знаками) — разбором структуры,
+            // текст — как есть; всё бесплатно и без лимита. Нейросеть — только если включена в настройках.
+            const out = await Promise.all(lines.map(async (l) => {
+                try {
+                    const struct = hasStructure(l);
+                    let ru = struct ? '' : ((await googleInk(l, bcfg.hl || 'ru'))[0] || '');
+                    if (!struct && !mathy(ru)) return ru;
+                    if (bcfg.hm) { try { const t = await handOcrAi(l); if (t) return t; } catch (e) { /* дальше — без нейросети */ } }
+                    const tex = await parseMath(l);
+                    return tex ? '$' + tex + '$' : ru;
+                } catch (e) { gErr = e; return ''; }
+            }));
+            let text = out.join('\n').trim();
             if (!text) { if (gErr) throw gErr; toast('Не удалось разобрать надпись — штрихи оставлены'); return; }
             const now = ids.map(byId).filter(Boolean);
             if (!now.length) return;                       // штрихи успели стереть
@@ -2723,7 +2829,7 @@
         const sv = srcs.filter((it) => GEO[it.t]).map((it) => ({ id: it.id, v: getV(it) }));
         if (!sv.length) return { glue, tgts };
         for (const it of items) {
-            if (except.has(it.id) || !GEO[it.t]) continue;
+            if (except.has(it.id) || !GEO[it.t] || it.hid) continue;
             getV(it).forEach((v, j) => {
                 for (const s of sv) s.v.forEach((u, i) => {
                     if (!eq(u, v)) return;
@@ -2815,7 +2921,7 @@
         if (pointers.size > 2) return;
         if (lblEd) closeLabel(true);
         const sb = !textEd && e.button === 0 && solveBtnAt(p.x, p.y);
-        if (sb) { pointers.delete(e.pointerId); const it = byId(sb.id); if (it) solveItem(it); return; }
+        if (sb) { pointers.delete(e.pointerId); const it = byId(sb.id); if (it) solveToggle(it); return; }
         if (textEd) { closeText(); if (tool === 'text') return; }
         closeMenus();
         const w = toWorld(p.x, p.y);
@@ -2922,7 +3028,7 @@
         if (drag.mode === 'marquee') {
             drag.x1 = w.x; drag.y1 = w.y;
             const x1 = Math.min(drag.x0, w.x), x2 = Math.max(drag.x0, w.x), y1 = Math.min(drag.y0, w.y), y2 = Math.max(drag.y0, w.y);
-            const inR = items.filter((it) => { const b = bounds(it); return b.x < x2 && b.x + b.w > x1 && b.y < y2 && b.y + b.h > y1; }).map((i) => i.id);
+            const inR = items.filter((it) => { if (it.hid) return false; const b = bounds(it); return b.x < x2 && b.x + b.w > x1 && b.y < y2 && b.y + b.h > y1; }).map((i) => i.id);
             sel = [...new Set(drag.base.concat(inR))];
             return;
         }
@@ -3304,6 +3410,7 @@
         if (textEd) closeText();
         let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
         for (const it of items) {
+            if (it.hid) continue;
             const b = bounds(it);
             minX = Math.min(minX, b.x); minY = Math.min(minY, b.y);
             maxX = Math.max(maxX, b.x + b.w); maxY = Math.max(maxY, b.y + b.h);
@@ -3320,7 +3427,7 @@
         g.scale(scale, scale);
         drawBg(g, v.w, v.h, v);
         g.translate(-v.x, -v.y);
-        drawList(g, items);
+        drawList(g, items.filter((i) => !i.hid));
         c.toBlob((b) => {
             const a = document.createElement('a');
             a.href = URL.createObjectURL(b);
@@ -3685,7 +3792,7 @@
         const k = e.key.toLowerCase();
         if ((e.ctrlKey || e.metaKey) && (k === 'z' || k === 'я')) { e.preventDefault(); e.shiftKey ? doRedo() : doUndo(); return; }
         if ((e.ctrlKey || e.metaKey) && (k === 'y' || k === 'н')) { e.preventDefault(); doRedo(); return; }
-        if ((e.ctrlKey || e.metaKey) && (k === 'a' || k === 'ф')) { e.preventDefault(); setTool('select'); sel = items.map((i) => i.id); render(); return; }
+        if ((e.ctrlKey || e.metaKey) && (k === 'a' || k === 'ф')) { e.preventDefault(); setTool('select'); sel = items.filter((i) => !i.hid).map((i) => i.id); render(); return; }
         if ((e.ctrlKey || e.metaKey) && (k === 'd' || k === 'в') && sel.length) {
             // копия выделенного со сдвигом
             e.preventDefault();
