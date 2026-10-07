@@ -7,6 +7,7 @@
 <title>Электронная доска — MathFrame</title>
 <meta name="description" content="Электронная доска для объяснений и решения задач: перо, фигуры, текст, клетка, бесконечное поле, экспорт в PNG." />
 <link rel="stylesheet" href="/assets/css/common.css" />
+<link rel="stylesheet" href="/assets/css/mathfield.css" />
 <style>
 main{
   max-width:1400px;margin:0 auto;
@@ -100,7 +101,7 @@ main{
   padding:.5rem .8rem;font-size:.85rem;transition:opacity .2s,transform .2s;max-width:90%
 }
 .bd-toast.show{opacity:1;transform:translate(-50%,0)}
-.bd-dlg{position:fixed;inset:0;z-index:1100;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:1rem}
+.bd-dlg{position:fixed;inset:0;z-index:10050;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:1rem}
 .bd-dlg[hidden]{display:none}
 .bd-dlg-card{
   background:var(--bg-raised);border:1px solid var(--border);border-radius:var(--r-lg);
@@ -121,7 +122,32 @@ main{
   font:inherit;font-size:.85rem;padding:.45rem .8rem;border-radius:var(--r-sm);cursor:pointer;
   border:1px solid var(--accent);background:var(--accent-soft);color:var(--accent);white-space:nowrap
 }
-.bd-dlg-act{display:flex;justify-content:flex-end;margin-top:.6rem}
+.bd-dlg-act{display:flex;justify-content:flex-end;gap:.5rem;margin-top:.6rem}
+.bd-ghost{border-color:var(--border-strong);background:none;color:var(--text-secondary)}
+.bd-mbtn{gap:.3rem;padding:0 .5rem}
+.bd-mbtn svg{flex:none}
+.bd-mbtn span{font-size:.82rem}
+.bd-math-card{max-width:680px;max-height:calc(100dvh - 2rem);overflow:auto}
+.bd-tabs{display:flex;gap:.3rem;margin-bottom:.8rem;flex-wrap:wrap}
+.bd-tabs button{font:inherit;font-size:.88rem;padding:.4rem .8rem;border-radius:999px;cursor:pointer;border:1px solid var(--border);background:none;color:var(--text-secondary)}
+.bd-tabs button.on{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
+.bd-tabs button[hidden]{display:none}
+#bdTexField{min-height:64px;font-size:1.35rem}
+.bd-kb{margin-top:.7rem}
+.bd-kb[hidden]{display:none}
+.bd-fn{display:flex;align-items:center;gap:.45rem;margin-bottom:.45rem}
+.bd-fn i{width:12px;height:12px;border-radius:50%;flex:none}
+.bd-fn span{font-style:italic;white-space:nowrap;color:var(--text-secondary)}
+.bd-fn-f{flex:1;min-width:0}
+.bd-fn-add{margin-bottom:.6rem}
+.bd-range{display:flex;flex-wrap:wrap;gap:.4rem .8rem;font-size:.85rem;color:var(--text-secondary);margin-bottom:.6rem}
+.bd-range input{width:4.5rem;padding:.3rem .4rem;border-radius:var(--r-sm);border:1px solid var(--border-strong);background:var(--bg-sunken);color:var(--text-primary);font:inherit}
+.bd-plot-prev{display:block;width:100%;height:220px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--bg-sunken)}
+.bd-shapes{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:.45rem}
+.bd-shape{display:flex;flex-direction:column;align-items:center;gap:.3rem;padding:.55rem .3rem;font:inherit;font-size:.76rem;line-height:1.2;text-align:center;cursor:pointer;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--bg-sunken);color:var(--text-primary)}
+.bd-shape:hover{border-color:var(--accent);color:var(--accent)}
+.bd-shape svg{width:44px;height:44px}
+[data-pane][hidden]{display:none}
 @media (max-width:640px){
   .bd-collab{margin-left:0}
   .bd-share span{display:none}
@@ -130,6 +156,10 @@ main{
   .bd-grp{padding-right:.25rem}
   .bd-btn{min-width:34px;height:34px;padding:0 .3rem}
   .bd-hint{display:none}
+  .bd-mbtn span{display:none}
+  #bdTools{flex-wrap:wrap}
+  .bd-math-card{padding:.8rem}
+  .bd-dlg{padding:.4rem;align-items:flex-end}
 }
 </style>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
@@ -149,6 +179,11 @@ main{
       <div class="bd-grp" id="bdTools" role="toolbar" aria-label="Инструменты"></div>
       <div class="bd-grp" id="bdColors" aria-label="Цвет"></div>
       <div class="bd-grp" id="bdSizes" aria-label="Толщина"></div>
+      <div class="bd-grp bd-mathgrp" aria-label="Математика">
+        <button class="bd-btn bd-mbtn" id="bdMath" title="Формула с математической клавиатурой (X)" aria-label="Формула"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 5H6l6 7-6 7h12"/></svg><span>Формула</span></button>
+        <button class="bd-btn bd-mbtn" id="bdGraph" title="График функции" aria-label="График"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h18M12 3v18"/><path d="M4 20c4-1 5-14 8-14s4 9 8 8" opacity=".75"/></svg><span>График</span></button>
+        <button class="bd-btn bd-mbtn" id="bdFig" title="Готовые фигуры и тела: треугольники, многоугольники, куб, пирамида, цилиндр, конус, шар, числовая прямая, единичная окружность" aria-label="Фигуры"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20h12V8H3z"/><path d="M3 8l5-5h12v12l-5 5M15 8l5-5"/></svg><span>Фигуры</span></button>
+      </div>
       <div class="bd-grp">
         <select class="bd-sel" id="bdBg" title="Фон доски" aria-label="Фон доски">
           <option value="cells">Клетка</option>
@@ -187,6 +222,35 @@ main{
     </div>
   </section>
 
+  <div class="bd-dlg" id="bdMathDlg" hidden>
+    <div class="bd-dlg-card bd-math-card" role="dialog" aria-modal="true" aria-label="Математика">
+      <div class="bd-tabs" role="tablist">
+        <button data-tab="f" role="tab">Формула</button>
+        <button data-tab="g" role="tab">График</button>
+        <button data-tab="s" role="tab">Фигуры и тела</button>
+      </div>
+      <div data-pane="f">
+        <div id="bdTexField"></div>
+        <p class="bd-dlg-note">Дроби, корни, степени, индексы, интегралы, суммы, пределы, системы, векторы, греческие буквы — как на бумаге. Формулу на доске можно двигать и масштабировать, двойной щелчок в режиме «Выбор» — редактировать.</p>
+      </div>
+      <div data-pane="g" hidden>
+        <div id="bdFns"></div>
+        <button class="mini-btn bd-fn-add" id="bdFnAdd">+ ещё функция</button>
+        <div class="bd-range">
+          <label>x от <input id="bdX0" inputmode="decimal"></label><label>до <input id="bdX1" inputmode="decimal"></label>
+          <label>y от <input id="bdY0" inputmode="decimal" placeholder="авто"></label><label>до <input id="bdY1" inputmode="decimal" placeholder="авто"></label>
+        </div>
+        <canvas id="bdPlotPrev" class="bd-plot-prev"></canvas>
+      </div>
+      <div data-pane="s" hidden>
+        <div class="bd-shapes" id="bdShapes"></div>
+        <p class="bd-dlg-note">Своё построение — инструментами на панели: точка, окружность, многоугольник и угол с градусной мерой. Концы притягиваются к уже построенным точкам и вершинам.</p>
+      </div>
+      <div id="bdKb" class="bd-kb"></div>
+      <div class="bd-dlg-act"><button class="mini-btn bd-ghost" data-close>Отмена</button><button class="mini-btn" id="bdMathOk">Вставить</button></div>
+    </div>
+  </div>
+
   <div class="bd-dlg" id="bdShareDlg" hidden>
     <div class="bd-dlg-card" role="dialog" aria-modal="true" aria-labelledby="bdShareTtl">
       <h2 id="bdShareTtl">Общая доска</h2>
@@ -205,6 +269,9 @@ main{
 <div id="app-footer"></div>
 
 <script src="/assets/js/mathframe-ui.js"></script>
+<script src="/assets/js/mathfield.js"></script>
+<script src="/assets/js/mf-math.js"></script>
+<script src="/assets/js/mf-keyboard.js"></script>
 <script src="/assets/js/board.js"></script>
 <script>var PAGE_ROOT = '/';</script>
 <script src="/assets/js/auth.js"></script>
