@@ -201,8 +201,12 @@
   try {
     MOBILE = window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 760;
   } catch (e) {}
+  // «Режим производительности» из настроек (common.js) — принудительный lite
+  var PERF_MODE = false;
+  try { PERF_MODE = localStorage.getItem('mf-perf') === 'on'; } catch (e) {}
+  if (PERF_MODE) document.documentElement.classList.add('mf-perf');
   function detectLite() {
-    var lite = false;
+    var lite = PERF_MODE;
     try {
       var cores = navigator.hardwareConcurrency || 8;
       if (cores <= 3) lite = true;

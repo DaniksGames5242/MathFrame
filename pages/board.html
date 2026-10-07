@@ -108,6 +108,9 @@ main{
 .bd-dlg-card p{color:var(--text-secondary);font-size:.9rem;margin:.4rem 0}
 .bd-dlg-note{font-size:.8rem!important;color:var(--text-tertiary)!important}
 .bd-link-row{display:flex;gap:.4rem;margin:.8rem 0}
+.bd-qr{display:flex;justify-content:center;margin:.2rem 0 .6rem}
+.bd-qr svg{width:200px;height:200px;max-width:100%;background:#fff;border-radius:10px;padding:8px;box-sizing:border-box}
+.bd-qr:empty{display:none}
 .bd-link-row input{
   flex:1;min-width:0;padding:.5rem .6rem;border-radius:var(--r-sm);border:1px solid var(--border-strong);
   background:var(--bg-sunken);color:var(--text-primary);font:inherit;font-size:.85rem
@@ -188,6 +191,7 @@ main{
         <input id="bdLink" readonly aria-label="Ссылка на доску">
         <button class="mini-btn" id="bdCopy">Копировать</button>
       </div>
+      <div class="bd-qr" id="bdQr" aria-label="QR-код ссылки на доску" role="img"></div>
       <p class="bd-dlg-note">Рисовать может любой, у кого есть ссылка, — делитесь ей только с теми, с кем работаете.</p>
       <div class="bd-dlg-act"><button class="mini-btn" data-close>Готово</button></div>
     </div>

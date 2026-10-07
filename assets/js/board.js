@@ -846,6 +846,25 @@
         }).catch(() => $('bdLink').select());
         $('bdCopy').onclick = copy;
         copy();
+        showQr(url);
+    }
+    // QR-код ссылки: библиотека грузится лениво при первом открытии диалога
+    let qrLib = null;
+    function showQr(url) {
+        const box = $('bdQr');
+        box.innerHTML = '';
+        qrLib = qrLib || new Promise((ok, fail) => {
+            if (window.qrcode) return ok();
+            const s = document.createElement('script');
+            s.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js';
+            s.onload = ok; s.onerror = () => { qrLib = null; fail(); };
+            document.head.appendChild(s);
+        });
+        qrLib.then(() => {
+            const qr = window.qrcode(0, 'M');
+            qr.addData(url); qr.make();
+            box.innerHTML = qr.createSvgTag({ cellSize: 4, margin: 0, scalable: true });
+        }).catch(() => {});
     }
 
     function myName() {

@@ -1419,6 +1419,12 @@ function injectSettingsModal() {
           <input type="checkbox" class="st-switch-input" id="anim-toggle-settings" />
           <span class="st-switch" aria-hidden="true"></span>
         </label>
+        <label class="st-row st-row-switch">
+          <span class="st-row-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg></span>
+          <span class="st-row-text"><b>Режим производительности</b><small>Для слабых устройств: без живого фона, размытия, теней и анимаций</small></span>
+          <input type="checkbox" class="st-switch-input" id="perf-toggle-settings" />
+          <span class="st-switch" aria-hidden="true"></span>
+        </label>
         <div class="st-row st-row-lang">
           <span class="st-row-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/></svg></span>
           <span class="st-row-text"><b>Язык</b><small>Пока влияет на запись чисел в интерактивных примерах: 2,5 (русский) или 2.5 (английский)</small></span>
@@ -1539,6 +1545,22 @@ function injectSettingsModal() {
         }
     });
     updateAnimToggle();
+
+    // ===== Режим производительности =====
+    // Тот же ключ читает mathframe-ui.js до запуска фона (принудительный lite);
+    // CSS (html.mf-perf) гасит фон и эффекты сразу, без перезагрузки.
+    const perfInput = $('perf-toggle-settings');
+    if (perfInput) {
+        try { perfInput.checked = localStorage.getItem('mf-perf') === 'on'; } catch (e) {}
+        perfInput.addEventListener('change', () => {
+            try {
+                if (perfInput.checked) localStorage.setItem('mf-perf', 'on');
+                else localStorage.removeItem('mf-perf');
+            } catch (e) {}
+            document.documentElement.classList.toggle('mf-perf', perfInput.checked);
+            if (perfInput.checked) document.documentElement.classList.add('mf-lite');
+        });
+    }
 
     const PROVIDER_RU = { 'google.com': 'Google', 'apple.com': 'Apple', 'github.com': 'GitHub', password: 'почта и пароль', phone: 'телефон' };
     function sinceText(user) {
