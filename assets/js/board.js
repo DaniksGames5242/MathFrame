@@ -152,6 +152,11 @@
             if (b) { b.updated = Date.now(); lsSet(IDX, list); }
         }, 250);
     }
+    function syncOwnerCfg() {
+        const box = $('bdOwnerCfg'); if (!box) return;
+        box.hidden = !(shared && shared.owner);
+        $('bdNoSolve').checked = !(shared && shared.noSolve);
+    }
     function setTitle(name) {
         const el = $('bdBoardName');
         if (el) el.textContent = name || 'Доска';
@@ -1927,7 +1932,8 @@
         $('bdFig').onclick = () => toggleMenu('bdPresetMenu', $('bdFig'));
         // настройки доски
         const chk = (k, t, sub) => `<label class="bd-chk${sub ? ' bd-sub' : ''}"><input type="checkbox" data-cfg="${k}"> ${t}</label>`;
-        $('bdCfgMenu').innerHTML = '<h4>Распознавание почерка</h4><label>Задержка, с <input type="range" data-cfg="hd" min="1" max="20"><b id="bdHdV"></b></label>' +
+        $('bdCfgMenu').innerHTML = '<div id="bdOwnerCfg" hidden><h4>Общая доска (вы владелец)</h4><label class="bd-chk"><input type="checkbox" id="bdNoSolve"> Кнопка «Решить» у участников</label></div>' +
+            '<h4>Распознавание почерка</h4><label>Задержка, с <input type="range" data-cfg="hd" min="1" max="20"><b id="bdHdV"></b></label>' +
             chk('hf', 'Рамка вокруг распознаваемой надписи') +
             chk('hm', 'Формулы — нейросетью <small>(точнее на сложных, но с лимитом запросов)</small>') +
             '<label>Язык письма <select data-cfg="hl"><option value="ru">русский</option><option value="en">английский</option><option value="uk">украинский</option></select></label>' +
@@ -1949,7 +1955,13 @@
             lsSet('mf-board-cfg', bcfg); syncCfg(); render();
         });
         $('bdCfgReset').onclick = () => { Object.assign(bcfg, CFG_DEF); lsSet('mf-board-cfg', bcfg); syncCfg(); render(); };
-        $('bdCfg').onclick = () => toggleMenu('bdCfgMenu', $('bdCfg'));
+        $('bdCfg').onclick = () => { syncOwnerCfg(); toggleMenu('bdCfgMenu', $('bdCfg')); };
+        $('bdNoSolve').addEventListener('change', () => {
+            if (!shared || !shared.owner) return;
+            shared.noSolve = !$('bdNoSolve').checked;
+            shared.ref.update({ noSolve: shared.noSolve, updatedAt: Date.now() }).catch(syncError);
+            toast(shared.noSolve ? 'Участники больше не видят кнопку «Решить»' : 'Кнопка «Решить» снова доступна участникам');
+        });
         $('bdHand').onclick = handToggle;
         $('bdCfgMenu').addEventListener('input', handBtn);
         handBtn();
@@ -2287,6 +2299,7 @@
         ctx.save();
         ctx.font = '600 12px ' + (css('--font-display') || 'sans-serif');
         ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+        if (shared && shared.noSolve && !shared.owner) { ctx.restore(); return; }
         const show = new Set(solving.keys());
         if (tool === 'select' && sel.length === 1) show.add(sel[0]);
         for (const it of [...show].map(byId).filter(Boolean)) {
@@ -2920,7 +2933,7 @@
         }
         if (pointers.size > 2) return;
         if (lblEd) closeLabel(true);
-        const sb = !textEd && e.button === 0 && solveBtnAt(p.x, p.y);
+        const sb = !textEd && e.button === 0 && !(shared && shared.noSolve && !shared.owner) && solveBtnAt(p.x, p.y);
         if (sb) { pointers.delete(e.pointerId); const it = byId(sb.id); if (it) solveToggle(it); return; }
         if (textEd) { closeText(); if (tool === 'text') return; }
         closeMenus();
@@ -3690,6 +3703,7 @@
         }
         const bd = boardSnap.data() || {};
         shared.owner = bd.owner === au.user.uid;
+        shared.noSolve = !!bd.noSolve;
         shared.name = bd.name || 'Общая доска';
         setTitle(shared.name);
         const rec = lsGet(RECENT, []).filter((r) => r.id !== id);
@@ -3700,6 +3714,8 @@
             const data = d.data();
             if (data && data.bg && data.bg !== bg) { bg = data.bg; $('bdBg').value = bg; render(); }
             if (data && data.name && data.name !== shared.name) { shared.name = data.name; setTitle(data.name); }
+            // владелец может выключить «Решить» для участников
+            if (data && !!data.noSolve !== !!shared.noSolve) { shared.noSolve = !!data.noSolve; syncOwnerCfg(); render(); }
         }, syncError));
         shared.unsub.push(ref.collection('items').onSnapshot((snap) => {
             if (first) { items = []; first = false; }

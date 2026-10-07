@@ -658,7 +658,7 @@ service cloud.firestore {
       }
     }
     // Электронная доска (/board/?b=&lt;id&gt;, assets/js/board.js): общие доски — только для вошедших.
-    // Создаёт доску владелец (owner = uid); имя меняет только он, фон — любой участник.
+    // Создаёт доску владелец (owner = uid); имя и noSolve (кнопка «Решить» у участников) меняет только он, фон — любой участник.
     // Лимиты (10 досок на пользователя, 5000 объектов / 5 МБ на доску, без лимитов у админов)
     // проверяет клиент; здесь — вход, владелец и размер одного объекта (картинка до ~1 МБ).
     match /boards/{bid} {
@@ -668,8 +668,8 @@ service cloud.firestore {
         &amp;&amp; request.resource.data.keys().hasOnly(['bg', 'name', 'createdAt', 'updatedAt', 'owner'])
         &amp;&amp; (!('name' in request.resource.data) || request.resource.data.name.size() &lt;= 80);
       allow update: if signedIn() &amp;&amp; (onlyChanged(['bg', 'updatedAt'])
-        || (resource.data.owner == request.auth.uid &amp;&amp; onlyChanged(['name', 'updatedAt'])
-            &amp;&amp; request.resource.data.name.size() &lt;= 80));
+        || (resource.data.owner == request.auth.uid &amp;&amp; onlyChanged(['name', 'noSolve', 'updatedAt'])
+            &amp;&amp; (!('name' in request.resource.data) || request.resource.data.name.size() &lt;= 80)));
       allow delete: if isSuper() || (signedIn() &amp;&amp; resource.data.owner == request.auth.uid);
       match /items/{iid} {
         allow read: if signedIn();
