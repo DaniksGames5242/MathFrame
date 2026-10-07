@@ -2265,7 +2265,7 @@
     // геометрическую задачу — геометрический решатель (geo-problem.js), остальное — нейросеть.
     // Решение пишется прямо на доску обычными объектами — текст с формулами, точки, отрезки,
     // окружности — под исходным фото/текстом; каждую часть потом можно править как обычно.
-    const solving = new Set();
+    const solving = new Map();   // id → { done, total } — прогресс на кнопке
     let solveBtns = [];
     const SOLVABLE = (it) => (it.t === 'img' || (it.t === 'text' && String(it.text).trim().length > 1)) && !it.sol;
     function drawSolveBtns() {
@@ -2278,7 +2278,8 @@
             if (!SOLVABLE(it)) continue;
             const b = bounds(it), s = toScreen(b.x, b.y), e = toScreen(b.x + b.w, b.y + b.h);
             if (e.x < 0 || e.y < 0 || s.x > W || s.y > H) continue;
-            const busy = solving.has(it.id), label = busy ? 'Решаю…' : '✓ Решить';
+            const st = solving.get(it.id), busy = !!st;
+            const label = !busy ? '✓ Решить' : st.total > 1 ? 'Решаю ' + st.done + ' из ' + st.total + '…' : st.total ? 'Решаю…' : 'Распознаю…';
             const w = ctx.measureText(label).width + 16, h = 22, x = Math.min(Math.max(4, s.x), W - w - 4), y = Math.max(4, s.y - h - 6);
             ctx.fillStyle = busy ? (css('--text-tertiary') || '#888') : '#30a46c';
             ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x, y, w, h, 11) : ctx.rect(x, y, w, h); ctx.fill();
@@ -2448,7 +2449,8 @@
     }
     async function solveItem(it) {
         if (solving.has(it.id)) return;
-        solving.add(it.id); render();
+        const prog = { done: 0, total: 0 };
+        solving.set(it.id, prog); render();
         try {
             let probs;
             if (it.t === 'img') {
@@ -2456,6 +2458,21 @@
                 probs = String(d.text || '').split(/\n\s*-{3,}\s*\n?/).map((x) => x.trim()).filter(Boolean);
                 if (!probs.length) throw new Error('на фото не нашлось задач');
             } else probs = splitProblems(textForSolve(it));
+            prog.total = probs.length; render();
+            // все задачи решаются параллельно (по 4 одновременно), у каждой — свой предел времени
+            const results = new Array(probs.length);
+            let next = 0;
+            const worker = async () => {
+                while (next < probs.length) {
+                    const i = next++;
+                    try {
+                        results[i] = await Promise.race([solveOne(probs[i]),
+                            new Promise((_, no) => setTimeout(() => no(new Error('решение заняло слишком много времени')), 90000))]);
+                    } catch (e) { results[i] = { error: e && e.message ? e.message : String(e) }; }
+                    prog.done++; render();
+                }
+            };
+            await Promise.all(Array.from({ length: Math.min(4, probs.length) }, worker));
             await loadMathJax().catch(() => {});
             layoutCache.clear();
             const b = bounds(it), s = Math.max(12, Math.min(30, it.t === 'text' ? it.s : b.w / 28)), gap = s * .9;
@@ -2468,8 +2485,7 @@
                 return t;
             };
             for (let i = 0; i < probs.length; i++) {
-                let res;
-                try { res = await solveOne(probs[i]); } catch (e) { res = { error: e && e.message ? e.message : String(e) }; }
+                const res = results[i];
                 addText((probs.length > 1 ? '№' + (i + 1) + '. ' : '') + problemTitle(probs[i]), { c: '#3e8bff' });
                 if (res.error) { addText('Не получилось решить: ' + res.error, { c: '#e5484d', s: s * .85 }); y += gap; continue; }
                 if (res.sketch) {
