@@ -24,6 +24,9 @@ main{
 }
 .bd-love{margin:0 0 .6rem;text-align:center;font-weight:700;font-size:clamp(1rem,2.4vw,1.35rem);color:var(--text-primary)}
 .bd-love + .bd{height:calc(100dvh - 11rem)}
+html.bd-fs main{z-index:10040!important;position:relative}
+html.bd-fs #app-header{visibility:hidden}
+.bd-sw-x{background:linear-gradient(135deg,#000 0 50%,#fff 50% 100%)!important;box-shadow:inset 0 0 0 1px rgba(128,128,128,.6)}
 .bd.full{position:fixed;inset:0;z-index:1000;height:100dvh;border-radius:0;border:0;background:var(--bg-body)}
 
 .bd-bar{
@@ -123,6 +126,22 @@ main{
   border:1px solid var(--accent);background:var(--accent-soft);color:var(--accent);white-space:nowrap
 }
 .bd-dlg-act{display:flex;justify-content:flex-end;gap:.5rem;margin-top:.6rem}
+.bd-boards{gap:.35rem;padding:0 .55rem;max-width:220px}
+.bd-boards span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.85rem}
+.bd-boards-card{max-width:560px;max-height:calc(100dvh - 2rem);overflow:auto}
+.bd-bsec{margin:.4rem 0 1rem}
+.bd-bhead{display:flex;align-items:baseline;gap:.6rem;flex-wrap:wrap;margin-bottom:.35rem}
+.bd-bhead h3{font-size:.95rem;margin:0}
+.bd-bhead small{color:var(--text-tertiary);font-size:.78rem}
+.bd-blist{list-style:none;margin:0 0 .5rem;padding:0;display:flex;flex-direction:column;gap:.3rem}
+.bd-brow{display:flex;align-items:center;gap:.25rem;border:1px solid var(--border);border-radius:var(--r-sm);padding:.2rem .3rem;background:var(--bg-sunken)}
+.bd-brow.cur{border-color:var(--accent)}
+.bd-bopen{flex:1;min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:.05rem;font:inherit;text-align:left;background:none;border:0;color:var(--text-primary);cursor:pointer;padding:.25rem .35rem}
+.bd-bopen b{font-weight:600;font-size:.9rem;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bd-bopen small{font-size:.75rem;color:var(--text-tertiary)}
+.bd-bnote{font-size:.85rem;color:var(--text-secondary);padding:.3rem 0}
+.bd-link{font:inherit;background:none;border:0;padding:0;color:var(--accent);text-decoration:underline;cursor:pointer}
+.bd-danger{color:#e5484d!important;margin-right:auto}
 .bd-ghost{border-color:var(--border-strong);background:none;color:var(--text-secondary)}
 .bd-mbtn{gap:.3rem;padding:0 .5rem}
 .bd-mbtn svg{flex:none}
@@ -157,6 +176,7 @@ main{
   .bd-btn{min-width:34px;height:34px;padding:0 .3rem}
   .bd-hint{display:none}
   .bd-mbtn span{display:none}
+  .bd-boards span{max-width:90px}
   #bdTools{flex-wrap:wrap}
   .bd-math-card{padding:.8rem}
   .bd-dlg{padding:.4rem;align-items:flex-end}
@@ -209,6 +229,7 @@ main{
         <button class="bd-btn" id="bdFull" title="Во весь экран (F)" aria-label="Во весь экран"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
       </div>
       <div class="bd-grp bd-collab">
+        <button class="bd-btn bd-boards" id="bdBoards" title="Мои доски: создать, открыть, переименовать, удалить"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg><span id="bdBoardName">Доска</span></button>
         <div class="bd-people" id="bdPeople"></div>
         <button class="bd-btn bd-share" id="bdShare" title="Поделиться ссылкой — рисовать вместе"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4"/></svg><span>Поделиться</span></button>
         <button class="bd-btn bd-leave" id="bdLeave" title="Вернуться к своей личной доске">Моя доска</button>
@@ -248,6 +269,28 @@ main{
       </div>
       <div id="bdKb" class="bd-kb"></div>
       <div class="bd-dlg-act"><button class="mini-btn bd-ghost" data-close>Отмена</button><button class="mini-btn" id="bdMathOk">Вставить</button></div>
+    </div>
+  </div>
+
+  <div class="bd-dlg" id="bdBoardsDlg" hidden>
+    <div class="bd-dlg-card bd-boards-card" role="dialog" aria-modal="true" aria-labelledby="bdBoardsTtl">
+      <h2 id="bdBoardsTtl">Доски</h2>
+      <div class="bd-bsec">
+        <div class="bd-bhead"><h3>Личные</h3><small>хранятся в этом браузере, без ограничений</small></div>
+        <ul class="bd-blist" id="bdLocalList"></ul>
+        <button class="mini-btn" id="bdNewLocal">+ Новая доска</button>
+      </div>
+      <div class="bd-bsec">
+        <div class="bd-bhead"><h3>Общие</h3><small>на сервере, рисовать вместе по ссылке · <span id="bdCloudCount"></span></small></div>
+        <ul class="bd-blist" id="bdCloudList"></ul>
+        <button class="mini-btn" id="bdNewCloud">+ Новая общая доска</button>
+      </div>
+      <div class="bd-bsec" id="bdRecentWrap" hidden>
+        <div class="bd-bhead"><h3>Открытые по ссылке</h3></div>
+        <ul class="bd-blist" id="bdRecentList"></ul>
+      </div>
+      <p class="bd-dlg-note">Общая доска: до 5000 объектов и 5 МБ, не больше 10 досок на пользователя.</p>
+      <div class="bd-dlg-act"><button class="mini-btn bd-ghost bd-danger" id="bdClearCur">Очистить текущую доску</button><button class="mini-btn" data-close>Закрыть</button></div>
     </div>
   </div>
 

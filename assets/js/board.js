@@ -8,7 +8,7 @@
 //  • общая доска (/board/?b=<id>) — живёт в Firestore: boards/{id} (фон),
 //    boards/{id}/items/{itemId} (объекты), boards/{id}/peers/{peerId} (курсоры
 //    и недорисованный штрих участников). Ссылку может открыть и рисовать любой,
-//    у кого она есть; id длинный и случайный. Правила — в админке (Правила Firestore).
+//    у кого она есть и кто вошёл в аккаунт. Правила — в админке (Правила Firestore).
 (function () {
     'use strict';
 
@@ -46,7 +46,9 @@
         ['text', 'Текст (T)', 't'], ['pan', 'Рука — сдвиг (H)', 'h'],
     ];
     // 'ink' — цвет «по теме»: светлый на тёмной доске, тёмный на светлой.
-    const COLORS = ['ink', '#e5484d', '#3e8bff', '#30a46c', '#f2a25c', '#9b6bff'];
+    // 'contrast' — особый цвет: рисуется в режиме «разность» поверх белого, поэтому
+    // на любом фоне (доска, картинка, другие линии) выходит противоположный, контрастный цвет.
+    const COLORS = ['ink', 'contrast', '#e5484d', '#3e8bff', '#30a46c', '#f2a25c', '#9b6bff'];
     const SIZES = [2, 4, 8, 16];
     const PEER_COLORS = ['#e5484d', '#3e8bff', '#30a46c', '#f2a25c', '#9b6bff', '#d6409f', '#12a594', '#e38d2c'];
 
@@ -83,25 +85,76 @@
     const params = new URLSearchParams(location.search);
     let shared = null;   // { id, db, ref, unsub[], peerId, peerRef, peers: Map }
 
-    function loadLocal() {
-        try {
-            const s = JSON.parse(localStorage.getItem(STORE) || 'null');
-            if (s && Array.isArray(s.items)) {
-                items = s.items.map((it, i) => Object.assign({ id: rid(12), z: i }, it));
-                bg = s.bg || 'cells';
-                if (s.view) { view = s.view; viewSet = true; }
-            }
-        } catch (e) {}
+    // Личные доски: список — в localStorage (mf-boards), содержимое — в IndexedDB
+    // (без ограничения 5 МБ localStorage, поэтому у личных досок лимитов нет).
+    const IDX = 'mf-boards', CUR = 'mf-board-cur', RECENT = 'mf-boards-recent';
+    let localId = null;
+    const lsGet = (k, d) => { try { return JSON.parse(localStorage.getItem(k) || 'null') || d; } catch (e) { return d; } };
+    const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
+    let idbP = null;
+    function idb() {
+        if (!idbP) idbP = new Promise((ok, fail) => {
+            const r = indexedDB.open('mf-board', 1);
+            r.onupgradeneeded = () => r.result.createObjectStore('boards');
+            r.onsuccess = () => ok(r.result);
+            r.onerror = () => fail(r.error);
+        });
+        return idbP;
+    }
+    function idbDo(mode, fn) {
+        return idb().then((db) => new Promise((ok, fail) => {
+            const tx = db.transaction('boards', mode), st = tx.objectStore('boards');
+            const req = fn(st);
+            tx.oncomplete = () => ok(req && req.result);
+            tx.onerror = () => fail(tx.error);
+        }));
+    }
+    const idbGet = (id) => idbDo('readonly', (st) => st.get(id));
+    const idbPut = (id, v) => idbDo('readwrite', (st) => st.put(v, id));
+    const idbDel = (id) => idbDo('readwrite', (st) => st.delete(id));
+    const localList = () => lsGet(IDX, []);
+    function newLocal(name, data) {
+        const list = localList(), id = rid(12), now = Date.now();
+        list.push({ id, name: name || 'Доска ' + (list.length + 1), created: now, updated: now });
+        lsSet(IDX, list);
+        return idbPut(id, data || { items: [], bg: 'cells' }).then(() => id);
+    }
+    async function loadLocal(wanted) {
+        // перенос старой единственной доски (mf-board-v1) в список
+        let old = null;
+        try { old = JSON.parse(localStorage.getItem(STORE) || 'null'); } catch (e) {}
+        if (old && Array.isArray(old.items)) {
+            await newLocal('Моя доска', old);
+            try { localStorage.removeItem(STORE); } catch (e) {}
+        }
+        let list = localList();
+        if (!list.length) { await newLocal('Моя доска'); list = localList(); }
+        const cur = list.find((b) => b.id === wanted) || list.find((b) => b.id === lsGet(CUR, '')) || list[0];
+        localId = cur.id;
+        lsSet(CUR, localId);
+        const s = await idbGet(localId).catch(() => null);
+        if (s && Array.isArray(s.items)) {
+            items = s.items.map((it, i) => Object.assign({ id: rid(12), z: i }, it));
+            bg = s.bg || 'cells';
+            if (s.view) { view = s.view; viewSet = true; }
+        }
         sortItems();
+        setTitle(cur.name);
     }
     let saveT = 0;
     function saveLocal() {
-        if (shared) return;
+        if (shared || !localId) return;
         clearTimeout(saveT);
         saveT = setTimeout(() => {
-            try { localStorage.setItem(STORE, JSON.stringify({ items, bg, view })); }
-            catch (e) { toast('Не удалось сохранить доску в браузере — мало места (возможно, из-за больших картинок).'); }
+            idbPut(localId, { items, bg, view }).catch(() => toast('Не удалось сохранить доску в браузере'));
+            const list = localList(), b = list.find((x) => x.id === localId);
+            if (b) { b.updated = Date.now(); lsSet(IDX, list); }
         }, 250);
+    }
+    function setTitle(name) {
+        const el = $('bdBoardName');
+        if (el) el.textContent = name || 'Доска';
+        document.title = (name ? name + ' — ' : '') + 'Доска — MathFrame';
     }
     function saveView() {
         if (!shared) return saveLocal();
@@ -117,7 +170,7 @@
         sortItems();
         if (shared) {
             const b = shared.db.batch();
-            list.forEach((it) => b.set(shared.ref.collection('items').doc(it.id), it));
+            list.forEach((it) => { delete it._sz; b.set(shared.ref.collection('items').doc(it.id), it); });
             b.commit().catch(syncError);
         }
         saveLocal();
@@ -145,7 +198,21 @@
         if (op.del) reverse ? putItems(op.del.map(clone)) : dropItems(op.del.map((i) => i.id));
         if (op.mod) putItems(op.mod.map((p) => clone(p[reverse ? 0 : 1])));
     }
+    // Лимиты общей (серверной) доски; у личных досок и у администраторов их нет.
+    const CLOUD_MAX_BOARDS = 10, CLOUD_MAX_ITEMS = 5000, CLOUD_MAX_BYTES = 5 * 1024 * 1024;
+    const sizeOf = (it) => JSON.stringify(it).length;
+    function overLimit(op) {
+        if (!shared || shared.noLimit || !op.add && !op.mod) return false;
+        let n = items.length, bytes = 0;
+        for (const it of items) bytes += it._sz || (it._sz = sizeOf(it));
+        for (const it of op.add || []) { n++; bytes += sizeOf(it); }
+        for (const [a, b] of op.mod || []) bytes += sizeOf(b) - sizeOf(a);
+        if (n > CLOUD_MAX_ITEMS) { toast('На общей доске может быть не больше ' + CLOUD_MAX_ITEMS + ' объектов'); return true; }
+        if (bytes > CLOUD_MAX_BYTES) { toast('Общая доска заполнена (лимит ' + (CLOUD_MAX_BYTES >> 20) + ' МБ) — удалите лишнее, например большие картинки'); return true; }
+        return false;
+    }
     function commit(op) {
+        if (overLimit(op)) { render(); return false; }
         apply(op, false);
         record(op);
     }
@@ -190,8 +257,9 @@
     // ================= ОТРИСОВКА =================
     const css = (n) => getComputedStyle(document.body).getPropertyValue(n).trim();
     const isLight = () => document.documentElement.classList.contains('light');
-    const inkColor = () => (isLight() ? '#1b2333' : '#eef2fb');
-    const paint = (c) => (c === 'ink' ? inkColor() : c);
+    const inkColor = () => (isLight() ? '#000000' : '#ffffff');
+    const paint = (c) => (c === 'ink' ? inkColor() : c === 'contrast' ? '#ffffff' : c);
+    const boardFill = () => (isLight() ? '#ffffff' : '#0b1020');
     const textFont = (s) => s + 'px ' + (css('--font-display') || 'sans-serif');
 
     // картинки: id → HTMLImageElement (src не меняется, поэтому кэш по id+длине)
@@ -272,6 +340,7 @@
 
     function drawItem(c, it) {
         c.save();
+        if (it.c === 'contrast') c.globalCompositeOperation = 'difference';
         c.lineCap = 'round'; c.lineJoin = 'round';
         c.strokeStyle = c.fillStyle = paint(it.c);
         c.lineWidth = it.w;
@@ -375,7 +444,9 @@
 
     function render() {
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        ctx.clearRect(0, 0, W, H);
+        // непрозрачная заливка нужна «контрастному» цвету: разность считается с тем, что уже на холсте
+        ctx.fillStyle = boardFill();
+        ctx.fillRect(0, 0, W, H);
         drawBg(ctx, W, H, view);
         ctx.setTransform(dpr * view.k, 0, 0, dpr * view.k, -view.x * view.k * dpr, -view.y * view.k * dpr);
         for (const it of items) drawItem(ctx, it);
@@ -964,6 +1035,7 @@
             ta.style.top = (wy - view.y) * view.k + 'px';
             ta.style.fontSize = s * view.k + 'px';
             ta.style.color = paint(col);
+            ta.style.mixBlendMode = col === 'contrast' ? 'difference' : '';
             ta.rows = Math.max(1, ta.value.split('\n').length);
             ta.style.width = Math.max(60, ...ta.value.split('\n').map((l) => l.length * s * view.k * .62 + 20)) + 'px';
         };
@@ -1270,10 +1342,10 @@
         $('bdTools').addEventListener('click', (e) => { const b = e.target.closest('[data-tool]'); if (b) setTool(b.dataset.tool); });
 
         $('bdColors').innerHTML = COLORS.map((c) =>
-            `<button class="bd-sw" data-c="${c}" title="${c === 'ink' ? 'Основной' : c}" aria-label="Цвет ${c === 'ink' ? 'основной' : c}"></button>`).join('') +
+            `<button class="bd-sw${c === 'contrast' ? ' bd-sw-x' : ''}" data-c="${c}" title="${c === 'ink' ? 'Основной: белый на тёмной теме, чёрный на светлой' : c === 'contrast' ? 'Контрастный: сам подстраивается под фон и всё, что под линией' : c}" aria-label="Цвет ${c === 'ink' ? 'основной' : c === 'contrast' ? 'контрастный' : c}"></button>`).join('') +
             '<label class="bd-sw" title="Свой цвет" style="background:conic-gradient(red,yellow,lime,cyan,blue,magenta,red)"><input type="color" id="bdPick" aria-label="Свой цвет"></label>';
         const paintSw = () => document.querySelectorAll('#bdColors [data-c]').forEach((b) => {
-            b.style.background = paint(b.dataset.c);
+            if (b.dataset.c !== 'contrast') b.style.background = paint(b.dataset.c);
             b.classList.toggle('on', b.dataset.c === color);
         });
         $('bdColors').addEventListener('click', (e) => {
@@ -1298,10 +1370,7 @@
         $('bdBg').addEventListener('change', (e) => setBg(e.target.value));
         $('bdUndo').onclick = doUndo;
         $('bdRedo').onclick = doRedo;
-        $('bdClear').onclick = () => {
-            if (!items.length || !confirm(shared ? 'Очистить доску у всех участников? Действие можно отменить.' : 'Очистить доску? Действие можно отменить.')) return;
-            commit({ del: items.map(clone) }); render();
-        };
+        $('bdClear').onclick = clearBoard;
         $('bdZoomIn').onclick = () => zoomAt(W / 2, H / 2, 1.25);
         $('bdZoomOut').onclick = () => zoomAt(W / 2, H / 2, 0.8);
         $('bdZoom').onclick = () => { view = { x: -W / 2, y: -H / 2, k: 1 }; zoomAt(0, 0, 1); };
@@ -1313,12 +1382,15 @@
         $('bdMath').onclick = () => openMath('f');
         $('bdGraph').onclick = () => openMath('g');
         $('bdFig').onclick = () => openMath('s');
-        $('bdLeave').onclick = () => { location.href = location.pathname; };
+        $('bdLeave').onclick = () => goLocal(lsGet(CUR, ''));
+        bindBoards();
     }
 
     function toggleFull() {
         const on = !boardEl.classList.contains('full');
         boardEl.classList.toggle('full', on);
+        // шапка сайта (fixed, свой z-index) перекрывала панель доски — и кнопку выхода
+        document.documentElement.classList.toggle('bd-fs', on);
         $('bdFull').classList.toggle('on', on);
         document.body.style.overflow = on ? 'hidden' : '';
         resize();
@@ -1340,7 +1412,7 @@
         const c = document.createElement('canvas');
         c.width = Math.ceil(v.w * scale); c.height = Math.ceil(v.h * scale);
         const g = c.getContext('2d');
-        g.fillStyle = isLight() ? '#ffffff' : '#0b1020';
+        g.fillStyle = boardFill();
         g.fillRect(0, 0, c.width, c.height);
         g.scale(scale, scale);
         drawBg(g, v.w, v.h, v);
@@ -1360,6 +1432,108 @@
         const t = $('bdToast');
         t.textContent = msg; t.classList.add('show');
         clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 4000);
+    }
+
+    // ================= УПРАВЛЕНИЕ ДОСКАМИ =================
+    const fmtDate = (t) => { try { return new Date(t).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }); } catch (e) { return ''; } };
+    const goLocal = (id) => { location.href = location.pathname + '?l=' + id; };
+    const goCloud = (id) => { location.href = location.pathname + '?b=' + id; };
+    const I_EDIT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>';
+    const I_DEL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>';
+    function boardRow(b, kind, isCur, canEdit) {
+        return `<li class="bd-brow${isCur ? ' cur' : ''}" data-id="${b.id}" data-kind="${kind}">
+            <button class="bd-bopen" data-act="open"><b>${esc(b.name || 'Без названия')}</b><small>${isCur ? 'открыта сейчас' : b.updated ? 'изменена ' + fmtDate(b.updated) : ''}</small></button>
+            ${canEdit ? `<button class="bd-btn" data-act="ren" title="Переименовать" aria-label="Переименовать">${I_EDIT}</button>` : ''}
+            <button class="bd-btn" data-act="del" title="${kind === 'recent' ? 'Убрать из списка' : 'Удалить'}" aria-label="Удалить">${kind === 'recent' ? '×' : I_DEL}</button></li>`;
+    }
+    let cloudCache = [];
+    async function openBoards() {
+        const dlg = $('bdBoardsDlg');
+        dlg.hidden = false;
+        const loc = localList().slice().sort((a, b) => b.updated - a.updated);
+        $('bdLocalList').innerHTML = loc.map((b) => boardRow(b, 'local', !shared && b.id === localId, true)).join('');
+        $('bdCloudList').innerHTML = '<li class="bd-bnote">Загрузка…</li>';
+        $('bdRecentList').innerHTML = '';
+        $('bdCloudCount').textContent = '';
+        let au;
+        try { au = await waitUser(); } catch (e) { $('bdCloudList').innerHTML = '<li class="bd-bnote">Сервер недоступен</li>'; return; }
+        if (!au.user) {
+            $('bdCloudList').innerHTML = '<li class="bd-bnote">Общие доски хранятся на сервере — <button class="bd-link" data-act="login">войдите</button>, чтобы создавать их и рисовать вместе.</li>';
+            return;
+        }
+        const admin = await adminOf(au.user);
+        try {
+            const snap = await au.db.collection('boards').where('owner', '==', au.user.uid).get();
+            cloudCache = snap.docs.map((d) => Object.assign({ id: d.id }, d.data())).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+        } catch (e) { cloudCache = []; }
+        $('bdCloudCount').textContent = admin ? 'без ограничений' : cloudCache.length + ' из ' + CLOUD_MAX_BOARDS;
+        $('bdCloudList').innerHTML = cloudCache.length
+            ? cloudCache.map((b) => boardRow({ id: b.id, name: b.name || 'Общая доска', updated: b.updatedAt }, 'cloud', shared && shared.id === b.id, true)).join('')
+            : '<li class="bd-bnote">Пока нет — создайте новую или нажмите «Поделиться» на личной доске.</li>';
+        const own = new Set(cloudCache.map((b) => b.id));
+        const rec = lsGet(RECENT, []).filter((r) => !own.has(r.id) && !r.own);
+        $('bdRecentWrap').hidden = !rec.length;
+        $('bdRecentList').innerHTML = rec.map((r) => boardRow({ id: r.id, name: r.name, updated: r.t }, 'recent', shared && shared.id === r.id, false)).join('');
+    }
+    async function boardAction(act, id, kind) {
+        if (act === 'login') { $('bdBoardsDlg').hidden = true; needLogin(' '); return; }
+        if (act === 'open') return kind === 'local' ? goLocal(id) : goCloud(id);
+        if (kind === 'recent' && act === 'del') { lsSet(RECENT, lsGet(RECENT, []).filter((r) => r.id !== id)); return openBoards(); }
+        if (kind === 'local') {
+            const list = localList(), b = list.find((x) => x.id === id); if (!b) return;
+            if (act === 'ren') {
+                const n = prompt('Название доски', b.name); if (!n || !n.trim()) return;
+                b.name = n.trim().slice(0, 80); lsSet(IDX, list);
+                if (id === localId && !shared) setTitle(b.name);
+            } else if (act === 'del') {
+                if (!confirm('Удалить доску «' + b.name + '»? Это нельзя отменить.')) return;
+                await idbDel(id).catch(() => {});
+                lsSet(IDX, list.filter((x) => x.id !== id));
+                if (id === localId && !shared) { const rest = localList(); return rest.length ? goLocal(rest[0].id) : newLocal().then(goLocal); }
+            }
+            return openBoards();
+        }
+        // общая доска (только своя)
+        const db = await waitFirebase(), ref = db.collection('boards').doc(id), b = cloudCache.find((x) => x.id === id);
+        try {
+            if (act === 'ren') {
+                const n = prompt('Название доски', b ? b.name || '' : ''); if (!n || !n.trim()) return;
+                await ref.update({ name: n.trim().slice(0, 80), updatedAt: Date.now() });
+            } else if (act === 'del') {
+                if (!confirm('Удалить общую доску «' + (b && b.name || 'Общая доска') + '» у всех участников? Это нельзя отменить.')) return;
+                for (const sub of ['items', 'peers']) {
+                    const snap = await ref.collection(sub).get();
+                    for (let i = 0; i < snap.docs.length; i += 400) {
+                        const bt = db.batch(); snap.docs.slice(i, i + 400).forEach((d) => bt.delete(d.ref)); await bt.commit();
+                    }
+                }
+                await ref.delete();
+                lsSet(RECENT, lsGet(RECENT, []).filter((r) => r.id !== id));
+                if (shared && shared.id === id) return goLocal(lsGet(CUR, ''));
+            }
+        } catch (e) { syncError(e); }
+        openBoards();
+    }
+    function bindBoards() {
+        $('bdBoards').onclick = openBoards;
+        $('bdBoardsDlg').addEventListener('click', (e) => {
+            if (e.target === $('bdBoardsDlg') || e.target.closest('[data-close]')) { $('bdBoardsDlg').hidden = true; return; }
+            const a = e.target.closest('[data-act]'); if (!a) return;
+            const li = a.closest('[data-id]');
+            boardAction(a.dataset.act, li && li.dataset.id, li && li.dataset.kind);
+        });
+        $('bdNewLocal').onclick = () => newLocal().then(goLocal);
+        $('bdNewCloud').onclick = async () => {
+            $('bdNewCloud').disabled = true;
+            try { const id = await createCloud('Общая доска ' + (cloudCache.length + 1), false); if (id) goCloud(id); }
+            catch (e) { syncError(e); } finally { $('bdNewCloud').disabled = false; }
+        };
+        $('bdClearCur').onclick = () => { $('bdBoardsDlg').hidden = true; clearBoard(); };
+    }
+    function clearBoard() {
+        if (!items.length) { toast('Доска уже пустая'); return; }
+        if (!confirm(shared ? 'Очистить доску у всех участников? Действие можно отменить.' : 'Очистить доску? Действие можно отменить.')) return;
+        commit({ del: items.map(clone) }); render();
     }
 
     // ================= СОВМЕСТНАЯ РАБОТА =================
@@ -1386,22 +1560,48 @@
         s.dataset.kind = kind; s.textContent = text;
     }
 
-    async function share() {
-        if (shared) return showShare();
-        $('bdShare').disabled = true;
-        setStatus('wait', 'Создаю общую доску…');
-        try {
-            const db = await waitFirebase();
-            const id = rid(20);
-            const ref = db.collection('boards').doc(id);
-            const user = firebase.auth().currentUser;
-            await ref.set({ bg, createdAt: Date.now(), updatedAt: Date.now(), owner: user ? user.uid : null });
-            // копируем текущую личную доску в общую (батчами по 400 объектов)
+    // Текущий пользователь (дожидаемся, пока Firebase восстановит вход)
+    function waitUser() {
+        return waitFirebase().then((db) => new Promise((ok) => {
+            const un = firebase.auth().onAuthStateChanged((u) => { un(); ok(u); });
+        }).then((u) => ({ db, user: u })));
+    }
+    const adminOf = (u) => (u && typeof mfIsAdmin === 'function' ? mfIsAdmin(u).catch(() => false) : Promise.resolve(false));
+    function needLogin(msg) {
+        toast(msg || 'Общие доски хранятся на сервере — войдите в аккаунт');
+        if (typeof window.openAuthModal === 'function') window.openAuthModal();
+    }
+    // Новая общая доска (копия текущего содержимого, если copy) — с проверкой лимита досок
+    async function createCloud(name, copy) {
+        const { db, user } = await waitUser();
+        if (!user) { needLogin(); return null; }
+        if (!(await adminOf(user))) {
+            const mine = await db.collection('boards').where('owner', '==', user.uid).get();
+            if (mine.size >= CLOUD_MAX_BOARDS) { toast('Можно создать не больше ' + CLOUD_MAX_BOARDS + ' общих досок — удалите ненужные в «Доски»'); return null; }
+            if (copy && (items.length > CLOUD_MAX_ITEMS || items.reduce((a, it) => a + sizeOf(it), 0) > CLOUD_MAX_BYTES)) {
+                toast('Доска слишком большая для общей (лимит ' + (CLOUD_MAX_BYTES >> 20) + ' МБ, ' + CLOUD_MAX_ITEMS + ' объектов)'); return null;
+            }
+        }
+        const id = rid(20), ref = db.collection('boards').doc(id);
+        await ref.set({ bg: copy ? bg : 'cells', name: String(name || 'Общая доска').slice(0, 80), createdAt: Date.now(), updatedAt: Date.now(), owner: user.uid });
+        if (copy) {
             for (let i = 0; i < items.length; i += 400) {
                 const b = db.batch();
                 items.slice(i, i + 400).forEach((it) => b.set(ref.collection('items').doc(it.id), it));
                 await b.commit();
             }
+        }
+        return id;
+    }
+    async function share() {
+        if (shared) return showShare();
+        $('bdShare').disabled = true;
+        setStatus('wait', 'Создаю общую доску…');
+        try {
+            const cur = localList().find((b) => b.id === localId);
+            const id = await createCloud(cur ? cur.name : 'Общая доска', true);
+            if (!id) { setStatus('', ''); return; }
+            const db = await waitFirebase();
             history.pushState(null, '', location.pathname + '?b=' + id);
             await joinShared(id, db);
             showShare();
@@ -1453,12 +1653,20 @@
     const fresh = (p) => Date.now() - (p.t || 0) < PEER_TTL;
 
     async function joinShared(id, db) {
-        db = db || await waitFirebase();
+        const au = await waitUser();
+        db = db || au.db;
+        if (!au.user) {
+            setStatus('error', 'Общая доска — войдите в аккаунт, чтобы открыть её');
+            needLogin('Чтобы рисовать на общей доске, войдите в аккаунт');
+            firebase.auth().onAuthStateChanged((u) => { if (u) location.reload(); });
+            return;
+        }
+        const noLimit = await adminOf(au.user);
         const ref = db.collection('boards').doc(id);
         let peerId;
         try { peerId = sessionStorage.getItem('mf-board-peer') || rid(12); sessionStorage.setItem('mf-board-peer', peerId); } catch (e) { peerId = rid(12); }
         const me = { name: myName(), color: PEER_COLORS[Math.floor(Math.random() * PEER_COLORS.length)] };
-        shared = { id, db, ref, peerId, peerRef: ref.collection('peers').doc(peerId), peers: new Map(), unsub: [], me };
+        shared = { id, db, ref, peerId, peerRef: ref.collection('peers').doc(peerId), peers: new Map(), unsub: [], me, noLimit, owner: false };
         undo = []; redo = []; syncHistory();
         try { const v = JSON.parse(sessionStorage.getItem('mf-board-view-' + id) || 'null'); if (v) { view = v; $('bdZoom').textContent = Math.round(v.k * 100) + '%'; } } catch (e) {}
         boardEl.classList.add('is-shared');
@@ -1470,10 +1678,18 @@
             shared = null;
             return;
         }
+        const bd = boardSnap.data() || {};
+        shared.owner = bd.owner === au.user.uid;
+        shared.name = bd.name || 'Общая доска';
+        setTitle(shared.name);
+        const rec = lsGet(RECENT, []).filter((r) => r.id !== id);
+        rec.unshift({ id, name: shared.name, own: shared.owner, t: Date.now() });
+        lsSet(RECENT, rec.slice(0, 30));
         let first = true;
         shared.unsub.push(ref.onSnapshot((d) => {
             const data = d.data();
             if (data && data.bg && data.bg !== bg) { bg = data.bg; $('bdBg').value = bg; render(); }
+            if (data && data.name && data.name !== shared.name) { shared.name = data.name; setTitle(data.name); }
         }, syncError));
         shared.unsub.push(ref.collection('items').onSnapshot((snap) => {
             if (first) { items = []; first = false; }
@@ -1559,6 +1775,7 @@
     // ================= КЛАВИАТУРА =================
     document.addEventListener('keydown', (e) => {
         if (!$('bdMathDlg').hidden) { if (e.key === 'Escape') closeMath(); return; }
+        if (!$('bdBoardsDlg').hidden) { if (e.key === 'Escape') $('bdBoardsDlg').hidden = true; return; }
         if (textEd || /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement && document.activeElement.tagName)) return;
         const k = e.key.toLowerCase();
         if ((e.ctrlKey || e.metaKey) && (k === 'z' || k === 'я')) { e.preventDefault(); e.shiftKey ? doRedo() : doUndo(); return; }
@@ -1591,9 +1808,10 @@
     window.addEventListener('popstate', () => location.reload());
 
     // окна — прямо в <body>: внутри <main> (свой z-index) их перекрывала шапка сайта
-    ['bdMathDlg', 'bdShareDlg'].forEach((id) => document.body.appendChild($(id)));
+    ['bdMathDlg', 'bdShareDlg', 'bdBoardsDlg'].forEach((id) => document.body.appendChild($(id)));
     const sharedId = (params.get('b') || '').replace(/[^A-Za-z0-9]/g, '');
-    if (!sharedId) loadLocal();
+    (async () => {
+    if (!sharedId) await loadLocal(params.get('l')).catch(() => {});
     buildBar();
     setTool('pen');
     syncHistory();
@@ -1602,4 +1820,5 @@
     resize();
     if (sharedId) joinShared(sharedId).catch(syncError);
     if (items.some((i) => i.t === 'tex' || i.t === 'plot')) loadMathJax().then(render, () => {});
+    })();
 })();

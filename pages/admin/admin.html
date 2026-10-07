@@ -657,21 +657,27 @@ service cloud.firestore {
         allow delete: if isAdmin();
       }
     }
-    // Электронная доска (/board/?b=&lt;id&gt;, assets/js/board.js): рисует любой, кто знает ссылку
-    // (id — 20 случайных символов). Объекты — items, курсоры и черновики штрихов — peers.
+    // Электронная доска (/board/?b=&lt;id&gt;, assets/js/board.js): общие доски — только для вошедших.
+    // Создаёт доску владелец (owner = uid); имя меняет только он, фон — любой участник.
+    // Лимиты (10 досок на пользователя, 5000 объектов / 5 МБ на доску, без лимитов у админов)
+    // проверяет клиент; здесь — вход, владелец и размер одного объекта (картинка до ~1 МБ).
     match /boards/{bid} {
-      allow read: if true;
-      allow create: if bid.size() &gt;= 16
-        &amp;&amp; request.resource.data.keys().hasOnly(['bg', 'createdAt', 'updatedAt', 'owner']);
-      allow update: if onlyChanged(['bg', 'updatedAt']);
+      allow read: if signedIn();
+      allow create: if signedIn() &amp;&amp; bid.size() &gt;= 16
+        &amp;&amp; request.resource.data.owner == request.auth.uid
+        &amp;&amp; request.resource.data.keys().hasOnly(['bg', 'name', 'createdAt', 'updatedAt', 'owner'])
+        &amp;&amp; (!('name' in request.resource.data) || request.resource.data.name.size() &lt;= 80);
+      allow update: if signedIn() &amp;&amp; (onlyChanged(['bg', 'updatedAt'])
+        || (resource.data.owner == request.auth.uid &amp;&amp; onlyChanged(['name', 'updatedAt'])
+            &amp;&amp; request.resource.data.name.size() &lt;= 80));
       allow delete: if isSuper() || (signedIn() &amp;&amp; resource.data.owner == request.auth.uid);
       match /items/{iid} {
-        allow read: if true;
-        allow write: if exists(/databases/$(database)/documents/boards/$(bid));
+        allow read: if signedIn();
+        allow write: if signedIn() &amp;&amp; exists(/databases/$(database)/documents/boards/$(bid));
       }
       match /peers/{pid} {
-        allow read: if true;
-        allow write: if exists(/databases/$(database)/documents/boards/$(bid));
+        allow read: if signedIn();
+        allow write: if signedIn() &amp;&amp; exists(/databases/$(database)/documents/boards/$(bid));
       }
     }
     // AI-чаты: владелец — полностью; администраторы — только чтение (статистика в панели)
