@@ -155,6 +155,16 @@ html.bd-fs #app-header{visibility:hidden}
 .bd-shbtn i{display:flex;width:22px;height:22px}
 .bd-shbtn i svg{width:22px;height:22px}
 .bd-shbtn b{font-size:.6rem;font-weight:400}
+.bd-range-w{display:inline-flex;align-items:center;gap:.25rem;padding:0 .2rem}
+.bd-range-w input{width:86px;accent-color:var(--accent)}
+.bd-range-w b{font-size:.72rem;font-weight:500;color:var(--text-secondary);min-width:1.4em}
+.bd-lsbtn svg{width:28px;height:12px}
+.bd-lsmenu{width:min(300px,calc(100% - 8px))}
+.bd-ls{display:grid;grid-template-columns:repeat(3,1fr);gap:.3rem}
+.bd-lsi svg{width:44px;height:16px}
+.bd-lsi.on{border-color:var(--accent);color:var(--accent)}
+.bd-lsdl{display:flex;flex-direction:column;font-size:.8rem;margin-top:.5rem;color:var(--text-secondary)}
+.bd-lsdl input{accent-color:var(--accent)}
 .bd-pencfg{width:min(320px,calc(100% - 8px))}
 .bd-pencfg h4{margin:0 0 .4rem;font-size:.95rem}
 .bd-pencfg label{display:flex;flex-direction:column;font-size:.85rem;margin:.45rem 0;color:var(--text-primary)}
@@ -269,6 +279,7 @@ html.bd-fs #app-header{visibility:hidden}
     </div>
     <div class="bd-menu" id="bdShapeMenu" hidden></div>
     <div class="bd-menu" id="bdPresetMenu" hidden></div>
+    <div class="bd-menu bd-lsmenu" id="bdLsMenu" hidden></div>
     <div class="bd-menu bd-pencfg" id="bdPenCfg" hidden>
       <h4>Перо</h4>
       <canvas id="bdPenPrev" class="bd-penprev"></canvas>
@@ -360,6 +371,7 @@ html.bd-fs #app-header{visibility:hidden}
 <script src="/assets/js/mathframe-ui.js"></script>
 <script src="/assets/js/mathfield.js"></script>
 <script src="/assets/js/mf-math.js"></script>
+<script src="/assets/js/mf-solver.js"></script>
 <script src="/assets/js/mf-keyboard.js"></script>
 <script src="/assets/js/board.js"></script>
 <script>var PAGE_ROOT = '/';</script>

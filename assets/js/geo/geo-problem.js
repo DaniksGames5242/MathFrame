@@ -139,7 +139,7 @@ export async function solveGeometryProblem(text, opts) {
     const d = await opts.aiSolve(text);
     let gms = '';
     try { gms = sketchToGms(d.sketch, { theme: opts.theme }); } catch (e) { gms = ''; }
-    return { ok: true, source: 'ai-solve', method: 'ai', steps: [], stepsMd: d.steps, answerMd: d.answer, answers: [], gms, notes: ['Эту задачу решила нейросеть: локальный решатель пока не умеет ' + (r.error ? 'разбирать такие условия' : 'такие построения') + '. Проверьте рассуждения.'] };
+    return { ok: true, source: 'ai-solve', method: 'ai', steps: [], stepsMd: d.steps, answerMd: d.answer, answers: [], gms, sketch: d.sketch || null, notes: ['Эту задачу решила нейросеть: локальный решатель пока не умеет ' + (r.error ? 'разбирать такие условия' : 'такие построения') + '. Проверьте рассуждения.'] };
   } catch (e) {
     return Object.assign({}, r, { error: r.error + ' Нейросеть тоже не помогла: ' + (e && e.message ? e.message : e) });
   }

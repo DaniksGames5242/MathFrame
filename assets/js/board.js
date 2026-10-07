@@ -33,6 +33,8 @@
         circle: '<circle cx="12" cy="12" r="8.5"/><path d="M12 12h8.5"/><circle cx="12" cy="12" r="1" fill="currentColor"/>',
         poly: '<path d="M4 18 8 5l12 4-3 11z"/>',
         angle: '<path d="M20 19H4l11-13"/><path d="M10 19a6 6 0 0 0-2-4.5"/>',
+        mark: '<path d="M3 20 21 4"/><path d="M9 10l4 4M12 7l4 4"/>',
+        extend: '<path d="M2 19 22 5" stroke-dasharray="3 3"/><path d="M7 15.5 15 10"/><circle cx="7" cy="15.5" r="1.6" fill="currentColor"/><circle cx="15" cy="10" r="1.6" fill="currentColor"/>',
         pan: '<path d="M18 11V6a2 2 0 0 0-4 0M14 10V4a2 2 0 0 0-4 0v2M10 10.5V6a2 2 0 0 0-4 0v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.9-6-2.4l-3.6-3.6a2 2 0 0 1 2.8-2.8L7 15"/>',
     };
     const TOOLS = [
@@ -403,7 +405,12 @@
             if (p.length > 2) c.lineTo(p[p.length - 2], p[p.length - 1]);
             c.stroke();
         } else if (it.t === 'line' || it.t === 'arrow') {
-            c.beginPath(); c.moveTo(it.x1, it.y1); c.lineTo(it.x2, it.y2); c.stroke();
+            const dx = it.x2 - it.x1, dy = it.y2 - it.y1, L = Math.hypot(dx, dy) || 1, ux = dx / L, uy = dy / L, FAR = 1e5;
+            // продление до луча (ex1 — за начало, ex2 — за конец) или прямой (оба)
+            const ax = it.ex1 ? it.x1 - ux * FAR : it.x1, ay = it.ex1 ? it.y1 - uy * FAR : it.y1;
+            const bx = it.ex2 ? it.x2 + ux * FAR : it.x2, by = it.ex2 ? it.y2 + uy * FAR : it.y2;
+            strokeStyled(c, it, (off) => { c.beginPath(); c.moveTo(ax - uy * off, ay + ux * off); c.lineTo(bx - uy * off, by + ux * off); c.stroke(); });
+            if (it.mk) ticks(c, it, it.x1, it.y1, it.x2, it.y2, it.mk);
             if (it.t === 'arrow') {
                 const a = Math.atan2(it.y2 - it.y1, it.x2 - it.x1), L = 8 + it.w * 3;
                 c.beginPath();
@@ -417,11 +424,13 @@
                 drawLabel(c, it, it.label, (it.x1 + it.x2) / 2 + Math.sin(a) * off, (it.y1 + it.y2) / 2 - Math.cos(a) * off);
             }
         } else if (it.t === 'rect') {
-            c.strokeRect(Math.min(it.x1, it.x2), Math.min(it.y1, it.y2), Math.abs(it.x2 - it.x1), Math.abs(it.y2 - it.y1));
+            strokeStyled(c, it, (off) => c.strokeRect(Math.min(it.x1, it.x2) - off, Math.min(it.y1, it.y2) - off, Math.abs(it.x2 - it.x1) + 2 * off, Math.abs(it.y2 - it.y1) + 2 * off));
         } else if (it.t === 'ellipse') {
-            c.beginPath();
-            c.ellipse((it.x1 + it.x2) / 2, (it.y1 + it.y2) / 2, Math.abs(it.x2 - it.x1) / 2, Math.abs(it.y2 - it.y1) / 2, 0, 0, Math.PI * 2);
-            c.stroke();
+            strokeStyled(c, it, (off) => {
+                c.beginPath();
+                c.ellipse((it.x1 + it.x2) / 2, (it.y1 + it.y2) / 2, Math.max(.5, Math.abs(it.x2 - it.x1) / 2 + off), Math.max(.5, Math.abs(it.y2 - it.y1) / 2 + off), 0, 0, Math.PI * 2);
+                c.stroke();
+            });
         } else if (it.t === 'text') {
             drawText(c, it);
         } else if (it.t === 'point') {
@@ -433,16 +442,22 @@
             }
         } else if (it.t === 'circle') {
             const r = Math.hypot(it.x2 - it.x1, it.y2 - it.y1);
-            c.beginPath(); c.arc(it.x1, it.y1, r, 0, Math.PI * 2); c.stroke();
-            c.beginPath(); c.arc(it.x1, it.y1, 1.5 + it.w * .4, 0, Math.PI * 2); c.fill();
+            strokeStyled(c, it, (off) => { c.beginPath(); c.arc(it.x1, it.y1, Math.max(.5, r + off), 0, Math.PI * 2); c.stroke(); });
+            if (!it.nc) { c.beginPath(); c.arc(it.x1, it.y1, 1.5 + it.w * .4, 0, Math.PI * 2); c.fill(); }
             if (it.label) drawLabel(c, it, it.label, it.x1 - 10 - it.w, it.y1 + 12 + it.w);
         } else if (it.t === 'poly') {
-            const p = it.p;
-            c.beginPath(); c.moveTo(p[0], p[1]);
-            for (let i = 2; i < p.length; i += 2) c.lineTo(p[i], p[i + 1]);
-            if (it.hx !== undefined) c.lineTo(it.hx, it.hy);
-            if (it.cl) c.closePath();
-            c.stroke();
+            const p0 = it.hx !== undefined ? it.p.concat([it.hx, it.hy]) : it.p;
+            strokeStyled(c, it, (off) => {
+                const p = off ? offsetPoly(p0, it.cl, off) : p0;
+                c.beginPath(); c.moveTo(p[0], p[1]);
+                for (let i = 2; i < p.length; i += 2) c.lineTo(p[i], p[i + 1]);
+                if (it.cl) c.closePath();
+                c.stroke();
+            });
+            if (it.mk) {
+                const n = it.p.length / 2;
+                for (let i = 0; i < n; i++) if (it.mk[i]) { const j = (i + 1) % n; if (j || it.cl) ticks(c, it, it.p[2 * i], it.p[2 * i + 1], it.p[2 * j], it.p[2 * j + 1], it.mk[i]); }
+            }
             polyDecor(c, it);
         } else if (it.t === 'angle') {
             drawAngle(c, it);
@@ -456,13 +471,62 @@
             drawPlot(c, it);
         } else if (it.t === 'shapeDraft') {
             const f = draftBox(it);
-            if (f) { c.restore(); drawItem(c, buildShape(it.sid, f.x, f.y, f.w, f.h, it)); return; }
+            if (f) { c.restore(); buildShapeItems(it.sid, f.x, f.y, f.w, f.h, it).forEach((x) => drawItem(c, x)); return; }
         } else if (it.t === 'img') {
             const im = getImg(it);
             if (im.complete && im.naturalWidth) c.drawImage(im, it.x, it.y, it.w, it.h);
             else { c.globalAlpha = .4; c.strokeStyle = inkColor(); c.lineWidth = 1; c.setLineDash([6, 6]); c.strokeRect(it.x, it.y, it.w, it.h); }
         }
         c.restore();
+    }
+    // ---- стиль линии: ls = solid | dash | dot | dashdot | long | double, dl — длина штриха (множитель)
+    function dashFor(it) {
+        const w = Math.max(1, it.w || 2), k = it.dl || 1;
+        if (it.ls === 'dash') return [w * 3.5 * k, w * 2.5 * k];
+        if (it.ls === 'long') return [w * 9 * k, w * 3 * k];
+        if (it.ls === 'dot') return [.01, w * 2.2 * k];
+        if (it.ls === 'dashdot') return [w * 6 * k, w * 2.2 * k, .01, w * 2.2 * k];
+        return [];
+    }
+    // fn(off) рисует контур со сдвигом off по нормали; двойная линия — два сдвинутых контура
+    function strokeStyled(c, it, fn) {
+        if (it.ls === 'double') {
+            const lw = c.lineWidth, off = Math.max(1.5, lw * .9) * (it.dl || 1);
+            c.lineWidth = Math.max(1, lw * .5);
+            fn(off); fn(-off);
+            c.lineWidth = lw;
+            return;
+        }
+        const d = dashFor(it);
+        if (d.length) c.setLineDash(d);
+        if (it.ls === 'dot') c.lineCap = 'round';
+        fn(0);
+        c.setLineDash([]);
+    }
+    // контур многоугольника, сдвинутый на off (стыки — «митрой»)
+    function offsetPoly(p, cl, off) {
+        const n = p.length / 2, out = [];
+        const nrm = (i, j) => { const dx = p[2 * j] - p[2 * i], dy = p[2 * j + 1] - p[2 * i + 1], L = Math.hypot(dx, dy) || 1; return [-dy / L, dx / L]; };
+        for (let i = 0; i < n; i++) {
+            const hasP = cl || i > 0, hasN = cl || i < n - 1;
+            const a = hasP ? nrm((i - 1 + n) % n, i) : null, b = hasN ? nrm(i, (i + 1) % n) : null;
+            let mx, my;
+            if (a && b) { const d = 1 + a[0] * b[0] + a[1] * b[1]; const k = d > .1 ? off / d : off; mx = (a[0] + b[0]) * k; my = (a[1] + b[1]) * k; }
+            else { const q = a || b; mx = q[0] * off; my = q[1] * off; }
+            out.push(p[2 * i] + mx, p[2 * i + 1] + my);
+        }
+        return out;
+    }
+    // засечки равенства на отрезке
+    function ticks(c, it, x1, y1, x2, y2, n) {
+        const dx = x2 - x1, dy = y2 - y1, L = Math.hypot(dx, dy) || 1, ux = dx / L, uy = dy / L, h = 7 + (it.w || 2), gap = 5 + (it.w || 2) * .6;
+        const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+        c.save(); c.setLineDash([]); c.lineWidth = Math.max(1.2, (it.w || 2) * .7); c.beginPath();
+        for (let k = 0; k < n; k++) {
+            const o = (k - (n - 1) / 2) * gap, cx = mx + ux * o, cy = my + uy * o;
+            c.moveTo(cx - uy * h, cy + ux * h); c.lineTo(cx + uy * h, cy - ux * h);
+        }
+        c.stroke(); c.restore();
     }
     function drawLabel(c, it, text, x, y) {
         c.save();
@@ -741,7 +805,9 @@
         if (geo) extra.push(geo);
         drawList(ctx, items.concat(extra));
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        drawSolveBtns();
         drawSelection();
+        drawSnapHint();
         if (shared) drawPeers();
     }
 
@@ -756,19 +822,51 @@
     const BOX = { img: 1, tex: 1, plot: 1, vec: 1, solid: 1 };
 
     // Притягивание к вершинам: точки, концы отрезков, вершины многоугольников, центры окружностей.
+    // Привязка (Alt — без привязки), по убыванию важности:
+    //  1) точки и вершины (точное совпадение — потом они склеены), 2) середины отрезков и сторон,
+    //  3) узлы клетки, 4) точка на отрезке/стороне/окружности. Найденная точка подсвечивается.
+    let snapHint = null, snapAlt = false;
     function snap(w, except) {
-        const r = 10 / view.k;
-        let best = null, bd = r;
-        const tryPt = (x, y) => { const d = Math.hypot(x - w.x, y - w.y); if (d < bd) { bd = d; best = { x, y }; } };
+        snapHint = null;
+        if (snapAlt) return w;
+        const r = 11 / view.k;
+        let best = null, bd = r, kind = '';
+        const tryPt = (x, y, k, rr) => { const d = Math.hypot(x - w.x, y - w.y); if (d < (rr || bd) && d < bd + 1e-9) { bd = d; best = { x, y }; kind = k; } };
+        const segs = [];
         for (const it of items) {
             if (except && except.has(it.id)) continue;
-            if (it.t === 'point') tryPt(it.x, it.y);
-            else if (it.t === 'line' || it.t === 'arrow') { tryPt(it.x1, it.y1); tryPt(it.x2, it.y2); }
-            else if (it.t === 'circle') tryPt(it.x1, it.y1);
-            else if (it.t === 'poly' || it.t === 'angle') for (let i = 0; i < it.p.length; i += 2) tryPt(it.p[i], it.p[i + 1]);
+            if (it.t === 'point') tryPt(it.x, it.y, 'v');
+            else if (it.t === 'line' || it.t === 'arrow') { tryPt(it.x1, it.y1, 'v'); tryPt(it.x2, it.y2, 'v'); segs.push([it.x1, it.y1, it.x2, it.y2]); }
+            else if (it.t === 'circle') tryPt(it.x1, it.y1, 'v');
+            else if (it.t === 'poly' || it.t === 'angle') {
+                for (let i = 0; i < it.p.length; i += 2) tryPt(it.p[i], it.p[i + 1], 'v');
+                if (it.t === 'poly') { const n = it.p.length / 2; for (let i = 0; i < n; i++) { const j = (i + 1) % n; if (j || it.cl) segs.push([it.p[2 * i], it.p[2 * i + 1], it.p[2 * j], it.p[2 * j + 1]]); } }
+            }
         }
-        if (geo) for (let i = 0; i < geo.p.length; i += 2) tryPt(geo.p[i], geo.p[i + 1]);
+        if (geo) for (let i = 0; i < geo.p.length; i += 2) tryPt(geo.p[i], geo.p[i + 1], 'v');
+        if (!best) for (const [a, b, c, d] of segs) tryPt((a + c) / 2, (b + d) / 2, 'm');
+        if (!best && bg !== 'none') {
+            const st = 25, gx = Math.round(w.x / st) * st, gy = Math.round(w.y / st) * st;
+            if (bg === 'lines') { if (Math.abs(gy - w.y) < r * .6) { best = { x: w.x, y: gy }; kind = 'g'; } }
+            else tryPt(gx, gy, 'g', r * .6);
+        }
+        if (!best) for (const [a, b, c, d] of segs) {
+            const dx = c - a, dy = d - b, l = dx * dx + dy * dy; if (!l) continue;
+            const t = Math.max(0, Math.min(1, ((w.x - a) * dx + (w.y - b) * dy) / l));
+            tryPt(a + t * dx, b + t * dy, 'o', r * .7);
+        }
+        if (best) snapHint = { x: best.x, y: best.y, kind };
         return best || w;
+    }
+    function drawSnapHint() {
+        if (!snapHint || !(cur || drag || geo)) return;
+        const s = toScreen(snapHint.x, snapHint.y), acc = css('--accent') || '#f2a25c';
+        ctx.save(); ctx.strokeStyle = acc; ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        if (snapHint.kind === 'g') { ctx.moveTo(s.x - 6, s.y); ctx.lineTo(s.x + 6, s.y); ctx.moveTo(s.x, s.y - 6); ctx.lineTo(s.x, s.y + 6); }
+        else if (snapHint.kind === 'm') { ctx.moveTo(s.x, s.y - 7); ctx.lineTo(s.x + 7, s.y + 5); ctx.lineTo(s.x - 7, s.y + 5); ctx.closePath(); }
+        else ctx.arc(s.x, s.y, 7, 0, Math.PI * 2);
+        ctx.stroke(); ctx.restore();
     }
     function nextLabel() {
         const used = new Set(items.filter((i) => i.t === 'point').map((i) => i.label));
@@ -778,6 +876,88 @@
                 if (!used.has(l)) return l;
             }
         }
+    }
+    // все отрезки доски (отрезки, стрелки, стороны многоугольников) как [x1, y1, x2, y2]
+    function allEdges() {
+        const E = [];
+        for (const it of items) {
+            if (it.t === 'line' || it.t === 'arrow') E.push([it.x1, it.y1, it.x2, it.y2]);
+            else if (it.t === 'poly') {
+                const n = it.p.length / 2;
+                for (let i = 0; i < n; i++) { const j = (i + 1) % n; if (j || it.cl) E.push([it.p[2 * i], it.p[2 * i + 1], it.p[2 * j], it.p[2 * j + 1]]); }
+            }
+        }
+        return E;
+    }
+    // угол, образованный готовыми сторонами, в который попал щелчок → [Ax, Ay, Vx, Vy, Bx, By] или null
+    function sideAngleAt(w) {
+        const E = allEdges(), R = 60 / view.k, eq = (a, b, c, d) => Math.abs(a - c) < 1e-6 && Math.abs(b - d) < 1e-6;
+        const verts = new Map();
+        const addV = (vx, vy, ox, oy) => {
+            const key = vx.toFixed(4) + ',' + vy.toFixed(4);
+            if (!verts.has(key)) verts.set(key, { x: vx, y: vy, dirs: [] });
+            const v = verts.get(key);
+            if (!v.dirs.some((d) => eq(d.x, d.y, ox, oy))) v.dirs.push({ x: ox, y: oy, a: Math.atan2(oy - vy, ox - vx) });
+        };
+        for (const [x1, y1, x2, y2] of E) { addV(x1, y1, x2, y2); addV(x2, y2, x1, y1); }
+        let best = null, bd = R;
+        for (const v of verts.values()) {
+            const d = Math.hypot(w.x - v.x, w.y - v.y);
+            if (v.dirs.length < 2 || d > bd) continue;
+            const ds = v.dirs.slice().sort((a, b) => a.a - b.a), ac = Math.atan2(w.y - v.y, w.x - v.x);
+            let pick = null;
+            for (let i = 0; i < ds.length; i++) {
+                const a = ds[i], b = ds[(i + 1) % ds.length];
+                let span = b.a - a.a; if (span <= 0) span += 2 * Math.PI;
+                let rel = ac - a.a; while (rel < 0) rel += 2 * Math.PI;
+                if (rel <= span && span < Math.PI - 1e-6) { pick = [a, b]; break; }
+            }
+            if (!pick && d < 8 / view.k) {
+                // щелчок прямо в вершину — меньший из углов
+                let mn = Infinity;
+                for (let i = 0; i < ds.length; i++) { const a = ds[i], b = ds[(i + 1) % ds.length]; let span = b.a - a.a; if (span <= 0) span += 2 * Math.PI; if (span < mn && span < Math.PI) { mn = span; pick = [a, b]; } }
+            }
+            if (pick) { bd = d; best = [pick[0].x, pick[0].y, v.x, v.y, pick[1].x, pick[1].y]; }
+        }
+        return best;
+    }
+    // отметки равенства: щелчок по отрезку / стороне / дуге угла — 1 → 2 → 3 засечки → нет;
+    // щелчок внутри угла без дуги — появляется дуга-отметка
+    function markAt(w) {
+        const r = 8 / view.k, bump = (m) => ((m || 0) + 1) % 4;
+        const ang = [...items].reverse().find((it) => it.t === 'angle' && hit(it, w.x, w.y, r) && Math.hypot(w.x - it.p[2], w.y - it.p[3]) < 70 / view.k);
+        if (ang) {
+            const n = clone(ang); n.mk = Math.max(1, ((ang.mk || 1) % 3) + 1);
+            commit({ mod: [[clone(ang), n]] }); selectMade([n]); return;
+        }
+        const ln = [...items].reverse().find((it) => (it.t === 'line' || it.t === 'arrow') && hit(it, w.x, w.y, r));
+        if (ln) { const n = clone(ln); n.mk = bump(ln.mk); if (!n.mk) delete n.mk; commit({ mod: [[clone(ln), n]] }); selectMade([n]); return; }
+        for (const it of [...items].reverse()) {
+            if (it.t !== 'poly') continue;
+            const n = it.p.length / 2;
+            for (let i = 0; i < n; i++) {
+                const j = (i + 1) % n;
+                if (!j && !it.cl) continue;
+                if (distSeg(w.x, w.y, it.p[2 * i], it.p[2 * i + 1], it.p[2 * j], it.p[2 * j + 1]) < r + it.w / 2) {
+                    const m = clone(it); m.mk = Array.from({ length: n }, (_, k) => (it.mk || [])[k] || 0); m.mk[i] = bump(m.mk[i]);
+                    if (!m.mk.some(Boolean)) delete m.mk;
+                    commit({ mod: [[clone(it), m]] }); selectMade([m]); return;
+                }
+            }
+        }
+        const sa = sideAngleAt(w);
+        if (sa) { const it = { id: rid(12), z: newZ(), t: 'angle', arc: 1, nl: 1, mk: 1, c: color, w: Math.max(1, size * .6), p: sa }; if (commit({ add: [it] }) !== false) selectMade([it]); return; }
+        toast('Щёлкните по отрезку, стороне или внутри угла');
+    }
+    // продление: щелчок у конца отрезка — луч за этот конец, посередине — прямая (повторно — убрать)
+    function extendAt(w) {
+        const ln = [...items].reverse().find((it) => it.t === 'line' && hit(it, w.x, w.y, 10 / view.k));
+        if (!ln) { toast('Щёлкните по отрезку: у конца — луч, посередине — прямая'); return; }
+        const dx = ln.x2 - ln.x1, dy = ln.y2 - ln.y1, t = ((w.x - ln.x1) * dx + (w.y - ln.y1) * dy) / (dx * dx + dy * dy || 1);
+        const n = clone(ln);
+        if (t < .3) n.ex1 = !ln.ex1; else if (t > .7) n.ex2 = !ln.ex2; else { const both = ln.ex1 && ln.ex2; n.ex1 = n.ex2 = !both; }
+        if (!n.ex1) delete n.ex1; if (!n.ex2) delete n.ex2;
+        commit({ mod: [[clone(ln), n]] }); selectMade([n]);
     }
     let lastTap = null;
     function geoClick(q, sp) {
@@ -803,17 +983,25 @@
         const g = geo;
         geo = null;
         if (keep && g && g.p.length >= 4) {
-            const it = { id: rid(12), z: newZ(), t: g.t, c: g.c, w: g.w, p: g.p };
+            const it = Object.assign({ id: rid(12), z: newZ(), t: g.t, c: g.c, w: g.w, p: g.p }, styleFor(g.t));
             if (close) it.cl = true;
-            commit({ add: [it] });
+            if (commit({ add: [it] }) !== false) { cur = null; selectMade([it]); }
         }
         render();
     }
+    // Специальные инструменты (фигуры, окружность, эллипс, многоугольник, угол, отметки, продление)
+    // после создания переключают на «Выбор» и выделяют созданное; отрезки, стрелки, точки,
+    // перо и текст — остаются в своём инструменте.
+    const SPECIAL = { circle: 1, ellipse: 1, rect: 1, poly: 1, angle: 1 };
+    function selectMade(list) { setTool('select'); sel = list.map((x) => x.id); render(); }
     function drawAngle(c, it) {
         const p = it.p;
-        c.beginPath(); c.moveTo(p[0], p[1]); c.lineTo(p[2], p[3]);
-        if (p.length >= 6) c.lineTo(p[4], p[5]); else if (it.hx !== undefined) c.lineTo(it.hx, it.hy);
-        c.stroke();
+        // arc — угол на уже нарисованных сторонах: только дуга (стороны не дублируем)
+        if (!it.arc) {
+            c.beginPath(); c.moveTo(p[0], p[1]); c.lineTo(p[2], p[3]);
+            if (p.length >= 6) c.lineTo(p[4], p[5]); else if (it.hx !== undefined) c.lineTo(it.hx, it.hy);
+            c.stroke();
+        }
         const bx = p.length >= 6 ? p[4] : it.hx, by = p.length >= 6 ? p[5] : it.hy;
         if (p.length < 4 || bx === undefined) return;
         const a1 = Math.atan2(p[1] - p[3], p[0] - p[2]), a2 = Math.atan2(by - p[3], bx - p[2]);
@@ -833,8 +1021,10 @@
             c.lineTo(p[2] + v[0] * k, p[3] + v[1] * k);
             c.stroke();
         } else {
-            c.beginPath(); c.arc(p[2], p[3], R, a1, a2, d < 0); c.stroke();
+            // отметка равных углов — несколько дуг
+            for (let k = 0; k < Math.max(1, it.mk || 1); k++) { c.beginPath(); c.arc(p[2], p[3], R + k * 5, a1, a2, d < 0); c.stroke(); }
         }
+        if (it.nl) return;                                   // угол-отметка без градусов
         const am = a1 + d / 2;
         c.font = textFont(12 + it.w * 1.5);
         c.textAlign = 'center'; c.textBaseline = 'middle';
@@ -1109,6 +1299,12 @@
         for (const [a, b] of m.inner) { hid.moveTo(X(a), Y(a)); hid.lineTo(X(b), Y(b)); }
         c.stroke(vis);
         c.save(); c.setLineDash([7, 6]); c.lineWidth = Math.max(1, (it.lw || 2.5) * .8); c.stroke(hid); c.restore();
+        // вершины многогранника — точки
+        if (!/^(cyl|cone|sph)$/.test(it.kind)) {
+            const used = new Set(); m.f.forEach((fc) => fc.i.forEach((i) => used.add(i)));
+            const rr = 2 + (it.lw || 2.5) * .5;
+            c.beginPath(); used.forEach((i) => { c.moveTo(X(i) + rr, Y(i)); c.arc(X(i), Y(i), rr, 0, Math.PI * 2); }); c.fill();
+        }
         // подписи вершин — наружу от центра проекции, всегда ровные
         const lb = it.lb || [];
         c.save();
@@ -1352,8 +1548,9 @@
     ];
     const SHAPES = POLY_SH.concat(SHAPE_DEFS.filter((s) => !['tri', 'rtri', 'sq', 'rect', 'par', 'rhomb', 'trap', 'hex', 'nline', 'ucirc', 'plane'].includes(s.id)));
     // инструменты построения, которые тоже живут в меню «Фигуры»
-    const MENU_TOOLS = [['circle', 'Окружность: центр → радиус'], ['ellipse', 'Эллипс'], ['poly', 'Многоугольник по точкам'], ['angle', 'Угол с градусной мерой']];
-    const SHAPE_TOOLS = { shape: 1, circle: 1, ellipse: 1, poly: 1, angle: 1, rect: 1 };
+    const MENU_TOOLS = [['circle', 'Окружность: центр → радиус'], ['ellipse', 'Эллипс'], ['poly', 'Многоугольник по точкам'],
+        ['angle', 'Угол: по трём точкам или щелчком внутри готового угла'], ['mark', 'Отметить равные стороны и углы'], ['extend', 'Продлить отрезок до луча или прямой']];
+    const SHAPE_TOOLS = { shape: 1, circle: 1, ellipse: 1, poly: 1, angle: 1, rect: 1, mark: 1, extend: 1 };
     const IS_3D = { cube: 1, box: 1, pyr: 1, tpyr: 1, prism: 1, cyl: 1, cone: 1, sph: 1 };
     let shapeId = 'ptri';
     function draftBox(d) {
@@ -1363,9 +1560,44 @@
         if (sh.sq) { const m = Math.max(Math.abs(w), Math.abs(h)); w = Math.sign(w || 1) * m; h = Math.sign(h || 1) * m; }
         return { x: Math.min(d.x1, d.x1 + w), y: Math.min(d.y1, d.y1 + h), w: Math.abs(w), h: Math.abs(h) };
     }
+    // свободные буквы для новых точек (не занятые подписями точек на доске)
+    function freeLabels(n) {
+        const used = new Set(items.filter((i) => i.t === 'point').map((i) => i.label)), out = [];
+        for (let k = 0; out.length < n; k++) {
+            const l = String.fromCharCode(65 + (k % 26)) + (k >= 26 ? Math.floor(k / 26) : '');
+            if (!used.has(l) && l !== 'O') out.push(l);
+        }
+        return out;
+    }
+    const R2 = (v) => Math.round(v * 100) / 100;
+    // фигура из инструмента «Фигуры» → набор объектов: стороны + точки на вершинах
+    // (вершины склеены с точками — тянешь точку, тянется фигура)
+    function buildShapeItems(sid, x, y, w, h, o) {
+        const sh = SHAPES.find((s) => s.id === sid) || SHAPES[0];
+        const pw = Math.min(o.w, 4);
+        const pt = (px, py, label) => ({ t: 'point', x: R2(px), y: R2(py), c: o.c, w: pw, label });
+        if (sh.v) {
+            const p = sh.v.map((u, i) => R2(i % 2 ? y + u * h : x + u * w)), L = freeLabels(p.length / 2);
+            return [Object.assign({ t: 'poly', c: o.c, w: o.w, cl: true, p }, styleFor('poly'))].concat(L.map((l, i) => pt(p[2 * i], p[2 * i + 1], l)));
+        }
+        if (sid === 'circ') {
+            const r = Math.min(w, h) / 2, cx = R2(x + w / 2), cy = R2(y + h / 2);
+            return [Object.assign({ t: 'circle', c: o.c, w: o.w, nc: 1, x1: cx, y1: cy, x2: R2(cx + r), y2: cy }, styleFor('circle')),
+                { t: 'line', c: o.c, w: Math.max(1, o.w * .7), x1: cx, y1: cy, x2: R2(cx + r), y2: cy, label: 'R' }, pt(cx, cy, 'O')];
+        }
+        if (sid === 'inscr') {
+            const A = [x, y + h], B = [x + w, y + h], C = [x + w * .35, y];
+            const a = Math.hypot(B[0] - C[0], B[1] - C[1]), b = Math.hypot(A[0] - C[0], A[1] - C[1]), c = Math.hypot(A[0] - B[0], A[1] - B[1]);
+            const per = a + b + c, ix = R2((a * A[0] + b * B[0] + c * C[0]) / per), iy = R2((a * A[1] + b * B[1] + c * C[1]) / per), r = Math.abs(A[1] - iy);
+            const p = [A, B, C].flat().map(R2), L = freeLabels(3);
+            return [Object.assign({ t: 'poly', c: o.c, w: o.w, cl: true, p }, styleFor('poly')), { t: 'circle', c: o.c, w: o.w, nc: 1, x1: ix, y1: iy, x2: R2(ix + r), y2: iy }]
+                .concat(L.map((l, i) => pt(p[2 * i], p[2 * i + 1], l)), [pt(ix, iy, 'O')]);
+        }
+        return [buildShape(sid, x, y, w, h, o)];
+    }
     function buildShape(sid, x, y, w, h, o) {
         const sh = SHAPES.find((s) => s.id === sid) || SHAPES[0];
-        if (sh.v) return { t: 'poly', c: o.c, w: o.w, cl: true, p: sh.v.map((u, i) => Math.round((i % 2 ? y + u * h : x + u * w) * 100) / 100), lb: sh.lb.split('') };
+        if (sh.v) return buildShapeItems(sid, x, y, w, h, o)[0];
         if (IS_3D[sid]) return makeSolid(sid, x, y, Math.max(w, 8), Math.max(h, 8), o);
         const g = sh.g();
         return Object.assign({ t: 'vec', c: o.c, lw: 2 + o.w * .25, x, y, w: Math.max(w, 8), h: Math.max(h, 8) }, g);
@@ -1385,7 +1617,35 @@
         { id: 'f-log', name: 'Свойства логарифмов', text: '$\\log_a(bc)=\\log_a b+\\log_a c$\n$\\log_a b^n=n\\log_a b$\n$\\log_a b=\\dfrac{\\log_c b}{\\log_c a}$' },
         { id: 'f-der', name: 'Таблица производных', text: '$(x^n)\'=nx^{n-1}$\n$(\\sin x)\'=\\cos x$\n$(e^x)\'=e^x$\n$(\\ln x)\'=\\dfrac{1}{x}$' },
     ]);
+    // заготовки из точек и отрезков (всё потом правится как обычная геометрия)
+    function presetItems(id, cx, cy, k) {
+        const ink = color, P = (x, y, label) => ({ t: 'point', x: R2(x), y: R2(y), c: ink, w: 2, label });
+        const T = (x, y, text) => ({ t: 'text', x: R2(x), y: R2(y), s: 18 * k, c: ink, w: 0, text });
+        if (id === 'ucirc') {
+            const R = 150 * k, e = 45 * k, out = [
+                { t: 'arrow', c: ink, w: 2, x1: R2(cx - R - e), y1: cy, x2: R2(cx + R + e), y2: cy },
+                { t: 'arrow', c: ink, w: 2, x1: cx, y1: R2(cy + R + e), x2: cx, y2: R2(cy - R - e) },
+                { t: 'circle', c: ink, w: 2.5, nc: 1, x1: cx, y1: cy, x2: R2(cx + R), y2: cy },
+                P(cx, cy, 'O'), T(cx + R + e - 4 * k, cy + 6 * k, 'x'), T(cx + 8 * k, cy - R - e - 4 * k, 'y')];
+            const names = { 0: '0', 30: 'π/6', 45: 'π/4', 60: 'π/3', 90: 'π/2', 120: '2π/3', 135: '3π/4', 150: '5π/6', 180: 'π', 210: '7π/6', 225: '5π/4', 240: '4π/3', 270: '3π/2', 300: '5π/3', 315: '7π/4', 330: '11π/6' };
+            for (const a in names) { const r = a * Math.PI / 180; out.push(P(cx + R * Math.cos(r), cy - R * Math.sin(r), names[a])); }
+            return out;
+        }
+        if (id === 'nline') {
+            const st = 44 * k, out = [{ t: 'arrow', c: ink, w: 2, x1: R2(cx - 6 * st), y1: cy, x2: R2(cx + 6 * st), y2: cy }, T(cx + 6 * st - 6 * k, cy + 8 * k, 'x')];
+            for (let i = -5; i <= 5; i++) out.push(P(cx + i * st, cy, String(i).replace('-', '−')));
+            return out;
+        }
+        return null;
+    }
     function insertPreset(pr) {
+        const geoSet = presetItems(pr.id, 0, 0, 1);
+        if (geoSet) {
+            const c = toWorld(W / 2, H / 2), list = presetItems(pr.id, R2(c.x), R2(c.y), 1 / view.k).map((x, i) => Object.assign(x, { id: rid(12), z: newZ() + i * 1e-3 }));
+            commit({ add: list });
+            setTool('select'); sel = list.map((x) => x.id); render();
+            return;
+        }
         if (pr.text) {
             const c = toWorld(W / 2, H / 2), s = 22 / view.k;
             const it = { id: rid(12), z: newZ(), t: 'text', x: c.x, y: c.y, s, c: color, w: 0, text: pr.text };
@@ -1565,6 +1825,7 @@
         const tol = r + (BOX[it.t] ? 0 : it.w / 2);
         if (it.t === 'point') return Math.hypot(x - it.x, y - it.y) < tol + 6;
         if (it.t === 'circle') return Math.abs(Math.hypot(x - it.x1, y - it.y1) - Math.hypot(it.x2 - it.x1, it.y2 - it.y1)) < tol;
+        if (it.t === 'angle' && it.arc) return Math.hypot(x - it.p[2], y - it.p[3]) < 22 + it.w * 2 + 10 + (it.mk || 0) * 5 + r;
         if (it.t === 'poly' || it.t === 'angle') {
             const p = it.p, n = p.length;
             for (let i = 0; i < n - 2; i += 2) if (distSeg(x, y, p[i], p[i + 1], p[i + 2], p[i + 3]) < tol) return true;
@@ -1618,7 +1879,7 @@
 
     // ================= МЕНЮ «ФИГУРЫ», «ЗАГОТОВКИ», НАСТРОЙКИ ПЕРА =================
     function closeMenus(except) {
-        ['bdShapeMenu', 'bdPresetMenu', 'bdPenCfg'].forEach((id) => { if (id !== except && $(id)) $(id).hidden = true; });
+        ['bdShapeMenu', 'bdPresetMenu', 'bdPenCfg', 'bdLsMenu'].forEach((id) => { if (id !== except && $(id)) $(id).hidden = true; });
     }
     function toggleMenu(id, anchor) {
         const m = $(id);
@@ -1666,7 +1927,16 @@
         $('bdPenSt').checked = penCfg.st;
         $('bdPenSt').addEventListener('change', () => { penCfg.st = $('bdPenSt').checked; savePen(); });
         $('bdPenReset').onclick = () => { Object.assign(penCfg, PEN_DEF); savePen(); ['Sm', 'Th', 'Tp'].forEach((k) => { $('bdPen' + k).value = Math.round(penCfg[k.toLowerCase()] * 100); }); $('bdPenSt').checked = penCfg.st; penPreview(); };
-        document.addEventListener('pointerdown', (e) => { if (!e.target.closest('.bd-menu, #bdShapesBtn, #bdFig, #bdPenBtn')) closeMenus(); });
+        document.addEventListener('pointerdown', (e) => { if (!e.target.closest('.bd-menu, #bdShapesBtn, #bdFig, #bdPenBtn, #bdLsBtn')) closeMenus(); });
+    }
+    // вид линии для новых объектов (и выделенных — при смене)
+    const STYLED = { line: 1, arrow: 1, circle: 1, rect: 1, ellipse: 1, poly: 1 };
+    const lineStyle = Object.assign({ ls: 'solid', dl: 1 }, lsGet('mf-board-ls', {}));
+    const styleFor = (t) => (STYLED[t] && lineStyle.ls !== 'solid' ? { ls: lineStyle.ls, dl: lineStyle.dl } : {});
+    function applyToSel(fn) {
+        if (tool !== 'select' || !sel.length) return;
+        const pairs = selItems().map((it) => { const n = clone(it); fn(n); return [clone(it), n]; }).filter(([a, b]) => JSON.stringify(a) !== JSON.stringify(b));
+        if (pairs.length) { commit({ mod: pairs }); render(); }
     }
     const PEN_DEF = { sm: .5, th: .6, tp: .5, st: true };
     const penCfg = Object.assign({}, PEN_DEF, lsGet('mf-board-pen', {}));
@@ -1964,6 +2234,236 @@
         render();
     }
 
+    // ================= «РЕШИТЬ» НАД ФОТО И ТЕКСТОМ =================
+    // Как на странице мини-сервисов: фото распознаёт нейросеть (api/ai-task.js, режим board —
+    // все задачи с фото по отдельности), пример решает алгебраический калькулятор (MFSolver),
+    // геометрическую задачу — геометрический решатель (geo-problem.js), остальное — нейросеть.
+    // Решение пишется прямо на доску обычными объектами — текст с формулами, точки, отрезки,
+    // окружности — под исходным фото/текстом; каждую часть потом можно править как обычно.
+    const solving = new Set();
+    let solveBtns = [];
+    const SOLVABLE = (it) => (it.t === 'img' || (it.t === 'text' && String(it.text).trim().length > 1)) && !it.sol;
+    function drawSolveBtns() {
+        solveBtns = [];
+        if (cur || drag || textEd) return;
+        ctx.save();
+        ctx.font = '600 12px ' + (css('--font-display') || 'sans-serif');
+        ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+        for (const it of items) {
+            if (!SOLVABLE(it)) continue;
+            const b = bounds(it), s = toScreen(b.x, b.y), e = toScreen(b.x + b.w, b.y + b.h);
+            if (e.x < 0 || e.y < 0 || s.x > W || s.y > H) continue;
+            const busy = solving.has(it.id), label = busy ? 'Решаю…' : '✓ Решить';
+            const w = ctx.measureText(label).width + 16, h = 22, x = Math.min(Math.max(4, s.x), W - w - 4), y = Math.max(4, s.y - h - 6);
+            ctx.fillStyle = busy ? (css('--text-tertiary') || '#888') : '#30a46c';
+            ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x, y, w, h, 11) : ctx.rect(x, y, w, h); ctx.fill();
+            ctx.fillStyle = '#fff'; ctx.fillText(label, x + 8, y + h / 2 + .5);
+            solveBtns.push({ id: it.id, x, y, w, h });
+        }
+        ctx.restore();
+    }
+    const solveBtnAt = (sx, sy) => solveBtns.find((b) => sx >= b.x && sx <= b.x + b.w && sy >= b.y && sy <= b.y + b.h);
+
+    async function aiPost(body) {
+        const hd = { 'content-type': 'application/json' };
+        try { const u = window.Auth && Auth.getCurrentUser && Auth.getCurrentUser(); if (u) hd.authorization = 'Bearer ' + (await u.getIdToken()); } catch (e) {}
+        const r = await fetch('/api/ai-task', { method: 'POST', headers: hd, body: JSON.stringify(body) });
+        const d = await r.json().catch(() => null);
+        if (!r.ok) throw new Error((d && d.error) || ('ошибка сервера (' + r.status + ')'));
+        return d || {};
+    }
+    // картинка → JPEG data URL (как на мини-сервисах)
+    function imgToJpeg(src) {
+        return new Promise((ok, fail) => {
+            const im = new Image();
+            im.onload = () => {
+                const k = Math.min(1, 1600 / Math.max(im.naturalWidth, im.naturalHeight)), c = document.createElement('canvas');
+                c.width = Math.max(1, Math.round(im.naturalWidth * k)); c.height = Math.max(1, Math.round(im.naturalHeight * k));
+                const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(im, 0, 0, c.width, c.height);
+                ok(c.toDataURL('image/jpeg', .86));
+            };
+            im.onerror = () => fail(new Error('не удалось открыть картинку'));
+            im.src = src;
+        });
+    }
+    // LaTeX (формулы, набранные вручную) → линейная запись калькулятора
+    function latexToLinear(l) {
+        let s = String(l);
+        for (let k = 0; k < 6; k++) {
+            s = s.replace(/\\d?frac\{([^{}]*)\}\{([^{}]*)\}/g, '(($1)/($2))')
+                .replace(/\\sqrt\[([^\]]*)\]\{([^{}]*)\}/g, 'root($1,$2)').replace(/\\sqrt\{([^{}]*)\}/g, 'sqrt($1)')
+                .replace(/\^\{([^{}]*)\}/g, '^($1)').replace(/_\{([^{}]*)\}/g, '_$1');
+        }
+        return s.replace(/\\left|\\right/g, '').replace(/\\cdot|\\times/g, '*').replace(/\\div/g, '/').replace(/\\pi/g, 'pi')
+            .replace(/\\le(q)?/g, '<=').replace(/\\ge(q)?/g, '>=').replace(/\\ne(q)?/g, '!=').replace(/\\operatorname\{([^{}]*)\}/g, '$1')
+            .replace(/\\(sin|cos|tan|tg|cot|ctg|ln|log|lg|arcsin|arccos|arctan)/g, '$1').replace(/\\[a-z]+/gi, '').replace(/[{}]/g, '').replace(/\s+/g, ' ').trim();
+    }
+    // текст объекта с формулами → обычная запись (формулы — линейно, для решателей)
+    function textForSolve(it) {
+        let k = 0;
+        return String(it.text).replace(/\$([^$]+)\$/g, (m, l) => {
+            const fx = it.fx && it.fx[k++];
+            if (fx && window.MathField) {
+                try { const f = new MathField(document.createElement('div'), {}); f.setTree(JSON.parse(fx)); return f.expr(); } catch (e) {}
+            }
+            return latexToLinear(l);
+        });
+    }
+    // несколько задач в одном тексте: нумерация «1.», «2)», «№3», «а)» — или по строке на пример
+    function splitProblems(text) {
+        const lines = String(text).split('\n').map((l) => l.trim()).filter(Boolean);
+        const NUM = /^(?:№\s*\d+[.)]?|\d+\s*[.)]|[а-гa-d]\))\s*/i;
+        if (lines.filter((l) => NUM.test(l)).length >= 2) {
+            const out = [];
+            for (const l of lines) { if (NUM.test(l) || !out.length) out.push(l.replace(NUM, '')); else out[out.length - 1] += ' ' + l; }
+            return out.filter(Boolean);
+        }
+        if (lines.length > 1 && lines.every((l) => !/[а-яё]{3,}/i.test(l) && /[=<>]|\d/.test(l))) return lines;
+        return [lines.join(' ')];
+    }
+    let geoMods = null;
+    const loadGeo = () => (geoMods = geoMods || Promise.all([import('/assets/js/geo/geo-problem.js'), import('/assets/js/geo/geo-ai.js')]).catch((e) => { geoMods = null; throw e; }));
+    // одна задача → { steps: [строки с $…$], answer, sketch?, notes, error? }
+    async function solveOne(text) {
+        const [GP, GA] = await loadGeo();
+        if (!GP.checkProblemText(text)) {
+            const r = await GP.solveGeometryProblem(text, { ai: GA.aiParseGeometry, aiSolve: GA.aiSolveGeometry, theme: isLight() ? 'light' : 'dark' });
+            if (r.ok) {
+                const steps = r.stepsMd ? r.stepsMd : r.steps.map((s) => htmlToText(s.html));
+                const answer = r.answerMd || r.answers.map((a) => htmlToText(GP.answerText(a))).join('; ');
+                return { steps, answer, sketch: r.sketch || modelSketch(r), notes: (r.notes || []).map(htmlToText) };
+            }
+            if (r.invalid) { /* не геометрия — пробуем как алгебру */ } else return { error: htmlToText(r.error || 'не удалось решить') };
+        }
+        const f = GA.extractFormula(text) || (!/[а-яё]{3,}/i.test(text) ? text : null);
+        if (f && window.MFSolver && window.MFMath) {
+            const lin = MFMath.normalizeLinear(f), rows = lin.indexOf(';') >= 0 ? lin.split(';') : null;
+            const r = rows ? MFSolver.solve({ rows }) : MFSolver.solve({ linear: lin });
+            if (!r.error) return algSteps(r);
+        }
+        const d = await GA.aiSolveAlgebra(text);
+        return { steps: d.steps, answer: d.answer, notes: ['Решено нейросетью — проверьте рассуждения.'] };
+    }
+    function algSteps(r) {
+        const out = [];
+        (function walk(list) {
+            for (const st of list) {
+                if (st.group) { out.push('**' + st.group + '**'); walk(st.steps || []); continue; }
+                if ((st.lvl || 0) > 1) continue;
+                out.push([st.text, st.tex ? '$' + st.tex + '$' : ''].filter(Boolean).join('\n'));
+            }
+        })(r.steps || []);
+        const a = r.answer;
+        const answer = a ? a.items.map((x) => '$' + x.tex + '$').join(';  ') + (a.note ? ' (' + a.note + ')' : '') : '';
+        return { steps: out, answer };
+    }
+    function htmlToText(h) {
+        return String(h || '').replace(/<sup>(.*?)<\/sup>/g, (m, x) => (x === '2' ? '²' : x === '3' ? '³' : '^' + x)).replace(/<sub>(.*?)<\/sub>/g, '$1')
+            .replace(/<br\s*\/?>/g, '\n').replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&')
+            .replace(/√\(([^()]*)\)/g, (m, x) => '$\\sqrt{' + x.replace(/·/g, '\\cdot ') + '}$').replace(/√(\d+(?:,\d+)?)/g, '$\\sqrt{$1}$');
+    }
+    // чертёж из модели геометрического решателя: фигура, построения (пунктиром), искомое
+    function modelSketch(r) {
+        if (!r.model || !r.ir) return null;
+        const pts = {}, M = r.model.pts;
+        for (const n in M) if (M[n] && isFinite(M[n].x) && isFinite(M[n].y)) pts[n] = [M[n].x, M[n].y];
+        const V = r.ir.figure.vertices, segments = [], dashed = [], highlight = [];
+        V.forEach((v, i) => segments.push([v, V[(i + 1) % V.length]]));
+        for (const c of r.ir.constructions || []) {
+            if (c.kind === 'bisector' || c.kind === 'median' || c.kind === 'altitude') dashed.push([c.vertex, c.point]);
+            else if (c.kind === 'bisectorMeet') c.vertices.forEach((v) => dashed.push([v, c.point]));
+            else if (c.kind === 'intersection') c.lines.forEach((l) => segments.push([l[0], l[1]]));
+            else if (c.kind === 'segment') segments.push([c.seg[0], c.seg[1]]);
+        }
+        for (const f of r.ir.find || []) if (f.seg && pts[f.seg[0]] && pts[f.seg[1]]) highlight.push([f.seg[0], f.seg[1]]);
+        return { points: pts, segments, dashed, highlight };
+    }
+    // эскиз { points, segments, dashed, highlight, circles } → точки, отрезки и окружности на доске
+    function sketchItems(sk, x0, y0, wT) {
+        const P = {};
+        for (const [n, v] of Object.entries((sk && sk.points) || {})) if (Array.isArray(v) && isFinite(v[0]) && isFinite(v[1])) P[n] = v;
+        const names = Object.keys(P);
+        if (names.length < 2) return { list: [], h: 0 };
+        let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
+        const ext = (x, y) => { x1 = Math.min(x1, x); x2 = Math.max(x2, x); y1 = Math.min(y1, y); y2 = Math.max(y2, y); };
+        names.forEach((n) => ext(P[n][0], P[n][1]));
+        const circles = ((sk && sk.circles) || []).map((c) => { const ctr = typeof c.center === 'string' ? P[c.center] : c.center; return ctr && +c.radius > 0 ? { c: ctr, r: +c.radius } : null; }).filter(Boolean);
+        circles.forEach((c) => { ext(c.c[0] - c.r, c.c[1] - c.r); ext(c.c[0] + c.r, c.c[1] + c.r); });
+        const bw = Math.max(1e-6, x2 - x1), bh = Math.max(1e-6, y2 - y1), k = Math.min(wT / bw, wT * .8 / bh);
+        const pad = 24 * (wT / 300);
+        const X = (x) => R2(x0 + pad + (x - x1) * k), Y = (y) => R2(y0 + pad + (y2 - y) * k);   // в эскизе ось y — вверх
+        const list = [], ink = 'ink';
+        const seg = (s, extra) => { if (Array.isArray(s) && P[s[0]] && P[s[1]]) list.push(Object.assign({ t: 'line', c: ink, w: 2.5, x1: X(P[s[0]][0]), y1: Y(P[s[0]][1]), x2: X(P[s[1]][0]), y2: Y(P[s[1]][1]) }, extra)); };
+        (sk.segments || []).forEach((s) => seg(s));
+        (sk.dashed || []).forEach((s) => seg(s, { ls: 'dash', dl: 1, w: 2 }));
+        (sk.highlight || []).forEach((s) => seg(s, { c: '#e5484d', w: 3.5 }));
+        circles.forEach((c) => list.push({ t: 'circle', c: ink, w: 2.5, nc: 1, x1: X(c.c[0]), y1: Y(c.c[1]), x2: R2(X(c.c[0]) + c.r * k), y2: Y(c.c[1]) }));
+        names.forEach((n) => list.push({ t: 'point', c: ink, w: 2, x: X(P[n][0]), y: Y(P[n][1]), label: n }));
+        return { list, h: bh * k + 2 * pad };
+    }
+    // перенос длинных строк по словам (формулы $…$ не разрываем)
+    function wrapText(t, max) {
+        return String(t).split('\n').map((line) => {
+            const toks = line.match(/\$[^$]*\$|\S+/g) || [];
+            const out = []; let curL = '', len = 0;
+            for (const tk of toks) {
+                const tl = tk[0] === '$' ? Math.min(30, tk.length * .6) : tk.length;
+                if (curL && len + tl + 1 > max) { out.push(curL); curL = tk; len = tl; } else { curL += (curL ? ' ' : '') + tk; len += tl + (curL === tk ? 0 : 1); }
+            }
+            if (curL) out.push(curL);
+            return out.join('\n');
+        }).join('\n');
+    }
+    // условие для заголовка: пример — формулой, текст — как есть
+    function problemTitle(t) {
+        if (!/[а-яё]{3,}/i.test(t) && window.MFMath) {
+            try { const parts = MFMath.normalizeLinear(t).split(';').map((x) => { const sides = x.split(/(<=|>=|!=|=|<|>)/); return sides.map((p) => (/^(<=|>=|!=|=|<|>)$/.test(p) ? ({ '<=': '\\le', '>=': '\\ge', '!=': '\\ne' }[p] || p) : MFMath.tex(MFMath.parse(p), 0))).join(' '); }); return '$' + parts.join(';\\ ') + '$'; } catch (e) {}
+        }
+        return t.length > 160 ? t.slice(0, 157) + '…' : t;
+    }
+    async function solveItem(it) {
+        if (solving.has(it.id)) return;
+        solving.add(it.id); render();
+        try {
+            let probs;
+            if (it.t === 'img') {
+                const d = await aiPost({ task: 'ocr', mode: 'board', image: await imgToJpeg(it.src) });
+                probs = String(d.text || '').split(/\n\s*-{3,}\s*\n?/).map((x) => x.trim()).filter(Boolean);
+                if (!probs.length) throw new Error('на фото не нашлось задач');
+            } else probs = splitProblems(textForSolve(it));
+            await loadMathJax().catch(() => {});
+            layoutCache.clear();
+            const b = bounds(it), s = Math.max(12, Math.min(30, it.t === 'text' ? it.s : b.w / 28)), gap = s * .9;
+            const x0 = b.x, wrapN = Math.max(40, Math.round(Math.max(b.w, s * 28) / (s * .55)));
+            let y = b.y + b.h + gap * 1.5;
+            const made = [];
+            const addText = (text, extra) => {
+                const t = Object.assign({ t: 'text', x: R2(x0), y: R2(y), s, c: 'ink', w: 0, text: wrapText(text, wrapN), sol: it.id }, extra);
+                made.push(t); y += layoutText(t).h + gap * .5;
+                return t;
+            };
+            for (let i = 0; i < probs.length; i++) {
+                let res;
+                try { res = await solveOne(probs[i]); } catch (e) { res = { error: e && e.message ? e.message : String(e) }; }
+                addText((probs.length > 1 ? '№' + (i + 1) + '. ' : '') + problemTitle(probs[i]), { c: '#3e8bff' });
+                if (res.error) { addText('Не получилось решить: ' + res.error, { c: '#e5484d', s: s * .85 }); y += gap; continue; }
+                if (res.sketch) {
+                    const sk = sketchItems(res.sketch, x0, y, Math.min(Math.max(b.w, 260), s * 18));
+                    sk.list.forEach((x) => { x.sol = it.id; made.push(x); });
+                    y += sk.h + gap * .5;
+                }
+                addText(res.steps.map((st, k) => (/^\*\*/.test(st) ? st.replace(/\*\*/g, '') : (k + 1) + ') ' + st)).join('\n'));
+                if (res.answer) addText('Ответ: ' + res.answer, { c: '#30a46c' });
+                if (res.notes && res.notes.length) addText(res.notes.join(' '), { s: s * .75 });
+                y += gap;
+            }
+            const list = made.map((x, k) => Object.assign(x, { id: rid(12), z: newZ() + k * 1e-3 }));
+            if (commit({ add: list }) !== false) { setTool('select'); sel = list.map((x) => x.id); }
+        } catch (e) {
+            toast('Не удалось решить: ' + (e && e.message ? e.message : e));
+        } finally { solving.delete(it.id); render(); }
+    }
+
     // ================= ИЗОБРАЖЕНИЯ =================
     // Картинка уменьшается до IMG_MAX_SIDE по большей стороне и перекодируется,
     // пока не влезет в IMG_MAX_BYTES (data URL хранится прямо в объекте).
@@ -2056,7 +2556,11 @@
     function startMove(w) {
         const its = selItems(), ids = new Set(its.map((i) => i.id));
         const g = buildGlue(its, ids);
-        drag = { mode: 'move', w0: w, befores: its.map(clone), glue: g.glue, tgts: g.tgts };
+        // опорная вершина для привязки при перетаскивании — ближайшая к месту захвата
+        let anchor = null, ad = Infinity;
+        for (const it of its) for (const [x, y] of getV(it)) { const d = Math.hypot(x - w.x, y - w.y); if (d < ad) { ad = d; anchor = { x, y }; } }
+        if (!anchor && its.length) { const b = bounds(its[0]); anchor = { x: b.x, y: b.y }; }
+        drag = { mode: 'move', w0: w, befores: its.map(clone), glue: g.glue, tgts: g.tgts, anchor, ids };
     }
     // новая рамка при растяжении за ручку hid (в системе координат повёрнутой рамки)
     function scaleFrame(f0, hid, w, keep) {
@@ -2102,6 +2606,7 @@
 
     stage.addEventListener('pointerdown', (e) => {
         if (e.target !== canvas) return;
+        snapAlt = e.altKey;
         const p = localPt(e);
         pointers.set(e.pointerId, p);
         stage.setPointerCapture(e.pointerId);
@@ -2112,6 +2617,8 @@
         }
         if (pointers.size > 2) return;
         if (lblEd) closeLabel(true);
+        const sb = !textEd && e.button === 0 && solveBtnAt(p.x, p.y);
+        if (sb) { pointers.delete(e.pointerId); const it = byId(sb.id); if (it) solveItem(it); return; }
         if (textEd) { closeText(); if (tool === 'text') return; }
         closeMenus();
         const w = toWorld(p.x, p.y);
@@ -2177,15 +2684,23 @@
             render();
             return;
         }
+        if (tool === 'angle' && !geo) {
+            // щелчок внутри уже нарисованного угла — только дуга с градусной мерой
+            const sa = sideAngleAt(w);
+            if (sa) { const it = { id: rid(12), z: newZ(), t: 'angle', arc: 1, c: color, w: size, p: sa }; if (commit({ add: [it] }) !== false) selectMade([it]); return; }
+        }
         if (tool === 'poly' || tool === 'angle') { geoClick(snap(w), p); return; }
+        if (tool === 'mark') { markAt(w); return; }
+        if (tool === 'extend') { extendAt(w); return; }
         if (tool === 'shape') {
-            cur = { t: 'shapeDraft', sid: shapeId, c: color, w: size, x1: w.x, y1: w.y, x2: w.x, y2: w.y };
+            const q = snap(w);
+            cur = { t: 'shapeDraft', sid: shapeId, c: color, w: size, x1: q.x, y1: q.y, x2: q.x, y2: q.y };
             render();
             return;
         }
         if (tool === 'circle' || tool === 'line' || tool === 'arrow') {
             const q = snap(w);
-            cur = { t: tool, c: color, w: size, x1: q.x, y1: q.y, x2: q.x, y2: q.y };
+            cur = { ...styleFor(tool), t: tool, c: color, w: size, x1: q.x, y1: q.y, x2: q.x, y2: q.y };
             render();
             return;
         }
@@ -2194,7 +2709,7 @@
         } else if (tool === 'marker') {
             cur = { t: tool, c: color, w: size * 4, p: [w.x, w.y] };
         } else {
-            cur = { t: tool, c: color, w: size, x1: w.x, y1: w.y, x2: w.x, y2: w.y };
+            cur = { ...styleFor(tool), t: tool, c: color, w: size, x1: w.x, y1: w.y, x2: w.x, y2: w.y };
         }
         render();
     });
@@ -2216,6 +2731,11 @@
         if (drag.mode === 'move') {
             let dx = w.x - drag.w0.x, dy = w.y - drag.w0.y;
             if (e.shiftKey) { if (Math.abs(dx) > Math.abs(dy)) dy = 0; else dx = 0; }
+            else if (drag.anchor) {
+                const ex = new Set([...drag.ids, ...drag.tgts.keys()]);
+                const q = snap({ x: drag.anchor.x + dx, y: drag.anchor.y + dy }, ex);
+                if (snapHint) { dx = q.x - drag.anchor.x; dy = q.y - drag.anchor.y; }
+            }
             applyDrag(drag.befores.map((b) => moved(b, dx, dy)));
             return;
         }
@@ -2263,6 +2783,7 @@
     }
     stage.addEventListener('pointermove', (e) => {
         const p = localPt(e);
+        snapAlt = e.altKey;
         if (shared) sendCursor(toWorld(p.x, p.y));
         if (geo) { const q = snap(toWorld(p.x, p.y)); geo.hx = q.x; geo.hy = q.y; render(); }
         if (!pointers.has(e.pointerId)) {
@@ -2325,7 +2846,7 @@
                         x = cur.x1 + L * Math.cos(a); y = cur.y1 + L * Math.sin(a);
                     }
                 }
-                if (!e.shiftKey && (cur.t === 'line' || cur.t === 'arrow' || cur.t === 'circle')) { const q = snap({ x, y }); x = q.x; y = q.y; }
+                if (!e.shiftKey && (cur.t === 'line' || cur.t === 'arrow' || cur.t === 'circle' || cur.t === 'rect' || cur.t === 'ellipse' || cur.t === 'shapeDraft')) { const q = snap({ x, y }); x = q.x; y = q.y; }
                 cur.x2 = x; cur.y2 = y;
             }
         }
@@ -2334,6 +2855,7 @@
     function endPointer(e) {
         if (!pointers.has(e.pointerId)) return;
         pointers.delete(e.pointerId);
+        snapHint = null;
         if (pinch) { if (pointers.size < 2) pinch = null; saveView(); return; }
         if (panDrag) { panDrag = null; stage.classList.remove('drag'); saveView(); return; }
         if (drag) {
@@ -2357,8 +2879,8 @@
         } else if (cur.t === 'shapeDraft') {
             let f = draftBox(cur);
             if (!f) { const sh = SHAPES.find((s) => s.id === cur.sid), k = 1 / view.k; f = { x: cur.x1 - 80 * k, y: cur.y1 - 65 * k, w: 160 * k, h: 130 * k }; if (sh && sh.v === undefined && sh.g) { const g = sh.g(); f.h = f.w * g.bh / g.bw; } }
-            const it = Object.assign(buildShape(cur.sid, f.x, f.y, f.w, f.h, cur), { id: rid(12), z: newZ() });
-            commit({ add: [it] });
+            const made = buildShapeItems(cur.sid, f.x, f.y, f.w, f.h, cur).map((x, i) => Object.assign(x, { id: rid(12), z: newZ() + i * 1e-3 }));
+            if (commit({ add: made }) !== false) selectMade(made);
         } else {
             if (cur.t === 'pen') {
                 // догоняем последнюю точку и чистим служебные поля
@@ -2368,7 +2890,10 @@
                 cur.p = cur.p.map((v) => Math.round(v * 100) / 100);
             }
             const tiny = !cur.p && Math.hypot(cur.x2 - cur.x1, cur.y2 - cur.y1) * view.k < 3;
-            if (!tiny) commit({ add: [Object.assign({ id: rid(12), z: newZ() }, cur)] });
+            if (!tiny) {
+                const it = Object.assign({ id: rid(12), z: newZ() }, cur, styleFor(cur.t));
+                if (commit({ add: [it] }) !== false && SPECIAL[it.t]) selectMade([it]);
+            }
         }
         cur = null;
         sendDraft(null);
@@ -2494,6 +3019,7 @@
         $('bdColors').addEventListener('click', (e) => {
             const b = e.target.closest('[data-c]'); if (!b) return;
             color = b.dataset.c; paintSw();
+            if (tool === 'select' && sel.length) { applyToSel((n) => { if (n.t !== 'img') n.c = color; }); return; }
             if (tool === 'eraser' || tool === 'pan' || tool === 'select') setTool('pen');
         });
         $('bdPick').addEventListener('input', (e) => { color = e.target.value; paintSw(); });
@@ -2501,12 +3027,49 @@
 
         $('bdSizes').innerHTML = SIZES.map((s) =>
             `<button class="bd-btn bd-size" data-s="${s}" title="Толщина ${s}" aria-label="Толщина ${s}"><i style="width:${Math.min(4 + s, 18)}px;height:${Math.min(4 + s, 18)}px"></i></button>`).join('');
+        $('bdSizes').insertAdjacentHTML('beforeend',
+            '<label class="bd-range-w" title="Толщина линии"><input type="range" id="bdSizeR" min="1" max="40" step="1"><b id="bdSizeV"></b></label>' +
+            '<button class="bd-btn bd-lsbtn" id="bdLsBtn" title="Вид линии: сплошная, пунктир, точки, штрихпунктир, двойная" aria-label="Вид линии"></button>');
+        const syncSize = () => {
+            $('bdSizeR').value = size; $('bdSizeV').textContent = size;
+            document.querySelectorAll('#bdSizes .bd-size').forEach((x) => x.classList.toggle('on', +x.dataset.s === size));
+        };
+        // толщина: и для новых линий, и для выделенных объектов
+        const applySize = () => applyToSel((n) => {
+            if (n.t === 'vec' || n.t === 'solid') n.lw = 1.5 + size * .5;
+            else if (n.t === 'marker') n.w = size * 4;
+            else if (STYLED[n.t] || n.t === 'pen' || n.t === 'point' || n.t === 'angle') n.w = size;
+        });
         $('bdSizes').addEventListener('click', (e) => {
             const b = e.target.closest('[data-s]'); if (!b) return;
-            size = +b.dataset.s;
-            document.querySelectorAll('#bdSizes .bd-btn').forEach((x) => x.classList.toggle('on', x === b));
+            size = +b.dataset.s; syncSize(); applySize();
         });
-        document.querySelector(`#bdSizes [data-s="${size}"]`).classList.add('on');
+        $('bdSizeR').addEventListener('input', () => { size = +$('bdSizeR').value; syncSize(); });
+        $('bdSizeR').addEventListener('change', applySize);
+        syncSize();
+        // вид линии
+        const LS = [['solid', 'Сплошная'], ['dash', 'Пунктир'], ['long', 'Длинный штрих'], ['dot', 'Точки'], ['dashdot', 'Штрихпунктир'], ['double', 'Двойная']];
+        const lsSvg = (v) => {
+            const d = { solid: '', dash: ' stroke-dasharray="5 3"', long: ' stroke-dasharray="9 3"', dot: ' stroke-dasharray=".1 3.2" stroke-linecap="round"', dashdot: ' stroke-dasharray="7 2.5 .1 2.5" stroke-linecap="round"' }[v];
+            return v === 'double' ? '<svg viewBox="0 0 28 12"><path d="M2 4h24M2 8h24" stroke="currentColor" stroke-width="1.5"/></svg>'
+                : `<svg viewBox="0 0 28 12"><path d="M2 6h24" stroke="currentColor" stroke-width="2.2"${d}/></svg>`;
+        };
+        $('bdLsMenu').innerHTML = '<div class="bd-ls">' + LS.map(([v, n]) => `<button class="bd-mi bd-lsi" data-ls="${v}" title="${n}">${lsSvg(v)}<span>${n}</span></button>`).join('') + '</div>' +
+            '<label class="bd-lsdl">Длина штриха / расстояние <input type="range" id="bdLsDl" min="40" max="300" step="10"></label>';
+        const syncLs = () => {
+            $('bdLsBtn').innerHTML = lsSvg(lineStyle.ls);
+            $('bdLsMenu').querySelectorAll('[data-ls]').forEach((b) => b.classList.toggle('on', b.dataset.ls === lineStyle.ls));
+            $('bdLsDl').value = Math.round(lineStyle.dl * 100);
+        };
+        const applyLs = () => applyToSel((n) => { if (STYLED[n.t]) Object.assign(n, styleFor(n.t)); if (STYLED[n.t] && lineStyle.ls === 'solid') { delete n.ls; delete n.dl; } });
+        $('bdLsBtn').onclick = () => toggleMenu('bdLsMenu', $('bdLsBtn'));
+        $('bdLsMenu').addEventListener('click', (e) => {
+            const b = e.target.closest('[data-ls]'); if (!b) return;
+            lineStyle.ls = b.dataset.ls; lsSet('mf-board-ls', lineStyle); syncLs(); applyLs();
+        });
+        $('bdLsDl').addEventListener('input', () => { lineStyle.dl = $('bdLsDl').value / 100; lsSet('mf-board-ls', lineStyle); });
+        $('bdLsDl').addEventListener('change', applyLs);
+        syncLs();
         paintSw();
 
         $('bdBg').value = bg;
