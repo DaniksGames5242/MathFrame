@@ -806,6 +806,7 @@
         drawList(ctx, items.concat(extra));
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         drawSolveBtns();
+        drawHand();
         drawSelection();
         drawSnapHint();
         if (shared) drawPeers();
@@ -827,7 +828,7 @@
     //  3) узлы клетки, 4) точка на отрезке/стороне/окружности. Найденная точка подсвечивается.
     let snapHint = null, snapAlt = false;
     // настройки доски (меню-шестерёнка): привязка и чужие курсоры; хранятся в этом браузере
-    const CFG_DEF = { snap: true, sV: true, sM: true, sG: true, sO: true, sR: 11, cur: true, names: true, drafts: true };
+    const CFG_DEF = { hd: 5, snap: true, sV: true, sM: true, sG: true, sO: true, sR: 11, cur: true, names: true, drafts: true };
     const bcfg = Object.assign({}, CFG_DEF, lsGet('mf-board-cfg', {}));
     function snap(w, except) {
         snapHint = null;
@@ -1922,7 +1923,8 @@
         $('bdFig').onclick = () => toggleMenu('bdPresetMenu', $('bdFig'));
         // настройки доски
         const chk = (k, t, sub) => `<label class="bd-chk${sub ? ' bd-sub' : ''}"><input type="checkbox" data-cfg="${k}"> ${t}</label>`;
-        $('bdCfgMenu').innerHTML = '<h4>Привязка</h4>' + chk('snap', 'Включена <small>(Alt — временно без неё)</small>') +
+        $('bdCfgMenu').innerHTML = '<h4>Распознавание почерка</h4><label>Задержка, с <input type="range" data-cfg="hd" min="1" max="20"><b id="bdHdV"></b></label>' +
+            '<h4>Привязка</h4>' + chk('snap', 'Включена <small>(Alt — временно без неё)</small>') +
             chk('sV', 'к точкам и вершинам', 1) + chk('sM', 'к серединам отрезков', 1) + chk('sG', 'к узлам клетки', 1) + chk('sO', 'к точкам на отрезках', 1) +
             '<label class="bd-sub">Сила притяжения <input type="range" data-cfg="sR" min="4" max="30"></label>' +
             '<h4>Другие участники</h4>' + chk('cur', 'Показывать курсоры') + chk('names', 'Имена у курсоров', 1) + chk('drafts', 'Показывать недорисованные штрихи') +
@@ -1932,7 +1934,7 @@
             if (el.type === 'checkbox') el.checked = !!bcfg[k]; else el.value = bcfg[k];
             const dep = (k[0] === 's' && k !== 'snap') ? !bcfg.snap : k === 'names' ? !bcfg.cur : false;
             el.disabled = dep; el.closest('label').style.opacity = dep ? .45 : '';
-        });
+        }) || ($('bdHdV').textContent = bcfg.hd);
         $('bdCfgMenu').addEventListener('input', (e) => {
             const el = e.target.closest('[data-cfg]'); if (!el) return;
             bcfg[el.dataset.cfg] = el.type === 'checkbox' ? el.checked : +el.value;
@@ -1940,6 +1942,9 @@
         });
         $('bdCfgReset').onclick = () => { Object.assign(bcfg, CFG_DEF); lsSet('mf-board-cfg', bcfg); syncCfg(); render(); };
         $('bdCfg').onclick = () => toggleMenu('bdCfgMenu', $('bdCfg'));
+        $('bdHand').onclick = handToggle;
+        $('bdCfgMenu').addEventListener('input', handBtn);
+        handBtn();
         syncCfg();
         $('bdPenBtn').onclick = () => { toggleMenu('bdPenCfg', $('bdPenBtn')); penPreview(); };
         // настройки пера
@@ -2505,6 +2510,97 @@
         } finally { solving.delete(it.id); render(); }
     }
 
+
+    // ================= ЖИВОЕ РАСПОЗНАВАНИЕ ПОЧЕРКА =================
+    // Включается кнопкой на панели. Всё, что написано пером, через bcfg.hd секунд после
+    // последнего штриха (новый штрих сбрасывает отсчёт) отправляется картинкой нейросети
+    // (api/ai-task.js, ocr mode 'hand') и заменяется печатным текстом; формулы — $…$.
+    // Замена — одна операция: «Отменить» возвращает рукописные штрихи.
+    const hand = { on: lsGet('mf-board-hand', false) === true, pend: [], timer: 0, due: 0, busy: [] };
+    function handBtn() {
+        const b = $('bdHand'); if (!b) return;
+        b.classList.toggle('on', hand.on);
+        b.title = (hand.on ? 'Распознавание почерка включено' : 'Распознавание почерка: рукописное → печатный текст и формулы') + ' (задержка ' + bcfg.hd + ' с — в настройках доски)';
+    }
+    function handToggle() {
+        hand.on = !hand.on; lsSet('mf-board-hand', hand.on); handBtn();
+        if (!hand.on) { clearTimeout(hand.timer); hand.pend = []; hand.due = 0; }
+        else if (tool !== 'pen') setTool('pen');
+        toast(hand.on ? 'Пишите пером — через ' + bcfg.hd + ' с после последнего штриха надпись станет печатным текстом' : 'Распознавание почерка выключено');
+        render();
+    }
+    function handHold() { clearTimeout(hand.timer); hand.due = 0; }   // начат новый штрих — ждём
+    function handStroke(id) {
+        hand.pend.push(id);
+        clearTimeout(hand.timer);
+        hand.due = Date.now() + bcfg.hd * 1000;
+        hand.timer = setTimeout(handRun, bcfg.hd * 1000);
+        handTick();
+    }
+    let handRaf = 0;
+    function handTick() {   // отсчёт на подсказке
+        cancelAnimationFrame(handRaf);
+        if (!hand.due) return;
+        render();
+        handRaf = requestAnimationFrame(() => setTimeout(handTick, 250));
+    }
+    function boxOf(list) {
+        let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
+        for (const it of list) { const b = bounds(it); x1 = Math.min(x1, b.x); y1 = Math.min(y1, b.y); x2 = Math.max(x2, b.x + b.w); y2 = Math.max(y2, b.y + b.h); }
+        return { x: x1, y: y1, w: x2 - x1, h: y2 - y1 };
+    }
+    function drawHand() {
+        const groups = [];
+        const pend = hand.pend.map(byId).filter(Boolean);
+        if (pend.length && hand.due) groups.push({ b: boxOf(pend), t: 'Распознаю через ' + Math.max(0, Math.ceil((hand.due - Date.now()) / 1000)) + ' с' });
+        for (const g of hand.busy) { const l = g.map(byId).filter(Boolean); if (l.length) groups.push({ b: boxOf(l), t: 'Распознаю…' }); }
+        if (!groups.length) return;
+        const acc = css('--accent') || '#f2a25c';
+        ctx.save(); ctx.font = '600 11px sans-serif'; ctx.textBaseline = 'middle';
+        for (const g of groups) {
+            const a = toScreen(g.b.x, g.b.y), w = g.b.w * view.k, h = g.b.h * view.k;
+            ctx.strokeStyle = acc; ctx.globalAlpha = .7; ctx.setLineDash([4, 4]); ctx.lineWidth = 1;
+            ctx.strokeRect(a.x - 6, a.y - 6, w + 12, h + 12); ctx.setLineDash([]); ctx.globalAlpha = 1;
+            const tw = ctx.measureText(g.t).width + 14;
+            ctx.fillStyle = acc; ctx.beginPath(); ctx.roundRect ? ctx.roundRect(a.x - 6, a.y + h + 10, tw, 18, 9) : ctx.rect(a.x - 6, a.y + h + 10, tw, 18); ctx.fill();
+            ctx.fillStyle = '#fff'; ctx.fillText(g.t, a.x + 1, a.y + h + 19.5);
+        }
+        ctx.restore();
+    }
+    async function handRun() {
+        hand.due = 0;
+        const ids = hand.pend.splice(0).filter((id) => byId(id));
+        if (!ids.length) { render(); return; }
+        hand.busy.push(ids); render();
+        try {
+            const strokes = ids.map(byId).filter(Boolean), b = boxOf(strokes), pad = 16;
+            // картинка штрихов: чёрным по белому
+            const k = Math.min(3, 1400 / Math.max(b.w + 2 * pad, b.h + 2 * pad), Math.max(1, 220 / (b.h + 2 * pad)));
+            const cv = document.createElement('canvas');
+            cv.width = Math.ceil((b.w + 2 * pad) * k); cv.height = Math.ceil((b.h + 2 * pad) * k);
+            const g = cv.getContext('2d');
+            g.fillStyle = '#fff'; g.fillRect(0, 0, cv.width, cv.height);
+            g.setTransform(k, 0, 0, k, (pad - b.x) * k, (pad - b.y) * k);
+            strokes.forEach((it) => drawItem(g, Object.assign({}, it, { c: '#000000' })));
+            const d = await aiPost({ task: 'ocr', mode: 'hand', image: cv.toDataURL('image/jpeg', .9) });
+            let text = String(d.text || '').replace(/\$\$([^$]+)\$\$/g, '$$$1$').replace(/\\\[([\s\S]*?)\\\]|\\\(([\s\S]*?)\\\)/g, (m, a, c) => '$' + (a || c) + '$').trim();
+            if (!text || /^ПУСТО$/i.test(text)) { toast('Не удалось разобрать надпись — штрихи оставлены'); return; }
+            const now = ids.map(byId).filter(Boolean);
+            if (!now.length) return;                       // штрихи успели стереть
+            await loadMathJax().catch(() => {});
+            const lines = text.split('\n').length;
+            const s = Math.max(10, Math.min(120, b.h / lines * .62));
+            const t = { id: rid(12), z: newZ(), t: 'text', x: R2(b.x), y: R2(b.y), s, c: now[0].c, w: 0, text };
+            const L = layoutText(t);
+            t.y = R2(b.y + (b.h - L.h) / 2);
+            commit({ del: now.map(clone), add: [t] });
+        } catch (e) {
+            toast('Распознавание почерка: ' + (e && e.message ? e.message : e));
+        } finally {
+            hand.busy = hand.busy.filter((x) => x !== ids);
+            render();
+        }
+    }
     // ================= ИЗОБРАЖЕНИЯ =================
     // Картинка уменьшается до IMG_MAX_SIDE по большей стороне и перекодируется,
     // пока не влезет в IMG_MAX_BYTES (data URL хранится прямо в объекте).
@@ -2746,6 +2842,7 @@
             return;
         }
         if (tool === 'pen') {
+            if (hand.on) handHold();
             cur = { t: 'pen', v: 2, c: color, w: size, th: penCfg.th, tp: penCfg.tp, p: [w.x, w.y], pr: [penPr(e, .5)], raw: w, lt: e.timeStamp };
         } else if (tool === 'marker') {
             cur = { t: tool, c: color, w: size * 4, p: [w.x, w.y] };
@@ -2934,6 +3031,7 @@
             if (!tiny) {
                 const it = Object.assign({ id: rid(12), z: newZ() }, cur, styleFor(cur.t));
                 if (commit({ add: [it] }) !== false && SPECIAL[it.t]) selectMade([it]);
+                if (it.t === 'pen' && hand.on) handStroke(it.id);
             }
         }
         cur = null;

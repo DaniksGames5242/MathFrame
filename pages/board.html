@@ -172,6 +172,7 @@ html.bd-fs #app-header{visibility:hidden}
 .bd-cfgmenu small{color:var(--text-tertiary);font-size:.74rem}
 .bd-cfgmenu input[type=range]{flex:1;accent-color:var(--accent)}
 .bd-cfgmenu input[type=checkbox]{accent-color:var(--accent)}
+.bd-hand.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
 .bd-pencfg{width:min(320px,calc(100% - 8px))}
 .bd-pencfg h4{margin:0 0 .4rem;font-size:.95rem}
 .bd-pencfg label{display:flex;flex-direction:column;font-size:.85rem;margin:.45rem 0;color:var(--text-primary)}
@@ -250,6 +251,7 @@ html.bd-fs #app-header{visibility:hidden}
       <div class="bd-grp" id="bdColors" aria-label="Цвет"></div>
       <div class="bd-grp" id="bdSizes" aria-label="Толщина"></div>
       <div class="bd-grp bd-mathgrp" aria-label="Математика">
+        <button class="bd-btn bd-mbtn bd-hand" id="bdHand" aria-label="Распознавание почерка"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17c2-4 4-6 5-6s1 3 2 3 2-5 3.5-5 1 6 2.5 6 2-2 3-3"/><path d="M4 21h16"/></svg><span>Почерк → текст</span></button>
         <button class="bd-btn bd-mbtn" id="bdGraph" title="График функции" aria-label="График"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h18M12 3v18"/><path d="M4 20c4-1 5-14 8-14s4 9 8 8" opacity=".75"/></svg><span>График</span></button>
         <button class="bd-btn bd-mbtn" id="bdFig" title="Заготовки: единичная окружность, числовая прямая, координатная плоскость, готовые формулы" aria-label="Заготовки"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7 8h10M7 12h10M7 16h6"/></svg><span>Заготовки</span></button>
       </div>
