@@ -828,8 +828,9 @@
     //  3) узлы клетки, 4) точка на отрезке/стороне/окружности. Найденная точка подсвечивается.
     let snapHint = null, snapAlt = false;
     // настройки доски (меню-шестерёнка): привязка и чужие курсоры; хранятся в этом браузере
-    const CFG_DEF = { hd: 5, snap: true, sV: true, sM: true, sG: true, sO: true, sR: 11, cur: true, names: true, drafts: true };
+    const CFG_DEF = { hd: 3, hf: false, snap: true, sV: true, sM: true, sG: true, sO: true, sR: 11, cur: true, names: true, drafts: true };
     const bcfg = Object.assign({}, CFG_DEF, lsGet('mf-board-cfg', {}));
+    if (bcfg.cv !== 2) { bcfg.hd = CFG_DEF.hd; bcfg.cv = 2; }   // новая задержка по умолчанию — 3 с
     function snap(w, except) {
         snapHint = null;
         if (snapAlt || !bcfg.snap) return w;
@@ -1924,6 +1925,7 @@
         // настройки доски
         const chk = (k, t, sub) => `<label class="bd-chk${sub ? ' bd-sub' : ''}"><input type="checkbox" data-cfg="${k}"> ${t}</label>`;
         $('bdCfgMenu').innerHTML = '<h4>Распознавание почерка</h4><label>Задержка, с <input type="range" data-cfg="hd" min="1" max="20"><b id="bdHdV"></b></label>' +
+            chk('hf', 'Рамка вокруг распознаваемой надписи') +
             '<h4>Привязка</h4>' + chk('snap', 'Включена <small>(Alt — временно без неё)</small>') +
             chk('sV', 'к точкам и вершинам', 1) + chk('sM', 'к серединам отрезков', 1) + chk('sG', 'к узлам клетки', 1) + chk('sO', 'к точкам на отрезках', 1) +
             '<label class="bd-sub">Сила притяжения <input type="range" data-cfg="sR" min="4" max="30"></label>' +
@@ -2559,8 +2561,10 @@
         ctx.save(); ctx.font = '600 11px sans-serif'; ctx.textBaseline = 'middle';
         for (const g of groups) {
             const a = toScreen(g.b.x, g.b.y), w = g.b.w * view.k, h = g.b.h * view.k;
-            ctx.strokeStyle = acc; ctx.globalAlpha = .7; ctx.setLineDash([4, 4]); ctx.lineWidth = 1;
-            ctx.strokeRect(a.x - 6, a.y - 6, w + 12, h + 12); ctx.setLineDash([]); ctx.globalAlpha = 1;
+            if (bcfg.hf) {
+                ctx.strokeStyle = acc; ctx.globalAlpha = .7; ctx.setLineDash([4, 4]); ctx.lineWidth = 1;
+                ctx.strokeRect(a.x - 6, a.y - 6, w + 12, h + 12); ctx.setLineDash([]); ctx.globalAlpha = 1;
+            }
             const tw = ctx.measureText(g.t).width + 14;
             ctx.fillStyle = acc; ctx.beginPath(); ctx.roundRect ? ctx.roundRect(a.x - 6, a.y + h + 10, tw, 18, 9) : ctx.rect(a.x - 6, a.y + h + 10, tw, 18); ctx.fill();
             ctx.fillStyle = '#fff'; ctx.fillText(g.t, a.x + 1, a.y + h + 19.5);
@@ -2573,15 +2577,17 @@
         if (!ids.length) { render(); return; }
         hand.busy.push(ids); render();
         try {
-            const strokes = ids.map(byId).filter(Boolean), b = boxOf(strokes), pad = 16;
-            // картинка штрихов: чёрным по белому
-            const k = Math.min(3, 1400 / Math.max(b.w + 2 * pad, b.h + 2 * pad), Math.max(1, 220 / (b.h + 2 * pad)));
+            const strokes = ids.map(byId).filter(Boolean), b = boxOf(strokes), pad = Math.max(16, b.h * .15);
+            // Картинка для нейросети: чёрным по белому, ровной линией средней толщины
+            // (переменная толщина и тонкие хвосты пера мешают узнавать буквы), буквы — крупно.
+            const k = Math.min(1600 / (b.w + 2 * pad), Math.max(400 / (b.h + 2 * pad), 1));
             const cv = document.createElement('canvas');
-            cv.width = Math.ceil((b.w + 2 * pad) * k); cv.height = Math.ceil((b.h + 2 * pad) * k);
+            cv.width = Math.max(64, Math.ceil((b.w + 2 * pad) * k)); cv.height = Math.max(64, Math.ceil((b.h + 2 * pad) * k));
             const g = cv.getContext('2d');
             g.fillStyle = '#fff'; g.fillRect(0, 0, cv.width, cv.height);
             g.setTransform(k, 0, 0, k, (pad - b.x) * k, (pad - b.y) * k);
-            strokes.forEach((it) => drawItem(g, Object.assign({}, it, { c: '#000000' })));
+            const lw = 6 / k;   // ~6 px на картинке: петли связного письма не слипаются
+            strokes.forEach((it) => drawItem(g, { t: 'pen', p: it.p, w: lw, c: '#000000' }));
             const d = await aiPost({ task: 'ocr', mode: 'hand', image: cv.toDataURL('image/jpeg', .9) });
             let text = String(d.text || '').replace(/\$\$([^$]+)\$\$/g, '$$$1$').replace(/\\\[([\s\S]*?)\\\]|\\\(([\s\S]*?)\\\)/g, (m, a, c) => '$' + (a || c) + '$').trim();
             if (!text || /^ПУСТО$/i.test(text)) { toast('Не удалось разобрать надпись — штрихи оставлены'); return; }
