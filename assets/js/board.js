@@ -828,7 +828,7 @@
     //  3) узлы клетки, 4) точка на отрезке/стороне/окружности. Найденная точка подсвечивается.
     let snapHint = null, snapAlt = false;
     // настройки доски (меню-шестерёнка): привязка и чужие курсоры; хранятся в этом браузере
-    const CFG_DEF = { hd: 3, hf: false, snap: true, sV: true, sM: true, sG: true, sO: true, sR: 11, cur: true, names: true, drafts: true };
+    const CFG_DEF = { hd: 3, hf: false, hm: true, hl: 'ru', snap: true, sV: true, sM: true, sG: true, sO: true, sR: 11, cur: true, names: true, drafts: true };
     const bcfg = Object.assign({}, CFG_DEF, lsGet('mf-board-cfg', {}));
     if (bcfg.cv !== 2) { bcfg.hd = CFG_DEF.hd; bcfg.cv = 2; }   // новая задержка по умолчанию — 3 с
     function snap(w, except) {
@@ -1926,6 +1926,8 @@
         const chk = (k, t, sub) => `<label class="bd-chk${sub ? ' bd-sub' : ''}"><input type="checkbox" data-cfg="${k}"> ${t}</label>`;
         $('bdCfgMenu').innerHTML = '<h4>Распознавание почерка</h4><label>Задержка, с <input type="range" data-cfg="hd" min="1" max="20"><b id="bdHdV"></b></label>' +
             chk('hf', 'Рамка вокруг распознаваемой надписи') +
+            chk('hm', 'Формулы — нейросетью <small>(дроби, степени; с лимитом запросов)</small>') +
+            '<label>Язык письма <select data-cfg="hl"><option value="ru">русский</option><option value="en">английский</option><option value="uk">украинский</option></select></label>' +
             '<h4>Привязка</h4>' + chk('snap', 'Включена <small>(Alt — временно без неё)</small>') +
             chk('sV', 'к точкам и вершинам', 1) + chk('sM', 'к серединам отрезков', 1) + chk('sG', 'к узлам клетки', 1) + chk('sO', 'к точкам на отрезках', 1) +
             '<label class="bd-sub">Сила притяжения <input type="range" data-cfg="sR" min="4" max="30"></label>' +
@@ -1934,12 +1936,13 @@
         const syncCfg = () => $('bdCfgMenu').querySelectorAll('[data-cfg]').forEach((el) => {
             const k = el.dataset.cfg;
             if (el.type === 'checkbox') el.checked = !!bcfg[k]; else el.value = bcfg[k];
+            if (el.tagName === 'SELECT') return;
             const dep = (k[0] === 's' && k !== 'snap') ? !bcfg.snap : k === 'names' ? !bcfg.cur : false;
             el.disabled = dep; el.closest('label').style.opacity = dep ? .45 : '';
         }) || ($('bdHdV').textContent = bcfg.hd);
         $('bdCfgMenu').addEventListener('input', (e) => {
             const el = e.target.closest('[data-cfg]'); if (!el) return;
-            bcfg[el.dataset.cfg] = el.type === 'checkbox' ? el.checked : +el.value;
+            bcfg[el.dataset.cfg] = el.type === 'checkbox' ? el.checked : el.tagName === 'SELECT' ? el.value : +el.value;
             lsSet('mf-board-cfg', bcfg); syncCfg(); render();
         });
         $('bdCfgReset').onclick = () => { Object.assign(bcfg, CFG_DEF); lsSet('mf-board-cfg', bcfg); syncCfg(); render(); };
@@ -2571,31 +2574,82 @@
         }
         ctx.restore();
     }
+    // --- бесплатное распознавание по штрихам (Google Input Tools — то же, что в Google-клавиатуре):
+    // без ключа и без лимита, хорошо понимает русский прописной; формулы (дроби, степени) — не умеет.
+    // Строки разделяем сами (по вертикали), каждую распознаём отдельно.
+    function splitLines(strokes) {
+        const bx = strokes.map((it) => ({ it, b: bounds(it) })).sort((p, q) => (p.b.y + p.b.h / 2) - (q.b.y + q.b.h / 2));
+        const hs = bx.map((x) => x.b.h).sort((p, q) => p - q), med = hs[Math.floor(hs.length / 2)] || 20;
+        const lines = [];
+        for (const x of bx) {
+            const cy = x.b.y + x.b.h / 2, ln = lines[lines.length - 1];
+            if (ln && cy - ln.bottom < med * .35 && cy < ln.bottom + med * .6) { ln.list.push(x.it); ln.bottom = Math.max(ln.bottom, x.b.y + x.b.h); }
+            else lines.push({ list: [x.it], bottom: x.b.y + x.b.h });
+        }
+        return lines.map((l) => l.list);
+    }
+    async function googleInk(strokes, lang) {
+        const b = boxOf(strokes);
+        const ink = strokes.map((it) => {
+            const xs = [], ys = [];
+            for (let i = 0; i < it.p.length; i += 2) { xs.push(Math.round(it.p[i] - b.x)); ys.push(Math.round(it.p[i + 1] - b.y)); }
+            return [xs, ys];
+        });
+        const r = await fetch('https://inputtools.google.com/request?ime=handwriting&app=mobilesearch&cs=1&oe=UTF-8', {
+            method: 'POST', headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ options: 'enable_pre_space', requests: [{ writing_guide: { writing_area_width: Math.ceil(b.w) + 1, writing_area_height: Math.ceil(b.h) + 1 }, ink, language: lang, max_num_results: 5 }] })
+        });
+        const d = await r.json();
+        if (d[0] !== 'SUCCESS') throw new Error('сервис распознавания недоступен');
+        return (d[1] && d[1][0] && d[1][0][1]) || [];
+    }
+    // похоже ли на формулу: дробная черта (длинный горизонтальный штрих, над и под ним — штрихи)
+    // или в распознанном есть цифры и знаки действий
+    function looksMath(strokes, text) {
+        if (/[0-9=+×÷^√<>±∫∑]|(^|\s)[-*/](\s|$)/.test(text)) return true;
+        const bs = strokes.map(bounds);
+        return bs.some((f, i) => f.w > f.h * 4 && f.w > 12 && bs.some((u, j) => j !== i && u.y + u.h < f.y + f.h / 2 && u.x < f.x + f.w && u.x + u.w > f.x)
+            && bs.some((d, j) => j !== i && d.y > f.y + f.h / 2 && d.x < f.x + f.w && d.x + d.w > f.x));
+    }
+    async function handOcrAi(strokes) {
+        const b = boxOf(strokes), pad = Math.max(16, b.h * .15);
+        // картинка: крупные буквы, ровная линия ~6 px (петли связного письма не слипаются)
+        const k = Math.min(1600 / (b.w + 2 * pad), Math.max(400 / (b.h + 2 * pad), 1));
+        const cv = document.createElement('canvas');
+        cv.width = Math.max(64, Math.ceil((b.w + 2 * pad) * k)); cv.height = Math.max(64, Math.ceil((b.h + 2 * pad) * k));
+        const g = cv.getContext('2d');
+        g.fillStyle = '#fff'; g.fillRect(0, 0, cv.width, cv.height);
+        g.setTransform(k, 0, 0, k, (pad - b.x) * k, (pad - b.y) * k);
+        strokes.forEach((it) => drawItem(g, { t: 'pen', p: it.p, w: 6 / k, c: '#000000' }));
+        const d = await aiPost({ task: 'ocr', mode: 'hand', image: cv.toDataURL('image/jpeg', .9) });
+        const text = String(d.text || '').replace(/\$\$([^$]+)\$\$/g, '$$$1$').replace(/\\\[([\s\S]*?)\\\]|\\\(([\s\S]*?)\\\)/g, (m, x, y) => '$' + (x || y) + '$').trim();
+        return /^ПУСТО$/i.test(text) ? '' : text;
+    }
     async function handRun() {
         hand.due = 0;
         const ids = hand.pend.splice(0).filter((id) => byId(id));
         if (!ids.length) { render(); return; }
         hand.busy.push(ids); render();
         try {
-            const strokes = ids.map(byId).filter(Boolean), b = boxOf(strokes), pad = Math.max(16, b.h * .15);
-            // Картинка для нейросети: чёрным по белому, ровной линией средней толщины
-            // (переменная толщина и тонкие хвосты пера мешают узнавать буквы), буквы — крупно.
-            const k = Math.min(1600 / (b.w + 2 * pad), Math.max(400 / (b.h + 2 * pad), 1));
-            const cv = document.createElement('canvas');
-            cv.width = Math.max(64, Math.ceil((b.w + 2 * pad) * k)); cv.height = Math.max(64, Math.ceil((b.h + 2 * pad) * k));
-            const g = cv.getContext('2d');
-            g.fillStyle = '#fff'; g.fillRect(0, 0, cv.width, cv.height);
-            g.setTransform(k, 0, 0, k, (pad - b.x) * k, (pad - b.y) * k);
-            const lw = 6 / k;   // ~6 px на картинке: петли связного письма не слипаются
-            strokes.forEach((it) => drawItem(g, { t: 'pen', p: it.p, w: lw, c: '#000000' }));
-            const d = await aiPost({ task: 'ocr', mode: 'hand', image: cv.toDataURL('image/jpeg', .9) });
-            let text = String(d.text || '').replace(/\$\$([^$]+)\$\$/g, '$$$1$').replace(/\\\[([\s\S]*?)\\\]|\\\(([\s\S]*?)\\\)/g, (m, a, c) => '$' + (a || c) + '$').trim();
-            if (!text || /^ПУСТО$/i.test(text)) { toast('Не удалось разобрать надпись — штрихи оставлены'); return; }
+            const strokes = ids.map(byId).filter(Boolean), b = boxOf(strokes);
+            const lines = splitLines(strokes);
+            let text = '', gErr = null;
+            // 1) бесплатно и без лимита — по штрихам
+            try {
+                const res = await Promise.all(lines.map((l) => googleInk(l, bcfg.hl || 'ru')));
+                text = res.map((c) => c[0] || '').join('\n').trim();
+            } catch (e) { gErr = e; }
+            // 2) формулы — нейросетью (точнее, но с лимитом); если она недоступна — остаётся вариант Google
+            if (bcfg.hm && (gErr || !text || looksMath(strokes, text))) {
+                try { const t = await handOcrAi(strokes); if (t) text = t; }
+                catch (e) { if (!text) throw e; toast('Формулу распознать нейросетью не удалось (' + (e && e.message ? e.message : e) + ') — вставлен простой вариант'); }
+            }
+            if (!text) { if (gErr) throw gErr; toast('Не удалось разобрать надпись — штрихи оставлены'); return; }
             const now = ids.map(byId).filter(Boolean);
             if (!now.length) return;                       // штрихи успели стереть
-            await loadMathJax().catch(() => {});
-            const lines = text.split('\n').length;
-            const s = Math.max(10, Math.min(120, b.h / lines * .62));
+            if (hasMath(text)) await loadMathJax().catch(() => {});
+            const nl = text.split('\n').length;
+            const s = Math.max(10, Math.min(120, b.h / nl * .62));
             const t = { id: rid(12), z: newZ(), t: 'text', x: R2(b.x), y: R2(b.y), s, c: now[0].c, w: 0, text };
             const L = layoutText(t);
             t.y = R2(b.y + (b.h - L.h) / 2);
