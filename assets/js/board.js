@@ -4,7 +4,7 @@
 // обратные операции (добавить/удалить/изменить объекты).
 //
 // Два режима:
-//  • личная доска — хранится в localStorage этого браузера;
+//  • личные доски — список в localStorage, содержимое в IndexedDB этого браузера;
 //  • общая доска (/board/?b=<id>) — живёт в Firestore: boards/{id} (фон),
 //    boards/{id}/items/{itemId} (объекты), boards/{id}/peers/{peerId} (курсоры
 //    и недорисованный штрих участников). Ссылку может открыть и рисовать любой,
@@ -38,13 +38,12 @@
     const TOOLS = [
         ['select', 'Выбор и перемещение (V)', 'v'],
         ['pen', 'Перо (P)', 'p'], ['marker', 'Маркер-выделитель (M)', 'm'], ['eraser', 'Ластик (E)', 'e'],
-        ['line', 'Отрезок (L)', 'l'], ['arrow', 'Стрелка (A)', 'a'], ['rect', 'Прямоугольник (R)', 'r'],
-        ['ellipse', 'Эллипс (O)', 'o'],
-        ['point', 'Точка с подписью (K)', 'k'], ['circle', 'Окружность: центр → радиус (C)', 'c'],
-        ['poly', 'Многоугольник: щелчки по вершинам, замкнуть — щелчок по первой, Enter/двойной — ломаная (G)', 'g'],
-        ['angle', 'Угол с градусной мерой: точка, вершина, точка (U)', 'u'],
-        ['text', 'Текст (T)', 't'], ['pan', 'Рука — сдвиг (H)', 'h'],
+        ['line', 'Отрезок (L)', 'l'], ['arrow', 'Стрелка (A)', 'a'],
+        ['point', 'Точка с подписью (K)', 'k'],
+        ['text', 'Текст и формулы (T): формула — кнопкой ∑ или Ctrl+M', 't'], ['pan', 'Рука — сдвиг (H)', 'h'],
     ];
+    // инструменты из меню «Фигуры» — со своими горячими клавишами
+    const EXTRA_KEYS = { c: 'circle', o: 'ellipse', g: 'poly', u: 'angle', r: 'shape' };
     // 'ink' — цвет «по теме»: светлый на тёмной доске, тёмный на светлой.
     // 'contrast' — особый цвет: рисуется в режиме «разность» поверх белого, поэтому
     // на любом фоне (доска, картинка, другие линии) выходит противоположный, контрастный цвет.
@@ -62,7 +61,7 @@
     let undo = [], redo = [];
     let cur = null;                             // объект, который рисуется сейчас
     let drag = null;                            // перемещение/масштаб в режиме «Выбор»
-    let selected = null;                        // id выбранного объекта
+    let sel = [];                               // id выбранных объектов
     let spaceDown = false, panDrag = null;
     const pointers = new Map();
     let pinch = null;
@@ -177,7 +176,7 @@
     }
     function dropItems(ids) {
         items = items.filter((x) => !ids.includes(x.id));
-        if (selected && ids.includes(selected)) selected = null;
+        if (sel.length) sel = sel.filter((id) => !ids.includes(id));
         if (shared) {
             const b = shared.db.batch();
             ids.forEach((id) => b.delete(shared.ref.collection('items').doc(id)));
@@ -338,14 +337,31 @@
         }
     }
 
+    // Объекты, которые поворачиваются целиком (угол it.rot вокруг центра рамки);
+    // у остальных (штрихи, отрезки, многоугольники…) поворот и масштаб меняют сами координаты.
+    const ROT = { img: 1, tex: 1, plot: 1, vec: 1, rect: 1, ellipse: 1, text: 1 };
+    // «Геометрия» — объекты с вершинами, которые склеиваются: отрезок, проведённый от точки
+    // к точке, следует за ней при перетаскивании (совпадающие координаты двигаются вместе).
+    const GEO = { point: 1, line: 1, arrow: 1, poly: 1, angle: 1, circle: 1 };
+    const rotPt = (x, y, cx, cy, a) => {
+        const co = Math.cos(a), si = Math.sin(a), dx = x - cx, dy = y - cy;
+        return { x: cx + dx * co - dy * si, y: cy + dx * si + dy * co };
+    };
+
     function drawItem(c, it) {
         c.save();
         if (it.c === 'contrast') c.globalCompositeOperation = 'difference';
+        if (it.rot && ROT[it.t]) {
+            const f = frameOf(it);
+            c.translate(f.cx, f.cy); c.rotate(it.rot); c.translate(-f.cx, -f.cy);
+        }
         c.lineCap = 'round'; c.lineJoin = 'round';
         c.strokeStyle = c.fillStyle = paint(it.c);
         c.lineWidth = it.w;
         if (it.t === 'marker') { c.globalAlpha = 0.35; c.lineCap = 'butt'; }
-        if (it.t === 'pen' || it.t === 'marker') {
+        if (it.t === 'pen' && it.pr) {
+            c.fill(inkPath(it));
+        } else if (it.t === 'pen' || it.t === 'marker') {
             const p = it.p;
             c.beginPath();
             c.moveTo(p[0], p[1]);
@@ -366,6 +382,10 @@
                 c.lineTo(it.x2 - L * Math.cos(a + .45), it.y2 - L * Math.sin(a + .45));
                 c.stroke();
             }
+            if (it.label) {
+                const a = Math.atan2(it.y2 - it.y1, it.x2 - it.x1), off = 10 + it.w;
+                drawLabel(c, it, it.label, (it.x1 + it.x2) / 2 + Math.sin(a) * off, (it.y1 + it.y2) / 2 - Math.cos(a) * off);
+            }
         } else if (it.t === 'rect') {
             c.strokeRect(Math.min(it.x1, it.x2), Math.min(it.y1, it.y2), Math.abs(it.x2 - it.x1), Math.abs(it.y2 - it.y1));
         } else if (it.t === 'ellipse') {
@@ -373,20 +393,19 @@
             c.ellipse((it.x1 + it.x2) / 2, (it.y1 + it.y2) / 2, Math.abs(it.x2 - it.x1) / 2, Math.abs(it.y2 - it.y1) / 2, 0, 0, Math.PI * 2);
             c.stroke();
         } else if (it.t === 'text') {
-            c.font = textFont(it.s);
-            c.textBaseline = 'top';
-            String(it.text).split('\n').forEach((ln, i) => c.fillText(ln, it.x, it.y + i * it.s * 1.25));
+            drawText(c, it);
         } else if (it.t === 'point') {
             const r = 2.5 + it.w * .6;
             c.beginPath(); c.arc(it.x, it.y, r, 0, Math.PI * 2); c.fill();
             if (it.label) {
-                c.font = 'italic ' + textFont(14 + it.w * 1.5); c.textBaseline = 'bottom';
+                c.font = 'italic ' + textFont(14 + it.w * 1.5); c.textBaseline = 'bottom'; c.textAlign = 'left';
                 c.fillText(it.label, it.x + r + 2, it.y - r - 1);
             }
         } else if (it.t === 'circle') {
             const r = Math.hypot(it.x2 - it.x1, it.y2 - it.y1);
             c.beginPath(); c.arc(it.x1, it.y1, r, 0, Math.PI * 2); c.stroke();
             c.beginPath(); c.arc(it.x1, it.y1, 1.5 + it.w * .4, 0, Math.PI * 2); c.fill();
+            if (it.label) drawLabel(c, it, it.label, it.x1 - 10 - it.w, it.y1 + 12 + it.w);
         } else if (it.t === 'poly') {
             const p = it.p;
             c.beginPath(); c.moveTo(p[0], p[1]);
@@ -394,6 +413,7 @@
             if (it.hx !== undefined) c.lineTo(it.hx, it.hy);
             if (it.cl) c.closePath();
             c.stroke();
+            polyDecor(c, it);
         } else if (it.t === 'angle') {
             drawAngle(c, it);
         } else if (it.t === 'tex') {
@@ -402,6 +422,9 @@
             drawVec(c, it);
         } else if (it.t === 'plot') {
             drawPlot(c, it);
+        } else if (it.t === 'shapeDraft') {
+            const f = draftBox(it);
+            if (f) { c.restore(); drawItem(c, buildShape(it.sid, f.x, f.y, f.w, f.h, it)); return; }
         } else if (it.t === 'img') {
             const im = getImg(it);
             if (im.complete && im.naturalWidth) c.drawImage(im, it.x, it.y, it.w, it.h);
@@ -409,20 +432,106 @@
         }
         c.restore();
     }
+    function drawLabel(c, it, text, x, y) {
+        c.save();
+        c.font = 'italic ' + textFont(14 + (it.w || 2) * 1.5);
+        c.textAlign = 'center'; c.textBaseline = 'middle';
+        c.fillText(text, x, y);
+        c.restore();
+    }
+    // подписи вершин многоугольника (наружу от центра) и значки прямых углов
+    function polyDecor(c, it) {
+        const p = it.p, n = p.length / 2;
+        if (n < 2) return;
+        let cx = 0, cy = 0;
+        for (let i = 0; i < n; i++) { cx += p[2 * i]; cy += p[2 * i + 1]; }
+        cx /= n; cy /= n;
+        if (it.cl && n >= 3) {
+            c.save(); c.lineWidth = Math.max(1, it.w * .6);
+            for (let i = 0; i < n; i++) {
+                const j = (i + n - 1) % n, k = (i + 1) % n;
+                const ax = p[2 * j] - p[2 * i], ay = p[2 * j + 1] - p[2 * i + 1], bx = p[2 * k] - p[2 * i], by = p[2 * k + 1] - p[2 * i + 1];
+                const la = Math.hypot(ax, ay), lb = Math.hypot(bx, by);
+                if (!la || !lb) continue;
+                const cos = (ax * bx + ay * by) / la / lb;
+                if (Math.abs(cos) > .01) continue;
+                const s = Math.min(14 + it.w, la * .3, lb * .3), ux = ax / la * s, uy = ay / la * s, vx = bx / lb * s, vy = by / lb * s;
+                c.beginPath();
+                c.moveTo(p[2 * i] + ux, p[2 * i + 1] + uy);
+                c.lineTo(p[2 * i] + ux + vx, p[2 * i + 1] + uy + vy);
+                c.lineTo(p[2 * i] + vx, p[2 * i + 1] + vy);
+                c.stroke();
+            }
+            c.restore();
+        }
+        if (it.lb) for (let i = 0; i < n; i++) {
+            if (!it.lb[i]) continue;
+            const q = vertexLabelPos(it, i, cx, cy);
+            drawLabel(c, it, it.lb[i], q.x, q.y);
+        }
+    }
+    function vertexLabelPos(it, i, cx, cy) {
+        const p = it.p, n = p.length / 2;
+        if (cx === undefined) { cx = 0; cy = 0; for (let k = 0; k < n; k++) { cx += p[2 * k]; cy += p[2 * k + 1]; } cx /= n; cy /= n; }
+        const dx = p[2 * i] - cx, dy = p[2 * i + 1] - cy, d = Math.hypot(dx, dy) || 1, off = 13 + (it.w || 2) * 1.2;
+        return { x: p[2 * i] + dx / d * off, y: p[2 * i + 1] + dy / d * off };
+    }
 
-    // Рамка объекта в мировых координатах
-    function bounds(it) {
+    // ---------- «приятное» перо: переменная толщина (скорость/нажим), сглаживание, сужение концов
+    const inkCache = new Map();
+    function inkPath(it) {
+        const key = it.id ? it.id + ':' + it.p.length + ':' + it.p[0] + ':' + it.p[1] : null;
+        if (key && inkCache.has(key)) return inkCache.get(key);
+        let pts = [];
+        for (let i = 0; i < it.p.length; i += 2) pts.push([it.p[i], it.p[i + 1], it.pr[i / 2] === undefined ? .5 : it.pr[i / 2]]);
+        // сглаживание Чайкина (концы сохраняем)
+        for (let k = 0; k < 2 && pts.length > 2; k++) {
+            const o = [pts[0]];
+            for (let i = 0; i < pts.length - 1; i++) {
+                const a = pts[i], b = pts[i + 1];
+                o.push([a[0] * .75 + b[0] * .25, a[1] * .75 + b[1] * .25, a[2] * .75 + b[2] * .25]);
+                o.push([a[0] * .25 + b[0] * .75, a[1] * .25 + b[1] * .75, a[2] * .25 + b[2] * .75]);
+            }
+            o.push(pts[pts.length - 1]);
+            pts = o;
+        }
+        const n = pts.length, dist = [0];
+        for (let i = 1; i < n; i++) dist.push(dist[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
+        const L = dist[n - 1], th = it.th === undefined ? .5 : it.th, tp = it.tp === undefined ? .4 : it.tp;
+        const tl = tp * Math.min(L * .45, it.w * 10 + 8);
+        const rad = pts.map((q, i) => {
+            const pf = (1 - th) + th * (.25 + 1.25 * q[2]);
+            let tf = 1;
+            if (tl > 0) tf = .18 + .82 * Math.sqrt(Math.min(1, dist[i] / tl, (L - dist[i]) / tl));
+            return Math.max(.3, it.w / 2 * pf * tf);
+        });
+        const path = new Path2D();
+        for (let i = 0; i < n; i++) { path.moveTo(pts[i][0] + rad[i], pts[i][1]); path.arc(pts[i][0], pts[i][1], rad[i], 0, Math.PI * 2); }
+        for (let i = 0; i < n - 1; i++) {
+            const a = pts[i], b = pts[i + 1], dx = b[0] - a[0], dy = b[1] - a[1], d = Math.hypot(dx, dy);
+            if (d < 1e-6) continue;
+            const nx = -dy / d, ny = dx / d;
+            let q = [[a[0] + nx * rad[i], a[1] + ny * rad[i]], [b[0] + nx * rad[i + 1], b[1] + ny * rad[i + 1]],
+                [b[0] - nx * rad[i + 1], b[1] - ny * rad[i + 1]], [a[0] - nx * rad[i], a[1] - ny * rad[i]]];
+            // одна и та же ориентация с окружностями — иначе при «nonzero» на стыках появятся дырки
+            let area = 0;
+            for (let k = 0; k < 4; k++) { const u = q[k], v = q[(k + 1) % 4]; area += u[0] * v[1] - v[0] * u[1]; }
+            if (area < 0) q = q.reverse();
+            path.moveTo(q[0][0], q[0][1]); path.lineTo(q[1][0], q[1][1]); path.lineTo(q[2][0], q[2][1]); path.lineTo(q[3][0], q[3][1]); path.closePath();
+        }
+        if (key) { if (inkCache.size > 3000) inkCache.clear(); inkCache.set(key, path); }
+        return path;
+    }
+
+    // Рамка без поворота (в мировых координатах)
+    function lbounds(it) {
         if (BOX[it.t]) return { x: it.x, y: it.y, w: it.w, h: it.h };
         if (it.t === 'point') return { x: it.x - 6, y: it.y - 26, w: 30, h: 32 };
         if (it.t === 'circle') {
             const r = Math.hypot(it.x2 - it.x1, it.y2 - it.y1) + it.w / 2;
             return { x: it.x1 - r, y: it.y1 - r, w: 2 * r, h: 2 * r };
         }
-        if (it.t === 'text') {
-            ctx.font = textFont(it.s);
-            const ls = String(it.text).split('\n');
-            return { x: it.x, y: it.y, w: Math.max(...ls.map((l) => ctx.measureText(l).width)), h: ls.length * it.s * 1.25 };
-        }
+        if (it.t === 'text') { const L = layoutText(it); return { x: it.x, y: it.y, w: L.w, h: L.h }; }
         let x1, y1, x2, y2;
         if (it.p) {
             x1 = y1 = Infinity; x2 = y2 = -Infinity;
@@ -431,15 +540,149 @@
                 y1 = Math.min(y1, it.p[i + 1]); y2 = Math.max(y2, it.p[i + 1]);
             }
         } else { x1 = Math.min(it.x1, it.x2); x2 = Math.max(it.x1, it.x2); y1 = Math.min(it.y1, it.y2); y2 = Math.max(it.y1, it.y2); }
-        const m = it.w / 2 + (it.t === 'arrow' ? 8 + it.w * 3 : 0);
+        const m = it.w / 2 + (it.t === 'arrow' ? 8 + it.w * 3 : 0) + (it.lb || it.label ? 22 : 0);
         return { x: x1 - m, y: y1 - m, w: x2 - x1 + 2 * m, h: y2 - y1 + 2 * m };
     }
-    const HANDLE = 10;  // px экрана
-    function handleAt(it, sx, sy) {
-        if (!it || !BOX[it.t]) return false;
-        const b = bounds(it);
-        const hx = (b.x + b.w - view.x) * view.k, hy = (b.y + b.h - view.y) * view.k;
-        return Math.abs(sx - hx) < HANDLE + 4 && Math.abs(sy - hy) < HANDLE + 4;
+    // Рамка с учётом поворота — для экспорта, рамки выделения и т.п.
+    function bounds(it) {
+        const b = lbounds(it);
+        if (!it.rot || !ROT[it.t]) return b;
+        const f = frameOf(it);
+        let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
+        for (const [dx, dy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
+            const q = rotPt(b.x + b.w / 2 + dx * b.w / 2, b.y + b.h / 2 + dy * b.h / 2, f.cx, f.cy, it.rot);
+            x1 = Math.min(x1, q.x); x2 = Math.max(x2, q.x); y1 = Math.min(y1, q.y); y2 = Math.max(y2, q.y);
+        }
+        return { x: x1, y: y1, w: x2 - x1, h: y2 - y1 };
+    }
+    // Рамка для ручек: центр, размеры (без полей под толщину линии) и угол
+    function frameOf(it) {
+        let b;
+        if (it.t === 'rect' || it.t === 'ellipse') b = { x: Math.min(it.x1, it.x2), y: Math.min(it.y1, it.y2), w: Math.abs(it.x2 - it.x1), h: Math.abs(it.y2 - it.y1) };
+        else if (BOX[it.t] || it.t === 'text') b = lbounds(it);
+        else {
+            const v = it.t === 'circle' ? [[it.x1 - Math.hypot(it.x2 - it.x1, it.y2 - it.y1), it.y1 - Math.hypot(it.x2 - it.x1, it.y2 - it.y1)],
+                [it.x1 + Math.hypot(it.x2 - it.x1, it.y2 - it.y1), it.y1 + Math.hypot(it.x2 - it.x1, it.y2 - it.y1)]] : getV(it);
+            let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
+            for (const [x, y] of v) { x1 = Math.min(x1, x); x2 = Math.max(x2, x); y1 = Math.min(y1, y); y2 = Math.max(y2, y); }
+            b = { x: x1, y: y1, w: x2 - x1, h: y2 - y1 };
+        }
+        return { cx: b.x + b.w / 2, cy: b.y + b.h / 2, w: b.w, h: b.h, rot: ROT[it.t] ? it.rot || 0 : 0 };
+    }
+    // Вершины объекта: [[x, y], …] и их изменение (на копии)
+    function getV(it) {
+        if (it.t === 'point') return [[it.x, it.y]];
+        if ('x1' in it && !it.p) return [[it.x1, it.y1], [it.x2, it.y2]];
+        if (it.p) { const v = []; for (let i = 0; i < it.p.length; i += 2) v.push([it.p[i], it.p[i + 1]]); return v; }
+        return [];
+    }
+    function setV(n, i, x, y) {
+        if (n.t === 'point') { n.x = x; n.y = y; }
+        else if (n.p) { n.p[2 * i] = x; n.p[2 * i + 1] = y; }
+        else if (i === 0) {
+            if (n.t === 'circle') { n.x2 += x - n.x1; n.y2 += y - n.y1; }   // центр тянет окружность целиком
+            n.x1 = x; n.y1 = y;
+        } else { n.x2 = x; n.y2 = y; }
+    }
+    // все координаты объекта через f(x, y) → {x, y}
+    function mapPts(it, f) {
+        const n = clone(it);
+        if (n.p) for (let i = 0; i < n.p.length; i += 2) { const q = f(n.p[i], n.p[i + 1]); n.p[i] = q.x; n.p[i + 1] = q.y; }
+        else if ('x1' in n) { const a = f(n.x1, n.y1), b = f(n.x2, n.y2); n.x1 = a.x; n.y1 = a.y; n.x2 = b.x; n.y2 = b.y; }
+        else { const q = f(n.x, n.y); n.x = q.x; n.y = q.y; }
+        return n;
+    }
+    const moved = (it, dx, dy) => mapPts(it, (x, y) => ({ x: x + dx, y: y + dy }));
+
+    // ---------- ручки выделения (экранные координаты)
+    const HANDLE = 9;
+    const toScreen = (x, y) => ({ x: (x - view.x) * view.k, y: (y - view.y) * view.k });
+    const selItems = () => sel.map(byId).filter(Boolean);
+    const selOne = () => (sel.length === 1 ? byId(sel[0]) : null);
+    const EDITABLE = { plot: 1, tex: 1, text: 1, point: 1, line: 1, arrow: 1, circle: 1, angle: 1, poly: 1, vec: 1 };
+    function groupFrame(its) {
+        let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
+        for (const it of its) { const b = bounds(it); x1 = Math.min(x1, b.x); y1 = Math.min(y1, b.y); x2 = Math.max(x2, b.x + b.w); y2 = Math.max(y2, b.y + b.h); }
+        return { cx: (x1 + x2) / 2, cy: (y1 + y2) / 2, w: x2 - x1, h: y2 - y1, rot: 0 };
+    }
+    function handles() {
+        if (tool !== 'select' || !sel.length) return [];
+        const its = selItems();
+        if (!its.length) return [];
+        const one = its.length === 1 ? its[0] : null;
+        const f = one ? frameOf(one) : groupFrame(its);
+        const P = (dx, dy) => { const w = rotPt(f.cx + dx * f.w / 2, f.cy + dy * f.h / 2, f.cx, f.cy, f.rot); return toScreen(w.x, w.y); };
+        const up = { x: Math.sin(f.rot), y: -Math.cos(f.rot) }, rt = { x: Math.cos(f.rot), y: Math.sin(f.rot) };
+        const out = [];
+        const ne = P(1, -1), nn = P(0, -1);
+        out.push({ id: 'del', x: ne.x + (up.x + rt.x) * 18, y: ne.y + (up.y + rt.y) * 18 });
+        if (one && EDITABLE[one.t]) out.push({ id: 'edit', x: ne.x + (up.x + rt.x) * 18 - rt.x * 30, y: ne.y + (up.y + rt.y) * 18 - rt.y * 30 });
+        if (!one || one.t === 'point') return out;
+        out.push({ id: 'rot', x: nn.x + up.x * 28, y: nn.y + up.y * 28 });
+        if (GEO[one.t]) getV(one).forEach(([x, y], i) => { const s = toScreen(x, y); out.push({ id: 'v' + i, x: s.x, y: s.y }); });
+        if (one.t === 'line' || one.t === 'arrow' || one.t === 'angle' || one.t === 'circle') return out;
+        const bigW = f.w * view.k > 34, bigH = f.h * view.k > 34;
+        for (const [id, dx, dy] of [['nw', -1, -1], ['ne', 1, -1], ['se', 1, 1], ['sw', -1, 1]]) {
+            if (f.w * view.k < 2 || f.h * view.k < 2) break;
+            const s = P(dx, dy); out.push({ id, x: s.x, y: s.y });
+        }
+        if (bigH) for (const [id, dx] of [['e', 1], ['w', -1]]) { const s = P(dx, 0); out.push({ id, x: s.x, y: s.y }); }
+        if (bigW) for (const [id, dy] of [['n', -1], ['s', 1]]) { const s = P(0, dy); out.push({ id, x: s.x, y: s.y }); }
+        return out;
+    }
+    function handleAt(sx, sy) {
+        const hs = handles();
+        // кнопки и вершины важнее ручек рамки
+        const order = (h) => (h.id === 'del' || h.id === 'edit' ? 0 : h.id === 'rot' ? 1 : h.id[0] === 'v' ? 2 : 3);
+        hs.sort((a, b) => order(a) - order(b));
+        const h = hs.find((q) => Math.hypot(q.x - sx, q.y - sy) < HANDLE + (q.id === 'del' || q.id === 'edit' ? 4 : 3));
+        return h ? h.id : null;
+    }
+    function drawSelection() {
+        if (tool !== 'select') return;
+        const acc = css('--accent') || '#f2a25c';
+        ctx.save();
+        if (drag && drag.mode === 'marquee') {
+            const a = toScreen(Math.min(drag.x0, drag.x1), Math.min(drag.y0, drag.y1));
+            const w = Math.abs(drag.x1 - drag.x0) * view.k, h = Math.abs(drag.y1 - drag.y0) * view.k;
+            ctx.fillStyle = acc; ctx.globalAlpha = .1; ctx.fillRect(a.x, a.y, w, h);
+            ctx.globalAlpha = 1; ctx.strokeStyle = acc; ctx.lineWidth = 1; ctx.setLineDash([4, 3]); ctx.strokeRect(a.x + .5, a.y + .5, w, h);
+            ctx.setLineDash([]);
+        }
+        const its = selItems();
+        if (!its.length) { ctx.restore(); return; }
+        ctx.strokeStyle = acc; ctx.lineWidth = 1.5;
+        const box = (f, dash) => {
+            const pts = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([dx, dy]) => {
+                const w = rotPt(f.cx + dx * (f.w / 2 + 4 / view.k), f.cy + dy * (f.h / 2 + 4 / view.k), f.cx, f.cy, f.rot);
+                return toScreen(w.x, w.y);
+            });
+            ctx.setLineDash(dash ? [5, 4] : []);
+            ctx.beginPath(); pts.forEach((q, i) => (i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y))); ctx.closePath(); ctx.stroke();
+            ctx.setLineDash([]);
+        };
+        if (its.length > 1) { ctx.globalAlpha = .55; its.forEach((it) => box(frameOf(it), true)); ctx.globalAlpha = 1; box(groupFrame(its), true); }
+        else if (!(GEO[its[0].t] && its[0].t !== 'poly')) box(frameOf(its[0]), true);
+        for (const h of handles()) {
+            ctx.beginPath();
+            if (h.id === 'del' || h.id === 'edit') {
+                ctx.fillStyle = h.id === 'del' ? '#e5484d' : acc;
+                ctx.arc(h.x, h.y, 10, 0, Math.PI * 2); ctx.fill();
+                ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.beginPath();
+                if (h.id === 'del') { ctx.moveTo(h.x - 4, h.y - 4); ctx.lineTo(h.x + 4, h.y + 4); ctx.moveTo(h.x + 4, h.y - 4); ctx.lineTo(h.x - 4, h.y + 4); }
+                else { ctx.moveTo(h.x - 4, h.y + 4); ctx.lineTo(h.x + 4, h.y - 4); ctx.moveTo(h.x - 5, h.y + 5); ctx.lineTo(h.x - 3.5, h.y + 5); }
+                ctx.stroke(); ctx.strokeStyle = acc; ctx.lineWidth = 1.5;
+            } else if (h.id === 'rot') {
+                ctx.fillStyle = boardFill(); ctx.arc(h.x, h.y, 6.5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+                ctx.beginPath(); ctx.arc(h.x, h.y, 3, -Math.PI * .1, Math.PI * 1.3); ctx.stroke();
+            } else if (h.id[0] === 'v') {
+                ctx.fillStyle = acc; ctx.arc(h.x, h.y, 6, 0, Math.PI * 2); ctx.fill();
+                ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.stroke(); ctx.strokeStyle = acc;
+            } else {
+                ctx.fillStyle = boardFill(); ctx.rect(h.x - 5, h.y - 5, 10, 10); ctx.fill(); ctx.stroke();
+            }
+        }
+        ctx.restore();
     }
 
     function render() {
@@ -454,19 +697,7 @@
         if (cur && cur.t !== 'erase') drawItem(ctx, cur);
         if (geo) drawItem(ctx, geo);
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        const sel = selected && byId(selected);
-        if (sel && tool === 'select') {
-            const b = bounds(sel);
-            const x = (b.x - view.x) * view.k, y = (b.y - view.y) * view.k;
-            ctx.strokeStyle = css('--accent') || '#f2a25c';
-            ctx.lineWidth = 1.5; ctx.setLineDash([5, 4]);
-            ctx.strokeRect(x - 4, y - 4, b.w * view.k + 8, b.h * view.k + 8);
-            ctx.setLineDash([]);
-            if (BOX[sel.t]) {
-                ctx.fillStyle = ctx.strokeStyle;
-                ctx.fillRect(x + b.w * view.k - HANDLE / 2, y + b.h * view.k - HANDLE / 2, HANDLE, HANDLE);
-            }
-        }
+        drawSelection();
         if (shared) drawPeers();
     }
 
@@ -481,11 +712,12 @@
     const BOX = { img: 1, tex: 1, plot: 1, vec: 1 };
 
     // Притягивание к вершинам: точки, концы отрезков, вершины многоугольников, центры окружностей.
-    function snap(w) {
+    function snap(w, except) {
         const r = 10 / view.k;
         let best = null, bd = r;
         const tryPt = (x, y) => { const d = Math.hypot(x - w.x, y - w.y); if (d < bd) { bd = d; best = { x, y }; } };
         for (const it of items) {
+            if (except && except.has(it.id)) continue;
             if (it.t === 'point') tryPt(it.x, it.y);
             else if (it.t === 'line' || it.t === 'arrow') { tryPt(it.x1, it.y1); tryPt(it.x2, it.y2); }
             else if (it.t === 'circle') tryPt(it.x1, it.y1);
@@ -562,7 +794,7 @@
         const am = a1 + d / 2;
         c.font = textFont(12 + it.w * 1.5);
         c.textAlign = 'center'; c.textBaseline = 'middle';
-        c.fillText((Math.round(deg * 10) / 10).toString().replace('.', ',') + '°', p[2] + Math.cos(am) * (R + 18), p[3] + Math.sin(am) * (R + 14));
+        c.fillText(it.label || (Math.round(deg * 10) / 10).toString().replace('.', ',') + '°', p[2] + Math.cos(am) * (R + 18), p[3] + Math.sin(am) * (R + 14));
     }
 
     // ---- формулы: MathJax (лениво, с CDN) → SVG → картинка
@@ -610,6 +842,90 @@
         }
     }
 
+    // ---- текст с формулами: всё между $…$ — формула (MathJax), остальное — обычный текст
+    const texInfo = new Map();
+    function texDims(latex) {
+        if (!window.MathJax || !MathJax.tex2svg) return null;
+        let d = texInfo.get(latex);
+        if (!d) {
+            try {
+                const node = MathJax.tex2svg('\\displaystyle ' + texFix(latex), { display: false });
+                const svg = node.querySelector('svg');
+                const va = /vertical-align:\s*(-?[\d.]+)ex/.exec(svg.getAttribute('style') || '');
+                d = { svg: svg.outerHTML, wEx: parseFloat(svg.getAttribute('width')) || 1, hEx: parseFloat(svg.getAttribute('height')) || 1, dEx: va ? -parseFloat(va[1]) : 0 };
+            } catch (e) { d = null; }
+            texInfo.set(latex, d);
+        }
+        return d;
+    }
+    const inlineCache = new Map();
+    function inlineImage(latex, col) {
+        const key = col + '|' + latex;
+        let im = inlineCache.get(key);
+        if (im) return im;
+        const d = texDims(latex);
+        if (!d) return null;
+        im = new Image();
+        im.onload = () => render();
+        im.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(d.svg.replace(/currentColor/g, col));
+        inlineCache.set(key, im);
+        return im;
+    }
+    const hasMath = (t) => /\$[^$]+\$/.test(t);
+    const layoutCache = new Map();
+    function layoutText(it) {
+        const ready = !!(window.MathJax && MathJax.tex2svg);
+        const key = it.s + '|' + ready + '|' + it.text;
+        let L = layoutCache.get(key);
+        if (L) return L;
+        if (!ready && hasMath(it.text)) loadMathJax().then(() => { layoutCache.clear(); render(); }, () => {});
+        const s = it.s, ex = s * .45;
+        ctx.save(); ctx.font = textFont(s);
+        const lines = String(it.text).split('\n').map((ln) => {
+            const segs = [];
+            let last = 0, m;
+            const re = /\$([^$]+)\$/g;
+            while ((m = re.exec(ln))) {
+                if (m.index > last) segs.push({ t: 's', v: ln.slice(last, m.index) });
+                const d = texDims(m[1]);
+                if (d) segs.push({ t: 'm', v: m[1], w: d.wEx * ex, h: d.hEx * ex, d: d.dEx * ex });
+                else segs.push({ t: 's', v: m[0] });
+                last = m.index + m[0].length;
+            }
+            if (last < ln.length || !segs.length) segs.push({ t: 's', v: ln.slice(last) });
+            let w = 0, asc = s * .8, desc = s * .25;
+            for (const g of segs) {
+                if (g.t === 's') g.w = ctx.measureText(g.v).width;
+                else { asc = Math.max(asc, g.h - g.d); desc = Math.max(desc, g.d); }
+                w += g.w;
+            }
+            return { segs, w, asc, h: asc + desc + s * .2 };
+        });
+        ctx.restore();
+        L = { lines, w: Math.max(4, ...lines.map((l) => l.w)), h: lines.reduce((a, l) => a + l.h, 0) };
+        if (layoutCache.size > 500) layoutCache.clear();
+        layoutCache.set(key, L);
+        return L;
+    }
+    function drawText(c, it) {
+        const L = layoutText(it), col = paint(it.c);
+        c.font = textFont(it.s); c.textBaseline = 'alphabetic'; c.textAlign = 'left';
+        let y = it.y;
+        for (const ln of L.lines) {
+            let x = it.x;
+            const base = y + ln.asc + it.s * .1;
+            for (const g of ln.segs) {
+                if (g.t === 's') c.fillText(g.v, x, base);
+                else {
+                    const im = inlineImage(g.v, col);
+                    if (im && im.complete && im.naturalWidth) c.drawImage(im, x, base - (g.h - g.d), g.w, g.h);
+                }
+                x += g.w;
+            }
+            y += ln.h;
+        }
+    }
+
     // ---- векторные шаблоны
     function drawVec(c, it) {
         const sx = it.w / it.bw, sy = it.h / it.bh, s = (sx + sy) / 2;
@@ -629,9 +945,13 @@
         }
         c.setLineDash([]);
         c.textAlign = 'center'; c.textBaseline = 'middle';
+        // подписи — всегда ровные и без искажений, как бы тело ни растянули и ни повернули
         for (const l of it.labels || []) {
-            c.font = (l.i === false ? '' : 'italic ') + textFont((l.s || 16) / s * Math.min(1.6, Math.max(.8, s)));
-            c.fillText(l.t, l.x, l.y);
+            c.save();
+            c.translate(l.x, l.y); c.scale(1 / sx, 1 / sy); c.rotate(-(it.rot || 0));
+            c.font = (l.i === false ? '' : 'italic ') + textFont((l.s || 16) * Math.min(1.6, Math.max(.8, s)));
+            c.fillText(l.t, 0, 0);
+            c.restore();
         }
     }
 
@@ -734,7 +1054,7 @@
     const L = (x, y, t, o) => Object.assign({ x, y, t }, o || {});
     const SUB = '₀₁₂₃₄₅₆₇₈₉';
     const sub1 = (s) => s + SUB[1];
-    const SHAPES = [
+    const SHAPE_DEFS = [
         { id: 'tri', name: 'Треугольник', g: () => ({ bw: 220, bh: 180, paths: [P([20, 155, 200, 155, 80, 25], { cl: 1 })],
             labels: [L(10, 168, 'A'), L(210, 168, 'B'), L(80, 10, 'C')] }) },
         { id: 'rtri', name: 'Прямоугольный треугольник', g: () => ({ bw: 220, bh: 180, paths: [P([25, 155, 195, 155, 25, 25], { cl: 1 }), P([25, 137, 43, 137, 43, 155])],
@@ -814,7 +1134,76 @@
         } },
         { id: 'plane', name: 'Координатная плоскость', plot: true },
     ];
+
+    // ---- фигуры-инструменты: выбираются в меню «Фигуры» и рисуются мышкой (рамкой) на холсте.
+    // Многоугольники становятся обычными многоугольниками (вершины потом можно тянуть),
+    // тела и окружности-шаблоны — векторными объектами (растягиваются, поворачиваются).
+    const regV = (n, a0) => { const v = []; for (let i = 0; i < n; i++) { const a = a0 + 2 * Math.PI * i / n; v.push(.5 + .5 * Math.cos(a), .5 + .5 * Math.sin(a)); } return v; };
+    const POLY_SH = [
+        { id: 'ptri', name: 'Треугольник', v: [0, 1, 1, 1, .35, 0], lb: 'ABC' },
+        { id: 'pisos', name: 'Равнобедренный треугольник', v: [0, 1, 1, 1, .5, 0], lb: 'ABC' },
+        { id: 'prtri', name: 'Прямоугольный треугольник', v: [0, 1, 1, 1, 0, 0], lb: 'CBA' },
+        { id: 'psq', name: 'Квадрат', v: [0, 1, 1, 1, 1, 0, 0, 0], lb: 'ABCD', sq: 1 },
+        { id: 'prect', name: 'Прямоугольник', v: [0, 1, 1, 1, 1, 0, 0, 0], lb: 'ABCD' },
+        { id: 'ppar', name: 'Параллелограмм', v: [0, 1, .75, 1, 1, 0, .25, 0], lb: 'ABCD' },
+        { id: 'prhomb', name: 'Ромб', v: [0, .5, .5, 1, 1, .5, .5, 0], lb: 'ABCD' },
+        { id: 'ptrap', name: 'Трапеция', v: [0, 1, 1, 1, .75, 0, .25, 0], lb: 'ABCD' },
+        { id: 'ppent', name: 'Правильный пятиугольник', v: regV(5, -Math.PI / 2), lb: 'ABCDE', sq: 1 },
+        { id: 'phex', name: 'Правильный шестиугольник', v: regV(6, 0), lb: 'ABCDEF', sq: 1 },
+    ];
+    const SHAPES = POLY_SH.concat(SHAPE_DEFS.filter((s) => !['tri', 'rtri', 'sq', 'rect', 'par', 'rhomb', 'trap', 'hex', 'nline', 'ucirc', 'plane'].includes(s.id)));
+    // инструменты построения, которые тоже живут в меню «Фигуры»
+    const MENU_TOOLS = [['circle', 'Окружность: центр → радиус'], ['ellipse', 'Эллипс'], ['poly', 'Многоугольник по точкам'], ['angle', 'Угол с градусной мерой']];
+    const SHAPE_TOOLS = { shape: 1, circle: 1, ellipse: 1, poly: 1, angle: 1, rect: 1 };
+    const IS_3D = { cube: 1, box: 1, pyr: 1, tpyr: 1, prism: 1, cyl: 1, cone: 1, sph: 1 };
+    let shapeId = 'ptri';
+    function draftBox(d) {
+        let w = d.x2 - d.x1, h = d.y2 - d.y1;
+        if (Math.abs(w) * view.k < 4 && Math.abs(h) * view.k < 4) return null;
+        const sh = SHAPES.find((s) => s.id === d.sid) || {};
+        if (sh.sq) { const m = Math.max(Math.abs(w), Math.abs(h)); w = Math.sign(w || 1) * m; h = Math.sign(h || 1) * m; }
+        return { x: Math.min(d.x1, d.x1 + w), y: Math.min(d.y1, d.y1 + h), w: Math.abs(w), h: Math.abs(h) };
+    }
+    function buildShape(sid, x, y, w, h, o) {
+        const sh = SHAPES.find((s) => s.id === sid) || SHAPES[0];
+        if (sh.v) return { t: 'poly', c: o.c, w: o.w, cl: true, p: sh.v.map((u, i) => Math.round((i % 2 ? y + u * h : x + u * w) * 100) / 100), lb: sh.lb.split('') };
+        const g = sh.g();
+        return Object.assign({ t: 'vec', c: o.c, lw: 2 + o.w * .25, x, y, w: Math.max(w, 8), h: Math.max(h, 8) }, g);
+    }
+
+    // ---- заготовки: вставляются готовыми в центр экрана
+    const PRESETS = SHAPE_DEFS.filter((s) => ['ucirc', 'nline', 'plane'].includes(s.id)).concat([
+        { id: 'f-quad', name: 'Квадратное уравнение', text: '$ax^2+bx+c=0$\n$D=b^2-4ac$\n$x_{1,2}=\\dfrac{-b\\pm\\sqrt{D}}{2a}$' },
+        { id: 'f-vieta', name: 'Теорема Виета', text: '$x_1+x_2=-\\dfrac{b}{a}$\n$x_1\\cdot x_2=\\dfrac{c}{a}$' },
+        { id: 'f-mult', name: 'Формулы сокращённого умножения', text: '$(a+b)^2=a^2+2ab+b^2$\n$(a-b)^2=a^2-2ab+b^2$\n$a^2-b^2=(a-b)(a+b)$\n$a^3\\pm b^3=(a\\pm b)(a^2\\mp ab+b^2)$' },
+        { id: 'f-pyth', name: 'Теорема Пифагора', text: '$c^2=a^2+b^2$' },
+        { id: 'f-sin', name: 'Теорема синусов', text: '$\\dfrac{a}{\\sin\\alpha}=\\dfrac{b}{\\sin\\beta}=\\dfrac{c}{\\sin\\gamma}=2R$' },
+        { id: 'f-cos', name: 'Теорема косинусов', text: '$c^2=a^2+b^2-2ab\\cos\\gamma$' },
+        { id: 'f-trig', name: 'Тригонометрические тождества', text: '$\\sin^2\\alpha+\\cos^2\\alpha=1$\n$\\operatorname{tg}\\alpha=\\dfrac{\\sin\\alpha}{\\cos\\alpha}$\n$\\sin 2\\alpha=2\\sin\\alpha\\cos\\alpha$' },
+        { id: 'f-area', name: 'Площади фигур', text: 'Треугольник: $S=\\dfrac{1}{2}ah$\nКруг: $S=\\pi r^2$\nТрапеция: $S=\\dfrac{a+b}{2}h$' },
+        { id: 'f-vol', name: 'Объёмы тел', text: 'Призма: $V=S h$\nПирамида: $V=\\dfrac{1}{3}S h$\nШар: $V=\\dfrac{4}{3}\\pi R^3$' },
+        { id: 'f-log', name: 'Свойства логарифмов', text: '$\\log_a(bc)=\\log_a b+\\log_a c$\n$\\log_a b^n=n\\log_a b$\n$\\log_a b=\\dfrac{\\log_c b}{\\log_c a}$' },
+        { id: 'f-der', name: 'Таблица производных', text: '$(x^n)\'=nx^{n-1}$\n$(\\sin x)\'=\\cos x$\n$(e^x)\'=e^x$\n$(\\ln x)\'=\\dfrac{1}{x}$' },
+    ]);
+    function insertPreset(pr) {
+        if (pr.text) {
+            const c = toWorld(W / 2, H / 2), s = 22 / view.k;
+            const it = { id: rid(12), z: newZ(), t: 'text', x: c.x, y: c.y, s, c: color, w: 0, text: pr.text };
+            const L = layoutText(it);
+            it.x -= L.w / 2; it.y -= L.h / 2;
+            commit({ add: [it] });
+            setTool('select'); sel = [it.id]; render();
+            if (hasMath(pr.text)) loadMathJax().then(() => { layoutCache.clear(); render(); }, () => {});
+            return;
+        }
+        insertShape(pr);
+    }
     function shapeIcon(sh) {
+        if (sh.v) {
+            const pts = []; for (let i = 0; i < sh.v.length; i += 2) pts.push((4 + sh.v[i] * 32).toFixed(1) + ',' + (4 + sh.v[i + 1] * 32).toFixed(1));
+            return `<svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><polygon points="${pts.join(' ')}"/></svg>`;
+        }
+        if (sh.text) return '<svg viewBox="0 0 40 40"><text x="20" y="27" text-anchor="middle" font-size="20" font-style="italic" fill="currentColor" font-family="serif">ƒ</text></svg>';
         if (sh.plot) return '<svg viewBox="0 0 40 40"><path d="M3 20h34M20 37V3" stroke="currentColor" fill="none" stroke-width="2"/><path d="M5 34Q20-4 35 34" stroke="currentColor" fill="none" stroke-width="1.6" opacity=".6"/></svg>';
         const g = sh.g(), k = 36 / Math.max(g.bw, g.bh), ox = (40 - g.bw * k) / 2, oy = (40 - g.bh * k) / 2;
         let out = '';
@@ -840,7 +1229,7 @@
         it.w *= k; it.h *= k;
         Object.assign(it, { id: rid(12), z: newZ(), x: c.x - it.w / 2, y: c.y - it.h / 2 });
         commit({ add: [it] });
-        setTool('select'); selected = it.id; render();
+        setTool('select'); sel = [it.id]; render();
     }
     function insertShape(sh) {
         if (sh.plot) {
@@ -860,11 +1249,6 @@
         M.tex = new MathField($('bdTexField'), { label: 'Формула', onChange: () => {} });
         M.kb = new MFKeyboard($('bdKb'), M.tex, { collapsed: false, allowSystem: true, allowComplex: true, onEnter: () => mathOk() });
         $('bdTexField').addEventListener('focus', () => { M.kb.field = M.tex; });
-        $('bdShapes').innerHTML = SHAPES.map((sh) => `<button class="bd-shape" data-sh="${sh.id}" title="${sh.name}">${shapeIcon(sh)}<span>${sh.name}</span></button>`).join('');
-        $('bdShapes').addEventListener('click', (e) => {
-            const b = e.target.closest('[data-sh]'); if (!b) return;
-            closeMath(); insertShape(SHAPES.find((x) => x.id === b.dataset.sh));
-        });
         $('bdMathDlg').querySelectorAll('[data-tab]').forEach((b) => b.addEventListener('click', () => mathTab(b.dataset.tab)));
         $('bdFnAdd').onclick = () => { addFnRow(''); plotPreview(); };
         ['bdX0', 'bdX1', 'bdY0', 'bdY1'].forEach((id) => $(id).addEventListener('input', plotPreview));
@@ -937,7 +1321,6 @@
             } else { $('bdX0').value = -6; $('bdX1').value = 6; $('bdY0').value = ''; $('bdY1').value = ''; }
         }
         $('bdMathOk').textContent = editing ? 'Готово' : 'Вставить';
-        $('bdMathDlg').querySelector('[data-tab="s"]').hidden = !!editing;
         $('bdMathDlg').hidden = false;
         mathTab(tab);
     }
@@ -963,15 +1346,6 @@
             else placeBox(Object.assign(pl, { w: 460, h: 360 }));
         }
     }
-    stage.addEventListener('dblclick', (e) => {
-        if (tool === 'poly' && geo) { finishGeo(true, false); return; }
-        if (tool !== 'select') return;
-        const p = localPt(e), w = toWorld(p.x, p.y);
-        const it = topHit(w.x, w.y, 4 / view.k);
-        if (it && it.t === 'tex') openMath('f', it);
-        else if (it && it.t === 'plot') openMath('g', it);
-    });
-
     // ================= ЛАСТИК / ПОПАДАНИЕ =================
     function distSeg(px, py, ax, ay, bx, by) {
         const dx = bx - ax, dy = by - ay, l = dx * dx + dy * dy;
@@ -979,7 +1353,15 @@
         t = Math.max(0, Math.min(1, t));
         return Math.hypot(px - ax - t * dx, py - ay - t * dy);
     }
-    function hit(it, x, y, r) {
+    // inside — считать попаданием и внутренность замкнутой фигуры (для выделения, не для ластика)
+    function hit(it, x, y, r, inside) {
+        if (it.rot && ROT[it.t]) { const f = frameOf(it), q = rotPt(x, y, f.cx, f.cy, -it.rot); x = q.x; y = q.y; }
+        if (inside && it.t === 'poly' && it.cl && pointInPoly(it.p, x, y)) return true;
+        if (inside && (it.t === 'rect' || it.t === 'ellipse' || it.t === 'circle')) {
+            const b = lbounds(it);
+            if (x > b.x && x < b.x + b.w && y > b.y && y < b.y + b.h) return true;
+        }
+        if (it.t === 'pen' && it.pr) r += it.w * .3;
         const tol = r + (BOX[it.t] ? 0 : it.w / 2);
         if (it.t === 'point') return Math.hypot(x - it.x, y - it.y) < tol + 6;
         if (it.t === 'circle') return Math.abs(Math.hypot(x - it.x1, y - it.y1) - Math.hypot(it.x2 - it.x1, it.y2 - it.y1)) < tol;
@@ -1012,14 +1394,217 @@
         }
         return false;
     }
-    const topHit = (x, y, r) => [...items].reverse().find((it) => hit(it, x, y, r));
+    function pointInPoly(p, x, y) {
+        let ins = false;
+        for (let i = 0, j = p.length - 2; i < p.length; j = i, i += 2) {
+            if ((p[i + 1] > y) !== (p[j + 1] > y) && x < (p[j] - p[i]) * (y - p[i + 1]) / (p[j + 1] - p[i + 1]) + p[i]) ins = !ins;
+        }
+        return ins;
+    }
+    // точки важнее остального: иначе их не ухватить из-под отрезка, проведённого через них
+    const topHit = (x, y, r, inside) => {
+        const hs = [...items].reverse().filter((it) => hit(it, x, y, r, inside));
+        return hs.find((it) => it.t === 'point') || hs.find((it) => !inside || !(it.t === 'poly' && it.cl && !hit(it, x, y, r))) || hs[0];
+    };
     function eraseAt(x, y) {
         const r = (size * 2 + 4) / view.k;
-        const gone = items.filter((it) => hit(it, x, y, r));
+        // картинки ластиком не стираются — их удаляют крестиком при выделении или клавишей Del
+        const gone = items.filter((it) => it.t !== 'img' && hit(it, x, y, r));
         if (!gone.length) return;
         cur.erased.push(...gone.map(clone));
         dropItems(gone.map((i) => i.id));
         render();
+    }
+
+    // ================= МЕНЮ «ФИГУРЫ», «ЗАГОТОВКИ», НАСТРОЙКИ ПЕРА =================
+    function closeMenus(except) {
+        ['bdShapeMenu', 'bdPresetMenu', 'bdPenCfg'].forEach((id) => { if (id !== except && $(id)) $(id).hidden = true; });
+    }
+    function toggleMenu(id, anchor) {
+        const m = $(id);
+        closeMenus(id);
+        m.hidden = !m.hidden;
+        if (m.hidden) return;
+        const r = anchor.getBoundingClientRect(), br = boardEl.getBoundingClientRect();
+        m.style.left = Math.max(4, Math.min(r.left - br.left, br.width - m.offsetWidth - 4)) + 'px';
+        m.style.top = (r.bottom - br.top + 6) + 'px';
+    }
+    function menuItem(id, name, icon, extra) {
+        return `<button class="bd-mi" ${extra} title="${esc(name)}">${icon}<span>${esc(name)}</span></button>`;
+    }
+    const toolIcon = (t) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICONS[t]}</svg>`;
+    function buildMenus() {
+        const sec = (title, html) => `<div class="bd-msec"><h4>${title}</h4><div class="bd-mgrid">${html}</div></div>`;
+        $('bdShapeMenu').innerHTML =
+            sec('Построение', MENU_TOOLS.map(([t, n]) => menuItem(t, n, toolIcon(t), `data-tool2="${t}"`)).join('')) +
+            sec('Многоугольники', POLY_SH.map((sh) => menuItem(sh.id, sh.name, shapeIcon(sh), `data-sid="${sh.id}"`)).join('')) +
+            sec('Окружности', SHAPES.filter((sh) => !sh.v && !IS_3D[sh.id]).map((sh) => menuItem(sh.id, sh.name, shapeIcon(sh), `data-sid="${sh.id}"`)).join('')) +
+            sec('Тела', SHAPES.filter((sh) => IS_3D[sh.id]).map((sh) => menuItem(sh.id, sh.name, shapeIcon(sh), `data-sid="${sh.id}"`)).join('')) +
+            '<p class="bd-mnote">Выберите фигуру и растяните её мышкой или пальцем на доске (Shift — ровно). Потом её можно тянуть за вершины и ручки, поворачивать и подписывать.</p>';
+        $('bdShapeMenu').addEventListener('click', (e) => {
+            const b = e.target.closest('[data-sid],[data-tool2]'); if (!b) return;
+            if (b.dataset.sid) { shapeId = b.dataset.sid; setTool('shape'); } else setTool(b.dataset.tool2);
+            closeMenus();
+        });
+        $('bdPresetMenu').innerHTML =
+            sec('Шаблоны', PRESETS.filter((p) => !p.text).map((p) => menuItem(p.id, p.name, shapeIcon(p), `data-pr="${p.id}"`)).join('')) +
+            sec('Формулы', PRESETS.filter((p) => p.text).map((p) => menuItem(p.id, p.name, shapeIcon(p), `data-pr="${p.id}"`)).join(''));
+        $('bdPresetMenu').addEventListener('click', (e) => {
+            const b = e.target.closest('[data-pr]'); if (!b) return;
+            closeMenus(); insertPreset(PRESETS.find((p) => p.id === b.dataset.pr));
+        });
+        $('bdShapesBtn').onclick = () => toggleMenu('bdShapeMenu', $('bdShapesBtn'));
+        $('bdFig').onclick = () => toggleMenu('bdPresetMenu', $('bdFig'));
+        $('bdPenBtn').onclick = () => { toggleMenu('bdPenCfg', $('bdPenBtn')); penPreview(); };
+        // настройки пера
+        const bind = (id, key, scale) => {
+            const el = $(id);
+            el.value = Math.round(penCfg[key] * (scale || 100));
+            el.addEventListener('input', () => { penCfg[key] = el.value / (scale || 100); savePen(); penPreview(); });
+        };
+        bind('bdPenSm', 'sm'); bind('bdPenTh', 'th'); bind('bdPenTp', 'tp');
+        $('bdPenSt').checked = penCfg.st;
+        $('bdPenSt').addEventListener('change', () => { penCfg.st = $('bdPenSt').checked; savePen(); });
+        $('bdPenReset').onclick = () => { Object.assign(penCfg, PEN_DEF); savePen(); ['Sm', 'Th', 'Tp'].forEach((k) => { $('bdPen' + k).value = Math.round(penCfg[k.toLowerCase()] * 100); }); $('bdPenSt').checked = penCfg.st; penPreview(); };
+        document.addEventListener('pointerdown', (e) => { if (!e.target.closest('.bd-menu, #bdShapesBtn, #bdFig, #bdPenBtn')) closeMenus(); });
+    }
+    const PEN_DEF = { sm: .5, th: .6, tp: .5, st: true };
+    const penCfg = Object.assign({}, PEN_DEF, lsGet('mf-board-pen', {}));
+    const savePen = () => lsSet('mf-board-pen', penCfg);
+    // образец штриха в окне настроек
+    function penPreview() {
+        const cv = $('bdPenPrev'); if (!cv || $('bdPenCfg').hidden) return;
+        const r = cv.getBoundingClientRect(), d = window.devicePixelRatio || 1;
+        cv.width = r.width * d; cv.height = r.height * d;
+        const g = cv.getContext('2d'); g.setTransform(d, 0, 0, d, 0, 0);
+        g.fillStyle = boardFill(); g.fillRect(0, 0, r.width, r.height);
+        const p = [], pr = [];
+        let last = .5;
+        for (let i = 0; i <= 60; i++) {
+            const t = i / 60, x = 14 + t * (r.width - 28), y = r.height / 2 + Math.sin(t * Math.PI * 2.2) * r.height * .28;
+            const sp = 2.6 * Math.abs(Math.cos(t * Math.PI * 2.2));
+            last = last + (Math.max(0, Math.min(1, 1 - sp / 2.2)) - last) * .35;
+            p.push(x, y); pr.push(last);
+        }
+        g.fillStyle = paint(color === 'contrast' ? 'ink' : color);
+        g.fill(inkPath({ t: 'pen', p, pr, w: Math.max(size, 3), th: penCfg.th, tp: penCfg.tp }));
+    }
+
+    // ================= ПОДПИСИ (точки, вершины, отрезки, тела) =================
+    let lblEd = null;
+    // открыть поле подписи в экранной точке; get/set — чтение и запись в копию объекта
+    function openLabel(it, sx, sy, get, set, hint) {
+        closeLabel(true);
+        const inp = document.createElement('input');
+        inp.className = 'bd-lbl'; inp.value = get(it) || ''; inp.placeholder = hint || 'Подпись';
+        inp.style.left = sx + 'px'; inp.style.top = sy + 'px';
+        stage.appendChild(inp);
+        lblEd = { inp, id: it.id, set };
+        inp.addEventListener('keydown', (e) => {
+            e.stopPropagation();
+            if (e.key === 'Enter') { e.preventDefault(); closeLabel(true); }
+            if (e.key === 'Escape') { e.preventDefault(); closeLabel(false); }
+        });
+        inp.addEventListener('blur', () => setTimeout(() => closeLabel(true), 0));
+        inp.focus(); inp.select();
+    }
+    function closeLabel(save) {
+        if (!lblEd) return;
+        const { inp, id, set } = lblEd;
+        lblEd = null;
+        inp.remove();
+        const it = byId(id);
+        if (!save || !it) return;
+        const n = clone(it);
+        set(n, inp.value.trim().slice(0, 60));
+        if (JSON.stringify(n) !== JSON.stringify(it)) { commit({ mod: [[clone(it), n]] }); render(); }
+    }
+    // подписать то, что под указателем: вершину многоугольника, подпись тела, точку, отрезок…
+    function labelAt(it, w) {
+        const near = (x, y, r) => Math.hypot(x - w.x, y - w.y) * view.k < r;
+        if (it.t === 'poly') {
+            const n = it.p.length / 2;
+            let best = -1, bd = 1e9;
+            for (let i = 0; i < n; i++) { const d = Math.hypot(it.p[2 * i] - w.x, it.p[2 * i + 1] - w.y); if (d < bd) { bd = d; best = i; } }
+            const q = vertexLabelPos(it, best), s = toScreen(q.x, q.y);
+            return openLabel(it, s.x, s.y, (o) => (o.lb || [])[best], (o, v) => { o.lb = Array.from({ length: n }, (_, k) => (o.lb || [])[k] || ''); o.lb[best] = v; }, 'Вершина');
+        }
+        if (it.t === 'vec') {
+            const sx = it.w / it.bw, sy = it.h / it.bh, f = frameOf(it);
+            const L = (it.labels || []).map((l, j) => { const q = rotPt(it.x + l.x * sx, it.y + l.y * sy, f.cx, f.cy, it.rot || 0); return { j, q }; });
+            const hitL = L.filter((l) => near(l.q.x, l.q.y, 30)).sort((a, b) => Math.hypot(a.q.x - w.x, a.q.y - w.y) - Math.hypot(b.q.x - w.x, b.q.y - w.y))[0];
+            if (hitL) { const s = toScreen(hitL.q.x, hitL.q.y); return openLabel(it, s.x, s.y, (o) => o.labels[hitL.j].t, (o, v) => { o.labels[hitL.j].t = v; }); }
+            // новая подпись там, где щёлкнули
+            const lq = rotPt(w.x, w.y, f.cx, f.cy, -(it.rot || 0)), s = toScreen(w.x, w.y);
+            return openLabel(it, s.x, s.y, () => '', (o, v) => { if (v) (o.labels = o.labels || []).push({ x: (lq.x - it.x) / sx, y: (lq.y - it.y) / sy, t: v }); }, 'Новая подпись');
+        }
+        const b = toScreen(...(it.t === 'point' ? [it.x + 12, it.y - 16] : it.t === 'circle' ? [it.x1, it.y1 + 14] : 'x1' in it ? [(it.x1 + it.x2) / 2, (it.y1 + it.y2) / 2 - 14] : it.p ? [it.p[2], it.p[3]] : [w.x, w.y]));
+        if (GEO[it.t]) return openLabel(it, b.x, b.y, (o) => o.label, (o, v) => { o.label = v; }, it.t === 'angle' ? 'Например, α (пусто — градусы)' : 'Подпись');
+    }
+    function editItem(it, w) {
+        if (!it) return;
+        if (it.t === 'plot') return openMath('g', it);
+        if (it.t === 'tex') return openMath('f', it);
+        if (it.t === 'text') { sel = []; return openText(it.x, it.y, it); }
+        if (it.t === 'poly' && !w) {
+            // все вершины сразу: «ABC» или «A B C»
+            const s = toScreen(it.p[0], it.p[1]), n = it.p.length / 2;
+            return openLabel(it, s.x, s.y - 30, (o) => (o.lb || []).join(' ').trim(), (o, v) => {
+                const parts = /\s|,/.test(v) ? v.split(/[\s,]+/) : v.length === n ? v.split('') : [v];
+                o.lb = Array.from({ length: n }, (_, k) => parts[k] || '');
+            }, 'Вершины: ABC или A B C');
+        }
+        const f = frameOf(it);
+        labelAt(it, w || { x: f.cx, y: f.cy - f.h / 2 });
+    }
+    stage.addEventListener('dblclick', (e) => {
+        if (tool === 'poly' && geo) { finishGeo(true, false); return; }
+        if (tool !== 'select') return;
+        const p = localPt(e), w = toWorld(p.x, p.y);
+        const it = topHit(w.x, w.y, 6 / view.k, true);
+        if (!it) return;
+        sel = [it.id];
+        if (it.t === 'plot' || it.t === 'tex' || it.t === 'text') editItem(it);
+        else labelAt(it, w);
+        render();
+    });
+
+    // ================= ФОРМУЛЫ ПРЯМО В ТЕКСТЕ =================
+    // В тексте формула пишется как $…$. Кнопка ∑ у поля текста (или Ctrl+M / Alt+=)
+    // открывает двумерное поле с математической клавиатурой — результат вставляется в текст.
+    const FX = { f: null, kb: null, open: false };
+    function openFx() {
+        if (!window.MathField || !window.MFKeyboard || !textEd) return;
+        if (!FX.f) {
+            FX.f = new MathField($('bdFxField'), { label: 'Формула', onChange: (f, enter) => { if (enter) fxInsert(); } });
+            let touch = false;
+            try { touch = matchMedia('(pointer: coarse)').matches; } catch (e) {}
+            FX.kb = new MFKeyboard($('bdFxKb'), FX.f, { collapsed: !touch, allowSystem: true, allowComplex: true, onEnter: () => fxInsert() });
+            $('bdFxOk').onclick = fxInsert;
+            $('bdFxCancel').onclick = () => closeFx(true);
+            $('bdFx').addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.preventDefault(); closeFx(true); } e.stopPropagation(); });
+        }
+        FX.open = true;
+        FX.f.setExpr('');
+        $('bdFx').hidden = false;
+        loadMathJax().catch(() => {});
+        setTimeout(() => FX.f.host.focus(), 0);
+    }
+    function closeFx(refocus) {
+        if (!FX.open) return;
+        FX.open = false;
+        $('bdFx').hidden = true;
+        if (refocus && textEd) textEd.ta.focus();
+    }
+    function fxInsert() {
+        if (!textEd || FX.f.isEmpty()) { closeFx(true); return; }
+        const ta = textEd.ta, latex = FX.f.latex().trim();
+        const a = ta.selectionStart, b = ta.selectionEnd;
+        ta.value = ta.value.slice(0, a) + '$' + latex + '$' + ta.value.slice(b);
+        const pos = a + latex.length + 2;
+        closeFx(true);
+        ta.setSelectionRange(pos, pos);
+        ta.dispatchEvent(new Event('input'));
     }
 
     // ================= ТЕКСТ =================
@@ -1030,9 +1615,16 @@
         const s = existing ? existing.s : 12 + size * 3;
         const col = existing ? existing.c : color;
         ta.value = existing ? existing.text : '';
+        const fx = document.createElement('button');
+        fx.className = 'bd-fxbtn'; fx.type = 'button';
+        fx.innerHTML = '∑'; fx.title = 'Вставить формулу (Ctrl+M или Alt+=). В тексте формула — между знаками $…$';
+        fx.addEventListener('pointerdown', (e) => e.preventDefault());   // не отнимать фокус у текста
+        fx.addEventListener('click', openFx);
         const place = () => {
             ta.style.left = (wx - view.x) * view.k + 'px';
             ta.style.top = (wy - view.y) * view.k + 'px';
+            fx.style.left = (wx - view.x) * view.k - 34 + 'px';
+            fx.style.top = (wy - view.y) * view.k + 'px';
             ta.style.fontSize = s * view.k + 'px';
             ta.style.color = paint(col);
             ta.style.mixBlendMode = col === 'contrast' ? 'difference' : '';
@@ -1041,22 +1633,31 @@
         };
         ta.addEventListener('input', place);
         ta.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape' || (e.key === 'Enter' && (e.ctrlKey || e.metaKey))) { e.preventDefault(); closeText(); }
+            const k = e.key.toLowerCase();
+            if (((e.ctrlKey || e.metaKey) && (k === 'm' || k === 'ь')) || (e.altKey && (e.key === '=' || e.code === 'Equal'))) { e.preventDefault(); openFx(); }
+            else if (e.key === 'Escape' || (e.key === 'Enter' && (e.ctrlKey || e.metaKey))) { e.preventDefault(); closeText(); }
             e.stopPropagation();
         });
-        ta.addEventListener('blur', () => closeText());
-        textEd = { ta, wx, wy, s, col, existing: existing ? clone(existing) : null };
+        // уход фокуса в окно формулы текст не закрывает
+        ta.addEventListener('blur', () => setTimeout(() => {
+            if (FX.open || document.activeElement === ta || $('bdFx').contains(document.activeElement)) return;
+            closeText();
+        }, 0));
+        textEd = { ta, fx, wx, wy, s, col, existing: existing ? clone(existing) : null };
         if (existing) { items = items.filter((i) => i.id !== existing.id); render(); }
         stage.appendChild(ta);
+        stage.appendChild(fx);
         place();
         ta.focus();
     }
     function closeText() {
         if (!textEd) return;
-        const { ta, wx, wy, s, col, existing } = textEd;
+        const { ta, fx, wx, wy, s, col, existing } = textEd;
         textEd = null;
+        closeFx(false);
         const text = ta.value.replace(/\s+$/, '');
-        ta.remove();
+        ta.remove(); fx.remove();
+        if (hasMath(text)) loadMathJax().then(() => { layoutCache.clear(); render(); }, () => {});
         if (existing) {
             if (!text) commit({ del: [existing] });
             else if (text !== existing.text) commit({ mod: [[existing, Object.assign({}, existing, { text })]] });
@@ -1107,7 +1708,7 @@
             const c = at || toWorld(W / 2, H / 2);
             const it = { id: rid(12), z: newZ(), t: 'img', x: c.x - w / 2, y: c.y - h / 2, w, h, src: r.src };
             commit({ add: [it] });
-            setTool('select'); selected = it.id; render();
+            setTool('select'); sel = [it.id]; render();
         } catch (e) { toast(e.message || 'Не удалось добавить изображение'); }
     }
 
@@ -1118,10 +1719,85 @@
     }
     function cancelCurrent() {
         if (cur && cur.t === 'erase' && cur.erased.length) putItems(cur.erased);
-        if (drag) putItems([drag.before]);
+        if (drag && drag.mode !== 'marquee') { putItems(drag.befores || [drag.before]); if (drag.tgts) putItems([...drag.tgts.values()]); }
         cur = null; drag = null; panDrag = null;
         sendDraft(null);
     }
+    // ---------- склейка вершин: совпадающие вершины других объектов следуют за перемещаемыми
+    function buildGlue(srcs, except) {
+        const glue = [], tgts = new Map();
+        const eq = (a, b) => Math.abs(a[0] - b[0]) < 1e-6 && Math.abs(a[1] - b[1]) < 1e-6;
+        const sv = srcs.filter((it) => GEO[it.t]).map((it) => ({ id: it.id, v: getV(it) }));
+        if (!sv.length) return { glue, tgts };
+        for (const it of items) {
+            if (except.has(it.id) || !GEO[it.t]) continue;
+            getV(it).forEach((v, j) => {
+                for (const s of sv) s.v.forEach((u, i) => {
+                    if (!eq(u, v)) return;
+                    if (i === 1 && (byId(s.id) || {}).t === 'circle') return;   // точка радиуса окружности — не склеиваем
+                    glue.push({ src: s.id, i, tgt: it.id, j });
+                    if (!tgts.has(it.id)) tgts.set(it.id, clone(it));
+                });
+            });
+        }
+        return { glue, tgts };
+    }
+    function setLive(n) { const i = items.findIndex((x) => x.id === n.id); if (i >= 0) items[i] = n; }
+    // применить новые версии перемещаемых объектов и подтянуть склеенные вершины
+    function applyDrag(news) {
+        const byNew = new Map(news.map((n) => [n.id, n]));
+        news.forEach(setLive);
+        const work = new Map();
+        for (const g of drag.glue) {
+            const src = byNew.get(g.src); if (!src) continue;
+            const v = getV(src)[g.i]; if (!v) continue;
+            if (!work.has(g.tgt)) work.set(g.tgt, clone(drag.tgts.get(g.tgt)));
+            setV(work.get(g.tgt), g.j, v[0], v[1]);
+        }
+        work.forEach(setLive);
+        drag.moved = true;
+    }
+    function startMove(w) {
+        const its = selItems(), ids = new Set(its.map((i) => i.id));
+        const g = buildGlue(its, ids);
+        drag = { mode: 'move', w0: w, befores: its.map(clone), glue: g.glue, tgts: g.tgts };
+    }
+    // новая рамка при растяжении за ручку hid (в системе координат повёрнутой рамки)
+    function scaleFrame(f0, hid, w, keep) {
+        const q = rotPt(w.x, w.y, f0.cx, f0.cy, -f0.rot), lx = q.x - f0.cx, ly = q.y - f0.cy, MIN = 6 / view.k;
+        let l = -f0.w / 2, r = f0.w / 2, t = -f0.h / 2, b = f0.h / 2;
+        if (hid.includes('w')) l = Math.min(lx, r - MIN);
+        if (hid.includes('e')) r = Math.max(lx, l + MIN);
+        if (hid.includes('n')) t = Math.min(ly, b - MIN);
+        if (hid.includes('s')) b = Math.max(ly, t + MIN);
+        if (keep && hid.length === 2 && f0.w > 0 && f0.h > 0) {
+            const k = Math.max((r - l) / f0.w, (b - t) / f0.h);
+            if (hid.includes('w')) l = r - f0.w * k; else r = l + f0.w * k;
+            if (hid.includes('n')) t = b - f0.h * k; else b = t + f0.h * k;
+        }
+        const c = rotPt(f0.cx + (l + r) / 2, f0.cy + (t + b) / 2, f0.cx, f0.cy, f0.rot);
+        return { cx: c.x, cy: c.y, w: r - l, h: b - t, rot: f0.rot, sx: f0.w ? (r - l) / f0.w : 1, sy: f0.h ? (b - t) / f0.h : 1 };
+    }
+    const KEEP = { img: 1, tex: 1, text: 1, circle: 1 };
+    function applyFrame(b, f0, f1) {
+        const n = clone(b);
+        if (BOX[n.t]) { n.x = f1.cx - f1.w / 2; n.y = f1.cy - f1.h / 2; n.w = f1.w; n.h = f1.h; return n; }
+        if (n.t === 'rect' || n.t === 'ellipse') { n.x1 = f1.cx - f1.w / 2; n.x2 = f1.cx + f1.w / 2; n.y1 = f1.cy - f1.h / 2; n.y2 = f1.cy + f1.h / 2; return n; }
+        if (n.t === 'text') {
+            const k = Math.max(f1.sx, f1.sy);
+            n.s = Math.max(6, b.s * k);
+            n.x = f1.cx - f0.w * (n.s / b.s) / 2; n.y = f1.cy - f0.h * (n.s / b.s) / 2;
+            return n;
+        }
+        if (n.t === 'circle') {
+            const k = Math.max(f1.sx, f1.sy);
+            const c = { x: f1.cx + (b.x1 - f0.cx) * f1.sx, y: f1.cy + (b.y1 - f0.cy) * f1.sy };
+            n.x1 = c.x; n.y1 = c.y; n.x2 = c.x + (b.x2 - b.x1) * k; n.y2 = c.y + (b.y2 - b.y1) * k;
+            return n;
+        }
+        return mapPts(b, (x, y) => ({ x: f1.cx + (x - f0.cx) * f1.sx, y: f1.cy + (y - f0.cy) * f1.sy }));
+    }
+
     stage.addEventListener('pointerdown', (e) => {
         if (e.target !== canvas) return;
         const p = localPt(e);
@@ -1133,7 +1809,9 @@
             return;
         }
         if (pointers.size > 2) return;
+        if (lblEd) closeLabel(true);
         if (textEd) { closeText(); if (tool === 'text') return; }
+        closeMenus();
         const w = toWorld(p.x, p.y);
         if (tool === 'pan' || spaceDown || e.button === 1) {
             panDrag = { sx: p.x, sy: p.y, vx: view.x, vy: view.y };
@@ -1142,13 +1820,37 @@
         }
         if (e.button !== 0) return;
         if (tool === 'select') {
-            const sel = selected && byId(selected);
-            if (handleAt(sel, p.x, p.y)) {
-                drag = { mode: 'scale', before: clone(sel), w0: w };
+            const h = handleAt(p.x, p.y), one = selOne();
+            if (h === 'del') { deleteSelected(); return; }
+            if (h === 'edit') { editItem(one); return; }
+            if (h && one) {
+                const f0 = frameOf(one);
+                if (h === 'rot') {
+                    const g = buildGlue([one], new Set([one.id]));
+                    drag = { mode: 'rotate', before: clone(one), f0, a0: Math.atan2(w.y - f0.cy, w.x - f0.cx), glue: g.glue, tgts: g.tgts };
+                } else if (h[0] === 'v') {
+                    const i = +h.slice(1), v = getV(one)[i];
+                    const g = buildGlue([one], new Set([one.id]));
+                    const glue = g.glue.filter((x) => x.i === i);
+                    drag = { mode: 'vertex', before: clone(one), i, glue, tgts: g.tgts, except: new Set([one.id, ...glue.map((x) => x.tgt)]), v0: v };
+                } else {
+                    const g = buildGlue([one], new Set([one.id]));
+                    drag = { mode: 'scale', hid: h, before: clone(one), f0, glue: g.glue, tgts: g.tgts };
+                }
+                render();
+                return;
+            }
+            const add = e.shiftKey || e.ctrlKey || e.metaKey;
+            const it = topHit(w.x, w.y, 6 / view.k, true);
+            if (it) {
+                if (add) { sel = sel.includes(it.id) ? sel.filter((x) => x !== it.id) : sel.concat(it.id); render(); return; }
+                const was = sel.includes(it.id);
+                if (!was) sel = [it.id];
+                startMove(w);
+                if (was && sel.length > 1) drag.only = it.id;   // щелчок без сдвига — выделить только его
             } else {
-                const it = topHit(w.x, w.y, 6 / view.k);
-                selected = it ? it.id : null;
-                if (it) drag = { mode: 'move', before: clone(it), w0: w };
+                if (!add) sel = [];
+                drag = { mode: 'marquee', x0: w.x, y0: w.y, x1: w.x, y1: w.y, base: sel.slice() };
             }
             render();
             return;
@@ -1171,31 +1873,79 @@
             return;
         }
         if (tool === 'poly' || tool === 'angle') { geoClick(snap(w), p); return; }
-        if (tool === 'circle') {
-            const q = snap(w);
-            cur = { t: 'circle', c: color, w: size, x1: q.x, y1: q.y, x2: q.x, y2: q.y };
+        if (tool === 'shape') {
+            cur = { t: 'shapeDraft', sid: shapeId, c: color, w: size, x1: w.x, y1: w.y, x2: w.x, y2: w.y };
             render();
             return;
         }
-        if (tool === 'line' || tool === 'arrow') {
+        if (tool === 'circle' || tool === 'line' || tool === 'arrow') {
             const q = snap(w);
             cur = { t: tool, c: color, w: size, x1: q.x, y1: q.y, x2: q.x, y2: q.y };
             render();
             return;
         }
-        if (tool === 'pen' || tool === 'marker') {
-            cur = { t: tool, c: color, w: tool === 'marker' ? size * 4 : size, p: [w.x, w.y] };
+        if (tool === 'pen') {
+            cur = { t: 'pen', v: 2, c: color, w: size, th: penCfg.th, tp: penCfg.tp, p: [w.x, w.y], pr: [penPr(e, .5)], raw: w, lt: e.timeStamp };
+        } else if (tool === 'marker') {
+            cur = { t: tool, c: color, w: size * 4, p: [w.x, w.y] };
         } else {
             cur = { t: tool, c: color, w: size, x1: w.x, y1: w.y, x2: w.x, y2: w.y };
         }
         render();
     });
-    function moved(it, dx, dy) {
-        const n = clone(it);
-        if (n.p) n.p = n.p.map((v, i) => v + (i % 2 ? dy : dx));
-        else if ('x1' in n) { n.x1 += dx; n.x2 += dx; n.y1 += dy; n.y2 += dy; }
-        else { n.x += dx; n.y += dy; }
-        return n;
+    // нажим: настоящий у стилуса, у мыши/пальца — по скорости (быстрее — тоньше, как у ручки)
+    function penPr(e, prev, speed) {
+        if (penCfg.st && e.pointerType === 'pen' && e.pressure > 0) return Math.round(e.pressure * 100) / 100;
+        if (speed === undefined) return prev;
+        const target = Math.max(0, Math.min(1, 1 - speed / 2.2));
+        return Math.round((prev + (target - prev) * .35) * 100) / 100;
+    }
+    function dragTo(w, e) {
+        if (drag.mode === 'marquee') {
+            drag.x1 = w.x; drag.y1 = w.y;
+            const x1 = Math.min(drag.x0, w.x), x2 = Math.max(drag.x0, w.x), y1 = Math.min(drag.y0, w.y), y2 = Math.max(drag.y0, w.y);
+            const inR = items.filter((it) => { const b = bounds(it); return b.x < x2 && b.x + b.w > x1 && b.y < y2 && b.y + b.h > y1; }).map((i) => i.id);
+            sel = [...new Set(drag.base.concat(inR))];
+            return;
+        }
+        if (drag.mode === 'move') {
+            let dx = w.x - drag.w0.x, dy = w.y - drag.w0.y;
+            if (e.shiftKey) { if (Math.abs(dx) > Math.abs(dy)) dy = 0; else dx = 0; }
+            applyDrag(drag.befores.map((b) => moved(b, dx, dy)));
+            return;
+        }
+        const b = drag.before;
+        if (drag.mode === 'vertex') {
+            let q = snap(w, drag.except);
+            if (e.shiftKey && (b.t === 'line' || b.t === 'arrow')) {
+                const o = getV(b)[1 - drag.i];
+                const a = Math.round(Math.atan2(w.y - o[1], w.x - o[0]) / (Math.PI / 12)) * (Math.PI / 12), L = Math.hypot(w.x - o[0], w.y - o[1]);
+                q = { x: o[0] + L * Math.cos(a), y: o[1] + L * Math.sin(a) };
+            }
+            const n = clone(b); setV(n, drag.i, q.x, q.y);
+            applyDrag([n]);
+            return;
+        }
+        if (drag.mode === 'rotate') {
+            const f = drag.f0;
+            let a = Math.atan2(w.y - f.cy, w.x - f.cx) - drag.a0;
+            if (e.shiftKey) a = Math.round(a / (Math.PI / 12)) * (Math.PI / 12);
+            let n;
+            if (ROT[b.t]) {
+                n = clone(b);
+                let r = (b.rot || 0) + a;
+                r = Math.atan2(Math.sin(r), Math.cos(r));
+                if (Math.abs(r) < .02) r = 0;              // притягиваем к «ровно»
+                n.rot = r;
+            } else n = mapPts(b, (x, y) => rotPt(x, y, f.cx, f.cy, a));
+            applyDrag([n]);
+            return;
+        }
+        if (drag.mode === 'scale') {
+            const keep = KEEP[b.t] ? !e.shiftKey : e.shiftKey;
+            const f1 = scaleFrame(drag.f0, drag.hid, w, keep);
+            applyDrag([applyFrame(b, drag.f0, f1)]);
+        }
     }
     stage.addEventListener('pointermove', (e) => {
         const p = localPt(e);
@@ -1203,8 +1953,9 @@
         if (geo) { const q = snap(toWorld(p.x, p.y)); geo.hx = q.x; geo.hy = q.y; render(); }
         if (!pointers.has(e.pointerId)) {
             if (tool === 'select') {
-                const sel = selected && byId(selected);
-                stage.style.cursor = handleAt(sel, p.x, p.y) ? 'nwse-resize' : '';
+                const h = handleAt(p.x, p.y), w = toWorld(p.x, p.y);
+                const CUR = { nw: 'nwse-resize', se: 'nwse-resize', ne: 'nesw-resize', sw: 'nesw-resize', n: 'ns-resize', s: 'ns-resize', e: 'ew-resize', w: 'ew-resize', rot: 'grab', del: 'pointer', edit: 'pointer' };
+                stage.style.cursor = h ? CUR[h] || 'move' : topHit(w.x, w.y, 6 / view.k, true) ? 'move' : '';
             }
             return;
         }
@@ -1225,34 +1976,34 @@
             render();
             return;
         }
-        if (drag) {
-            const w = toWorld(p.x, p.y), b = drag.before;
-            let n;
-            if (drag.mode === 'move') n = moved(b, w.x - drag.w0.x, w.y - drag.w0.y);
-            else {
-                const k = Math.max(16 / b.w, (w.x - b.x) / b.w, (w.y - b.y) / b.h);
-                n = Object.assign(clone(b), { w: b.w * k, h: b.h * k });
-            }
-            const i = items.findIndex((x) => x.id === b.id);
-            if (i >= 0) items[i] = n;
-            drag.moved = true;
-            render();
-            return;
-        }
+        if (drag) { dragTo(toWorld(p.x, p.y), e); render(); return; }
         if (!cur) return;
         const evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
         for (const ev of evs.length ? evs : [e]) {
             const lp = localPt(ev), w = toWorld(lp.x, lp.y);
             if (cur.t === 'erase') eraseAt(w.x, w.y);
-            else if (cur.p) {
+            else if (cur.t === 'pen') {
+                // стабилизатор: точка «догоняет» курсор, сглаживая дрожание руки
+                const n = cur.p.length, lx = cur.p[n - 2], ly = cur.p[n - 1];
+                const k = 1 - penCfg.sm * .82;
+                const nx = lx + (w.x - lx) * k, ny = ly + (w.y - ly) * k;
+                const dScr = Math.hypot(nx - lx, ny - ly) * view.k;
+                cur.raw = w;
+                if (dScr > .8) {
+                    const dt = Math.max(1, ev.timeStamp - cur.lt);
+                    cur.lt = ev.timeStamp;
+                    cur.p.push(nx, ny);
+                    cur.pr.push(penPr(ev, cur.pr[cur.pr.length - 1], Math.hypot(w.x - lx, w.y - ly) * view.k / dt));
+                }
+            } else if (cur.p) {
                 const n = cur.p.length;
                 if (Math.hypot(w.x - cur.p[n - 2], w.y - cur.p[n - 1]) * view.k > 1.2) cur.p.push(w.x, w.y);
             } else {
                 let x = w.x, y = w.y;
                 if (e.shiftKey) {
-                    if (cur.t === 'rect' || cur.t === 'ellipse') {
+                    if (cur.t === 'rect' || cur.t === 'ellipse' || cur.t === 'shapeDraft') {
                         const m = Math.max(Math.abs(x - cur.x1), Math.abs(y - cur.y1));
-                        x = cur.x1 + Math.sign(x - cur.x1) * m; y = cur.y1 + Math.sign(y - cur.y1) * m;
+                        x = cur.x1 + Math.sign(x - cur.x1 || 1) * m; y = cur.y1 + Math.sign(y - cur.y1 || 1) * m;
                     } else {
                         // шаг 15°
                         const a = Math.round(Math.atan2(y - cur.y1, x - cur.x1) / (Math.PI / 12)) * (Math.PI / 12);
@@ -1272,16 +2023,35 @@
         if (pinch) { if (pointers.size < 2) pinch = null; saveView(); return; }
         if (panDrag) { panDrag = null; stage.classList.remove('drag'); saveView(); return; }
         if (drag) {
-            const after = byId(drag.before.id);
-            if (drag.moved && after) record({ mod: [[drag.before, clone(after)]] }), putItems([after]);
+            const d = drag;
             drag = null;
+            if (d.only && !d.moved) sel = [d.only];
+            if (d.mode !== 'marquee' && d.moved) {
+                const pairs = [];
+                for (const b of (d.befores || [d.before])) { const a = byId(b.id); if (a) pairs.push([b, clone(a)]); }
+                d.tgts.forEach((b, id) => { const a = byId(id); if (a) pairs.push([b, clone(a)]); });
+                record({ mod: pairs });
+                putItems(pairs.map((x) => x[1]));
+            }
             render();
             return;
         }
         if (!cur) return;
         if (cur.t === 'erase') {
             if (cur.erased.length) record({ del: cur.erased });
+        } else if (cur.t === 'shapeDraft') {
+            let f = draftBox(cur);
+            if (!f) { const sh = SHAPES.find((s) => s.id === cur.sid), k = 1 / view.k; f = { x: cur.x1 - 80 * k, y: cur.y1 - 65 * k, w: 160 * k, h: 130 * k }; if (sh && sh.v === undefined && sh.g) { const g = sh.g(); f.h = f.w * g.bh / g.bw; } }
+            const it = Object.assign(buildShape(cur.sid, f.x, f.y, f.w, f.h, cur), { id: rid(12), z: newZ() });
+            commit({ add: [it] });
         } else {
+            if (cur.t === 'pen') {
+                // догоняем последнюю точку и чистим служебные поля
+                const n = cur.p.length;
+                if (cur.raw && Math.hypot(cur.raw.x - cur.p[n - 2], cur.raw.y - cur.p[n - 1]) * view.k > .5) { cur.p.push(cur.raw.x, cur.raw.y); cur.pr.push(cur.pr[cur.pr.length - 1]); }
+                delete cur.raw; delete cur.lt;
+                cur.p = cur.p.map((v) => Math.round(v * 100) / 100);
+            }
             const tiny = !cur.p && Math.hypot(cur.x2 - cur.x1, cur.y2 - cur.y1) * view.k < 3;
             if (!tiny) commit({ add: [Object.assign({ id: rid(12), z: newZ() }, cur)] });
         }
@@ -1324,22 +2094,34 @@
     // ================= ПАНЕЛЬ =================
     function setTool(t) {
         if (textEd) closeText();
+        if (lblEd) closeLabel(true);
         if (geo) finishGeo(false);
         tool = t;
-        if (t !== 'select') selected = null;
+        const sb = $('bdShapesBtn');
+        if (sb) {
+            sb.classList.toggle('on', !!SHAPE_TOOLS[t]);
+            const sh = SHAPES.find((x) => x.id === shapeId);
+            sb.querySelector('i').innerHTML = t === 'shape' && sh ? shapeIcon(sh) : SHAPE_TOOLS[t] && ICONS[t] ? toolIcon(t) : shapeIcon(POLY_SH[0]);
+        }
+        $('bdPenBtn').hidden = t !== 'pen';
+        if (t !== 'select') sel = [];
         stage.style.cursor = '';
         document.querySelectorAll('#bdTools .bd-btn').forEach((b) => b.classList.toggle('on', b.dataset.tool === t));
         stage.className = 'bd-stage ' + (t === 'pan' ? 't-pan' : t === 'text' ? 't-text' : t === 'select' ? 't-select' : 't-draw');
         render();
     }
     function deleteSelected() {
-        const it = selected && byId(selected);
-        if (it) { commit({ del: [clone(it)] }); render(); }
+        const its = selItems();
+        if (its.length) { commit({ del: its.map(clone) }); sel = []; render(); }
     }
     function buildBar() {
         $('bdTools').innerHTML = TOOLS.map(([id, title]) =>
             `<button class="bd-btn" data-tool="${id}" title="${title}" aria-label="${title}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICONS[id]}</svg></button>`).join('');
+        $('bdTools').insertAdjacentHTML('beforeend',
+            '<button class="bd-btn bd-shbtn" id="bdShapesBtn" title="Фигуры: многоугольники, окружности, тела — выберите и растяните на доске" aria-label="Фигуры"><i></i><b>▾</b></button>' +
+            '<button class="bd-btn" id="bdPenBtn" title="Настройки пера: сглаживание, нажим, сужение концов" aria-label="Настройки пера" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></svg></button>');
         $('bdTools').addEventListener('click', (e) => { const b = e.target.closest('[data-tool]'); if (b) setTool(b.dataset.tool); });
+        buildMenus();
 
         $('bdColors').innerHTML = COLORS.map((c) =>
             `<button class="bd-sw${c === 'contrast' ? ' bd-sw-x' : ''}" data-c="${c}" title="${c === 'ink' ? 'Основной: белый на тёмной теме, чёрный на светлой' : c === 'contrast' ? 'Контрастный: сам подстраивается под фон и всё, что под линией' : c}" aria-label="Цвет ${c === 'ink' ? 'основной' : c === 'contrast' ? 'контрастный' : c}"></button>`).join('') +
@@ -1379,9 +2161,7 @@
         $('bdSave').onclick = exportPng;
         $('bdFull').onclick = toggleFull;
         $('bdShare').onclick = share;
-        $('bdMath').onclick = () => openMath('f');
         $('bdGraph').onclick = () => openMath('g');
-        $('bdFig').onclick = () => openMath('s');
         $('bdLeave').onclick = () => goLocal(lsGet(CUR, ''));
         bindBoards();
     }
@@ -1699,7 +2479,7 @@
                 if (drag && drag.before.id === it.id) return;
                 if (textEd && textEd.existing && textEd.existing.id === it.id) return;
                 const i = items.findIndex((x) => x.id === it.id);
-                if (ch.type === 'removed') { if (i >= 0) items.splice(i, 1); if (selected === it.id) selected = null; }
+                if (ch.type === 'removed') { if (i >= 0) items.splice(i, 1); sel = sel.filter((x) => x !== it.id); }
                 else if (i >= 0) items[i] = it; else items.push(it);
             });
             sortItems();
@@ -1780,22 +2560,38 @@
         const k = e.key.toLowerCase();
         if ((e.ctrlKey || e.metaKey) && (k === 'z' || k === 'я')) { e.preventDefault(); e.shiftKey ? doRedo() : doUndo(); return; }
         if ((e.ctrlKey || e.metaKey) && (k === 'y' || k === 'н')) { e.preventDefault(); doRedo(); return; }
+        if ((e.ctrlKey || e.metaKey) && (k === 'a' || k === 'ф')) { e.preventDefault(); setTool('select'); sel = items.map((i) => i.id); render(); return; }
+        if ((e.ctrlKey || e.metaKey) && (k === 'd' || k === 'в') && sel.length) {
+            // копия выделенного со сдвигом
+            e.preventDefault();
+            const d = 20 / view.k, copies = selItems().map((it) => Object.assign(moved(it, d, d), { id: rid(12), z: newZ() }));
+            if (commit({ add: copies }) !== false) { sel = copies.map((c) => c.id); render(); }
+            return;
+        }
+        if (sel.length && /^Arrow/.test(e.key) && !e.ctrlKey && !e.metaKey && !e.altKey) {
+            e.preventDefault();
+            const st = (e.shiftKey ? 10 : 1) / view.k, dx = e.key === 'ArrowLeft' ? -st : e.key === 'ArrowRight' ? st : 0, dy = e.key === 'ArrowUp' ? -st : e.key === 'ArrowDown' ? st : 0;
+            const its = selItems();
+            commit({ mod: its.map((it) => [clone(it), moved(it, dx, dy)]) }); render();
+            return;
+        }
         if (e.ctrlKey || e.metaKey || e.altKey) return;
-        if ((e.key === 'Delete' || e.key === 'Backspace') && selected) { e.preventDefault(); deleteSelected(); return; }
+        if ((e.key === 'Delete' || e.key === 'Backspace') && sel.length) { e.preventDefault(); deleteSelected(); return; }
         if (e.code === 'Space') { spaceDown = true; stage.classList.add('t-pan'); e.preventDefault(); return; }
         if (e.code === 'KeyF') { toggleFull(); return; }
         if (e.code === 'KeyI') { $('bdFile').click(); return; }
         if (geo && e.key === 'Enter') { e.preventDefault(); finishGeo(true, false); return; }
-        if (e.code === 'KeyX') { openMath('f'); e.preventDefault(); return; }
         if (e.key === 'Escape') {
             if (!$('bdMathDlg').hidden) { closeMath(); return; }
             if (geo) { finishGeo(false); return; }
             if (!$('bdShareDlg').hidden) { $('bdShareDlg').hidden = true; return; }
-            if (selected) { selected = null; render(); return; }
+            if (sel.length) { sel = []; render(); return; }
             if (boardEl.classList.contains('full')) { toggleFull(); return; }
         }
         const t = TOOLS.find((x) => 'Key' + x[2].toUpperCase() === e.code);
         if (t) setTool(t[0]);
+        const ex = Object.keys(EXTRA_KEYS).find((x) => 'Key' + x.toUpperCase() === e.code);
+        if (ex) { if (EXTRA_KEYS[ex] === 'shape') shapeId = 'prect'; setTool(EXTRA_KEYS[ex]); }
     });
     document.addEventListener('keyup', (e) => {
         if (e.code === 'Space' && spaceDown) { spaceDown = false; if (tool !== 'pan') stage.classList.remove('t-pan'); }
