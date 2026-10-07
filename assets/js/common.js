@@ -670,7 +670,7 @@ function updateHeroBackground(theme) {
 }
 
 function updateAllThemeSelections(theme) {
-    document.querySelectorAll('.theme-option, .st-theme').forEach(btn => {
+    document.querySelectorAll('.theme-option:not(.perf-option), .st-theme').forEach(btn => {
         const isActive = btn.dataset.theme === theme;
         btn.classList.toggle('active', isActive);
         if (btn.classList.contains('st-theme')) btn.setAttribute('aria-checked', isActive);
@@ -847,6 +847,9 @@ let recaptchaVerifier = null;
 let confirmationResult = null;
 
 const AUTH_THEME_SELECTOR_HTML = `<div id="theme-selector-auth">
+          <button class="theme-option perf-option" type="button" aria-pressed="false" title="Режим производительности — для слабых устройств: без живого фона, размытия, теней и анимаций">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#22c55e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>
+          </button>
           <button class="theme-option" data-theme="light" title="Светлая">
             <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23fbbf24' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='5'/%3E%3Cline x1='12' y1='1' x2='12' y2='3'/%3E%3Cline x1='12' y1='21' x2='12' y2='23'/%3E%3Cline x1='4.22' y1='4.22' x2='5.64' y2='5.64'/%3E%3Cline x1='18.36' y1='18.36' x2='19.78' y2='19.78'/%3E%3Cline x1='1' y1='12' x2='3' y2='12'/%3E%3Cline x1='21' y1='12' x2='23' y2='12'/%3E%3Cline x1='4.22' y1='19.78' x2='5.64' y2='18.36'/%3E%3Cline x1='18.36' y1='5.64' x2='19.78' y2='4.22'/%3E%3C/svg%3E" alt="Светлая" />
           </button>
@@ -857,6 +860,17 @@ const AUTH_THEME_SELECTOR_HTML = `<div id="theme-selector-auth">
             <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='2' y='3' width='20' height='14' rx='2' ry='2'/%3E%3Cline x1='8' y1='21' x2='16' y2='21'/%3E%3Cline x1='12' y1='17' x2='12' y2='21'/%3E%3C/svg%3E" alt="Системная" />
           </button>
         </div>`;
+
+// Режим производительности (ключ mf-perf читает и mathframe-ui.js до запуска фона).
+// Доступен и гостям — переключатель есть в окне входа, а не только в настройках.
+function perfModeOn() { try { return localStorage.getItem('mf-perf') === 'on'; } catch (e) { return false; } }
+function setPerfMode(on) {
+    try { if (on) localStorage.setItem('mf-perf', 'on'); else localStorage.removeItem('mf-perf'); } catch (e) {}
+    document.documentElement.classList.toggle('mf-perf', on);
+    if (on) document.documentElement.classList.add('mf-lite');
+    document.querySelectorAll('#perf-toggle-settings').forEach(i => { i.checked = on; });
+    document.querySelectorAll('.perf-option').forEach(b => { b.classList.toggle('active', on); b.setAttribute('aria-pressed', on); });
+}
 
 function injectAuthModal() {
     if (document.getElementById('auth-modal')) return;
@@ -959,7 +973,10 @@ function injectAuthModal() {
     const messageEl = $('auth-message');
     let isOpen = false;
 
-    modal.querySelectorAll('#theme-selector-auth .theme-option').forEach(btn => {
+    const perfBtn = modal.querySelector('.perf-option');
+    perfBtn.addEventListener('click', () => setPerfMode(!perfModeOn()));
+    setPerfMode(perfModeOn());
+    modal.querySelectorAll('#theme-selector-auth .theme-option:not(.perf-option)').forEach(btn => {
         btn.addEventListener('click', () => {
             const theme = btn.dataset.theme;
             if (theme === 'system') applySystemTheme(true, true);
@@ -1551,15 +1568,8 @@ function injectSettingsModal() {
     // CSS (html.mf-perf) гасит фон и эффекты сразу, без перезагрузки.
     const perfInput = $('perf-toggle-settings');
     if (perfInput) {
-        try { perfInput.checked = localStorage.getItem('mf-perf') === 'on'; } catch (e) {}
-        perfInput.addEventListener('change', () => {
-            try {
-                if (perfInput.checked) localStorage.setItem('mf-perf', 'on');
-                else localStorage.removeItem('mf-perf');
-            } catch (e) {}
-            document.documentElement.classList.toggle('mf-perf', perfInput.checked);
-            if (perfInput.checked) document.documentElement.classList.add('mf-lite');
-        });
+        perfInput.checked = perfModeOn();
+        perfInput.addEventListener('change', () => setPerfMode(perfInput.checked));
     }
 
     const PROVIDER_RU = { 'google.com': 'Google', 'apple.com': 'Apple', 'github.com': 'GitHub', password: 'почта и пароль', phone: 'телефон' };
