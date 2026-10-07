@@ -662,18 +662,25 @@ service cloud.firestore {
     // Лимиты (10 досок на пользователя, 5000 объектов / 5 МБ на доску, без лимитов у админов)
     // проверяет клиент; здесь — вход, владелец и размер одного объекта (картинка до ~1 МБ).
     match /boards/{bid} {
+      function board() { return get(/databases/$(database)/documents/boards/$(bid)).data; }
+      // рисовать можно, если владелец не включил «только просмотр» (mode == 'view'), либо это сам владелец
+      function canDraw() { return signedIn() &amp;&amp; exists(/databases/$(database)/documents/boards/$(bid))
+        &amp;&amp; (board().get('mode', 'edit') != 'view' || board().owner == request.auth.uid); }
       allow read: if signedIn();
       allow create: if signedIn() &amp;&amp; bid.size() &gt;= 16
         &amp;&amp; request.resource.data.owner == request.auth.uid
         &amp;&amp; request.resource.data.keys().hasOnly(['bg', 'name', 'createdAt', 'updatedAt', 'owner'])
         &amp;&amp; (!('name' in request.resource.data) || request.resource.data.name.size() &lt;= 80);
-      allow update: if signedIn() &amp;&amp; (onlyChanged(['bg', 'updatedAt'])
-        || (resource.data.owner == request.auth.uid &amp;&amp; onlyChanged(['name', 'noSolve', 'updatedAt'])
+      // участники: фон, листы, ведущий урока; владелец — ещё название, «Решить» у участников и режим
+      allow update: if signedIn() &amp;&amp; (
+        (onlyChanged(['bg', 'pages', 'updatedAt']) &amp;&amp; (resource.data.get('mode', 'edit') != 'view' || resource.data.owner == request.auth.uid))
+        || onlyChanged(['lead', 'updatedAt'])
+        || (resource.data.owner == request.auth.uid &amp;&amp; onlyChanged(['name', 'noSolve', 'mode', 'bg', 'pages', 'lead', 'updatedAt'])
             &amp;&amp; (!('name' in request.resource.data) || request.resource.data.name.size() &lt;= 80)));
       allow delete: if isSuper() || (signedIn() &amp;&amp; resource.data.owner == request.auth.uid);
       match /items/{iid} {
         allow read: if signedIn();
-        allow write: if signedIn() &amp;&amp; exists(/databases/$(database)/documents/boards/$(bid));
+        allow write: if canDraw();
       }
       match /peers/{pid} {
         allow read: if signedIn();

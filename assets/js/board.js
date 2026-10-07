@@ -35,6 +35,10 @@
         angle: '<path d="M20 19H4l11-13"/><path d="M10 19a6 6 0 0 0-2-4.5"/>',
         mark: '<path d="M3 20 21 4"/><path d="M9 10l4 4M12 7l4 4"/>',
         extend: '<path d="M2 19 22 5" stroke-dasharray="3 3"/><path d="M7 15.5 15 10"/><circle cx="7" cy="15.5" r="1.6" fill="currentColor"/><circle cx="15" cy="10" r="1.6" fill="currentColor"/>',
+        cons: '<path d="M4 20 12 4l8 16z"/><path d="M12 4v16" stroke-dasharray="2 2"/><circle cx="12" cy="20" r="1.5" fill="currentColor"/>',
+        compass: '<path d="M12 3v3M12 6l-6 14M12 6l6 14"/><circle cx="12" cy="6" r="1.6"/><path d="M4 17a9 9 0 0 0 16 0" stroke-dasharray="2 2"/>',
+        curtain: '<rect x="3" y="4" width="18" height="16" rx="1"/><path d="M3 9h18" /><path d="M8 14h8" stroke-dasharray="2 2"/>',
+        laser: '<circle cx="12" cy="12" r="3" fill="currentColor"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>',
         pan: '<path d="M18 11V6a2 2 0 0 0-4 0M14 10V4a2 2 0 0 0-4 0v2M10 10.5V6a2 2 0 0 0-4 0v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.9-6-2.4l-3.6-3.6a2 2 0 0 1 2.8-2.8L7 15"/>',
     };
     const TOOLS = [
@@ -42,7 +46,7 @@
         ['pen', 'Перо (P)', 'p'], ['marker', 'Маркер-выделитель (M)', 'm'], ['eraser', 'Ластик (E)', 'e'],
         ['line', 'Отрезок (L)', 'l'], ['arrow', 'Стрелка (A)', 'a'],
         ['point', 'Точка с подписью (K)', 'k'],
-        ['text', 'Текст и формулы (T): формула — кнопкой ∑ или Ctrl+M', 't'], ['pan', 'Рука — сдвиг (H)', 'h'],
+        ['text', 'Текст и формулы (T): формула — кнопкой ∑ или Ctrl+M', 't'], ['laser', 'Указка (J): след гаснет сам, участники его видят', 'j'], ['pan', 'Рука — сдвиг (H)', 'h'],
     ];
     // инструменты из меню «Фигуры» — со своими горячими клавишами
     const EXTRA_KEYS = { c: 'circle', o: 'ellipse', g: 'poly', u: 'angle', r: 'shape' };
@@ -64,6 +68,13 @@
     let cur = null;                             // объект, который рисуется сейчас
     let drag = null;                            // перемещение/масштаб в режиме «Выбор»
     let sel = [];                               // id выбранных объектов
+    // Листы (страницы) доски: у объекта pg — id листа (нет — первый лист 'p1')
+    let pages = [{ id: 'p1', name: '' }], curPage = 'p1';
+    const pageViews = {};
+    // видимый сейчас объект: на текущем листе и не скрытое решение
+    const inView = (it) => !it.hid && (it.pg || 'p1') === curPage;
+    // можно ли менять доску (общая доска «только просмотр» — менять может только владелец)
+    const canEdit = () => !shared || shared.owner || shared.mode !== 'view';
     let spaceDown = false, panDrag = null;
     const pointers = new Map();
     let pinch = null;
@@ -138,6 +149,7 @@
             items = s.items.map((it, i) => Object.assign({ id: rid(12), z: i }, it));
             bg = s.bg || 'cells';
             if (s.view) { view = s.view; viewSet = true; }
+            if (Array.isArray(s.pages) && s.pages.length) pages = s.pages;
         }
         sortItems();
         setTitle(cur.name);
@@ -147,7 +159,7 @@
         if (shared || !localId) return;
         clearTimeout(saveT);
         saveT = setTimeout(() => {
-            idbPut(localId, { items, bg, view }).catch(() => toast('Не удалось сохранить доску в браузере'));
+            idbPut(localId, { items, bg, view, pages }).catch(() => toast('Не удалось сохранить доску в браузере'));
             const list = localList(), b = list.find((x) => x.id === localId);
             if (b) { b.updated = Date.now(); lsSet(IDX, list); }
         }, 250);
@@ -156,6 +168,7 @@
         const box = $('bdOwnerCfg'); if (!box) return;
         box.hidden = !(shared && shared.owner);
         $('bdNoSolve').checked = !(shared && shared.noSolve);
+        if ($('bdMode')) $('bdMode').value = shared && shared.mode === 'view' ? 'view' : 'edit';
     }
     function setTitle(name) {
         const el = $('bdBoardName');
@@ -218,8 +231,13 @@
         return false;
     }
     function commit(op) {
+        if (!canEdit()) { toast('Владелец доски включил режим «только просмотр»'); render(); return false; }
         if (overLimit(op)) { render(); return false; }
+        for (const it of op.add || []) { if (!it.pg && curPage !== 'p1') it.pg = curPage; }
         apply(op, false);
+        // зависимые построения (середина, перпендикуляр, …) пересчитываются вслед за опорными точками
+        const dep = depsAfter(op);
+        if (dep.length) { putItems(dep.map((x) => x[1])); op.mod = (op.mod || []).concat(dep); }
         record(op);
     }
     function record(op) {
@@ -236,6 +254,8 @@
         if (textEd) closeText();
         const op = undo.pop(); if (!op) return;
         apply(op, true); redo.push(op);
+        const dep = depsAfter({ mod: (op.mod || []).map((p) => [p[1], p[0]]), add: op.del });
+        if (dep.length) putItems(dep.map((x) => x[1]));
         syncHistory(); render();
     }
     function doRedo() {
@@ -251,6 +271,7 @@
         return { x: e.clientX - r.left, y: e.clientY - r.top };
     }
     function zoomAt(sx, sy, factor) {
+        userMovedView();
         const k = Math.min(8, Math.max(0.1, view.k * factor));
         const w = toWorld(sx, sy);
         view.k = k;
@@ -291,6 +312,63 @@
         render();
     }
 
+    // Готовые листы: миллиметровка, точки, изометрическая (для объёмных фигур), полярная сетка, прописи.
+    function bgExtra(c, w, h, v, line) {
+        const X = (x) => (x - v.x) * v.k, Y = (y) => (y - v.y) * v.k;
+        const x0w = v.x, y0w = v.y, x1w = v.x + w / v.k, y1w = v.y + h / v.k;
+        if (bg === 'mm') {
+            for (const [st, a] of [[5, .07], [25, .16], [50, .32]]) {
+                if (st * v.k < 4) continue;
+                c.strokeStyle = line + a + ')'; c.beginPath();
+                for (let x = Math.floor(x0w / st) * st; x < x1w; x += st) { const sx = Math.round(X(x)) + .5; c.moveTo(sx, 0); c.lineTo(sx, h); }
+                for (let y = Math.floor(y0w / st) * st; y < y1w; y += st) { const sy = Math.round(Y(y)) + .5; c.moveTo(0, sy); c.lineTo(w, sy); }
+                c.stroke();
+            }
+            return true;
+        }
+        if (bg === 'dots') {
+            let st = 25; while (st * v.k < 10) st *= 5;
+            c.fillStyle = line + '.45)';
+            for (let x = Math.floor(x0w / st) * st; x < x1w; x += st) for (let y = Math.floor(y0w / st) * st; y < y1w; y += st) c.fillRect(X(x) - 1, Y(y) - 1, 2, 2);
+            return true;
+        }
+        if (bg === 'iso') {
+            let st = 30; while (st * v.k < 10) st *= 5;
+            const hh = st * Math.sqrt(3) / 2;
+            c.strokeStyle = line + '.14)'; c.beginPath();
+            for (let y = Math.floor(y0w / hh) * hh; y < y1w; y += hh) { c.moveTo(0, Y(y)); c.lineTo(w, Y(y)); }
+            const span = (y1w - y0w) / Math.sqrt(3);
+            for (let x = Math.floor((x0w - span) / st) * st; x < x1w + span; x += st) {
+                c.moveTo(X(x), Y(y0w)); c.lineTo(X(x + (y1w - y0w) / Math.sqrt(3)), Y(y1w));
+                c.moveTo(X(x), Y(y0w)); c.lineTo(X(x - (y1w - y0w) / Math.sqrt(3)), Y(y1w));
+            }
+            c.stroke();
+            return true;
+        }
+        if (bg === 'polar') {
+            const ox = X(0), oy = Y(0), R = Math.hypot(Math.max(Math.abs(ox), Math.abs(w - ox)), Math.max(Math.abs(oy), Math.abs(h - oy)));
+            let st = 50; while (st * v.k < 18) st *= 2;
+            c.strokeStyle = line + '.16)'; c.beginPath();
+            for (let r = st * v.k; r < R; r += st * v.k) { c.moveTo(ox + r, oy); c.arc(ox, oy, r, 0, Math.PI * 2); }
+            for (let a = 0; a < 360; a += 15) { c.moveTo(ox, oy); c.lineTo(ox + R * Math.cos(a * Math.PI / 180), oy - R * Math.sin(a * Math.PI / 180)); }
+            c.stroke();
+            c.strokeStyle = line + '.6)'; c.beginPath(); c.moveTo(0, oy); c.lineTo(w, oy); c.moveTo(ox, 0); c.lineTo(ox, h); c.stroke();
+            return true;
+        }
+        if (bg === 'pr') {
+            // прописи: строки (линия основания и строчных), наклонные под 65°
+            const L = 75, xh = 25;
+            c.beginPath(); c.strokeStyle = line + '.3)';
+            for (let y = Math.floor(y0w / L) * L; y < y1w; y += L) { c.moveTo(0, Math.round(Y(y)) + .5); c.lineTo(w, Math.round(Y(y)) + .5); c.moveTo(0, Math.round(Y(y - xh)) + .5); c.lineTo(w, Math.round(Y(y - xh)) + .5); }
+            c.stroke();
+            c.beginPath(); c.strokeStyle = line + '.12)';
+            const k = 1 / Math.tan(65 * Math.PI / 180), span = (y1w - y0w) * k;
+            for (let x = Math.floor((x0w - span) / 25) * 25; x < x1w + span; x += 25) { c.moveTo(X(x), Y(y1w)); c.lineTo(X(x + (y1w - y0w) * k), Y(y0w)); }
+            c.stroke();
+            return true;
+        }
+        return false;
+    }
     function drawBg(c, w, h, v) {
         if (bg === 'none') return;
         const step = 25;
@@ -300,6 +378,7 @@
         const st = step * mult;
         const line = isLight() ? 'rgba(40,60,110,' : 'rgba(170,190,240,';
         c.lineWidth = 1;
+        if (bgExtra(c, w, h, v, line)) return;
         if (bg === 'lines') {
             const y0 = Math.floor(v.y / st) * st;
             c.strokeStyle = line + '.18)';
@@ -472,6 +551,12 @@
             drawVec(c, it);
         } else if (it.t === 'solid') {
             drawSolid(c, it);
+        } else if (it.t === 'curtain') {
+            drawCurtain(c, it);
+        } else if (it.t === 'curtainDraft') {
+            c.globalAlpha = .6; drawCurtain(c, { x: Math.min(it.x1, it.x2), y: Math.min(it.y1, it.y2), w: Math.abs(it.x2 - it.x1), h: Math.abs(it.y2 - it.y1) });
+        } else if (it.t === 'arc') {
+            drawArc(c, it);
         } else if (it.t === 'plot') {
             drawPlot(c, it);
         } else if (it.t === 'shapeDraft') {
@@ -628,7 +713,7 @@
     function lbounds(it) {
         if (BOX[it.t]) return { x: it.x, y: it.y, w: it.w, h: it.h };
         if (it.t === 'point') return { x: it.x - 6, y: it.y - 26, w: 30, h: 32 };
-        if (it.t === 'circle') {
+        if (it.t === 'circle' || it.t === 'arc') {
             const r = Math.hypot(it.x2 - it.x1, it.y2 - it.y1) + it.w / 2;
             return { x: it.x1 - r, y: it.y1 - r, w: 2 * r, h: 2 * r };
         }
@@ -721,6 +806,7 @@
         const out = [];
         const ne = P(1, -1), nn = P(0, -1);
         out.push({ id: 'del', x: ne.x + (up.x + rt.x) * 18, y: ne.y + (up.y + rt.y) * 18 });
+        out.push({ id: 'more', x: ne.x + (up.x + rt.x) * 18 + rt.x * 26, y: ne.y + (up.y + rt.y) * 18 + rt.y * 26 });
         if (!one || one.t === 'point') return out;
         out.push({ id: 'rot', x: nn.x + up.x * 28, y: nn.y + up.y * 28 });
         if (one.t === 'solid') { const ss = P(0, 1); out.push({ id: 'r3', x: ss.x - up.x * 30, y: ss.y - up.y * 30 }); }
@@ -738,9 +824,9 @@
     function handleAt(sx, sy) {
         const hs = handles();
         // кнопки и вершины важнее ручек рамки
-        const order = (h) => (h.id === 'del' || h.id === 'edit' ? 0 : h.id === 'rot' || h.id === 'r3' ? 1 : h.id[0] === 'v' ? 2 : 3);
+        const order = (h) => (h.id === 'del' || h.id === 'edit' || h.id === 'more' ? 0 : h.id === 'rot' || h.id === 'r3' ? 1 : h.id[0] === 'v' ? 2 : 3);
         hs.sort((a, b) => order(a) - order(b));
-        const h = hs.find((q) => Math.hypot(q.x - sx, q.y - sy) < HANDLE + (q.id === 'del' || q.id === 'edit' ? 4 : 3));
+        const h = hs.find((q) => Math.hypot(q.x - sx, q.y - sy) < HANDLE + (q.id === 'del' || q.id === 'edit' || q.id === 'more' ? 4 : 3));
         return h ? h.id : null;
     }
     function drawSelection() {
@@ -770,7 +856,10 @@
         else if (!(GEO[its[0].t] && its[0].t !== 'poly')) box(frameOf(its[0]), true);
         for (const h of handles()) {
             ctx.beginPath();
-            if (h.id === 'del' || h.id === 'edit') {
+            if (h.id === 'more') {
+                ctx.fillStyle = boardFill(); ctx.arc(h.x, h.y, 10, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+                ctx.fillStyle = acc; for (const d of [-4, 0, 4]) { ctx.beginPath(); ctx.arc(h.x + d, h.y, 1.6, 0, Math.PI * 2); ctx.fill(); }
+            } else if (h.id === 'del' || h.id === 'edit') {
                 ctx.fillStyle = h.id === 'del' ? '#e5484d' : acc;
                 ctx.arc(h.x, h.y, 10, 0, Math.PI * 2); ctx.fill();
                 ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.beginPath();
@@ -805,15 +894,21 @@
         drawBg(ctx, W, H, view);
         ctx.setTransform(dpr * view.k, 0, 0, dpr * view.k, -view.x * view.k * dpr, -view.y * view.k * dpr);
         const extra = [];
-        if (shared && bcfg.drafts) for (const p of shared.peers.values()) if (p.draft && fresh(p)) extra.push(p.draft);
+        if (shared && bcfg.drafts) for (const p of shared.peers.values()) if (p.draft && fresh(p) && (p.pg || 'p1') === curPage) extra.push(p.draft);
         if (cur && cur.t !== 'erase') extra.push(cur);
         if (geo) extra.push(geo);
-        drawList(ctx, items.filter((i) => !i.hid).concat(extra));
+        drawList(ctx, items.filter(inView).concat(extra));
+        if (bcfg.ms) for (const it of items) drawMeasures(ctx, it);
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        drawInstruments();
+        drawLasers();
+        drawCmtBadges();
         drawSolveBtns();
+        drawConsPick();
         drawHand();
         drawSelection();
         drawSnapHint();
+        if (shared) leadSend();
         if (shared) drawPeers();
     }
 
@@ -825,7 +920,7 @@
     //  • vec  — векторный шаблон (тела, фигуры, числовая прямая): локальные координаты
     //           bw × bh, paths: [{ d:[x,y,…], cl, dash }], els: [{ cx, cy, rx, ry, a0, a1, dash }],
     //           labels: [{ x, y, t }]. Вложенных массивов нет — Firestore их не принимает.
-    const BOX = { img: 1, tex: 1, plot: 1, vec: 1, solid: 1 };
+    const BOX = { img: 1, tex: 1, plot: 1, vec: 1, solid: 1, curtain: 1 };
 
     // Притягивание к вершинам: точки, концы отрезков, вершины многоугольников, центры окружностей.
     // Привязка (Alt — без привязки), по убыванию важности:
@@ -833,7 +928,7 @@
     //  3) узлы клетки, 4) точка на отрезке/стороне/окружности. Найденная точка подсвечивается.
     let snapHint = null, snapAlt = false;
     // настройки доски (меню-шестерёнка): привязка и чужие курсоры; хранятся в этом браузере
-    const CFG_DEF = { hd: 3, hf: false, hm: false, hl: 'ru', snap: true, sV: true, sM: true, sG: true, sO: true, sR: 11, cur: true, names: true, drafts: true };
+    const CFG_DEF = { sr: false, ms: false, hd: 3, hf: false, hm: false, hl: 'ru', snap: true, sV: true, sM: true, sG: true, sO: true, sR: 11, cur: true, names: true, drafts: true };
     const bcfg = Object.assign({}, CFG_DEF, lsGet('mf-board-cfg', {}));
     if (bcfg.cv !== 2 && bcfg.cv !== 3) bcfg.hd = CFG_DEF.hd;      // новая задержка по умолчанию — 3 с
     if (bcfg.cv !== 3) { bcfg.hm = false; bcfg.cv = 3; }              // формулы теперь без нейросети
@@ -845,7 +940,7 @@
         const tryPt = (x, y, k, rr) => { const d = Math.hypot(x - w.x, y - w.y); if (d < (rr || bd) && d < bd + 1e-9) { bd = d; best = { x, y }; kind = k; } };
         const segs = [];
         for (const it of items) {
-            if ((except && except.has(it.id)) || it.hid) continue;
+            if ((except && except.has(it.id)) || !inView(it)) continue;
             if (!bcfg.sV) { if (it.t === 'line' || it.t === 'arrow') segs.push([it.x1, it.y1, it.x2, it.y2]); else if (it.t === 'poly') { const n = it.p.length / 2; for (let i = 0; i < n; i++) { const j = (i + 1) % n; if (j || it.cl) segs.push([it.p[2 * i], it.p[2 * i + 1], it.p[2 * j], it.p[2 * j + 1]]); } } continue; }
             if (it.t === 'point') tryPt(it.x, it.y, 'v');
             else if (it.t === 'line' || it.t === 'arrow') { tryPt(it.x1, it.y1, 'v'); tryPt(it.x2, it.y2, 'v'); segs.push([it.x1, it.y1, it.x2, it.y2]); }
@@ -893,7 +988,7 @@
     function allEdges() {
         const E = [];
         for (const it of items) {
-            if (it.hid) continue;
+            if (!inView(it)) continue;
             if (it.t === 'line' || it.t === 'arrow') E.push([it.x1, it.y1, it.x2, it.y2]);
             else if (it.t === 'poly') {
                 const n = it.p.length / 2;
@@ -1375,9 +1470,14 @@
     }
     const fmtTick = (v) => String(+v.toPrecision(6)).replace('.', ',').replace('-', '−');
     function evalFn(f, x) {
-        try { const v = f.at(x); return typeof v === 'number' ? v : NaN; } catch (e) { return NaN; }
+        try { const v = f.at(x, curP); return typeof v === 'number' ? v : NaN; } catch (e) { return NaN; }
     }
     function drawPlot(c, it) {
+        curP = it.pr ? plotVals(it) : null;
+        try { drawPlotIn(c, it); } finally { curP = null; }
+        if (it.pr) drawSliders(c, it);
+    }
+    function drawPlotIn(c, it) {
         const { x, y, w, h } = it, [x0, x1] = it.xr, [y0, y1] = it.yr;
         const X = (v) => x + (v - x0) / (x1 - x0) * w, Y = (v) => y + h - (v - y0) / (y1 - y0) * h;
         const ink = paint(it.c || 'ink');
@@ -1562,8 +1662,9 @@
     const SHAPES = POLY_SH.concat(SHAPE_DEFS.filter((s) => !['tri', 'rtri', 'sq', 'rect', 'par', 'rhomb', 'trap', 'hex', 'nline', 'ucirc', 'plane'].includes(s.id)));
     // инструменты построения, которые тоже живут в меню «Фигуры»
     const MENU_TOOLS = [['circle', 'Окружность: центр → радиус'], ['ellipse', 'Эллипс'], ['poly', 'Многоугольник по точкам'],
-        ['angle', 'Угол: по трём точкам или щелчком внутри готового угла'], ['mark', 'Отметить равные стороны и углы'], ['extend', 'Продлить отрезок до луча или прямой']];
-    const SHAPE_TOOLS = { shape: 1, circle: 1, ellipse: 1, poly: 1, angle: 1, rect: 1, mark: 1, extend: 1 };
+        ['angle', 'Угол: по трём точкам или щелчком внутри готового угла'], ['mark', 'Отметить равные стороны и углы'], ['extend', 'Продлить отрезок до луча или прямой'],
+        ['curtain', 'Шторка: закрыть часть доски и открывать постепенно']];
+    const SHAPE_TOOLS = { shape: 1, circle: 1, ellipse: 1, poly: 1, angle: 1, rect: 1, mark: 1, extend: 1, cons: 1, compass: 1, curtain: 1 };
     const IS_3D = { cube: 1, box: 1, pyr: 1, tpyr: 1, prism: 1, cyl: 1, cone: 1, sph: 1 };
     let shapeId = 'ptri';
     function draftBox(d) {
@@ -1618,6 +1719,8 @@
 
     // ---- заготовки: вставляются готовыми в центр экрана
     const PRESETS = SHAPE_DEFS.filter((s) => ['ucirc', 'nline', 'plane'].includes(s.id)).concat([
+        { id: 'table', name: 'Таблица значений функции', tbl: 1 },
+        { id: 'test', name: 'Тест с вариантами ответа', text: '1. Вопрос: …\nA) …     B) …     C) …     D) …\n\n2. Вопрос: …\nA) …     B) …     C) …     D) …' },
         { id: 'f-quad', name: 'Квадратное уравнение', text: '$ax^2+bx+c=0$\n$D=b^2-4ac$\n$x_{1,2}=\\dfrac{-b\\pm\\sqrt{D}}{2a}$' },
         { id: 'f-vieta', name: 'Теорема Виета', text: '$x_1+x_2=-\\dfrac{b}{a}$\n$x_1\\cdot x_2=\\dfrac{c}{a}$' },
         { id: 'f-mult', name: 'Формулы сокращённого умножения', text: '$(a+b)^2=a^2+2ab+b^2$\n$(a-b)^2=a^2-2ab+b^2$\n$a^2-b^2=(a-b)(a+b)$\n$a^3\\pm b^3=(a\\pm b)(a^2\\mp ab+b^2)$' },
@@ -1644,6 +1747,15 @@
             for (const a in names) { const r = a * Math.PI / 180; out.push(P(cx + R * Math.cos(r), cy - R * Math.sin(r), names[a])); }
             return out;
         }
+        if (id === 'table') {
+            // таблица x | y из отрезков и подписей — всё правится как обычные объекты
+            const cw = 56 * k, rh = 36 * k, n = 8, x0 = cx - cw * (n + 1) / 2, y0 = cy - rh, out = [];
+            for (let r = 0; r <= 2; r++) out.push({ t: 'line', c: ink, w: 2, x1: R2(x0), y1: R2(y0 + r * rh), x2: R2(x0 + cw * (n + 1)), y2: R2(y0 + r * rh) });
+            for (let q = 0; q <= n + 1; q++) out.push({ t: 'line', c: ink, w: q === 1 ? 2.5 : 2, x1: R2(x0 + q * cw), y1: R2(y0), x2: R2(x0 + q * cw), y2: R2(y0 + 2 * rh) });
+            out.push(T(x0 + cw * .38, y0 + rh * .2, '$x$'), T(x0 + cw * .38, y0 + rh * 1.2, '$y$'));
+            for (let q = 0; q < n; q++) out.push(T(x0 + cw * (q + 1.3), y0 + rh * .2, String(q - 3).replace('-', '−')));
+            return out;
+        }
         if (id === 'nline') {
             const st = 44 * k, out = [{ t: 'arrow', c: ink, w: 2, x1: R2(cx - 6 * st), y1: cy, x2: R2(cx + 6 * st), y2: cy }, T(cx + 6 * st - 6 * k, cy + 8 * k, 'x')];
             for (let i = -5; i <= 5; i++) out.push(P(cx + i * st, cy, String(i).replace('-', '−')));
@@ -1652,11 +1764,17 @@
         return null;
     }
     function insertPreset(pr) {
-        const geoSet = presetItems(pr.id, 0, 0, 1);
+        const geoSet = !pr.tbl && presetItems(pr.id, 0, 0, 1);
         if (geoSet) {
             const c = toWorld(W / 2, H / 2), list = presetItems(pr.id, R2(c.x), R2(c.y), 1 / view.k).map((x, i) => Object.assign(x, { id: rid(12), z: newZ() + i * 1e-3 }));
             commit({ add: list });
             setTool('select'); sel = list.map((x) => x.id); render();
+            return;
+        }
+        if (pr.tbl) {
+            const c = toWorld(W / 2, H / 2), g = rid(8), list = presetItems('table', R2(c.x), R2(c.y), 1 / view.k).map((x, i) => Object.assign(x, { id: rid(12), z: newZ() + i * 1e-3, gr: g }));
+            commit({ add: list }); setTool('select'); sel = list.map((x) => x.id); render();
+            loadMathJax().then(() => { layoutCache.clear(); render(); }, () => {});
             return;
         }
         if (pr.text) {
@@ -1676,6 +1794,7 @@
             const pts = []; for (let i = 0; i < sh.v.length; i += 2) pts.push((4 + sh.v[i] * 32).toFixed(1) + ',' + (4 + sh.v[i + 1] * 32).toFixed(1));
             return `<svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><polygon points="${pts.join(' ')}"/></svg>`;
         }
+        if (sh.tbl) return '<svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="12" width="34" height="16"/><path d="M3 20h34M10 12v16M17 12v16M24 12v16M31 12v16"/></svg>';
         if (sh.text) return '<svg viewBox="0 0 40 40"><text x="20" y="27" text-anchor="middle" font-size="20" font-style="italic" fill="currentColor" font-family="serif">ƒ</text></svg>';
         if (sh.plot) return '<svg viewBox="0 0 40 40"><path d="M3 20h34M20 37V3" stroke="currentColor" fill="none" stroke-width="2"/><path d="M5 34Q20-4 35 34" stroke="currentColor" fill="none" stroke-width="1.6" opacity=".6"/></svg>';
         const g = sh.g(), k = 36 / Math.max(g.bw, g.bh), ox = (40 - g.bw * k) / 2, oy = (40 - g.bh * k) / 2;
@@ -1757,8 +1876,12 @@
         if (x1 <= x0) x1 = x0 + 1;
         const fns = M.fns.map((x) => ({ e: fnExpr(x.f), l: fnLatex(x.f), c: x.col })).filter((x) => x.e && compileFn(x.e));
         let yr = [num('bdY0', NaN), num('bdY1', NaN)];
-        if (!(yr[1] > yr[0])) yr = autoY(fns, x0, x1);
-        return { t: 'plot', c: 'ink', xr: [x0, x1], yr, fns };
+        // параметры (все буквы кроме x) — ползунки; значения при правке сохраняются
+        const old = (M.editing && M.editing.pr) || {}, pr = {};
+        for (const n of fnParams(fns)) pr[n] = old[n] || { v: 1, lo: -5, hi: 5 };
+        const P = Object.keys(pr).length ? pr : null;
+        if (!(yr[1] > yr[0])) { curP = P ? plotVals({ pr: P }) : null; yr = autoY(fns, x0, x1); curP = null; }
+        return Object.assign({ t: 'plot', c: 'ink', xr: [x0, x1], yr, fns }, P ? { pr: P } : {});
     }
     function plotPreview() {
         if (M.tab !== 'g') return;
@@ -1815,10 +1938,189 @@
             const pl = readPlot();
             if (!pl.fns.length && M.fns.some((x) => x.f.expr().trim())) { toast('Не получилось разобрать функцию — проверьте запись'); return; }
             closeMath();
-            if (ed) { const n = Object.assign(clone(ed), { xr: pl.xr, yr: pl.yr, fns: pl.fns }); commit({ mod: [[clone(ed), n]] }); render(); }
+            if (ed) { const n = Object.assign(clone(ed), { xr: pl.xr, yr: pl.yr, fns: pl.fns }); if (pl.pr) n.pr = pl.pr; else delete n.pr; commit({ mod: [[clone(ed), n]] }); render(); }
             else placeBox(Object.assign(pl, { w: 460, h: 360 }));
         }
     }
+    // ================= ИНТЕРАКТИВНАЯ ГЕОМЕТРИЯ: ЗАВИСИМЫЕ ПОСТРОЕНИЯ =================
+    // У объекта dep = { k, r: [id опорных объектов] } — его координаты всегда вычисляются из опорных:
+    //   точки: mid (середина AB), foot (основание перпендикуляра из P на AB), bisd (точка биссектрисы
+    //          угла V на стороне AB), int (пересечение прямых двух отрезков), cc (центр окружности по 3 точкам);
+    //   отрезки: seg (между двумя точками), par (через P параллельно AB, длиной AB);
+    //   углы: ang (дуга угла AVB); окружности: c3 (через три точки).
+    // Двигаете опорную точку — построение перестраивается (и при перетаскивании, и после отмены).
+    const PT = (id) => { const it = byId(id); return it && it.t === 'point' ? [it.x, it.y] : null; };
+    const LN = (id) => { const it = byId(id); return it && (it.t === 'line' || it.t === 'arrow') ? [it.x1, it.y1, it.x2, it.y2] : null; };
+    function lineX(a, b, c, d) {
+        const r = [b[0] - a[0], b[1] - a[1]], q = [d[0] - c[0], d[1] - c[1]], den = r[0] * q[1] - r[1] * q[0];
+        if (Math.abs(den) < 1e-9) return null;
+        const t = ((c[0] - a[0]) * q[1] - (c[1] - a[1]) * q[0]) / den;
+        return [a[0] + t * r[0], a[1] + t * r[1]];
+    }
+    function circum(a, b, c) {
+        const d = 2 * (a[0] * (b[1] - c[1]) + b[0] * (c[1] - a[1]) + c[0] * (a[1] - b[1]));
+        if (Math.abs(d) < 1e-9) return null;
+        const s = (p) => p[0] * p[0] + p[1] * p[1];
+        return [(s(a) * (b[1] - c[1]) + s(b) * (c[1] - a[1]) + s(c) * (a[1] - b[1])) / d, (s(a) * (c[0] - b[0]) + s(b) * (a[0] - c[0]) + s(c) * (b[0] - a[0])) / d];
+    }
+    function depEval(it) {
+        const d = it.dep; if (!d) return null;
+        const r = d.r.map((id) => PT(id) || LN(id));
+        if (r.some((x) => !x)) return null;                   // опорный объект удалён — остаётся как есть
+        const n = clone(it), R = (v) => Math.round(v * 100) / 100;
+        const setP = (q) => { if (!q) return null; n.x = R(q[0]); n.y = R(q[1]); return n; };
+        switch (d.k) {
+            case 'mid': return setP([(r[0][0] + r[1][0]) / 2, (r[0][1] + r[1][1]) / 2]);
+            case 'foot': {
+                const [p, a, b] = r, dx = b[0] - a[0], dy = b[1] - a[1], l = dx * dx + dy * dy || 1, t = ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / l;
+                return setP([a[0] + t * dx, a[1] + t * dy]);
+            }
+            case 'bisd': {
+                const [a, v, b] = r, la = Math.hypot(a[0] - v[0], a[1] - v[1]), lb = Math.hypot(b[0] - v[0], b[1] - v[1]), t = la / (la + lb || 1);
+                return setP([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]);
+            }
+            case 'int': return setP(lineX([r[0][0], r[0][1]], [r[0][2], r[0][3]], [r[1][0], r[1][1]], [r[1][2], r[1][3]]));
+            case 'cc': return setP(circum(r[0], r[1], r[2]));
+            case 'seg': n.x1 = r[0][0]; n.y1 = r[0][1]; n.x2 = r[1][0]; n.y2 = r[1][1]; return n;
+            case 'par': n.x1 = r[0][0]; n.y1 = r[0][1]; n.x2 = R(r[0][0] + r[2][0] - r[1][0]); n.y2 = R(r[0][1] + r[2][1] - r[1][1]); return n;
+            case 'ang': n.p = [r[0][0], r[0][1], r[1][0], r[1][1], r[2][0], r[2][1]]; return n;
+            case 'c3': { const c = circum(r[0], r[1], r[2]); if (!c) return null; n.x1 = R(c[0]); n.y1 = R(c[1]); n.x2 = r[0][0]; n.y2 = r[0][1]; return n; }
+        }
+        return null;
+    }
+    // пересчитать всё, что зависит от changed (по цепочке); live — без записи (во время перетаскивания)
+    function depsRun(changed, live, onChange) {
+        const ch = new Set(changed);
+        for (let pass = 0; pass < 8; pass++) {
+            let any = false;
+            for (const it of items) {
+                if (!it.dep || !it.dep.r.some((id) => ch.has(id))) continue;
+                const n = depEval(it);
+                if (!n || JSON.stringify(n) === JSON.stringify(it)) continue;
+                onChange(it, n);
+                setLive(n);
+                if (!ch.has(it.id)) { ch.add(it.id); any = true; }
+            }
+            if (!any) break;
+        }
+    }
+    function depsAfter(op) {
+        if (!items.some((i) => i.dep)) return [];
+        const ids = [].concat((op.add || []).map((i) => i.id), (op.mod || []).map((p) => p[1].id));
+        const before = new Map();
+        depsRun(ids, false, (it, n) => { if (!before.has(it.id)) before.set(it.id, clone(it)); });
+        return [...before.entries()].map(([id, b]) => [b, clone(byId(id))]);
+    }
+
+    // ---- инструмент «Построения»: выбор опорных точек/отрезков по шагам
+    const CONS = {
+        mid: { name: 'Середина отрезка', slots: ['P', 'P'], hint: ['первый конец отрезка', 'второй конец'] },
+        alt: { name: 'Высота (перпендикуляр из точки)', slots: ['P', 'P', 'P'], hint: ['точку, из которой опускаем перпендикуляр', 'первую точку прямой', 'вторую точку прямой'] },
+        med: { name: 'Медиана', slots: ['P', 'P', 'P'], hint: ['вершину', 'первый конец противоположной стороны', 'второй конец'] },
+        bis: { name: 'Биссектриса угла', slots: ['P', 'P', 'P'], hint: ['точку на первой стороне угла', 'вершину угла', 'точку на второй стороне'] },
+        par: { name: 'Параллельная прямая', slots: ['P', 'P', 'P'], hint: ['точку, через которую проводим', 'первую точку прямой', 'вторую точку прямой'] },
+        int: { name: 'Точка пересечения', slots: ['L', 'L'], hint: ['первый отрезок', 'второй отрезок'] },
+        c3: { name: 'Окружность через 3 точки', slots: ['P', 'P', 'P'], hint: ['первую точку', 'вторую точку', 'третью точку'] },
+    };
+    let consKind = 'mid', consPick = [];
+    function consHint() { const c = CONS[consKind]; toast(c.name + ': выберите ' + c.hint[consPick.length]); }
+    function consClick(w) {
+        const c = CONS[consKind], slot = c.slots[consPick.length], r = 16 / view.k;
+        let id = null;
+        if (slot === 'P') {
+            const pt = [...items].reverse().find((it) => it.t === 'point' && inView(it) && Math.hypot(it.x - w.x, it.y - w.y) < r);
+            if (pt) id = pt.id;
+            else {   // точки нет — ставим новую там, где щёлкнули
+                const q = snap(w), it = { id: rid(12), z: newZ(), t: 'point', x: R2(q.x), y: R2(q.y), c: color, w: Math.min(size, 4), label: nextLabel() };
+                if (commit({ add: [it] }) === false) return;
+                id = it.id;
+            }
+        } else {
+            const ln = [...items].reverse().find((it) => (it.t === 'line' || it.t === 'arrow') && hit(it, w.x, w.y, 8 / view.k));
+            if (!ln) { toast('Щёлкните по отрезку'); return; }
+            id = ln.id;
+        }
+        if (consPick.includes(id)) return;
+        consPick.push(id);
+        render();
+        if (consPick.length < c.slots.length) { consHint(); return; }
+        const r0 = consPick.slice(); consPick = [];
+        const base = { c: color, w: size };
+        const pt = (k, refs, label) => Object.assign({ id: rid(12), z: newZ(), t: 'point', x: 0, y: 0, c: color, w: Math.min(size, 4), label, dep: { k, r: refs } });
+        const seg = (a, b, extra) => Object.assign({ id: rid(12), z: newZ(), t: 'line', x1: 0, y1: 0, x2: 0, y2: 0, dep: { k: 'seg', r: [a, b] } }, base, styleFor('line'), extra || {});
+        let made = [];
+        if (consKind === 'mid') made = [pt('mid', r0, nextLabel())];
+        else if (consKind === 'alt') { const H = pt('foot', r0, nextLabel()); made = [H, seg(r0[0], H.id), Object.assign({ id: rid(12), z: newZ(), t: 'angle', arc: 1, nl: 1, c: color, w: Math.max(1, size * .6), p: [0, 0, 0, 0, 0, 0], dep: { k: 'ang', r: [r0[0], H.id, r0[2]] } })]; }
+        else if (consKind === 'med') { const M = pt('mid', [r0[1], r0[2]], nextLabel()); made = [M, seg(r0[0], M.id)]; }
+        else if (consKind === 'bis') { const D = pt('bisd', r0, nextLabel()); made = [D, seg(r0[1], D.id)]; }
+        else if (consKind === 'par') made = [Object.assign({ id: rid(12), z: newZ(), t: 'line', x1: 0, y1: 0, x2: 0, y2: 0, ex1: true, ex2: true, dep: { k: 'par', r: r0 } }, base, styleFor('line'))];
+        else if (consKind === 'int') made = [pt('int', r0, nextLabel())];
+        else if (consKind === 'c3') { const O = pt('cc', r0, 'O'); made = [Object.assign({ id: rid(12), z: newZ(), t: 'circle', nc: 1, x1: 0, y1: 0, x2: 0, y2: 0, dep: { k: 'c3', r: r0 } }, base, styleFor('circle')), O]; }
+        // сначала посчитать координаты (точки — до отрезков, которые к ним привязаны)
+        const tmp = items; items = items.concat(made);
+        for (let k = 0; k < 3; k++) made.forEach((m, i) => { const n = depEval(m); if (n) { made[i] = n; items[items.indexOf(m)] = n; } });
+        items = tmp;
+        if (made.some((m) => m.t === 'point' && !isFinite(m.x))) { toast('Построение невозможно (прямые параллельны?)'); return; }
+        if (commit({ add: made }) !== false) selectMade(made);
+    }
+    function drawConsPick() {
+        if (tool !== 'cons' || !consPick.length) return;
+        const acc = css('--accent') || '#f2a25c';
+        ctx.save(); ctx.strokeStyle = acc; ctx.lineWidth = 2.5;
+        for (const id of consPick) {
+            const it = byId(id); if (!it) continue;
+            ctx.beginPath();
+            if (it.t === 'point') { const s = toScreen(it.x, it.y); ctx.arc(s.x, s.y, 10, 0, Math.PI * 2); }
+            else { const a = toScreen(it.x1, it.y1), b = toScreen(it.x2, it.y2); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.globalAlpha = .5; ctx.lineWidth = 8; }
+            ctx.stroke(); ctx.globalAlpha = 1; ctx.lineWidth = 2.5;
+        }
+        ctx.restore();
+    }
+
+    // ---- измерения на лету (настройки доски → «Измерения»): длины, углы, площади, радиусы.
+    // Единица — деление координатной сетки (2 клетки).
+    const UNIT = 50;
+    const fmtM = (v) => (Math.round(v * 10) / 10).toString().replace('.', ',');
+    function drawMeasures(c, it) {
+        if (!bcfg.ms || !inView(it)) return;
+        c.save(); c.setLineDash([]); c.globalCompositeOperation = 'source-over';
+        c.font = '600 ' + textFont(12 / view.k); c.textAlign = 'center'; c.textBaseline = 'middle';
+        const tag = (t, x, y) => {
+            const w = c.measureText(t).width + 8 / view.k, h = 16 / view.k;
+            c.fillStyle = boardFill(); c.globalAlpha = .85; c.fillRect(x - w / 2, y - h / 2, w, h);
+            c.globalAlpha = 1; c.fillStyle = '#3e8bff'; c.fillText(t, x, y);
+        };
+        const segTag = (x1, y1, x2, y2, side) => {
+            const L = Math.hypot(x2 - x1, y2 - y1); if (L * view.k < 18) return;
+            const nx = -(y2 - y1) / L, ny = (x2 - x1) / L, o = (14 / view.k) * (side || 1);
+            tag(fmtM(L / UNIT), (x1 + x2) / 2 + nx * o, (y1 + y2) / 2 + ny * o);
+        };
+        if (it.t === 'line' || it.t === 'arrow') segTag(it.x1, it.y1, it.x2, it.y2, -1);
+        else if (it.t === 'circle') { const r = Math.hypot(it.x2 - it.x1, it.y2 - it.y1); tag('r = ' + fmtM(r / UNIT), it.x1, it.y1 + r + 12 / view.k); }
+        else if (it.t === 'poly') {
+            const p = it.p, n = p.length / 2;
+            let cx = 0, cy = 0, A = 0;
+            for (let i = 0; i < n; i++) { const j = (i + 1) % n; cx += p[2 * i]; cy += p[2 * i + 1]; A += p[2 * i] * p[2 * j + 1] - p[2 * j] * p[2 * i + 1]; }
+            cx /= n; cy /= n;
+            for (let i = 0; i < n; i++) {
+                const j = (i + 1) % n; if (!j && !it.cl) continue;
+                const mx = (p[2 * i] + p[2 * j]) / 2, my = (p[2 * i + 1] + p[2 * j + 1]) / 2, sd = ((mx - cx) * -(p[2 * j + 1] - p[2 * i + 1]) + (my - cy) * (p[2 * j] - p[2 * i])) > 0 ? 1 : -1;
+                segTag(p[2 * i], p[2 * i + 1], p[2 * j], p[2 * j + 1], sd);
+            }
+            if (it.cl && n >= 3) {
+                tag('S = ' + fmtM(Math.abs(A) / 2 / UNIT / UNIT), cx, cy);
+                for (let i = 0; i < n; i++) {   // углы многоугольника
+                    const j = (i + n - 1) % n, k = (i + 1) % n;
+                    const a1 = Math.atan2(p[2 * j + 1] - p[2 * i + 1], p[2 * j] - p[2 * i]), a2 = Math.atan2(p[2 * k + 1] - p[2 * i + 1], p[2 * k] - p[2 * i]);
+                    let d = Math.abs(a2 - a1); if (d > Math.PI) d = 2 * Math.PI - d;
+                    const dx = cx - p[2 * i], dy = cy - p[2 * i + 1], l = Math.hypot(dx, dy) || 1;
+                    tag(fmtM(d * 180 / Math.PI) + '°', p[2 * i] + dx / l * 30 / view.k, p[2 * i + 1] + dy / l * 30 / view.k);
+                }
+            }
+        }
+        c.restore();
+    }
+
     // ================= ЛАСТИК / ПОПАДАНИЕ =================
     function distSeg(px, py, ax, ay, bx, by) {
         const dx = bx - ax, dy = by - ay, l = dx * dx + dy * dy;
@@ -1828,7 +2130,8 @@
     }
     // inside — считать попаданием и внутренность замкнутой фигуры (для выделения, не для ластика)
     function hit(it, x, y, r, inside) {
-        if (it.hid) return false;                       // скрытое решение
+        if (!inView(it)) return false;                  // другой лист или скрытое решение
+        if (it.lk && !hitLocked) return false;           // закреплённое — не выделяется и не стирается
         if (it.rot && ROT[it.t]) { const f = frameOf(it), q = rotPt(x, y, f.cx, f.cy, -it.rot); x = q.x; y = q.y; }
         if (inside && it.t === 'poly' && it.cl && pointInPoly(it.p, x, y)) return true;
         if (inside && (it.t === 'rect' || it.t === 'ellipse' || it.t === 'circle')) {
@@ -1839,6 +2142,13 @@
         const tol = r + (BOX[it.t] ? 0 : it.w / 2);
         if (it.t === 'point') return Math.hypot(x - it.x, y - it.y) < tol + 6;
         if (it.t === 'circle') return Math.abs(Math.hypot(x - it.x1, y - it.y1) - Math.hypot(it.x2 - it.x1, it.y2 - it.y1)) < tol;
+        if (it.t === 'arc') {
+            const r = Math.hypot(it.x2 - it.x1, it.y2 - it.y1);
+            if (Math.abs(Math.hypot(x - it.x1, y - it.y1) - r) >= tol) return false;
+            const a0 = Math.atan2(it.y2 - it.y1, it.x2 - it.x1); let d = Math.atan2(y - it.y1, x - it.x1) - a0;
+            if (it.sw >= 0) { while (d < 0) d += 2 * Math.PI; return d <= it.sw + .05; }
+            while (d > 0) d -= 2 * Math.PI; return d >= it.sw - .05;
+        }
         if (it.t === 'angle' && it.arc) return Math.hypot(x - it.p[2], y - it.p[3]) < 22 + it.w * 2 + 10 + (it.mk || 0) * 5 + r;
         if (it.t === 'poly' || it.t === 'angle') {
             const p = it.p, n = p.length;
@@ -1877,6 +2187,7 @@
         return ins;
     }
     // точки важнее остального: иначе их не ухватить из-под отрезка, проведённого через них
+    let hitLocked = false;
     const topHit = (x, y, r, inside) => {
         const hs = [...items].reverse().filter((it) => hit(it, x, y, r, inside));
         return hs.find((it) => it.t === 'point') || hs.find((it) => !inside || !(it.t === 'poly' && it.cl && !hit(it, x, y, r))) || hs[0];
@@ -1893,7 +2204,7 @@
 
     // ================= МЕНЮ «ФИГУРЫ», «ЗАГОТОВКИ», НАСТРОЙКИ ПЕРА =================
     function closeMenus(except) {
-        ['bdShapeMenu', 'bdPresetMenu', 'bdPenCfg', 'bdLsMenu', 'bdCfgMenu'].forEach((id) => { if (id !== except && $(id)) $(id).hidden = true; });
+        ['bdShapeMenu', 'bdPresetMenu', 'bdPenCfg', 'bdLsMenu', 'bdCfgMenu', 'bdPageMenu', 'bdInstrMenu'].forEach((id) => { if (id !== except && $(id)) $(id).hidden = true; });
     }
     function toggleMenu(id, anchor) {
         const m = $(id);
@@ -1912,13 +2223,15 @@
         const sec = (title, html) => `<div class="bd-msec"><h4>${title}</h4><div class="bd-mgrid">${html}</div></div>`;
         $('bdShapeMenu').innerHTML =
             sec('Построение', MENU_TOOLS.map(([t, n]) => menuItem(t, n, toolIcon(t), `data-tool2="${t}"`)).join('')) +
+            sec('Связанные построения <small>(перестраиваются при движении точек)</small>', Object.keys(CONS).map((k) => menuItem(k, CONS[k].name, toolIcon('cons'), `data-cons="${k}"`)).join('')) +
             sec('Многоугольники', POLY_SH.map((sh) => menuItem(sh.id, sh.name, shapeIcon(sh), `data-sid="${sh.id}"`)).join('')) +
             sec('Окружности', SHAPES.filter((sh) => !sh.v && !IS_3D[sh.id]).map((sh) => menuItem(sh.id, sh.name, shapeIcon(sh), `data-sid="${sh.id}"`)).join('')) +
             sec('Тела', SHAPES.filter((sh) => IS_3D[sh.id]).map((sh) => menuItem(sh.id, sh.name, shapeIcon(sh), `data-sid="${sh.id}"`)).join('')) +
             '<p class="bd-mnote">Выберите фигуру и растяните её мышкой или пальцем на доске (Shift — ровно). Потом её можно тянуть за вершины и ручки, поворачивать и подписывать.</p>';
         $('bdShapeMenu').addEventListener('click', (e) => {
-            const b = e.target.closest('[data-sid],[data-tool2]'); if (!b) return;
-            if (b.dataset.sid) { shapeId = b.dataset.sid; setTool('shape'); } else setTool(b.dataset.tool2);
+            const b = e.target.closest('[data-sid],[data-tool2],[data-cons]'); if (!b) return;
+            if (b.dataset.cons) { consKind = b.dataset.cons; setTool('cons'); consHint(); }
+            else if (b.dataset.sid) { shapeId = b.dataset.sid; setTool('shape'); } else setTool(b.dataset.tool2);
             closeMenus();
         });
         $('bdPresetMenu').innerHTML =
@@ -1932,7 +2245,9 @@
         $('bdFig').onclick = () => toggleMenu('bdPresetMenu', $('bdFig'));
         // настройки доски
         const chk = (k, t, sub) => `<label class="bd-chk${sub ? ' bd-sub' : ''}"><input type="checkbox" data-cfg="${k}"> ${t}</label>`;
-        $('bdCfgMenu').innerHTML = '<div id="bdOwnerCfg" hidden><h4>Общая доска (вы владелец)</h4><label class="bd-chk"><input type="checkbox" id="bdNoSolve"> Кнопка «Решить» у участников</label></div>' +
+        $('bdCfgMenu').innerHTML = '<h4>Отображение</h4>' + chk('ms', 'Измерения на лету <small>(длины, углы, площади; 1 = 2 клетки)</small>') +
+            chk('sr', 'Фигуры от руки <small>(перо: прямая → отрезок, круг → окружность, многоугольник → с точками)</small>') + '<div id="bdOwnerCfg" hidden><h4>Общая доска (вы владелец)</h4><label class="bd-chk"><input type="checkbox" id="bdNoSolve"> Кнопка «Решить» у участников</label>' +
+            '<label>Участники могут <select id="bdMode"><option value="edit">рисовать</option><option value="view">только смотреть</option></select></label></div>' +
             '<h4>Распознавание почерка</h4><label>Задержка, с <input type="range" data-cfg="hd" min="1" max="20"><b id="bdHdV"></b></label>' +
             chk('hf', 'Рамка вокруг распознаваемой надписи') +
             chk('hm', 'Формулы — нейросетью <small>(точнее на сложных, но с лимитом запросов)</small>') +
@@ -1956,6 +2271,12 @@
         });
         $('bdCfgReset').onclick = () => { Object.assign(bcfg, CFG_DEF); lsSet('mf-board-cfg', bcfg); syncCfg(); render(); };
         $('bdCfg').onclick = () => { syncOwnerCfg(); toggleMenu('bdCfgMenu', $('bdCfg')); };
+        $('bdMode').addEventListener('change', () => {
+            if (!shared || !shared.owner) return;
+            shared.ref.set({ mode: $('bdMode').value, updatedAt: Date.now() }, { merge: true }).catch(syncError);
+            toast($('bdMode').value === 'view' ? 'Участники теперь только смотрят (указка им доступна)' : 'Участники снова могут рисовать');
+        });
+        $('bdLead').onclick = leadClick;
         $('bdNoSolve').addEventListener('change', () => {
             if (!shared || !shared.owner) return;
             shared.noSolve = !$('bdNoSolve').checked;
@@ -1977,7 +2298,7 @@
         $('bdPenSt').checked = penCfg.st;
         $('bdPenSt').addEventListener('change', () => { penCfg.st = $('bdPenSt').checked; savePen(); });
         $('bdPenReset').onclick = () => { Object.assign(penCfg, PEN_DEF); savePen(); ['Sm', 'Th', 'Tp'].forEach((k) => { $('bdPen' + k).value = Math.round(penCfg[k.toLowerCase()] * 100); }); $('bdPenSt').checked = penCfg.st; penPreview(); };
-        document.addEventListener('pointerdown', (e) => { if (!e.target.closest('.bd-menu, #bdShapesBtn, #bdFig, #bdPenBtn, #bdLsBtn, #bdCfg')) closeMenus(); });
+        document.addEventListener('pointerdown', (e) => { if (!e.target.closest('.bd-menu, #bdShapesBtn, #bdFig, #bdPenBtn, #bdLsBtn, #bdCfg, #bdPageLbl, #bdInstr')) closeMenus(); });
     }
     // вид линии для новых объектов (и выделенных — при смене)
     const STYLED = { line: 1, arrow: 1, circle: 1, rect: 1, ellipse: 1, poly: 1 };
@@ -2074,6 +2395,7 @@
     }
     function editItem(it, w) {
         if (!it) return;
+        if (it.t === 'curtain') { const n = clone(it); if (n.fold) delete n.fold; else n.fold = 1; commit({ mod: [[clone(it), n]] }); render(); return; }
         if (it.t === 'plot') return openMath('g', it);
         if (it.t === 'tex') return openMath('f', it);
         if (it.t === 'text') { sel = []; return openText(it.x, it.y, it); }
@@ -2317,6 +2639,13 @@
             ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x, y, w, h, 11) : ctx.rect(x, y, w, h); ctx.fill();
             ctx.fillStyle = '#fff'; ctx.fillText(label, x + 8, y + h / 2 + .5);
             solveBtns.push({ id: it.id, x, y, w, h });
+            if (!busy) {
+                const sl = simBusy.has(it.id) ? 'Составляю…' : '+ Похожая', sw = ctx.measureText(sl).width + 16, sy = y + h + 6;
+                ctx.fillStyle = simBusy.has(it.id) ? (css('--text-tertiary') || '#888') : '#3e8bff';
+                ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x + w - sw, sy, sw, h, 11) : ctx.rect(x + w - sw, sy, sw, h); ctx.fill();
+                ctx.fillStyle = '#fff'; ctx.fillText(sl, x + w - sw + 8, sy + h / 2 + .5);
+                solveBtns.push({ id: it.id, x: x + w - sw, y: sy, w: sw, h, sim: 1 });
+            }
         }
         ctx.restore();
     }
@@ -2780,6 +3109,636 @@
             render();
         }
     }
+    // ================= ЛИСТЫ И ПРЕЗЕНТАЦИЯ =================
+    const pageIdx = () => Math.max(0, pages.findIndex((p) => p.id === curPage));
+    const pageName = (p, i) => p.name || 'Лист ' + (i + 1);
+    function savePages() {
+        if (shared) { if (canEdit()) shared.ref.set({ pages, updatedAt: Date.now() }, { merge: true }).catch(syncError); }
+        else saveLocal();
+        pageBar();
+    }
+    function goPage(id, noFollow) {
+        if (!pages.some((p) => p.id === id) || id === curPage) { pageBar(); return; }
+        if (textEd) closeText();
+        if (geo) finishGeo(false);
+        pageViews[curPage] = Object.assign({}, view);
+        curPage = id; sel = []; cur = null; consPick = [];
+        if (pageViews[id]) view = Object.assign({}, pageViews[id]);
+        else view = { x: -W / 2, y: -H / 2, k: 1 };
+        if (boardEl.classList.contains('present')) fitPage();
+        $('bdZoom').textContent = Math.round(view.k * 100) + '%';
+        pageBar(); render();
+        if (!noFollow) leadSend();
+    }
+    function addPage() {
+        if (!canEdit()) return toast('Владелец доски включил режим «только просмотр»');
+        const p = { id: 'p' + rid(8), name: '' };
+        pages.splice(pageIdx() + 1, 0, p);
+        savePages(); goPage(p.id);
+    }
+    function delPage(id) {
+        if (pages.length < 2) return toast('Это единственный лист');
+        const i = pages.findIndex((p) => p.id === id);
+        if (!confirm('Удалить «' + pageName(pages[i], i) + '» вместе со всем, что на нём? Объекты можно вернуть кнопкой «Отменить».')) return;
+        const its = items.filter((it) => (it.pg || 'p1') === id);
+        if (its.length) { const was = curPage; curPage = id; commit({ del: its.map(clone) }); curPage = was; }
+        pages.splice(i, 1);
+        if (curPage === id) { curPage = '#'; goPage(pages[Math.max(0, i - 1)].id); }
+        savePages();
+    }
+    function pageBar() {
+        const el = $('bdPages'); if (!el) return;
+        $('bdPageLbl').textContent = (pageIdx() + 1) + ' / ' + pages.length;
+        $('bdPagePrev').disabled = pageIdx() === 0;
+        $('bdPageNext').disabled = pageIdx() === pages.length - 1;
+        const m = $('bdPageMenu');
+        if (m && !m.hidden) pageMenu();
+    }
+    function pageMenu() {
+        $('bdPageMenu').innerHTML = '<h4>Листы</h4><ul class="bd-blist">' + pages.map((p, i) =>
+            `<li class="bd-brow${p.id === curPage ? ' cur' : ''}" data-pid="${p.id}"><button class="bd-bopen" data-act="go"><b>${esc(pageName(p, i))}</b><small>${items.filter((it) => (it.pg || 'p1') === p.id).length} объектов</small></button>
+             <button class="bd-btn" data-act="up" title="Выше">↑</button><button class="bd-btn" data-act="ren" title="Переименовать">✎</button><button class="bd-btn" data-act="del" title="Удалить">×</button></li>`).join('') + '</ul>' +
+            '<button class="mini-btn" data-act="add">+ Новый лист</button>';
+    }
+    function fitPage() {
+        const its = items.filter(inView);
+        if (!its.length) { view = { x: -W / 2, y: -H / 2, k: 1 }; return; }
+        let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
+        for (const it of its) { const b = bounds(it); x1 = Math.min(x1, b.x); y1 = Math.min(y1, b.y); x2 = Math.max(x2, b.x + b.w); y2 = Math.max(y2, b.y + b.h); }
+        const k = Math.min(4, (W - 60) / Math.max(1, x2 - x1), (H - 80) / Math.max(1, y2 - y1));
+        view = { k, x: (x1 + x2) / 2 - W / 2 / k, y: (y1 + y2) / 2 - H / 2 / k };
+    }
+    function present(on) {
+        if (on === undefined) on = !boardEl.classList.contains('present');
+        if (on && !boardEl.classList.contains('full')) toggleFull();
+        if (!on && boardEl.classList.contains('full')) toggleFull();
+        boardEl.classList.toggle('present', on);
+        sel = []; setTool(on ? 'laser' : 'pen');
+        if (on) { resize(); fitPage(); toast('Презентация: ← → — листы, указка включена, Esc — выход'); }
+        render();
+    }
+    function bindPages() {
+        $('bdPagePrev').onclick = () => { const i = pageIdx(); if (i > 0) goPage(pages[i - 1].id); };
+        $('bdPageNext').onclick = () => { const i = pageIdx(); if (i < pages.length - 1) goPage(pages[i + 1].id); };
+        $('bdPageAdd').onclick = addPage;
+        $('bdPresent').onclick = () => present();
+        $('bdPageLbl').onclick = () => { toggleMenu('bdPageMenu', $('bdPageLbl')); pageMenu(); const m = $('bdPageMenu'), r = $('bdPageLbl').getBoundingClientRect(), br = boardEl.getBoundingClientRect(); m.style.top = Math.max(4, r.top - br.top - m.offsetHeight - 8) + 'px'; };
+        $('bdPageMenu').addEventListener('click', (e) => {
+            const b = e.target.closest('[data-act]'); if (!b) return;
+            const li = b.closest('[data-pid]'), id = li && li.dataset.pid, i = pages.findIndex((p) => p.id === id);
+            if (b.dataset.act === 'add') return addPage();
+            if (b.dataset.act === 'go') { closeMenus(); return goPage(id); }
+            if (!canEdit()) return toast('Владелец доски включил режим «только просмотр»');
+            if (b.dataset.act === 'del') return delPage(id);
+            if (b.dataset.act === 'up' && i > 0) { [pages[i - 1], pages[i]] = [pages[i], pages[i - 1]]; savePages(); return pageMenu(); }
+            if (b.dataset.act === 'ren') { const n = prompt('Название листа', pageName(pages[i], i)); if (n !== null) { pages[i].name = n.trim().slice(0, 60); savePages(); pageMenu(); } }
+        });
+        pageBar();
+    }
+    // ================= УКАЗКА =================
+    // Лазерная указка: светящийся след гаснет за ~1 с, участникам общей доски он виден так же.
+    const laser = { pts: [], on: false };
+    const peerLaser = new Map();   // peerId → { pts:[x,y,…], t: время получения }
+    let laserRaf = 0;
+    function laserLoop() {
+        cancelAnimationFrame(laserRaf);
+        const now = Date.now();
+        const alive = laser.on || laser.pts.some((p) => now - p.t < 1200) || [...peerLaser.values()].some((l) => now - l.t < 1400);
+        render();
+        if (alive) laserRaf = requestAnimationFrame(laserLoop);
+    }
+    function drawLaserTrail(pts, col) {
+        if (pts.length < 1) return;
+        const now = Date.now();
+        ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+        for (let i = 1; i < pts.length; i++) {
+            const a = pts[i - 1], b = pts[i], age = (now - b.t) / 1100;
+            if (age >= 1) continue;
+            const s1 = toScreen(a.x, a.y), s2 = toScreen(b.x, b.y);
+            ctx.globalAlpha = (1 - age) * .9; ctx.strokeStyle = col; ctx.shadowColor = col; ctx.shadowBlur = 12; ctx.lineWidth = 5 * (1 - age * .6);
+            ctx.beginPath(); ctx.moveTo(s1.x, s1.y); ctx.lineTo(s2.x, s2.y); ctx.stroke();
+        }
+        const h = pts[pts.length - 1];
+        if (now - h.t < 1100) { const s = toScreen(h.x, h.y); ctx.globalAlpha = 1 - (now - h.t) / 1100; ctx.fillStyle = '#fff'; ctx.shadowBlur = 18; ctx.beginPath(); ctx.arc(s.x, s.y, 4.5, 0, Math.PI * 2); ctx.fill(); }
+        ctx.restore();
+    }
+    function drawLasers() {
+        drawLaserTrail(laser.pts, '#ff2d55');
+        if (shared) for (const [id, l] of peerLaser) {
+            const p = shared.peers.get(id); if (!p || (p.pg || 'p1') !== curPage) continue;
+            const pts = []; for (let i = 0; i < l.pts.length; i += 2) pts.push({ x: l.pts[i], y: l.pts[i + 1], t: l.t - (l.pts.length - i) * 8 });
+            drawLaserTrail(pts, p.color || '#ff2d55');
+        }
+    }
+    function laserAdd(w) {
+        const now = Date.now();
+        laser.pts.push({ x: w.x, y: w.y, t: now });
+        laser.pts = laser.pts.filter((p) => now - p.t < 1200);
+        if (shared) writePeer({ ls: laser.pts.slice(-40).flatMap((p) => [Math.round(p.x), Math.round(p.y)]), lsT: now });
+        laserLoop();
+    }
+
+    // ================= ВЕДУЩИЙ =================
+    // «Вести урок»: остальные видят тот же лист и ту же область доски (пока сами не сдвинут вид).
+    let following = true, leadSent = '';
+    const leadIsMe = () => shared && shared.lead && shared.lead.peer === shared.peerId;
+    function leadSend() {
+        if (!leadIsMe()) return;
+        const vw = { x: Math.round(view.x), y: Math.round(view.y), w: Math.round(W / view.k), h: Math.round(H / view.k), pg: curPage };
+        const key = JSON.stringify(vw);
+        if (key !== leadSent) { leadSent = key; writePeer({ vw }); }
+    }
+    function leadApply(p) {
+        if (!following || !p || !p.vw || leadIsMe()) return;
+        const v = p.vw;
+        if (v.pg && v.pg !== curPage && pages.some((x) => x.id === v.pg)) goPage(v.pg, true);
+        const k = Math.min(W / v.w, H / v.h);
+        view = { k, x: v.x + v.w / 2 - W / 2 / k, y: v.y + v.h / 2 - H / 2 / k };
+        $('bdZoom').textContent = Math.round(view.k * 100) + '%';
+        render();
+    }
+    function userMovedView() {   // сам сдвинул вид — перестаём следовать (до нажатия «Следовать»)
+        if (shared && shared.lead && !leadIsMe() && following) { following = false; leadUi(); }
+    }
+    function leadUi() {
+        const b = $('bdLead'); if (!b) return;
+        b.hidden = !shared;
+        if (!shared) return;
+        const L = shared.lead;
+        b.classList.toggle('on', !!L && (leadIsMe() || following));
+        b.textContent = !L ? 'Вести урок' : leadIsMe() ? 'Вы ведёте · стоп' : (following ? 'Следую за: ' : 'Следовать за: ') + (L.name || 'ведущим');
+        b.title = !L ? 'Все участники будут видеть ваш лист и вашу область доски' : leadIsMe() ? 'Перестать вести урок' : following ? 'Нажмите, чтобы перестать следовать' : 'Снова видеть то же, что ведущий';
+    }
+    function leadClick() {
+        if (!shared) return;
+        const L = shared.lead;
+        if (!L) { shared.ref.set({ lead: { peer: shared.peerId, name: shared.me.name }, updatedAt: Date.now() }, { merge: true }).catch(syncError); return; }
+        if (leadIsMe() || shared.owner) {
+            if (leadIsMe() || confirm('Остановить ведение урока (' + (L.name || 'ведущий') + ')?')) shared.ref.set({ lead: null, updatedAt: Date.now() }, { merge: true }).catch(syncError);
+            return;
+        }
+        following = !following; leadUi();
+        if (following) leadApply(shared.peers.get(L.peer));
+    }
+
+    // ================= ПРАВА УЧАСТНИКОВ =================
+    function modeUi() {
+        const ro = shared && !canEdit();
+        boardEl.classList.toggle('readonly', !!ro);
+        const b = $('bdRo'); if (b) b.hidden = !ro;
+        if (ro && !['select', 'pan', 'laser'].includes(tool)) setTool('laser');
+    }
+    // ================= КОММЕНТАРИИ И РЕАКЦИИ =================
+    // У объекта: cm — [{ a: имя, t: текст, ts }], rx — { '👍': [имена] }. Значок с числом — у объекта;
+    // окно — кнопкой 💬 у выделенного или щелчком по значку.
+    const REACTS = ['👍', '❤️', '❓', '❗', '✅', '🎉'];
+    let cmtBadges = [], cmtOpen = null;
+    const myNick = () => (shared ? shared.me.name : myName());
+    function drawCmtBadges() {
+        cmtBadges = [];
+        ctx.save(); ctx.font = '600 11px sans-serif'; ctx.textBaseline = 'middle';
+        for (const it of items) {
+            if (!inView(it) || (!(it.cm && it.cm.length) && !it.rx)) continue;
+            const b = bounds(it), s = toScreen(b.x + b.w, b.y);
+            if (s.x < -40 || s.y < -40 || s.x > W + 40 || s.y > H + 40) continue;
+            const rx = it.rx ? Object.entries(it.rx).filter(([, v]) => v && v.length).map(([k, v]) => k + v.length).join(' ') : '';
+            const label = (it.cm && it.cm.length ? '💬' + it.cm.length + (rx ? ' ' : '') : '') + rx;
+            if (!label) continue;
+            const w = ctx.measureText(label).width + 12, x = s.x + 4, y = s.y - 24;
+            ctx.fillStyle = boardFill(); ctx.strokeStyle = css('--border-strong') || '#999'; ctx.lineWidth = 1;
+            ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x, y, w, 20, 10) : ctx.rect(x, y, w, 20); ctx.fill(); ctx.stroke();
+            ctx.fillStyle = inkColor(); ctx.fillText(label, x + 6, y + 10.5);
+            cmtBadges.push({ id: it.id, x, y, w, h: 20 });
+        }
+        ctx.restore();
+    }
+    function openCmt(it) {
+        cmtOpen = it.id;
+        const box = $('bdCmt');
+        const rx = it.rx || {}, me = myNick();
+        box.innerHTML = '<div class="bd-rx">' + REACTS.map((e) => `<button class="bd-rxb${(rx[e] || []).includes(me) ? ' on' : ''}" data-rx="${e}" title="${esc((rx[e] || []).join(', ') || 'Реакция')}">${e}<small>${(rx[e] || []).length || ''}</small></button>`).join('') + '</div>' +
+            '<div class="bd-cmts">' + ((it.cm || []).map((c, i) => `<div class="bd-cm"><b>${esc(c.a)}</b> <small>${esc(new Date(c.ts).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }))}</small>${c.a === me ? ` <button class="bd-link" data-delc="${i}">удалить</button>` : ''}<div>${esc(c.t)}</div></div>`).join('') || '<div class="bd-bnote">Комментариев пока нет</div>') + '</div>' +
+            '<div class="bd-cmin"><input id="bdCmtIn" placeholder="Комментарий…" maxlength="500"><button class="mini-btn" id="bdCmtSend">→</button></div>';
+        box.hidden = false;
+        const b = bounds(it), s = toScreen(b.x + b.w, b.y), br = stage.getBoundingClientRect();
+        box.style.left = Math.max(6, Math.min(s.x + 10, br.width - box.offsetWidth - 6)) + 'px';
+        box.style.top = Math.max(6, Math.min(s.y, br.height - box.offsetHeight - 6)) + 'px';
+        const send = () => {
+            const t = $('bdCmtIn').value.trim(); if (!t) return;
+            updItem(it.id, (n) => { n.cm = (n.cm || []).concat({ a: me, t: t.slice(0, 500), ts: Date.now() }); });
+        };
+        $('bdCmtSend').onclick = send;
+        $('bdCmtIn').addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') send(); if (e.key === 'Escape') closeCmt(); });
+        $('bdCmtIn').focus({ preventScroll: true });
+    }
+    function closeCmt() { cmtOpen = null; $('bdCmt').hidden = true; }
+    function updItem(id, fn) {
+        const it = byId(id); if (!it) return;
+        const n = clone(it); fn(n);
+        if (commit({ mod: [[clone(it), n]] }) === false) return;
+        render(); openCmt(byId(id));
+    }
+    function bindCmt() {
+        $('bdCmt').addEventListener('click', (e) => {
+            const r = e.target.closest('[data-rx]'), d = e.target.closest('[data-delc]');
+            if (r) updItem(cmtOpen, (n) => {
+                const me = myNick(), k = r.dataset.rx; n.rx = n.rx || {};
+                const l = n.rx[k] || [];
+                n.rx[k] = l.includes(me) ? l.filter((x) => x !== me) : l.concat(me);
+                if (!n.rx[k].length) delete n.rx[k];
+                if (!Object.keys(n.rx).length) delete n.rx;
+            });
+            if (d) updItem(cmtOpen, (n) => { n.cm.splice(+d.dataset.delc, 1); if (!n.cm.length) delete n.cm; });
+        });
+        document.addEventListener('pointerdown', (e) => { if (cmtOpen && !e.target.closest('#bdCmt')) setTimeout(() => { if (!$('bdCmt').contains(document.activeElement)) closeCmt(); }, 0); });
+    }
+
+    // ================= ЗАКРЕПЛЕНИЕ, СЛОИ, ГРУППЫ =================
+    // lk — закреплён (не выделяется и не стирается; открепить — меню «⋯» у выделенного или Ctrl+Shift+L);
+    // порядок слоёв — z (Ctrl+] / Ctrl+[ — выше/ниже, с Shift — на самый верх/низ);
+    // gr — группа (Ctrl+G — сгруппировать, Ctrl+Shift+G — разгруппировать): выделяется целиком.
+    function groupExpand(ids) {
+        const grs = new Set(ids.map(byId).filter((i) => i && i.gr).map((i) => i.gr));
+        if (!grs.size) return ids;
+        return [...new Set(ids.concat(items.filter((i) => i.gr && grs.has(i.gr) && inView(i)).map((i) => i.id)))];
+    }
+    function setGroup(on) {
+        const its = selItems(); if (its.length < (on ? 2 : 1)) return;
+        const g = on ? rid(8) : null;
+        commit({ mod: its.map((it) => { const n = clone(it); if (g) n.gr = g; else delete n.gr; return [clone(it), n]; }) });
+        toast(on ? 'Сгруппировано: ' + its.length : 'Группа разобрана'); render();
+    }
+    function setLock(on, list) {
+        const its = list || selItems(); if (!its.length) return;
+        commit({ mod: its.map((it) => { const n = clone(it); if (on) n.lk = 1; else delete n.lk; return [clone(it), n]; }) });
+        if (on) sel = [];
+        toast(on ? 'Закреплено — не выделяется и не стирается. Открепить: Ctrl+Shift+L' : 'Откреплено'); render();
+    }
+    function unlockAll() {
+        const its = items.filter((i) => i.lk && inView(i));
+        if (!its.length) return toast('На листе нет закреплённого');
+        setLock(false, its); sel = its.map((i) => i.id); setTool('select'); render();
+    }
+    function reorder(dir) {
+        const its = selItems(); if (!its.length) return;
+        const zs = items.filter(inView).map((i) => i.z || 0), mx = Math.max(...zs), mn = Math.min(...zs);
+        const pairs = its.map((it, k) => {
+            const n = clone(it);
+            if (dir === 'top') n.z = mx + 1 + k * 1e-3; else if (dir === 'bottom') n.z = mn - 1 - k * 1e-3;
+            else {
+                const others = items.filter((i) => inView(i) && !sel.includes(i.id)).map((i) => i.z || 0).sort((a, b) => a - b);
+                const z = it.z || 0, nb = dir === 'up' ? others.find((x) => x > z) : others.reverse().find((x) => x < z);
+                if (nb === undefined) return null;
+                n.z = nb + (dir === 'up' ? 1e-3 : -1e-3) * (k + 1);
+            }
+            return [clone(it), n];
+        }).filter(Boolean);
+        if (pairs.length) { commit({ mod: pairs }); sortItems(); render(); }
+    }
+    // меню «⋯» у выделенного
+    function openSelMenu() {
+        const its = selItems(); if (!its.length) return;
+        const m = $('bdSelMenu'), grouped = its.some((i) => i.gr);
+        m.innerHTML = [
+            ['top', 'На передний план', 'Ctrl+Shift+]'], ['up', 'Выше', 'Ctrl+]'], ['down', 'Ниже', 'Ctrl+['], ['bottom', 'На задний план', 'Ctrl+Shift+['],
+            its.length > 1 ? ['group', 'Сгруппировать', 'Ctrl+G'] : null, grouped ? ['ungroup', 'Разгруппировать', 'Ctrl+Shift+G'] : null,
+            ['lock', 'Закрепить', ''], ['cmt', 'Комментарии и реакции', ''], ['dup', 'Дублировать', 'Ctrl+D'],
+        ].filter(Boolean).map(([a, n, k]) => `<button class="bd-smi" data-sa="${a}">${n}<small>${k}</small></button>`).join('');
+        const f = its.length > 1 ? groupFrame(its) : frameOf(its[0]), s = toScreen(f.cx + f.w / 2, f.cy - f.h / 2), br = stage.getBoundingClientRect();
+        m.hidden = false;
+        m.style.left = Math.max(6, Math.min(s.x + 30, br.width - m.offsetWidth - 6)) + 'px';
+        m.style.top = Math.max(6, Math.min(s.y + 10, br.height - m.offsetHeight - 6)) + 'px';
+    }
+    function bindSelMenu() {
+        $('bdSelMenu').addEventListener('click', (e) => {
+            const b = e.target.closest('[data-sa]'); if (!b) return;
+            $('bdSelMenu').hidden = true;
+            const a = b.dataset.sa;
+            if (a === 'group') setGroup(true); else if (a === 'ungroup') setGroup(false);
+            else if (a === 'lock') setLock(true);
+            else if (a === 'cmt') { const one = selItems()[0]; if (one) openCmt(one); }
+            else if (a === 'dup') document.dispatchEvent(new KeyboardEvent('keydown', { key: 'd', code: 'KeyD', ctrlKey: true }));
+            else reorder(a);
+        });
+        document.addEventListener('pointerdown', (e) => { if (!e.target.closest('#bdSelMenu')) $('bdSelMenu').hidden = true; });
+    }
+    // ================= ГРАФИК С ПОЛЗУНКАМИ =================
+    // Буквы в формуле кроме x (y = a·x² + b) — параметры: под графиком по ползунку на каждый,
+    // тянете — график меняется вживую. pr: { a: { v, lo, hi } }.
+    let curP = null;
+    function fnParams(fns) {
+        const set = new Set();
+        for (const fn of fns) { const f = compileFn(fn.e); if (f && f.vars) f.vars.forEach((v) => { if (v !== 'x' && v !== 'y') set.add(v); }); }
+        return [...set].sort();
+    }
+    const plotVals = (it) => { const o = {}; for (const k in it.pr || {}) o[k] = it.pr[k].v; return o; };
+    function plotSliders(it) {
+        const names = Object.keys(it.pr || {}); if (!names.length) return [];
+        const rh = Math.max(16, Math.min(40, it.h * .08));
+        return names.map((n, i) => {
+            const p = it.pr[n], x1 = it.x + it.w * .2, x2 = it.x + it.w * .95, y = it.y + it.h + rh * (i + .8);
+            return { n, p, x1, x2, y, rh, kx: x1 + (x2 - x1) * Math.max(0, Math.min(1, (p.v - p.lo) / ((p.hi - p.lo) || 1))) };
+        });
+    }
+    function drawSliders(c, it) {
+        const ink = paint(it.c || 'ink');
+        for (const s of plotSliders(it)) {
+            c.save(); c.globalAlpha = 1;
+            c.font = 'italic ' + textFont(s.rh * .55); c.fillStyle = ink; c.textAlign = 'right'; c.textBaseline = 'middle';
+            c.fillText(s.n + ' = ' + fmtTick(s.p.v), s.x1 - s.rh * .5, s.y);
+            c.strokeStyle = ink; c.globalAlpha = .35; c.lineWidth = s.rh * .12; c.lineCap = 'round';
+            c.beginPath(); c.moveTo(s.x1, s.y); c.lineTo(s.x2, s.y); c.stroke();
+            c.globalAlpha = 1; c.fillStyle = '#3e8bff';
+            c.beginPath(); c.arc(s.kx, s.y, s.rh * .3, 0, Math.PI * 2); c.fill();
+            c.restore();
+        }
+    }
+    function sliderAt(w) {
+        for (const it of [...items].reverse()) {
+            if (it.t !== 'plot' || !inView(it) || !it.pr) continue;
+            for (const s of plotSliders(it)) if (Math.abs(w.y - s.y) < s.rh * .55 && w.x > s.x1 - s.rh && w.x < s.x2 + s.rh) return { it, s };
+        }
+        return null;
+    }
+
+    // ================= ШТОРКА =================
+    // Непрозрачный прямоугольник поверх доски: закрыть решение и открывать по частям —
+    // тяните его край (ручки), щелчок по выделенной шторке — свернуть/развернуть.
+    function drawCurtain(c, it) {
+        const h = it.fold ? Math.min(it.h, 26 / view.k) : it.h;
+        c.fillStyle = boardFill(); c.fillRect(it.x, it.y, it.w, h);
+        c.save(); c.beginPath(); c.rect(it.x, it.y, it.w, h); c.clip();
+        c.strokeStyle = inkColor(); c.globalAlpha = .1; c.lineWidth = 6 / view.k;
+        for (let d = -h; d < it.w; d += 22 / view.k) { c.beginPath(); c.moveTo(it.x + d, it.y + h); c.lineTo(it.x + d + h, it.y); c.stroke(); }
+        c.globalAlpha = .55; c.fillStyle = inkColor(); c.font = textFont(13 / view.k); c.textAlign = 'center'; c.textBaseline = 'middle';
+        c.fillText(it.fold ? '▼ шторка' : 'Шторка — тяните край, чтобы открыть', it.x + it.w / 2, it.y + Math.min(h / 2, 16 / view.k));
+        c.restore();
+        c.globalAlpha = .5; c.strokeStyle = inkColor(); c.lineWidth = 1 / view.k; c.strokeRect(it.x, it.y, it.w, h);
+    }
+
+    // ================= ЛИНЕЙКА, ТРАНСПОРТИР, ЦИРКУЛЬ =================
+    // Линейка и транспортир — экранные инструменты (не объекты доски): двигаются за корпус,
+    // поворачиваются за кружок. Перо, отрезок и стрелка у края линейки идут ровно по краю.
+    // Циркуль — инструмент: протяните радиус от центра, затем ведите — рисуется дуга.
+    const inst = {
+        ruler: { on: false, x: -300, y: 60, a: 0, len: 600, wd: 64 },
+        prot: { on: false, x: 0, y: 160, a: 0, r: 170 },
+    };
+    let compass = null;   // { cx, cy, r, phase, a0, sw }
+    const rLocal = (o, w) => rotPt(w.x, w.y, o.x, o.y, -o.a);
+    function rulerEdge() { const r = inst.ruler; return [r.x, r.y, r.x + Math.cos(r.a) * r.len, r.y + Math.sin(r.a) * r.len]; }
+    function drawInstruments() {
+        const acc = css('--accent') || '#f2a25c';
+        ctx.save();
+        ctx.setTransform(dpr * view.k, 0, 0, dpr * view.k, -view.x * view.k * dpr, -view.y * view.k * dpr);
+        const ink = inkColor();
+        if (inst.ruler.on) {
+            const r = inst.ruler;
+            ctx.save(); ctx.translate(r.x, r.y); ctx.rotate(r.a);
+            ctx.fillStyle = isLight() ? 'rgba(255,214,120,.55)' : 'rgba(255,214,120,.25)'; ctx.fillRect(0, 0, r.len, r.wd);
+            ctx.strokeStyle = ink; ctx.lineWidth = 1 / view.k; ctx.strokeRect(0, 0, r.len, r.wd);
+            ctx.fillStyle = ink; ctx.font = textFont(10 / Math.max(.6, view.k)); ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+            ctx.beginPath();
+            for (let x = 0, i = 0; x <= r.len; x += 5, i++) {
+                const h = i % 10 === 0 ? 18 : i % 5 === 0 ? 12 : 6;
+                ctx.moveTo(x, 0); ctx.lineTo(x, h);
+                if (i % 10 === 0) ctx.fillText(String(i / 10), x, 20);
+            }
+            ctx.stroke();
+            ctx.fillStyle = acc; ctx.beginPath(); ctx.arc(r.len - 14, r.wd - 14, 8 / view.k + 4, 0, Math.PI * 2); ctx.fill();
+            ctx.restore();
+        }
+        if (inst.prot.on) {
+            const p = inst.prot;
+            ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.a);
+            ctx.fillStyle = isLight() ? 'rgba(120,190,255,.4)' : 'rgba(120,190,255,.2)';
+            ctx.beginPath(); ctx.moveTo(-p.r, 0); ctx.arc(0, 0, p.r, Math.PI, 2 * Math.PI); ctx.closePath(); ctx.fill();
+            ctx.strokeStyle = ink; ctx.lineWidth = 1 / view.k; ctx.stroke();
+            ctx.fillStyle = ink; ctx.font = textFont(9 / Math.max(.6, view.k)); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.beginPath();
+            for (let d = 0; d <= 180; d++) {
+                const a = Math.PI + d * Math.PI / 180, L = d % 10 === 0 ? 16 : d % 5 === 0 ? 10 : 5;
+                ctx.moveTo(Math.cos(a) * p.r, Math.sin(a) * p.r); ctx.lineTo(Math.cos(a) * (p.r - L), Math.sin(a) * (p.r - L));
+                if (d % 10 === 0) ctx.fillText(String(d), Math.cos(a) * (p.r - 26), Math.sin(a) * (p.r - 26));
+            }
+            ctx.moveTo(-6, 0); ctx.lineTo(6, 0); ctx.moveTo(0, -6); ctx.lineTo(0, 0);
+            ctx.stroke();
+            ctx.fillStyle = acc; ctx.beginPath(); ctx.arc(p.r - 10, -12, 8 / view.k + 4, 0, Math.PI * 2); ctx.fill();
+            ctx.restore();
+        }
+        if (compass) {
+            ctx.strokeStyle = acc; ctx.lineWidth = 1.5 / view.k; ctx.setLineDash([6 / view.k, 5 / view.k]);
+            ctx.beginPath(); ctx.arc(compass.cx, compass.cy, compass.r, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+            ctx.beginPath(); ctx.arc(compass.cx, compass.cy, 3 / view.k, 0, Math.PI * 2); ctx.fillStyle = acc; ctx.fill();
+            if (compass.phase === 2 && compass.sw) { ctx.strokeStyle = paint(color === 'contrast' ? 'ink' : color); ctx.lineWidth = size; ctx.beginPath(); ctx.arc(compass.cx, compass.cy, compass.r, compass.a0, compass.a0 + compass.sw, compass.sw < 0); ctx.stroke(); }
+        }
+        ctx.restore();
+    }
+    // попадание в инструмент: { which, mode: 'move' | 'rot' }
+    function instAt(w) {
+        if (inst.ruler.on) {
+            const r = inst.ruler, q = rLocal(r, w);
+            if (Math.hypot(q.x - (r.len - 14), q.y - (r.wd - 14)) < 14 / view.k + 6) return { which: 'ruler', mode: 'rot' };
+            if (q.x >= 0 && q.x <= r.len && q.y >= 0 && q.y <= r.wd) return { which: 'ruler', mode: 'move' };
+        }
+        if (inst.prot.on) {
+            const p = inst.prot, q = rLocal(p, w);
+            if (Math.hypot(q.x - (p.r - 10), q.y + 12) < 14 / view.k + 6) return { which: 'prot', mode: 'rot' };
+            if (q.y <= 0 && Math.hypot(q.x, q.y) <= p.r) return { which: 'prot', mode: 'move' };
+        }
+        return null;
+    }
+    // точка у края линейки → на край
+    function rulerSnap(w) {
+        if (!inst.ruler.on) return null;
+        const [x1, y1, x2, y2] = rulerEdge(), dx = x2 - x1, dy = y2 - y1, l = dx * dx + dy * dy;
+        const t = ((w.x - x1) * dx + (w.y - y1) * dy) / l;
+        if (t < -.05 || t > 1.05) return null;
+        const px = x1 + t * dx, py = y1 + t * dy;
+        return Math.hypot(w.x - px, w.y - py) < 22 / view.k ? { x: px, y: py } : null;
+    }
+    function instToggle(which) {
+        const o = inst[which]; o.on = !o.on;
+        if (o.on) { const c = toWorld(W / 2, H / 2); if (which === 'ruler') { o.x = c.x - o.len / 2; o.y = c.y; o.a = 0; } else { o.x = c.x; o.y = c.y + o.r / 2; o.a = 0; } }
+        instUi(); render();
+    }
+    function instUi() {
+        const m = $('bdInstrMenu'); if (!m) return;
+        m.querySelectorAll('[data-inst]').forEach((b) => b.classList.toggle('on', b.dataset.inst === 'compass' ? tool === 'compass' : inst[b.dataset.inst].on));
+        $('bdInstr').classList.toggle('on', inst.ruler.on || inst.prot.on || tool === 'compass');
+    }
+    function drawArc(c, it) {
+        const r = Math.hypot(it.x2 - it.x1, it.y2 - it.y1), a0 = Math.atan2(it.y2 - it.y1, it.x2 - it.x1);
+        strokeStyled(c, it, (off) => { c.beginPath(); c.arc(it.x1, it.y1, Math.max(.5, r + off), a0, a0 + it.sw, it.sw < 0); c.stroke(); });
+    }
+    // ================= ПОИСК ПО ДОСКЕ =================
+    // Тексты, формулы, подписи точек и вершин, формулы графиков, комментарии — на всех листах.
+    function searchIndex(it) {
+        const parts = [];
+        if (it.text) parts.push(it.text);
+        if (it.label) parts.push(it.label);
+        if (it.lb) parts.push(it.lb.filter(Boolean).join(' '));
+        if (it.labels) parts.push(it.labels.map((l) => l.t).join(' '));
+        if (it.fns) parts.push(it.fns.map((f) => 'y=' + f.e).join(' '));
+        if (it.latex) parts.push(it.latex);
+        if (it.cm) parts.push(it.cm.map((c) => c.t).join(' '));
+        return parts.join(' ').replace(/\\(frac|dfrac|sqrt|cdot|left|right)/g, ' ').replace(/[{}$\\]/g, '').replace(/\s+/g, ' ').trim();
+    }
+    function doSearch() {
+        const q = $('bdSearchIn').value.trim().toLowerCase(), out = $('bdSearchRes');
+        if (!q) { out.innerHTML = ''; return; }
+        const res = [];
+        for (const it of items) {
+            if (it.hid) continue;
+            const t = searchIndex(it), i = t.toLowerCase().indexOf(q);
+            if (i < 0) continue;
+            const pi = pages.findIndex((p) => p.id === (it.pg || 'p1'));
+            res.push({ it, pi, frag: (i > 20 ? '…' : '') + t.slice(Math.max(0, i - 20), i) + '<mark>' + esc(t.substr(i, q.length)) + '</mark>' + esc(t.slice(i + q.length, i + q.length + 40)) });
+        }
+        out.innerHTML = res.length ? res.slice(0, 50).map((r, k) => `<button class="bd-sr" data-k="${k}"><small>${esc(pageName(pages[Math.max(0, r.pi)], Math.max(0, r.pi)))}</small>${r.frag}</button>`).join('') : '<div class="bd-bnote">Ничего не найдено</div>';
+        out.onclick = (e) => {
+            const b = e.target.closest('[data-k]'); if (!b) return;
+            const it = res[+b.dataset.k].it;
+            goPage(it.pg || 'p1');
+            const bb = bounds(it), k = Math.min(2, Math.max(view.k, .5));
+            view = { k, x: bb.x + bb.w / 2 - W / 2 / k, y: bb.y + bb.h / 2 - H / 2 / k };
+            setTool('select'); sel = [it.id]; render();
+        };
+    }
+    function openSearch() {
+        const p = $('bdSearch'); p.hidden = !p.hidden;
+        if (!p.hidden) { $('bdSearchIn').focus({ preventScroll: true }); $('bdSearchIn').select(); doSearch(); }
+    }
+
+    // ================= ЭКСПОРТ В PDF =================
+    // Каждый лист — отдельная страница PDF (по границам нарисованного), библиотека jsPDF — лениво с CDN.
+    let pdfLib = null;
+    function renderPageCanvas(pid) {
+        const was = curPage; curPage = pid;
+        try {
+            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+            const list = items.filter(inView);
+            for (const it of list) { const b = bounds(it); minX = Math.min(minX, b.x); minY = Math.min(minY, b.y); maxX = Math.max(maxX, b.x + b.w); maxY = Math.max(maxY, b.y + b.h); }
+            if (minX === Infinity) return null;
+            const m = 30, v = { x: minX - m, y: minY - m, k: 1, w: maxX - minX + 2 * m, h: maxY - minY + 2 * m };
+            const scale = Math.min(2, 4000 / Math.max(v.w, v.h));
+            const c = document.createElement('canvas');
+            c.width = Math.ceil(v.w * scale); c.height = Math.ceil(v.h * scale);
+            const g = c.getContext('2d');
+            g.fillStyle = boardFill(); g.fillRect(0, 0, c.width, c.height);
+            g.scale(scale, scale);
+            drawBg(g, v.w, v.h, v);
+            g.translate(-v.x, -v.y);
+            drawList(g, list);
+            return c;
+        } finally { curPage = was; }
+    }
+    async function exportPdf() {
+        try {
+            toast('Готовлю PDF…');
+            pdfLib = pdfLib || new Promise((ok, no) => {
+                if (window.jspdf) return ok();
+                const sc = document.createElement('script');
+                sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+                sc.onload = ok; sc.onerror = () => { pdfLib = null; no(new Error('не удалось загрузить библиотеку PDF')); };
+                document.head.appendChild(sc);
+            });
+            await pdfLib;
+            if (textEd) closeText();
+            if (items.some((i) => i.t === 'text' && hasMath(i.text))) await loadMathJax().catch(() => {});
+            let doc = null;
+            for (const p of pages) {
+                const c = renderPageCanvas(p.id);
+                if (!c) continue;
+                const land = c.width >= c.height, pw = land ? 297 : 210, ph = land ? 210 : 297;
+                const k = Math.min((pw - 20) / c.width, (ph - 20) / c.height), w = c.width * k, h = c.height * k;
+                if (!doc) doc = new window.jspdf.jsPDF({ orientation: land ? 'l' : 'p', unit: 'mm', format: 'a4' });
+                else doc.addPage('a4', land ? 'l' : 'p');
+                doc.addImage(c.toDataURL('image/jpeg', .92), 'JPEG', (pw - w) / 2, (ph - h) / 2, w, h);
+            }
+            if (!doc) { toast('Доска пустая — нечего сохранять'); return; }
+            doc.save((document.title.split(' — ')[0] || 'mathframe-board') + '.pdf');
+        } catch (e) { toast('PDF: ' + (e && e.message ? e.message : e)); }
+    }
+
+    // ================= ФИГУРЫ ОТ РУКИ =================
+    // Включено — нарисованное пером распознаётся сразу: прямая → отрезок, замкнутый круг → окружность
+    // или эллипс, многоугольник → многоугольник с точками на вершинах. Не похоже — остаётся штрихом.
+    function rdp(pts, eps) {
+        if (pts.length < 3) return pts;
+        let dm = 0, idx = 0;
+        const [a, b] = [pts[0], pts[pts.length - 1]];
+        for (let i = 1; i < pts.length - 1; i++) { const d = distSeg(pts[i][0], pts[i][1], a[0], a[1], b[0], b[1]); if (d > dm) { dm = d; idx = i; } }
+        if (dm <= eps) return [a, b];
+        return rdp(pts.slice(0, idx + 1), eps).slice(0, -1).concat(rdp(pts.slice(idx), eps));
+    }
+    function recogShape(st) {
+        const pts = []; for (let i = 0; i < st.p.length; i += 2) pts.push([st.p[i], st.p[i + 1]]);
+        if (pts.length < 4) return null;
+        let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity, L = 0;
+        pts.forEach(([x, y], i) => { x1 = Math.min(x1, x); x2 = Math.max(x2, x); y1 = Math.min(y1, y); y2 = Math.max(y2, y); if (i) L += Math.hypot(x - pts[i - 1][0], y - pts[i - 1][1]); });
+        const diag = Math.hypot(x2 - x1, y2 - y1); if (diag * view.k < 15) return null;
+        const a = pts[0], b = pts[pts.length - 1], closed = Math.hypot(a[0] - b[0], a[1] - b[1]) < diag * .2;
+        const o = { c: st.c, w: st.w };
+        if (!closed) {
+            const dev = Math.max(...pts.map((p) => distSeg(p[0], p[1], a[0], a[1], b[0], b[1])));
+            if (dev < L * .05) {
+                let q1 = snap({ x: a[0], y: a[1] }), q2 = snap({ x: b[0], y: b[1] });
+                return [Object.assign({ t: 'line', x1: R2(q1.x), y1: R2(q1.y), x2: R2(q2.x), y2: R2(q2.y) }, o, styleFor('line'))];
+            }
+            return null;
+        }
+        const cx = (x1 + x2) / 2, cy = (y1 + y2) / 2, rs = pts.map((p) => Math.hypot(p[0] - cx, p[1] - cy)), mr = rs.reduce((s, r) => s + r, 0) / rs.length;
+        const sd = Math.sqrt(rs.reduce((s, r) => s + (r - mr) ** 2, 0) / rs.length), ar = (x2 - x1) / ((y2 - y1) || 1);
+        // многоугольник: углы по упрощению Рамера — Дугласа — Пекера
+        let v = rdp(pts, diag * .08);
+        if (Math.hypot(v[0][0] - v[v.length - 1][0], v[0][1] - v[v.length - 1][1]) < diag * .2) v = v.slice(0, -1);
+        if (v.length >= 3 && v.length <= 8 && sd / mr > .1) {
+            const p = v.flat().map(R2), lab = freeLabels(v.length);
+            return [Object.assign({ t: 'poly', cl: true, p }, o, styleFor('poly'))].concat(lab.map((l, i) => ({ t: 'point', x: p[2 * i], y: p[2 * i + 1], c: st.c, w: Math.min(st.w, 4), label: l })));
+        }
+        if (sd / mr < .16) {
+            if (ar > .8 && ar < 1.25) return [Object.assign({ t: 'circle', nc: 1, x1: R2(cx), y1: R2(cy), x2: R2(cx + mr), y2: R2(cy) }, o, styleFor('circle'))];
+            return [Object.assign({ t: 'ellipse', x1: R2(x1), y1: R2(y1), x2: R2(x2), y2: R2(y2) }, o, styleFor('ellipse'))];
+        }
+        return null;
+    }
+
+    // ================= ПОХОЖАЯ ЗАДАЧА =================
+    // Кнопка рядом с «Решить»: та же тема и сложность, другие числа. Нейросеть; пример без слов
+    // при недоступности нейросети — локально (числа заменяются близкими).
+    const simBusy = new Set();
+    function localSimilar(t) {
+        if (/[а-яё]{3,}/i.test(t)) return null;
+        let changed = false;
+        const out = t.replace(/(\^\(?)?(\d+(?:\.\d+)?)/g, (m, pow, n) => {
+            if (pow) return m;                                  // степени не трогаем
+            const v = +n, d = Math.max(1, Math.round(Math.abs(v) * .3)), r = v + (Math.random() < .5 ? -1 : 1) * (1 + Math.floor(Math.random() * d));
+            changed = true; return String(r === 0 ? v + 1 : Math.abs(r));
+        });
+        return changed ? out : null;
+    }
+    async function similarItem(it) {
+        if (simBusy.has(it.id)) return;
+        simBusy.add(it.id); render();
+        try {
+            let text = null;
+            const src = it.t === 'text' ? textForSolve(it) : null;
+            try {
+                const body = it.t === 'img' ? { task: 'similar', text: (await aiPost({ task: 'ocr', mode: 'board', image: await imgToJpeg(it.src) })).text } : { task: 'similar', text: it.text };
+                text = (await aiPost(body)).text;
+            } catch (e) {
+                const loc = src && localSimilar(src);
+                if (!loc) throw e;
+                text = '$' + problemTitle(loc).replace(/^\$|\$$/g, '') + '$';
+            }
+            await loadMathJax().catch(() => {});
+            const b = bounds(it), s = it.t === 'text' ? it.s : Math.max(14, Math.min(28, b.w / 28));
+            const n = { id: rid(12), z: newZ(), t: 'text', x: R2(b.x + b.w + 40 / view.k), y: R2(b.y), s, c: it.c && it.t === 'text' ? it.c : 'ink', w: 0, text: 'Похожая задача:\n' + wrapText(text, 60) };
+            if (commit({ add: [n] }) !== false) { setTool('select'); sel = [n.id]; render(); }
+        } catch (e) { toast('Похожая задача: ' + (e && e.message ? e.message : e)); }
+        finally { simBusy.delete(it.id); render(); }
+    }
     // ================= ИЗОБРАЖЕНИЯ =================
     // Картинка уменьшается до IMG_MAX_SIDE по большей стороне и перекодируется,
     // пока не влезет в IMG_MAX_BYTES (data URL хранится прямо в объекте).
@@ -2842,7 +3801,7 @@
         const sv = srcs.filter((it) => GEO[it.t]).map((it) => ({ id: it.id, v: getV(it) }));
         if (!sv.length) return { glue, tgts };
         for (const it of items) {
-            if (except.has(it.id) || !GEO[it.t] || it.hid) continue;
+            if (except.has(it.id) || !GEO[it.t] || !inView(it)) continue;
             getV(it).forEach((v, j) => {
                 for (const s of sv) s.v.forEach((u, i) => {
                     if (!eq(u, v)) return;
@@ -2867,6 +3826,9 @@
             setV(work.get(g.tgt), g.j, v[0], v[1]);
         }
         work.forEach(setLive);
+        // зависимые построения — следом, вживую
+        if (!drag.depB) drag.depB = new Map();
+        depsRun([...byNew.keys(), ...work.keys()], true, (it) => { if (!drag.depB.has(it.id) && !byNew.has(it.id) && !work.has(it.id)) drag.depB.set(it.id, clone(it)); });
         drag.moved = true;
     }
     function startMove(w) {
@@ -2933,8 +3895,10 @@
         }
         if (pointers.size > 2) return;
         if (lblEd) closeLabel(true);
+        const cb = !textEd && e.button === 0 && cmtBadges.find((b) => p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h);
+        if (cb) { pointers.delete(e.pointerId); const it = byId(cb.id); if (it) openCmt(it); return; }
         const sb = !textEd && e.button === 0 && !(shared && shared.noSolve && !shared.owner) && solveBtnAt(p.x, p.y);
-        if (sb) { pointers.delete(e.pointerId); const it = byId(sb.id); if (it) solveToggle(it); return; }
+        if (sb) { pointers.delete(e.pointerId); const it = byId(sb.id); if (it) (sb.sim ? similarItem(it) : solveToggle(it)); return; }
         if (textEd) { closeText(); if (tool === 'text') return; }
         closeMenus();
         const w = toWorld(p.x, p.y);
@@ -2944,9 +3908,27 @@
             return;
         }
         if (e.button !== 0) return;
+        // ползунок параметра графика
+        const sl = sliderAt(w);
+        if (sl && canEdit()) { drag = { mode: 'param', before: clone(sl.it), name: sl.s.n, glue: [], tgts: new Map() }; dragTo(w, e); render(); return; }
+        // линейка / транспортир
+        const ia = instAt(w);
+        if (ia && !(tool === 'pen' && rulerSnap(w))) {
+            const o = inst[ia.which];
+            drag = { mode: 'inst', which: ia.which, im: ia.mode, w0: w, o0: Object.assign({}, o), a0: Math.atan2(w.y - o.y, w.x - o.x), glue: [], tgts: new Map() };
+            return;
+        }
+        if (tool === 'compass' && canEdit()) {
+            const q = snap(w);
+            if (!compass || compass.phase === 0) compass = { cx: q.x, cy: q.y, r: 0, phase: 1 };
+            else if (compass.phase === 2) { compass.a0 = Math.atan2(w.y - compass.cy, w.x - compass.cx); compass.sw = 0; compass.lastA = compass.a0; compass.drawing = true; }
+            render(); return;
+        }
+        if (tool === 'curtain' && canEdit()) { cur = { t: 'curtainDraft', x1: w.x, y1: w.y, x2: w.x, y2: w.y }; render(); return; }
         if (tool === 'select') {
             const h = handleAt(p.x, p.y), one = selOne();
             if (h === 'del') { deleteSelected(); return; }
+            if (h === 'more') { pointers.delete(e.pointerId); openSelMenu(); return; }
             if (h === 'edit') { editItem(one); return; }
             if (h && one) {
                 const f0 = frameOf(one);
@@ -2970,12 +3952,12 @@
             const add = e.shiftKey || e.ctrlKey || e.metaKey;
             const it = topHit(w.x, w.y, 6 / view.k, true);
             if (it) {
-                if (add) { sel = sel.includes(it.id) ? sel.filter((x) => x !== it.id) : sel.concat(it.id); render(); return; }
-                const was = sel.includes(it.id), alone = was && sel.length === 1;
-                if (!was) sel = [it.id];
+                if (add) { const g = groupExpand([it.id]); sel = sel.includes(it.id) ? sel.filter((x) => !g.includes(x)) : [...new Set(sel.concat(g))]; render(); return; }
+                const was = sel.includes(it.id), alone = was && (sel.length === 1 || (it.gr && sel.every((id) => (byId(id) || {}).gr === it.gr)));
+                if (!was) sel = groupExpand([it.id]);
                 startMove(w);
                 if (was && sel.length > 1) drag.only = it.id;   // щелчок без сдвига — выделить только его
-                if (alone) drag.edit = { id: it.id, w };         // щелчок по уже выделенному — правка
+                if (alone && !it.gr) drag.edit = { id: it.id, w };   // щелчок по уже выделенному — правка
             } else {
                 if (!add) sel = [];
                 drag = { mode: 'marquee', x0: w.x, y0: w.y, x1: w.x, y1: w.y, base: sel.slice() };
@@ -2989,6 +3971,8 @@
             e.preventDefault();
             return;
         }
+        if (tool === 'laser') { laser.on = true; laser.pts = []; laserAdd(w); return; }
+        if (!canEdit() && tool !== 'select') { toast('Владелец доски включил режим «только просмотр»'); return; }
         if (tool === 'eraser') {
             cur = { t: 'erase', erased: [] };
             eraseAt(w.x, w.y);
@@ -3007,6 +3991,7 @@
         }
         if (tool === 'poly' || tool === 'angle') { geoClick(snap(w), p); return; }
         if (tool === 'mark') { markAt(w); return; }
+        if (tool === 'cons') { consClick(w); return; }
         if (tool === 'extend') { extendAt(w); return; }
         if (tool === 'shape') {
             const q = snap(w);
@@ -3015,14 +4000,18 @@
             return;
         }
         if (tool === 'circle' || tool === 'line' || tool === 'arrow') {
-            const q = snap(w);
+            const rq = tool !== 'circle' && rulerSnap(w);
+            const q = rq || snap(w);
             cur = { ...styleFor(tool), t: tool, c: color, w: size, x1: q.x, y1: q.y, x2: q.x, y2: q.y };
+            if (rq) cur.rul = rq;
             render();
             return;
         }
         if (tool === 'pen') {
             if (hand.on) handHold();
-            cur = { t: 'pen', v: 2, c: color, w: size, th: penCfg.th, tp: penCfg.tp, p: [w.x, w.y], pr: [penPr(e, .5)], raw: w, lt: e.timeStamp };
+            const rq = rulerSnap(w);
+            cur = { t: 'pen', v: 2, c: color, w: size, th: penCfg.th, tp: penCfg.tp, p: rq ? [rq.x, rq.y] : [w.x, w.y], pr: [penPr(e, .5)], raw: w, lt: e.timeStamp };
+            if (rq) { cur.rul = rq; cur.tp = 0; cur.th = 0; }
         } else if (tool === 'marker') {
             cur = { t: tool, c: color, w: size * 4, p: [w.x, w.y] };
         } else {
@@ -3041,8 +4030,8 @@
         if (drag.mode === 'marquee') {
             drag.x1 = w.x; drag.y1 = w.y;
             const x1 = Math.min(drag.x0, w.x), x2 = Math.max(drag.x0, w.x), y1 = Math.min(drag.y0, w.y), y2 = Math.max(drag.y0, w.y);
-            const inR = items.filter((it) => { if (it.hid) return false; const b = bounds(it); return b.x < x2 && b.x + b.w > x1 && b.y < y2 && b.y + b.h > y1; }).map((i) => i.id);
-            sel = [...new Set(drag.base.concat(inR))];
+            const inR = items.filter((it) => { if (!inView(it) || it.lk) return false; const b = bounds(it); return b.x < x2 && b.x + b.w > x1 && b.y < y2 && b.y + b.h > y1; }).map((i) => i.id);
+            sel = groupExpand([...new Set(drag.base.concat(inR))]);
             return;
         }
         if (drag.mode === 'move') {
@@ -3066,6 +4055,20 @@
             }
             const n = clone(b); setV(n, drag.i, q.x, q.y);
             applyDrag([n]);
+            return;
+        }
+        if (drag.mode === 'param') {
+            const it = byId(b.id); if (!it || !it.pr) return;
+            const s = plotSliders(it).find((x) => x.n === drag.name); if (!s) return;
+            const p = s.p, t = Math.max(0, Math.min(1, (w.x - s.x1) / (s.x2 - s.x1)));
+            const n = clone(it); n.pr[drag.name].v = Math.round((p.lo + t * (p.hi - p.lo)) * 10) / 10;
+            applyDrag([n]);
+            return;
+        }
+        if (drag.mode === 'inst') {
+            const o = inst[drag.which], o0 = drag.o0;
+            if (drag.im === 'move') { o.x = o0.x + w.x - drag.w0.x; o.y = o0.y + w.y - drag.w0.y; }
+            else { let a = o0.a + Math.atan2(w.y - o0.y, w.x - o0.x) - drag.a0; if (!e.altKey) { const st = Math.PI / 12, ra = Math.round(a / st) * st; if (Math.abs(a - ra) < .05) a = ra; } o.a = a; }
             return;
         }
         if (drag.mode === 'rot3') {
@@ -3123,18 +4126,34 @@
             return;
         }
         if (panDrag) {
+            userMovedView();
             view.x = panDrag.vx - (p.x - panDrag.sx) / view.k;
             view.y = panDrag.vy - (p.y - panDrag.sy) / view.k;
             render();
             return;
         }
         if (drag) { dragTo(toWorld(p.x, p.y), e); render(); return; }
+        if (compass && tool === 'compass') {
+            const w = toWorld(p.x, p.y);
+            if (compass.phase === 1) { const q = snap(w); compass.r = Math.hypot(q.x - compass.cx, q.y - compass.cy); compass.rx = q.x; compass.ry = q.y; }
+            else if (compass.phase === 2 && compass.drawing) {
+                const a = Math.atan2(w.y - compass.cy, w.x - compass.cx); let d = a - compass.lastA;
+                while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI;
+                compass.sw = Math.max(-2 * Math.PI, Math.min(2 * Math.PI, compass.sw + d)); compass.lastA = a;
+            }
+            render(); return;
+        }
+        if (laser.on) { laserAdd(toWorld(p.x, p.y)); return; }
         if (!cur) return;
         const evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
         for (const ev of evs.length ? evs : [e]) {
             const lp = localPt(ev), w = toWorld(lp.x, lp.y);
             if (cur.t === 'erase') eraseAt(w.x, w.y);
-            else if (cur.t === 'pen') {
+            else if (cur.t === 'pen' && cur.rul) {
+                // по линейке: точка на краю
+                const q = rulerSnap(w) || cur.rul;
+                cur.p.push(q.x, q.y); cur.pr.push(cur.pr[cur.pr.length - 1]);
+            } else if (cur.t === 'pen') {
                 // стабилизатор: точка «догоняет» курсор, сглаживая дрожание руки
                 const n = cur.p.length, lx = cur.p[n - 2], ly = cur.p[n - 1];
                 const k = 1 - penCfg.sm * .82;
@@ -3164,6 +4183,7 @@
                     }
                 }
                 if (!e.shiftKey && (cur.t === 'line' || cur.t === 'arrow' || cur.t === 'circle' || cur.t === 'rect' || cur.t === 'ellipse' || cur.t === 'shapeDraft')) { const q = snap({ x, y }); x = q.x; y = q.y; }
+                if ((cur.t === 'line' || cur.t === 'arrow') && cur.rul) { const q = rulerSnap({ x, y }); if (q) { x = q.x; y = q.y; } }
                 cur.x2 = x; cur.y2 = y;
             }
         }
@@ -3173,17 +4193,33 @@
         if (!pointers.has(e.pointerId)) return;
         pointers.delete(e.pointerId);
         snapHint = null;
+        if (laser.on) { laser.on = false; laserLoop(); return; }
+        if (compass && tool === 'compass') {
+            if (compass.phase === 1) {
+                if (compass.r * view.k < 5) { compass = null; render(); return; }
+                compass.phase = 2; toast('Циркуль: ведите вокруг центра — рисуется дуга; щелчок — полная окружность');
+            } else if (compass.phase === 2 && compass.drawing) {
+                const sw = Math.abs(compass.sw) < .05 ? 2 * Math.PI : compass.sw;
+                const it = Object.assign({ id: rid(12), z: newZ(), t: 'arc', c: color, w: size, x1: R2(compass.cx), y1: R2(compass.cy), x2: R2(compass.cx + compass.r * Math.cos(compass.a0)), y2: R2(compass.cy + compass.r * Math.sin(compass.a0)), sw }, styleFor('circle'));
+                if (!it.ls) delete it.ls;
+                commit({ add: [it] });
+                compass = { cx: compass.cx, cy: compass.cy, r: compass.r, phase: 2 };   // тем же раствором — ещё дуги; Esc — новый центр
+            }
+            render(); return;
+        }
         if (pinch) { if (pointers.size < 2) pinch = null; saveView(); return; }
         if (panDrag) { panDrag = null; stage.classList.remove('drag'); saveView(); return; }
         if (drag) {
             const d = drag;
             drag = null;
+            if (d.mode === 'inst') { render(); return; }
             if (d.only && !d.moved) sel = [d.only];
             if (d.edit && !d.moved) { const it = byId(d.edit.id); render(); if (it) editItem(it, it.t === 'text' || it.t === 'plot' || it.t === 'tex' ? null : d.edit.w); return; }
             if (d.mode !== 'marquee' && d.moved) {
                 const pairs = [];
                 for (const b of (d.befores || [d.before])) { const a = byId(b.id); if (a) pairs.push([b, clone(a)]); }
                 d.tgts.forEach((b, id) => { const a = byId(id); if (a) pairs.push([b, clone(a)]); });
+                if (d.depB) d.depB.forEach((b, id) => { const a = byId(id); if (a && !pairs.some((p) => p[0].id === id)) pairs.push([b, clone(a)]); });
                 record({ mod: pairs });
                 putItems(pairs.map((x) => x[1]));
             }
@@ -3193,6 +4229,9 @@
         if (!cur) return;
         if (cur.t === 'erase') {
             if (cur.erased.length) record({ del: cur.erased });
+        } else if (cur.t === 'curtainDraft') {
+            const x = Math.min(cur.x1, cur.x2), y = Math.min(cur.y1, cur.y2), w = Math.abs(cur.x2 - cur.x1), h = Math.abs(cur.y2 - cur.y1);
+            if (w * view.k > 10 && h * view.k > 10) { const it = { id: rid(12), z: newZ() + 1e6, t: 'curtain', x, y, w, h, c: 'ink' }; if (commit({ add: [it] }) !== false) selectMade([it]); }
         } else if (cur.t === 'shapeDraft') {
             let f = draftBox(cur);
             if (!f) { const sh = SHAPES.find((s) => s.id === cur.sid), k = 1 / view.k; f = { x: cur.x1 - 80 * k, y: cur.y1 - 65 * k, w: 160 * k, h: 130 * k }; if (sh && sh.v === undefined && sh.g) { const g = sh.g(); f.h = f.w * g.bh / g.bw; } }
@@ -3207,6 +4246,13 @@
                 cur.p = cur.p.map((v) => Math.round(v * 100) / 100);
             }
             const tiny = !cur.p && Math.hypot(cur.x2 - cur.x1, cur.y2 - cur.y1) * view.k < 3;
+            delete cur.rul;
+            const rec = !tiny && cur.t === 'pen' && bcfg.sr && recogShape(cur);
+            if (rec) {
+                const made = rec.map((x, i) => Object.assign(x, { id: rid(12), z: newZ() + i * 1e-3 }));
+                commit({ add: made });
+                cur = null; sendDraft(null); render(); return;
+            }
             if (!tiny) {
                 const it = Object.assign({ id: rid(12), z: newZ() }, cur, styleFor(cur.t));
                 if (commit({ add: [it] }) !== false && SPECIAL[it.t]) selectMade([it]);
@@ -3224,6 +4270,7 @@
     stage.addEventListener('pointercancel', endPointer);
     stage.addEventListener('wheel', (e) => {
         e.preventDefault();
+        userMovedView();
         const p = localPt(e);
         if (e.ctrlKey || e.metaKey || !e.deltaX && Math.abs(e.deltaY) >= 50 && e.deltaMode === 0 && !e.shiftKey) {
             zoomAt(p.x, p.y, Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0015)));
@@ -3300,6 +4347,8 @@
         if (textEd) closeText();
         if (lblEd) closeLabel(true);
         if (geo) finishGeo(false);
+        consPick = [];
+        if (t !== 'compass') compass = null;
         tool = t;
         const sb = $('bdShapesBtn');
         if (sb) {
@@ -3405,6 +4454,28 @@
         $('bdShare').onclick = share;
         $('bdGraph').onclick = () => openMath('g');
         $('bdLeave').onclick = () => goLocal(lsGet(CUR, ''));
+        bindPages();
+        $('bdInstrMenu').innerHTML = '<div class="bd-mgrid">' +
+            menuItem('ruler', 'Линейка', '<svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="14" width="34" height="12" rx="1"/><path d="M8 14v5M13 14v3M18 14v5M23 14v3M28 14v5M33 14v3"/></svg>', 'data-inst="ruler"') +
+            menuItem('prot', 'Транспортир', '<svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 30a16 16 0 0 1 32 0z"/><path d="M20 30 30 18"/></svg>', 'data-inst="prot"') +
+            menuItem('compass', 'Циркуль', '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">' + ICONS.compass + '</svg>', 'data-inst="compass"') + '</div>' +
+            '<p class="bd-mnote">Линейку и транспортир двигайте за корпус, поворачивайте за кружок (шаг 15°, Alt — свободно). Перо, отрезок и стрелка у края линейки идут ровно по нему. Циркуль: протяните радиус от центра, потом ведите вокруг — дуга; Esc — новый центр.</p>';
+        $('bdInstrMenu').addEventListener('click', (e) => {
+            const b = e.target.closest('[data-inst]'); if (!b) return;
+            if (b.dataset.inst === 'compass') { setTool(tool === 'compass' ? 'select' : 'compass'); if (tool === 'compass') toast('Циркуль: протяните радиус от центра'); }
+            else instToggle(b.dataset.inst);
+            instUi();
+        });
+        $('bdSearchBtn').onclick = openSearch;
+        $('bdSearchIn').addEventListener('input', doSearch);
+        $('bdSearchIn').addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Escape') $('bdSearch').hidden = true; });
+        $('bdPdf').onclick = exportPdf;
+        $('bdSr').onclick = () => { bcfg.sr = !bcfg.sr; lsSet('mf-board-cfg', bcfg); $('bdSr').classList.toggle('on', bcfg.sr); if (bcfg.sr && tool !== 'pen') setTool('pen'); toast(bcfg.sr ? 'Фигуры от руки: рисуйте пером — прямые, круги и многоугольники станут ровными' : 'Фигуры от руки выключены'); };
+        $('bdSr').classList.toggle('on', bcfg.sr);
+        $('bdCfgMenu').addEventListener('input', () => $('bdSr').classList.toggle('on', !!bcfg.sr));
+        $('bdInstr').onclick = () => { toggleMenu('bdInstrMenu', $('bdInstr')); instUi(); };
+        bindCmt();
+        bindSelMenu();
         bindBoards();
     }
 
@@ -3423,7 +4494,7 @@
         if (textEd) closeText();
         let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
         for (const it of items) {
-            if (it.hid) continue;
+            if (!inView(it)) continue;
             const b = bounds(it);
             minX = Math.min(minX, b.x); minY = Math.min(minY, b.y);
             maxX = Math.max(maxX, b.x + b.w); maxY = Math.max(maxY, b.y + b.h);
@@ -3440,7 +4511,7 @@
         g.scale(scale, scale);
         drawBg(g, v.w, v.h, v);
         g.translate(-v.x, -v.y);
-        drawList(g, items.filter((i) => !i.hid));
+        drawList(g, items.filter(inView));
         c.toBlob((b) => {
             const a = document.createElement('a');
             a.href = URL.createObjectURL(b);
@@ -3704,6 +4775,10 @@
         const bd = boardSnap.data() || {};
         shared.owner = bd.owner === au.user.uid;
         shared.noSolve = !!bd.noSolve;
+        shared.mode = bd.mode === 'view' ? 'view' : 'edit';
+        shared.lead = bd.lead || null;
+        if (Array.isArray(bd.pages) && bd.pages.length) pages = bd.pages;
+        modeUi(); leadUi(); pageBar();
         shared.name = bd.name || 'Общая доска';
         setTitle(shared.name);
         const rec = lsGet(RECENT, []).filter((r) => r.id !== id);
@@ -3715,6 +4790,21 @@
             if (data && data.bg && data.bg !== bg) { bg = data.bg; $('bdBg').value = bg; render(); }
             if (data && data.name && data.name !== shared.name) { shared.name = data.name; setTitle(data.name); }
             // владелец может выключить «Решить» для участников
+            if (data && Array.isArray(data.pages) && data.pages.length && JSON.stringify(data.pages) !== JSON.stringify(pages)) {
+                pages = data.pages;
+                if (!pages.some((p) => p.id === curPage)) { curPage = '#'; goPage(pages[0].id, true); }
+                pageBar(); render();
+            }
+            if (data) {
+                const L = data.lead || null;
+                if (JSON.stringify(L) !== JSON.stringify(shared.lead || null)) {
+                    shared.lead = L; following = true; leadSent = '';
+                    if (L && L.peer !== shared.peerId) { toast((L.name || 'Участник') + ' ведёт урок — вы видите то же, что и ведущий'); leadApply(shared.peers.get(L.peer)); }
+                    leadUi();
+                }
+                const m = data.mode === 'view' ? 'view' : 'edit';
+                if (m !== shared.mode) { shared.mode = m; modeUi(); syncOwnerCfg(); if (!shared.owner) toast(m === 'view' ? 'Владелец включил режим «только просмотр»' : 'Владелец разрешил рисовать'); }
+            }
             if (data && !!data.noSolve !== !!shared.noSolve) { shared.noSolve = !!data.noSolve; syncOwnerCfg(); render(); }
         }, syncError));
         shared.unsub.push(ref.collection('items').onSnapshot((snap) => {
@@ -3735,13 +4825,16 @@
         shared.unsub.push(ref.collection('peers').onSnapshot((snap) => {
             snap.docChanges().forEach((ch) => {
                 if (ch.doc.id === peerId) return;
-                if (ch.type === 'removed') shared.peers.delete(ch.doc.id);
-                else shared.peers.set(ch.doc.id, ch.doc.data());
+                if (ch.type === 'removed') { shared.peers.delete(ch.doc.id); peerLaser.delete(ch.doc.id); return; }
+                const d = ch.doc.data(), old = shared.peers.get(ch.doc.id);
+                shared.peers.set(ch.doc.id, d);
+                if (d.ls && (!old || old.lsT !== d.lsT)) { peerLaser.set(ch.doc.id, { pts: d.ls, t: Date.now() }); laserLoop(); }
+                if (shared.lead && shared.lead.peer === ch.doc.id && d.vw && (!old || JSON.stringify(old.vw) !== JSON.stringify(d.vw))) leadApply(d);
             });
             updatePeople(); render();
         }, () => {}));
 
-        writePeer({ name: me.name, color: me.color, t: Date.now(), x: null, y: null, draft: null });
+        writePeer({ name: me.name, color: me.color, t: Date.now(), x: null, y: null, draft: null, pg: curPage, ls: null, vw: null });
         shared.beat = setInterval(() => { writePeer({ t: Date.now() }); updatePeople(); render(); }, 15000);
         const bye = () => { try { shared.peerRef.delete(); } catch (e) {} };
         window.addEventListener('pagehide', bye);
@@ -3766,7 +4859,7 @@
             shared.peerRef.set(data, { merge: true }).catch(() => {});
         }, wait);
     }
-    function sendCursor(w) { writePeer({ x: Math.round(w.x), y: Math.round(w.y) }); }
+    function sendCursor(w) { writePeer({ x: Math.round(w.x), y: Math.round(w.y), pg: curPage }); }
     function sendDraft(it) {
         if (!shared) return;
         // длинный штрих в черновике обрезаем — он всё равно придёт целиком после отпускания
@@ -3787,7 +4880,7 @@
         if (!bcfg.cur) return;
         ctx.font = '600 11px sans-serif'; ctx.textBaseline = 'top';
         for (const p of shared.peers.values()) {
-            if (!fresh(p) || p.x == null) continue;
+            if (!fresh(p) || p.x == null || (p.pg || 'p1') !== curPage) continue;
             const sx = (p.x - view.x) * view.k, sy = (p.y - view.y) * view.k;
             if (sx < -20 || sy < -20 || sx > W + 20 || sy > H + 20) continue;
             ctx.fillStyle = p.color || '#3e8bff';
@@ -3808,7 +4901,11 @@
         const k = e.key.toLowerCase();
         if ((e.ctrlKey || e.metaKey) && (k === 'z' || k === 'я')) { e.preventDefault(); e.shiftKey ? doRedo() : doUndo(); return; }
         if ((e.ctrlKey || e.metaKey) && (k === 'y' || k === 'н')) { e.preventDefault(); doRedo(); return; }
-        if ((e.ctrlKey || e.metaKey) && (k === 'a' || k === 'ф')) { e.preventDefault(); setTool('select'); sel = items.filter((i) => !i.hid).map((i) => i.id); render(); return; }
+        if ((e.ctrlKey || e.metaKey) && e.code === 'KeyF') { e.preventDefault(); openSearch(); return; }
+        if ((e.ctrlKey || e.metaKey) && (e.code === 'KeyG')) { e.preventDefault(); setGroup(!e.shiftKey); return; }
+        if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.code === 'KeyL') { e.preventDefault(); unlockAll(); return; }
+        if ((e.ctrlKey || e.metaKey) && (e.code === 'BracketRight' || e.code === 'BracketLeft')) { e.preventDefault(); reorder(e.code === 'BracketRight' ? (e.shiftKey ? 'top' : 'up') : (e.shiftKey ? 'bottom' : 'down')); return; }
+        if ((e.ctrlKey || e.metaKey) && (k === 'a' || k === 'ф')) { e.preventDefault(); setTool('select'); sel = items.filter((i) => inView(i) && !i.lk).map((i) => i.id); render(); return; }
         if ((e.ctrlKey || e.metaKey) && (k === 'd' || k === 'в') && sel.length) {
             // копия выделенного со сдвигом
             e.preventDefault();
@@ -3829,6 +4926,13 @@
         if (e.code === 'KeyF') { toggleFull(); return; }
         if (e.code === 'KeyI') { $('bdFile').click(); return; }
         if (geo && e.key === 'Enter') { e.preventDefault(); finishGeo(true, false); return; }
+        if (boardEl.classList.contains('present')) {
+            const i = pageIdx();
+            if (['ArrowRight', 'PageDown', ' '].includes(e.key)) { e.preventDefault(); if (i < pages.length - 1) goPage(pages[i + 1].id); return; }
+            if (['ArrowLeft', 'PageUp'].includes(e.key)) { e.preventDefault(); if (i > 0) goPage(pages[i - 1].id); return; }
+            if (e.key === 'Escape') { present(false); return; }
+        }
+        if (e.key === 'Escape' && compass) { compass = null; render(); return; }
         if (e.key === 'Escape') {
             if (!$('bdMathDlg').hidden) { closeMath(); return; }
             if (geo) { finishGeo(false); return; }
