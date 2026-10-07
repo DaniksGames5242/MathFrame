@@ -82,6 +82,9 @@
     this.root = link(row([]));
     this.cur = { row: this.root, i: 0 };
     this.onChange = opts.onChange || function () {};
+    // onExit(dir): курсор упёрся в край формулы и пользователь жмёт ←/→ дальше
+    // (встроенное поле внутри обычного текста — выйти обратно в текст)
+    this.onExit = opts.onExit || null;
     this.readOnly = !!opts.readOnly;
 
     host.classList.add('mfld');
@@ -107,7 +110,7 @@
     // и есть привычный системный способ.
     var dragging = false, anchor = null, lastPointerType = 'mouse';
     this.host.addEventListener('pointerdown', function (e) {
-      self.host.focus();
+      self.host.focus({ preventScroll: true });
       lastPointerType = e.pointerType || 'mouse';
       // ПКМ (button===2) только переставляет курсор — не запускает протаскивание
       // выделения (у него своя роль: contextmenu откроет меню на этом месте).
@@ -194,7 +197,7 @@
     }
     // выходим из поля наружу
     var owner = c.row.p;
-    if (!owner) return;
+    if (!owner) { if (this.onExit) this.onExit(-1); return; }
     var parentRow = owner.p;
     if (!parentRow) return;
     var fs = ownerRows(owner);
@@ -222,7 +225,7 @@
       return;
     }
     var owner = c.row.p;
-    if (!owner) return;
+    if (!owner) { if (this.onExit) this.onExit(1); return; }
     var parentRow = owner.p;
     if (!parentRow) return;
     var fs = ownerRows(owner);
@@ -1174,6 +1177,19 @@
     }
     return parseRow();
   }
+
+  /* ---------------------------------------- дерево формулы как данные
+     Для сохранения и повторного редактирования без потерь (через линейную
+     запись setExpr часть конструкций не восстанавливается). */
+  MathField.prototype.getTree = function () {
+    return JSON.parse(JSON.stringify(this.root, function (k, v) { return k === 'p' || k === 'pf' ? undefined : v; }));
+  };
+  MathField.prototype.setTree = function (tree) {
+    this.root = link(JSON.parse(JSON.stringify(tree)));
+    this.cur = { row: this.root, i: this.root.k.length };
+    this.sel = null;
+    this._changed();
+  };
 
   /* --------------------------------------------------------------- наружу */
   MathField.row = row;
