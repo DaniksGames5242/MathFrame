@@ -21,6 +21,8 @@ main{
   background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r-lg);overflow:hidden;
   height:calc(100dvh - 8.5rem);min-height:420px
 }
+.bd-love{margin:0 0 .6rem;text-align:center;font-weight:700;font-size:clamp(1rem,2.4vw,1.35rem);color:var(--text-primary)}
+.bd-love + .bd{height:calc(100dvh - 11rem)}
 .bd.full{position:fixed;inset:0;z-index:1000;height:100dvh;border-radius:0;border:0;background:var(--bg-body)}
 
 .bd-bar{
@@ -140,6 +142,8 @@ main{
 
 <main>
   <h1 class="sr-only">Электронная доска</h1>
+  <!-- ВРЕМЕННО: поздравительная строка, потом убрать (вместе со стилем .bd-love) -->
+  <p class="bd-love">Михаил Сергеевич, мы Вас любим ❤️</p>
   <section class="bd" id="board" aria-label="Электронная доска">
     <div class="bd-bar" id="bdBar">
       <div class="bd-grp" id="bdTools" role="toolbar" aria-label="Инструменты"></div>
