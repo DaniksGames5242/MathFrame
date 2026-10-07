@@ -800,7 +800,7 @@
         drawBg(ctx, W, H, view);
         ctx.setTransform(dpr * view.k, 0, 0, dpr * view.k, -view.x * view.k * dpr, -view.y * view.k * dpr);
         const extra = [];
-        if (shared) for (const p of shared.peers.values()) if (p.draft && fresh(p)) extra.push(p.draft);
+        if (shared && bcfg.drafts) for (const p of shared.peers.values()) if (p.draft && fresh(p)) extra.push(p.draft);
         if (cur && cur.t !== 'erase') extra.push(cur);
         if (geo) extra.push(geo);
         drawList(ctx, items.concat(extra));
@@ -826,15 +826,19 @@
     //  1) точки и вершины (точное совпадение — потом они склеены), 2) середины отрезков и сторон,
     //  3) узлы клетки, 4) точка на отрезке/стороне/окружности. Найденная точка подсвечивается.
     let snapHint = null, snapAlt = false;
+    // настройки доски (меню-шестерёнка): привязка и чужие курсоры; хранятся в этом браузере
+    const CFG_DEF = { snap: true, sV: true, sM: true, sG: true, sO: true, sR: 11, cur: true, names: true, drafts: true };
+    const bcfg = Object.assign({}, CFG_DEF, lsGet('mf-board-cfg', {}));
     function snap(w, except) {
         snapHint = null;
-        if (snapAlt) return w;
-        const r = 11 / view.k;
+        if (snapAlt || !bcfg.snap) return w;
+        const r = bcfg.sR / view.k;
         let best = null, bd = r, kind = '';
         const tryPt = (x, y, k, rr) => { const d = Math.hypot(x - w.x, y - w.y); if (d < (rr || bd) && d < bd + 1e-9) { bd = d; best = { x, y }; kind = k; } };
         const segs = [];
         for (const it of items) {
             if (except && except.has(it.id)) continue;
+            if (!bcfg.sV) { if (it.t === 'line' || it.t === 'arrow') segs.push([it.x1, it.y1, it.x2, it.y2]); else if (it.t === 'poly') { const n = it.p.length / 2; for (let i = 0; i < n; i++) { const j = (i + 1) % n; if (j || it.cl) segs.push([it.p[2 * i], it.p[2 * i + 1], it.p[2 * j], it.p[2 * j + 1]]); } } continue; }
             if (it.t === 'point') tryPt(it.x, it.y, 'v');
             else if (it.t === 'line' || it.t === 'arrow') { tryPt(it.x1, it.y1, 'v'); tryPt(it.x2, it.y2, 'v'); segs.push([it.x1, it.y1, it.x2, it.y2]); }
             else if (it.t === 'circle') tryPt(it.x1, it.y1, 'v');
@@ -843,14 +847,14 @@
                 if (it.t === 'poly') { const n = it.p.length / 2; for (let i = 0; i < n; i++) { const j = (i + 1) % n; if (j || it.cl) segs.push([it.p[2 * i], it.p[2 * i + 1], it.p[2 * j], it.p[2 * j + 1]]); } }
             }
         }
-        if (geo) for (let i = 0; i < geo.p.length; i += 2) tryPt(geo.p[i], geo.p[i + 1], 'v');
-        if (!best) for (const [a, b, c, d] of segs) tryPt((a + c) / 2, (b + d) / 2, 'm');
-        if (!best && bg !== 'none') {
+        if (geo && bcfg.sV) for (let i = 0; i < geo.p.length; i += 2) tryPt(geo.p[i], geo.p[i + 1], 'v');
+        if (!best && bcfg.sM) for (const [a, b, c, d] of segs) tryPt((a + c) / 2, (b + d) / 2, 'm');
+        if (!best && bcfg.sG && bg !== 'none') {
             const st = 25, gx = Math.round(w.x / st) * st, gy = Math.round(w.y / st) * st;
             if (bg === 'lines') { if (Math.abs(gy - w.y) < r * .6) { best = { x: w.x, y: gy }; kind = 'g'; } }
             else tryPt(gx, gy, 'g', r * .6);
         }
-        if (!best) for (const [a, b, c, d] of segs) {
+        if (!best && bcfg.sO) for (const [a, b, c, d] of segs) {
             const dx = c - a, dy = d - b, l = dx * dx + dy * dy; if (!l) continue;
             const t = Math.max(0, Math.min(1, ((w.x - a) * dx + (w.y - b) * dy) / l));
             tryPt(a + t * dx, b + t * dy, 'o', r * .7);
@@ -1879,7 +1883,7 @@
 
     // ================= МЕНЮ «ФИГУРЫ», «ЗАГОТОВКИ», НАСТРОЙКИ ПЕРА =================
     function closeMenus(except) {
-        ['bdShapeMenu', 'bdPresetMenu', 'bdPenCfg', 'bdLsMenu'].forEach((id) => { if (id !== except && $(id)) $(id).hidden = true; });
+        ['bdShapeMenu', 'bdPresetMenu', 'bdPenCfg', 'bdLsMenu', 'bdCfgMenu'].forEach((id) => { if (id !== except && $(id)) $(id).hidden = true; });
     }
     function toggleMenu(id, anchor) {
         const m = $(id);
@@ -1916,6 +1920,27 @@
         });
         $('bdShapesBtn').onclick = () => toggleMenu('bdShapeMenu', $('bdShapesBtn'));
         $('bdFig').onclick = () => toggleMenu('bdPresetMenu', $('bdFig'));
+        // настройки доски
+        const chk = (k, t, sub) => `<label class="bd-chk${sub ? ' bd-sub' : ''}"><input type="checkbox" data-cfg="${k}"> ${t}</label>`;
+        $('bdCfgMenu').innerHTML = '<h4>Привязка</h4>' + chk('snap', 'Включена <small>(Alt — временно без неё)</small>') +
+            chk('sV', 'к точкам и вершинам', 1) + chk('sM', 'к серединам отрезков', 1) + chk('sG', 'к узлам клетки', 1) + chk('sO', 'к точкам на отрезках', 1) +
+            '<label class="bd-sub">Сила притяжения <input type="range" data-cfg="sR" min="4" max="30"></label>' +
+            '<h4>Другие участники</h4>' + chk('cur', 'Показывать курсоры') + chk('names', 'Имена у курсоров', 1) + chk('drafts', 'Показывать недорисованные штрихи') +
+            '<button class="mini-btn bd-ghost" id="bdCfgReset">Сбросить</button>';
+        const syncCfg = () => $('bdCfgMenu').querySelectorAll('[data-cfg]').forEach((el) => {
+            const k = el.dataset.cfg;
+            if (el.type === 'checkbox') el.checked = !!bcfg[k]; else el.value = bcfg[k];
+            const dep = (k[0] === 's' && k !== 'snap') ? !bcfg.snap : k === 'names' ? !bcfg.cur : false;
+            el.disabled = dep; el.closest('label').style.opacity = dep ? .45 : '';
+        });
+        $('bdCfgMenu').addEventListener('input', (e) => {
+            const el = e.target.closest('[data-cfg]'); if (!el) return;
+            bcfg[el.dataset.cfg] = el.type === 'checkbox' ? el.checked : +el.value;
+            lsSet('mf-board-cfg', bcfg); syncCfg(); render();
+        });
+        $('bdCfgReset').onclick = () => { Object.assign(bcfg, CFG_DEF); lsSet('mf-board-cfg', bcfg); syncCfg(); render(); };
+        $('bdCfg').onclick = () => toggleMenu('bdCfgMenu', $('bdCfg'));
+        syncCfg();
         $('bdPenBtn').onclick = () => { toggleMenu('bdPenCfg', $('bdPenBtn')); penPreview(); };
         // настройки пера
         const bind = (id, key, scale) => {
@@ -1927,7 +1952,7 @@
         $('bdPenSt').checked = penCfg.st;
         $('bdPenSt').addEventListener('change', () => { penCfg.st = $('bdPenSt').checked; savePen(); });
         $('bdPenReset').onclick = () => { Object.assign(penCfg, PEN_DEF); savePen(); ['Sm', 'Th', 'Tp'].forEach((k) => { $('bdPen' + k).value = Math.round(penCfg[k.toLowerCase()] * 100); }); $('bdPenSt').checked = penCfg.st; penPreview(); };
-        document.addEventListener('pointerdown', (e) => { if (!e.target.closest('.bd-menu, #bdShapesBtn, #bdFig, #bdPenBtn, #bdLsBtn')) closeMenus(); });
+        document.addEventListener('pointerdown', (e) => { if (!e.target.closest('.bd-menu, #bdShapesBtn, #bdFig, #bdPenBtn, #bdLsBtn, #bdCfg')) closeMenus(); });
     }
     // вид линии для новых объектов (и выделенных — при смене)
     const STYLED = { line: 1, arrow: 1, circle: 1, rect: 1, ellipse: 1, poly: 1 };
@@ -3462,6 +3487,7 @@
     }
     const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     function drawPeers() {
+        if (!bcfg.cur) return;
         ctx.font = '600 11px sans-serif'; ctx.textBaseline = 'top';
         for (const p of shared.peers.values()) {
             if (!fresh(p) || p.x == null) continue;
@@ -3469,6 +3495,7 @@
             if (sx < -20 || sy < -20 || sx > W + 20 || sy > H + 20) continue;
             ctx.fillStyle = p.color || '#3e8bff';
             ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(sx + 4, sy + 15); ctx.lineTo(sx + 7.5, sy + 9); ctx.lineTo(sx + 14, sy + 8); ctx.closePath(); ctx.fill();
+            if (!bcfg.names) continue;
             const name = String(p.name || '').slice(0, 24);
             const tw = ctx.measureText(name).width;
             ctx.beginPath(); ctx.roundRect ? ctx.roundRect(sx + 10, sy + 16, tw + 10, 17, 5) : ctx.rect(sx + 10, sy + 16, tw + 10, 17); ctx.fill();
