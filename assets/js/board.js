@@ -2350,7 +2350,7 @@
         const w = Math.max(screen.width || 0, window.innerWidth || 0);
         let touch = false;
         try { touch = matchMedia('(any-pointer: coarse)').matches; } catch (e) {}
-        return w >= 3000 ? 2 : w >= 2400 ? 1.6 : w >= 1800 && touch ? 1.35 : 1;
+        return w >= 3000 ? 2 : w >= 2400 ? 1.6 : w >= 1800 && touch ? 1.5 : w >= 1500 && touch ? 1.25 : 1;
     }
     function applyUiZ() {
         const v = bcfg.ui, prevZ = uiZ;
@@ -2716,7 +2716,7 @@
         closeText();
         const ed = document.createElement('div');
         ed.className = 'bd-text'; ed.contentEditable = 'true'; ed.spellcheck = false;
-        const s = existing ? existing.s : 12 + size * 3;
+        const s = existing ? existing.s : Math.round((16 + size * 4) / view.k);
         const col = existing ? existing.c : color;
         if (existing && window.MathField) fillEd(ed, existing.text, existing.fx);
         else if (existing) ed.textContent = existing.text;
@@ -4618,7 +4618,7 @@
             return;
         }
         if (t.trim()) {
-            const c = toWorld(W / 2, H / 2), it = { id: rid(12), z: newZ(), t: 'text', x: c.x, y: c.y, s: (12 + size * 3) / view.k, c: color, w: 0, text: t.replace(/\s+$/, '').slice(0, 5000) };
+            const c = toWorld(W / 2, H / 2), it = { id: rid(12), z: newZ(), t: 'text', x: c.x, y: c.y, s: Math.round((16 + size * 4) / view.k), c: color, w: 0, text: t.replace(/\s+$/, '').slice(0, 5000) };
             commit({ add: [it] }); setTool('select'); sel = [it.id]; render();
         } else if (clip) pasteItems(clip);
     });
