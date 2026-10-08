@@ -6,6 +6,7 @@ const MF_SUPER_ADMIN_EMAILS = ['iagniukovd@gmail.com', 'daniksgames5242@gmail.co
 let _firestoreLoadingPromise = null;
 function ensureFirestore() {
     if (window.firebase && firebase.firestore) return Promise.resolve();
+    if (window.MF_DESKTOP || !window.firebase) return Promise.reject(new Error('Firebase недоступен')); // настольная доска — без сервера
     if (_firestoreLoadingPromise) return _firestoreLoadingPromise;
     _firestoreLoadingPromise = new Promise((resolve, reject) => {
         const s = document.createElement('script');

@@ -96,6 +96,9 @@
 
     // ================= ХРАНЕНИЕ: личная доска / общая доска =================
     const params = new URLSearchParams(location.search);
+    // Настольное приложение (desktop/): один пользователь, без сети — без общих досок и входа
+    const DESK = !!window.MF_DESKTOP;
+    const deskOffline = () => { if (DESK && navigator.onLine === false) throw new Error('нет подключения к интернету — эта функция работает только онлайн'); };
     let shared = null;   // { id, db, ref, unsub[], peerId, peerRef, peers: Map }
 
     // Личные доски: список — в localStorage (mf-boards), содержимое — в IndexedDB
@@ -2854,10 +2857,12 @@
     const solveBtnAt = (sx, sy) => solveBtns.find((b) => sx >= b.x && sx <= b.x + b.w && sy >= b.y && sy <= b.y + b.h);
 
     async function aiPost(body) {
+        deskOffline();
         const hd = { 'content-type': 'application/json' };
         try { const u = window.Auth && Auth.getCurrentUser && Auth.getCurrentUser(); if (u) hd.authorization = 'Bearer ' + (await u.getIdToken()); } catch (e) {}
-        const r = await fetch('/api/ai-task', { method: 'POST', headers: hd, body: JSON.stringify(body) });
+        const r = await fetch('/api/ai-task', { method: 'POST', headers: hd, body: JSON.stringify(body) }).catch((e) => { if (DESK) throw new Error('нет подключения к интернету'); throw e; });
         const d = await r.json().catch(() => null);
+        if (DESK && r.status === 401) throw new Error('функции нейросети требуют входа — откройте доску на сайте math-frame.vercel.app');
         if (!r.ok) throw new Error((d && d.error) || ('ошибка сервера (' + r.status + ')'));
         return d || {};
     }
@@ -3153,6 +3158,7 @@
         return lines.map((l) => l.list);
     }
     async function googleInk(strokes, lang) {
+        deskOffline();
         const b = boxOf(strokes);
         const ink = strokes.map((it) => {
             const xs = [], ys = [];
@@ -4858,6 +4864,7 @@
         $('bdCloudList').innerHTML = '<li class="bd-bnote">Загрузка…</li>';
         $('bdRecentList').innerHTML = '';
         $('bdCloudCount').textContent = '';
+        if (DESK) return;
         let au;
         try { au = await waitUser(); } catch (e) { $('bdCloudList').innerHTML = '<li class="bd-bnote">Сервер недоступен</li>'; return; }
         if (!au.user) {
@@ -5270,7 +5277,7 @@
 
     // окна — прямо в <body>: внутри <main> (свой z-index) их перекрывала шапка сайта
     ['bdMathDlg', 'bdShareDlg', 'bdBoardsDlg'].forEach((id) => document.body.appendChild($(id)));
-    const sharedId = (params.get('b') || '').replace(/[^A-Za-z0-9]/g, '');
+    const sharedId = DESK ? '' : (params.get('b') || '').replace(/[^A-Za-z0-9]/g, '');
     (async () => {
     if (!sharedId) await loadLocal(params.get('l')).catch(() => {});
     buildBar();

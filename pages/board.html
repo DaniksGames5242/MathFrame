@@ -418,6 +418,15 @@ html.bd-fs #app-header{visibility:hidden}
 .bd-dock .bd-sep{transition:opacity .2s}
 @media (prefers-reduced-motion:reduce){.bd *,.bd-dlg *{animation:none!important;transition-duration:0s!important}}
 html.bd-fs *{transition-duration:0s!important}
+/* «Скачать приложение» в меню ⋯ и настольная версия (desktop/, флаг MF_DESKTOP) */
+#bdDlApp a.bd-btn{text-decoration:none}
+#bdDlApp a.bd-os{outline:2px solid var(--accent,#6c8cff);outline-offset:-2px;font-weight:600}
+html.mf-desktop #bdDlApp,html.mf-desktop #app-header,html.mf-desktop #app-footer,html.mf-desktop .bd-love,
+html.mf-desktop #bdShare,html.mf-desktop #bdLeave,html.mf-desktop #bdLead,html.mf-desktop #bdPeople,
+html.mf-desktop #bdBoardsDlg .bd-bsec:not(:nth-child(2)),html.mf-desktop #bdBoardsDlg .bd-dlg-note{display:none!important}
+html.mf-desktop body{padding-top:0!important;min-height:0}
+html.mf-desktop main{max-width:none;padding:0}
+html.mf-desktop .bd{height:100dvh!important;border:0;border-radius:0}
 </style>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
@@ -476,6 +485,8 @@ html.bd-fs *{transition-duration:0s!important}
       <div class="bd-mrow"><button class="bd-btn bd-wide" id="bdSave" title="Скачать PNG" aria-label="Скачать PNG"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg><span>PNG</span></button><button class="bd-btn bd-wide" id="bdPdf" title="Скачать PDF (все листы)" aria-label="Скачать PDF"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z"/><path d="M14 3v5h5"/><path d="M9 15h6M12 12v6"/></svg><span>PDF (все листы)</span></button></div>
       <h4>Доска</h4>
       <div class="bd-mrow"><button class="bd-btn bd-wide bd-danger2" id="bdClear" title="Очистить доску" aria-label="Очистить доску"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg><span>Очистить лист</span></button></div>
+      <div id="bdDlApp"><h4>Скачать приложение</h4>
+      <div class="bd-mrow" title="Доска как программа для компьютера: работает без интернета, один пользователь"><a class="bd-btn bd-wide" data-os="linux" href="https://github.com/DaniksGames5242/MathFrame/releases/download/desktop-latest/MathFrame-Board-linux.AppImage" rel="noopener" download><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg><span>Linux (AppImage)</span></a><a class="bd-btn bd-wide" data-os="linux" href="https://github.com/DaniksGames5242/MathFrame/releases/download/desktop-latest/MathFrame-Board-linux.deb" rel="noopener" download><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg><span>Linux (.deb)</span></a><a class="bd-btn bd-wide" data-os="windows" href="https://github.com/DaniksGames5242/MathFrame/releases/download/desktop-latest/MathFrame-Board-windows-setup.exe" rel="noopener" download><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg><span>Windows (установщик)</span></a><a class="bd-btn bd-wide" data-os="windows" href="https://github.com/DaniksGames5242/MathFrame/releases/download/desktop-latest/MathFrame-Board-windows-portable.exe" rel="noopener" download><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg><span>Windows (portable)</span></a><a class="bd-btn bd-wide" data-os="android" href="https://github.com/DaniksGames5242/MathFrame/releases/download/desktop-latest/MathFrame-Board-android.apk" rel="noopener" download><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg><span>Android (APK)</span></a></div></div>
     </div>
     <div class="bd-menu" id="bdShapeMenu" hidden></div>
     <div class="bd-menu" id="bdPresetMenu" hidden></div>
@@ -665,6 +676,15 @@ html.bd-fs *{transition-duration:0s!important}
   };
   document.addEventListener('pointerup', end, true);
   document.addEventListener('pointercancel', end, true);
+})();
+</script>
+<script>
+/* «Скачать приложение»: подсветить вариант под систему посетителя */
+(function () {
+  var w = document.getElementById('bdDlApp'); if (!w) return;
+  var ua = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || navigator.userAgent || '';
+  var os = /android/i.test(navigator.userAgent + ' ' + ua) ? 'android' : /win/i.test(ua) ? 'windows' : /linux|x11/i.test(ua) ? 'linux' : '';
+  var a = os && w.querySelector('a[data-os="' + os + '"]'); if (a) a.classList.add('bd-os');
 })();
 </script>
 <script>var PAGE_ROOT = '/';</script>

@@ -1,0 +1,107 @@
+name: Приложение «Доска» (Linux, Windows, Android)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'desktop/**'
+      - 'pages/board.html'
+      - 'assets/**'
+      - '.github/workflows/desktop.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: desktop-build
+  cancel-in-progress: true
+
+jobs:
+  desktop:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: linux
+            files: |
+              desktop/dist/MathFrame-Board-linux.AppImage
+              desktop/dist/MathFrame-Board-linux.deb
+          - os: windows-latest
+            target: win
+            files: |
+              desktop/dist/MathFrame-Board-windows-setup.exe
+              desktop/dist/MathFrame-Board-windows-portable.exe
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install --no-audit --no-fund
+      - run: npm run dist:${{ matrix.target }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: board-${{ matrix.target }}
+          path: ${{ matrix.files }}
+          if-no-files-found: error
+
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+      - name: Офлайн-копия доски
+        working-directory: desktop
+        run: npm install --no-audit --no-fund --ignore-scripts && node scripts/copy-site.js
+      - name: Сборка APK (подпись отладочным ключом)
+        working-directory: desktop/android
+        run: |
+          gradle --no-daemon assembleDebug
+          mkdir -p ../dist
+          cp app/build/outputs/apk/debug/app-debug.apk ../dist/MathFrame-Board-android.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: board-android
+          path: desktop/dist/MathFrame-Board-android.apk
+          if-no-files-found: error
+
+  release:
+    needs: [desktop, android]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: out
+          merge-multiple: true
+      - name: Обновить релиз desktop-latest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ls -la out
+          git tag -f desktop-latest "$GITHUB_SHA"
+          git push -f origin refs/tags/desktop-latest
+          if ! gh release view desktop-latest >/dev/null 2>&1; then
+            gh release create desktop-latest --title "MathFrame — Доска (приложение)" \
+              --notes "Офлайн-версия электронной доски MathFrame для Linux, Windows и Android. Собирается автоматически из main." --latest=false
+          fi
+          gh release upload desktop-latest out/* --clobber
+          gh release edit desktop-latest --notes "Офлайн-версия электронной доски MathFrame для Linux, Windows и Android. Сборка из коммита ${GITHUB_SHA::7}."

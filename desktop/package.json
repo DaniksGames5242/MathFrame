@@ -1,0 +1,71 @@
+{
+  "name": "mathframe-board",
+  "productName": "MathFrame Board",
+  "version": "1.0.0",
+  "description": "MathFrame — электронная доска (офлайн, настольная версия)",
+  "author": "MathFrame <mathframe.ru@gmail.com>",
+  "homepage": "https://mathframe.ru/board/",
+  "license": "UNLICENSED",
+  "private": true,
+  "main": "main.js",
+  "scripts": {
+    "copy-site": "node scripts/copy-site.js",
+    "start": "npm run copy-site && electron .",
+    "dev": "npm run copy-site && electron . --dev",
+    "dist:linux": "npm run copy-site && electron-builder --linux --x64 --publish never",
+    "dist:win": "npm run copy-site && electron-builder --win --x64 --publish never"
+  },
+  "devDependencies": {
+    "electron": "31.7.7",
+    "electron-builder": "24.13.3",
+    "jspdf": "2.5.1",
+    "mathjax": "3.2.2"
+  },
+  "build": {
+    "appId": "ru.mathframe.board",
+    "productName": "MathFrame Board",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "build/icon.png",
+      "app/**/*",
+      "package.json"
+    ],
+    "asar": true,
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "icon": "build/icon.png",
+      "category": "Education",
+      "executableName": "mathframe-board",
+      "synopsis": "Электронная доска MathFrame"
+    },
+    "appImage": {
+      "artifactName": "MathFrame-Board-linux.AppImage"
+    },
+    "deb": {
+      "artifactName": "MathFrame-Board-linux.deb"
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "artifactName": "MathFrame-Board-windows-setup.exe",
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "shortcutName": "MathFrame — Доска"
+    },
+    "portable": {
+      "artifactName": "MathFrame-Board-windows-portable.exe"
+    }
+  }
+}
