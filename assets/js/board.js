@@ -4483,8 +4483,7 @@
                 cur.x2 = x; cur.y2 = y;
             }
         }
-        if (cur.t === 'pen') { if (rafId) { cancelAnimationFrame(rafId); rafId = 0; } frame(); sendDraft(cur); }   // перо — сразу в этом же событии, без ожидания кадра
-        else if (cur.t !== 'erase') { renderFast(); sendDraft(cur); }
+        if (cur.t !== 'erase') { renderFast(); sendDraft(cur); }
     });
     function endPointer(e) {
         if (!pointers.has(e.pointerId)) return;
