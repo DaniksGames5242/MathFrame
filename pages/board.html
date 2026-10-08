@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
 <script>/* MathFrame: тема до первого кадра + маска перехода между страницами (см. common.js › PAGE TRANSITIONS) */(function(){var d=document.documentElement;try{var t=localStorage.getItem('theme');if(t==='light'||(t!=='dark'&&!matchMedia('(prefers-color-scheme: dark)').matches))d.classList.add('light');}catch(e){}try{var s=sessionStorage.getItem('mf-veil');if(!s)return;sessionStorage.removeItem('mf-veil');var v=JSON.parse(s),n=performance.getEntriesByType&&performance.getEntriesByType('navigation')[0];if(!v||!v.fill||Date.now()-v.t>8000||(n&&n.type&&n.type!=='navigate'))return;window.__mfVeil=v;d.style.setProperty('--mf-veil-fill',v.fill);d.classList.add('mf-veil-on');setTimeout(function(){d.classList.remove('mf-veil-on')},4000);}catch(e){}})();</script>
 <title>Электронная доска — MathFrame</title>
 <meta name="description" content="Электронная доска для объяснений и решения задач: перо, фигуры, текст, клетка, бесконечное поле, экспорт в PNG." />
@@ -333,6 +333,9 @@ html.bd-fs #app-header{visibility:hidden}
   .bd-status{left:8px!important}
 }
 /* полный экран и рисование: никаких эффектов вокруг (см. mathframe-ui.js — фон сайта на паузе) */
+/* Щипок по доске и её панелям не масштабирует страницу */
+.bd,.bd *{touch-action:none}
+.bd-menu,.bd-menu *,.bd-dlg-card,.bd-dlg-card *,.bd-cmts,#bdSearchRes,.bd-bar{touch-action:pan-x pan-y}
 /* Масштаб интерфейса (интерактивные доски, 4K): --bdz ставит board.js — «Размер интерфейса» в настройках */
 .bd-bar,.bd-dock,.bd-props,.bd-pages,.bd-menu,.bd-selmenu,.bd-cmt,.bd-search,.bd-toast,.bd-dlg-card,.bd-fx{zoom:var(--bdz,1)}
 /* Анимации интерфейса доски (в режиме производительности html.mf-perf гасятся общим правилом common.css) */

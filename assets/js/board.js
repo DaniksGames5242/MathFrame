@@ -4536,6 +4536,10 @@
     stage.addEventListener('pointercancel', penEraseEnd);
     // долгое касание не должно открывать системное меню / выделение текста
     stage.addEventListener('contextmenu', (e) => { if (e.target === canvas) e.preventDefault(); });
+    // Ctrl+колесо (щипок тачпада / сенсорной панели) над доской — масштаб доски, а не страницы; Safari: жесты
+    boardEl.addEventListener('wheel', (e) => { if ((e.ctrlKey || e.metaKey) && !stage.contains(e.target)) e.preventDefault(); }, { passive: false });
+    ['gesturestart', 'gesturechange', 'gestureend'].forEach((t) => document.addEventListener(t, (e) => { if (boardEl.contains(e.target)) e.preventDefault(); }, { passive: false }));
+    document.addEventListener('touchmove', (e) => { if (e.touches.length > 1 && boardEl.contains(e.target)) e.preventDefault(); }, { passive: false });
     stage.addEventListener('wheel', (e) => {
         e.preventDefault();
         userMovedView();
