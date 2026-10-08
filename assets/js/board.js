@@ -912,6 +912,49 @@
         drawList(c, items.filter(inView));
         if (bcfg.ms) for (const it of items) drawMeasures(c, it);
     }
+    // Штрих пера, пока его ведут: на отдельный слой каждый кадр дорисовываются только новые
+    // кусочки — время кадра не растёт с длиной линии (после отпускания штрих сглаживается целиком).
+    const liveCv = document.createElement('canvas'), liveCtx = liveCv.getContext('2d');
+    let live = null;
+    function drawLiveInk() {
+        const it = cur;
+        if (!live || live.it !== it || live.key !== cacheKey) {
+            if (liveCv.width !== canvas.width || liveCv.height !== canvas.height) { liveCv.width = canvas.width; liveCv.height = canvas.height; }
+            liveCtx.setTransform(1, 0, 0, 1, 0, 0); liveCtx.clearRect(0, 0, liveCv.width, liveCv.height);
+            live = { it, key: cacheKey, n: 0, dist: 0, lx: 0, ly: 0 };
+        }
+        const p = it.p, n = p.length / 2, th = it.th === undefined ? .5 : it.th, tp = it.tp === undefined ? .4 : it.tp;
+        if (n > live.n) {
+            liveCtx.setTransform(dpr * view.k, 0, 0, dpr * view.k, -view.x * view.k * dpr, -view.y * view.k * dpr);
+            liveCtx.fillStyle = paint(it.c);
+            const tl = tp * (it.w * 10 + 8);
+            const rad = (i, d) => Math.max(.3, it.w / 2 * ((1 - th) + th * (.25 + 1.25 * (it.pr[i] === undefined ? .5 : it.pr[i]))) * (tl > 0 ? .18 + .82 * Math.sqrt(Math.min(1, d / tl)) : 1));
+            const path = new Path2D();
+            for (let i = Math.max(0, live.n); i < n; i++) {
+                const x = p[2 * i], y = p[2 * i + 1];
+                if (i > 0) live.dist += Math.hypot(x - live.lx, y - live.ly);
+                const r = rad(i, live.dist);
+                path.moveTo(x + r, y); path.arc(x, y, r, 0, Math.PI * 2);
+                if (i > 0) {
+                    const dx = x - live.lx, dy = y - live.ly, d = Math.hypot(dx, dy);
+                    if (d > 1e-6) {
+                        const nx = -dy / d, ny = dx / d, r0 = live.lr;
+                        let q = [[live.lx + nx * r0, live.ly + ny * r0], [x + nx * r, y + ny * r], [x - nx * r, y - ny * r], [live.lx - nx * r0, live.ly - ny * r0]];
+                        let ar = 0; for (let k = 0; k < 4; k++) { const u = q[k], v = q[(k + 1) % 4]; ar += u[0] * v[1] - v[0] * u[1]; }
+                        if (ar < 0) q = q.reverse();   // та же ориентация, что у кружков — без «дырок» на стыках
+                        path.moveTo(q[0][0], q[0][1]); path.lineTo(q[1][0], q[1][1]); path.lineTo(q[2][0], q[2][1]); path.lineTo(q[3][0], q[3][1]); path.closePath();
+                    }
+                }
+                live.lx = x; live.ly = y; live.lr = r;
+            }
+            liveCtx.fill(path, 'nonzero');
+            live.n = n;
+        }
+        ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0);
+        if (it.c === 'contrast') ctx.globalCompositeOperation = 'difference';
+        ctx.drawImage(liveCv, 0, 0);
+        ctx.restore();
+    }
     function drawOverlay() {
         ctx.setTransform(1, 0, 0, 1, 0, 0);
         ctx.globalCompositeOperation = 'copy';
@@ -920,7 +963,8 @@
         ctx.setTransform(dpr * view.k, 0, 0, dpr * view.k, -view.x * view.k * dpr, -view.y * view.k * dpr);
         const extra = [];
         if (shared && bcfg.drafts) for (const p of shared.peers.values()) if (p.draft && fresh(p) && (p.pg || 'p1') === curPage) extra.push(p.draft);
-        if (cur && cur.t !== 'erase') extra.push(cur);
+        if (cur && cur.t === 'pen' && cur.pr) drawLiveInk();
+        else if (cur && cur.t !== 'erase') extra.push(cur);
         if (geo) extra.push(geo);
         if (extra.length) drawList(ctx, extra);
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -953,7 +997,7 @@
     //  3) узлы клетки, 4) точка на отрезке/стороне/окружности. Найденная точка подсвечивается.
     let snapHint = null, snapAlt = false;
     // настройки доски (меню-шестерёнка): привязка и чужие курсоры; хранятся в этом браузере
-    const CFG_DEF = { sr: false, ms: false, hd: 3, hf: false, hm: false, hl: 'ru', snap: true, sV: true, sM: true, sG: true, sO: true, sR: 11, cur: true, names: true, drafts: true };
+    const CFG_DEF = { sA: true, sr: false, ms: false, hd: 3, hf: false, hm: false, hl: 'ru', snap: true, sV: true, sM: true, sG: true, sO: true, sR: 11, cur: true, names: true, drafts: true };
     const bcfg = Object.assign({}, CFG_DEF, lsGet('mf-board-cfg', {}));
     if (bcfg.cv !== 2 && bcfg.cv !== 3) bcfg.hd = CFG_DEF.hd;      // новая задержка по умолчанию — 3 с
     if (bcfg.cv !== 3) { bcfg.hm = false; bcfg.cv = 3; }              // формулы теперь без нейросети
@@ -990,7 +1034,44 @@
         if (best) snapHint = { x: best.x, y: best.y, kind };
         return best || w;
     }
+    // «Магнит» для перетаскиваемых объектов: края и центр рамки прилипают к краям и центрам
+    // других объектов (рисуются направляющие) и к линиям клетки. Alt — без привязки.
+    function alignSnap(b, ex) {
+        const out = { dx: 0, dy: 0, guides: [] };
+        if (snapAlt || !bcfg.snap) return out;
+        const r = bcfg.sR / view.k, vx1 = view.x - W / view.k, vx2 = view.x + 2 * W / view.k, vy1 = view.y - H / view.k, vy2 = view.y + 2 * H / view.k;
+        const xs = [b.x, b.x + b.w / 2, b.x + b.w], ys = [b.y, b.y + b.h / 2, b.y + b.h];
+        let bx = null, by = null;
+        const tryX = (c, kind) => xs.forEach((x) => { const d = c - x; if (Math.abs(d) < r && (!bx || Math.abs(d) < Math.abs(bx.d))) bx = { d, c, kind }; });
+        const tryY = (c, kind) => ys.forEach((y) => { const d = c - y; if (Math.abs(d) < r && (!by || Math.abs(d) < Math.abs(by.d))) by = { d, c, kind }; });
+        if (bcfg.sA) for (const it of items) {
+            if (ex.has(it.id) || !inView(it)) continue;
+            const o = bounds(it);
+            if (o.x > vx2 || o.x + o.w < vx1 || o.y > vy2 || o.y + o.h < vy1) continue;
+            [o.x, o.x + o.w / 2, o.x + o.w].forEach((c) => tryX(c, 'a'));
+            [o.y, o.y + o.h / 2, o.y + o.h].forEach((c) => tryY(c, 'a'));
+        }
+        if (bcfg.sG && bg !== 'none') {
+            const st = 25;
+            if (!bx) [b.x, b.x + b.w].forEach((x) => { const c = Math.round(x / st) * st, d = c - x; if (Math.abs(d) < r * .7 && (!bx || Math.abs(d) < Math.abs(bx.d))) bx = { d, c, kind: 'g' }; });
+            if (!by) [b.y, b.y + b.h].forEach((y) => { const c = Math.round(y / st) * st, d = c - y; if (Math.abs(d) < r * .7 && (!by || Math.abs(d) < Math.abs(by.d))) by = { d, c, kind: 'g' }; });
+        }
+        if (bx) { out.dx = bx.d; if (bx.kind === 'a') out.guides.push({ x: bx.c }); }
+        if (by) { out.dy = by.d; if (by.kind === 'a') out.guides.push({ y: by.c }); }
+        return out;
+    }
+    function drawGuides() {
+        if (!drag || !drag.guides || !drag.guides.length) return;
+        ctx.save(); ctx.strokeStyle = '#e5484d'; ctx.lineWidth = 1; ctx.setLineDash([5, 4]);
+        ctx.beginPath();
+        for (const g of drag.guides) {
+            if (g.x !== undefined) { const sx = Math.round((g.x - view.x) * view.k) + .5; ctx.moveTo(sx, 0); ctx.lineTo(sx, H); }
+            else { const sy = Math.round((g.y - view.y) * view.k) + .5; ctx.moveTo(0, sy); ctx.lineTo(W, sy); }
+        }
+        ctx.stroke(); ctx.restore();
+    }
     function drawSnapHint() {
+        drawGuides();
         if (!snapHint || !(cur || drag || geo)) return;
         const s = toScreen(snapHint.x, snapHint.y), acc = css('--accent') || '#f2a25c';
         ctx.save(); ctx.strokeStyle = acc; ctx.lineWidth = 1.5;
@@ -1061,10 +1142,10 @@
         const ang = [...items].reverse().find((it) => it.t === 'angle' && hit(it, w.x, w.y, r) && Math.hypot(w.x - it.p[2], w.y - it.p[3]) < 70 / view.k);
         if (ang) {
             const n = clone(ang); n.mk = Math.max(1, ((ang.mk || 1) % 3) + 1);
-            commit({ mod: [[clone(ang), n]] }); selectMade([n]); return;
+            commit({ mod: [[clone(ang), n]] }); render(); return;
         }
         const ln = [...items].reverse().find((it) => (it.t === 'line' || it.t === 'arrow') && hit(it, w.x, w.y, r));
-        if (ln) { const n = clone(ln); n.mk = bump(ln.mk); if (!n.mk) delete n.mk; commit({ mod: [[clone(ln), n]] }); selectMade([n]); return; }
+        if (ln) { const n = clone(ln); n.mk = bump(ln.mk); if (!n.mk) delete n.mk; commit({ mod: [[clone(ln), n]] }); render(); return; }
         for (const it of [...items].reverse()) {
             if (it.t !== 'poly') continue;
             const n = it.p.length / 2;
@@ -1074,12 +1155,12 @@
                 if (distSeg(w.x, w.y, it.p[2 * i], it.p[2 * i + 1], it.p[2 * j], it.p[2 * j + 1]) < r + it.w / 2) {
                     const m = clone(it); m.mk = Array.from({ length: n }, (_, k) => (it.mk || [])[k] || 0); m.mk[i] = bump(m.mk[i]);
                     if (!m.mk.some(Boolean)) delete m.mk;
-                    commit({ mod: [[clone(it), m]] }); selectMade([m]); return;
+                    commit({ mod: [[clone(it), m]] }); render(); return;
                 }
             }
         }
         const sa = sideAngleAt(w);
-        if (sa) { const it = { id: rid(12), z: newZ(), t: 'angle', arc: 1, nl: 1, mk: 1, c: color, w: Math.max(1, size * .6), p: sa }; if (commit({ add: [it] }) !== false) selectMade([it]); return; }
+        if (sa) { const it = { id: rid(12), z: newZ(), t: 'angle', arc: 1, nl: 1, mk: 1, c: color, w: Math.max(1, size * .6), p: sa }; commit({ add: [it] }); render(); return; }
         toast('Щёлкните по отрезку, стороне или внутри угла');
     }
     // продление: щелчок у конца отрезка — луч за этот конец, посередине — прямая (повторно — убрать)
@@ -1098,7 +1179,7 @@
         const dbl = lastTap && now - lastTap.t < 380 && Math.hypot(sp.x - lastTap.x, sp.y - lastTap.y) < 12;
         lastTap = { t: now, x: sp.x, y: sp.y };
         if (!geo) {
-            geo = { t: tool, c: color, w: size, p: [q.x, q.y], hx: q.x, hy: q.y };
+            geo = { t: tool === 'tri3' ? 'poly' : tool, tri: tool === 'tri3', c: color, w: size, p: [q.x, q.y], hx: q.x, hy: q.y };
             render();
             return;
         }
@@ -1110,6 +1191,7 @@
         if (Math.hypot(q.x - geo.p[n - 2], q.y - geo.p[n - 1]) * view.k < 3) return;
         geo.p.push(q.x, q.y);
         if (geo.t === 'angle' && geo.p.length === 6) return finishGeo(true);
+        if (geo.tri && geo.p.length === 6) return finishGeo(true, true);
         render();
     }
     function finishGeo(keep, close) {
@@ -1118,7 +1200,15 @@
         if (keep && g && g.p.length >= 4) {
             const it = Object.assign({ id: rid(12), z: newZ(), t: g.t, c: g.c, w: g.w, p: g.p }, styleFor(g.t));
             if (close) it.cl = true;
-            if (commit({ add: [it] }) !== false) { cur = null; selectMade([it]); }
+            const made = [it];
+            if (g.t === 'poly') {
+                // фигура из точек: в вершинах — точки (где их ещё нет)
+                const need = [];
+                for (let i = 0; i < g.p.length; i += 2) if (!items.some((x) => x.t === 'point' && inView(x) && Math.abs(x.x - g.p[i]) < 1e-6 && Math.abs(x.y - g.p[i + 1]) < 1e-6)) need.push(i);
+                const L = freeLabels(need.length);
+                need.forEach((i, k) => made.push({ id: rid(12), z: newZ() + (k + 1) * 1e-3, t: 'point', x: g.p[i], y: g.p[i + 1], c: g.c, w: Math.min(g.w, 4), label: L[k] }));
+            }
+            if (commit({ add: made }) !== false) { cur = null; selectMade(made); }
         }
         render();
     }
@@ -1689,7 +1779,7 @@
     const MENU_TOOLS = [['circle', 'Окружность: центр → радиус'], ['ellipse', 'Эллипс'], ['poly', 'Многоугольник по точкам'],
         ['angle', 'Угол: по трём точкам или щелчком внутри готового угла'], ['mark', 'Отметить равные стороны и углы'], ['extend', 'Продлить отрезок до луча или прямой'],
         ['curtain', 'Шторка: закрыть часть доски и открывать постепенно']];
-    const SHAPE_TOOLS = { shape: 1, circle: 1, ellipse: 1, poly: 1, angle: 1, rect: 1, mark: 1, extend: 1, cons: 1, compass: 1, curtain: 1 };
+    const SHAPE_TOOLS = { tri3: 1, shape: 1, circle: 1, ellipse: 1, poly: 1, angle: 1, rect: 1, mark: 1, extend: 1, cons: 1, compass: 1, curtain: 1 };
     const IS_3D = { cube: 1, box: 1, pyr: 1, tpyr: 1, prism: 1, cyl: 1, cone: 1, sph: 1 };
     let shapeId = 'ptri';
     function draftBox(d) {
@@ -2048,6 +2138,17 @@
         c3: { name: 'Окружность через 3 точки', slots: ['P', 'P', 'P'], hint: ['первую точку', 'вторую точку', 'третью точку'] },
     };
     let consKind = 'mid', consPick = [];
+    // иконки построений: тонкие линии — опорные фигуры, акцент — то, что строится
+    const CONS_ICONS = {
+        mid: '<path d="M5 30h30"/><circle cx="5" cy="30" r="2" fill="currentColor"/><circle cx="35" cy="30" r="2" fill="currentColor"/><circle cx="20" cy="30" r="3" class="a"/><path d="M12 26v8M28 26v8" class="a"/>',
+        alt: '<path d="M4 33h32L14 7z"/><path d="M14 7v26" class="a" stroke-dasharray="3 2"/><path d="M14 28h5v5" class="a"/><circle cx="14" cy="33" r="2.4" class="a"/>',
+        med: '<path d="M4 33h32L14 7z"/><path d="M14 7l6 26" class="a"/><circle cx="20" cy="33" r="2.4" class="a"/><path d="M11 30v6M29 30v6" class="a"/>',
+        bis: '<path d="M6 32h30M6 32 26 6"/><path d="M6 32l30-12" class="a"/><path d="M14 32a8 8 0 0 0-.5-3.5M13 29a8 8 0 0 0-2-4" class="a"/>',
+        par: '<path d="M4 30 30 12"/><path d="M10 34 36 16" class="a"/><circle cx="20" cy="27" r="2.2" fill="currentColor"/><path d="M15 19l2 2M24 13l2 2"/>',
+        int: '<path d="M4 8l32 26M4 32 36 10"/><circle cx="20" cy="21" r="3" class="a"/>',
+        c3: '<circle cx="20" cy="20" r="13" class="a"/><circle cx="9" cy="13" r="2.2" fill="currentColor"/><circle cx="32" cy="16" r="2.2" fill="currentColor"/><circle cx="20" cy="33" r="2.2" fill="currentColor"/><circle cx="20" cy="20" r="1.4" fill="currentColor"/>',
+    };
+    const consIcon = (k) => `<svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="bd-cons-ic">${CONS_ICONS[k]}</svg>`;
     function consHint() { const c = CONS[consKind]; toast(c.name + ': выберите ' + c.hint[consPick.length]); }
     function consClick(w) {
         const c = CONS[consKind], slot = c.slots[consPick.length], r = 16 / view.k;
@@ -2251,7 +2352,7 @@
         const sec = (title, html) => `<div class="bd-msec"><h4>${title}</h4><div class="bd-mgrid">${html}</div></div>`;
         $('bdShapeMenu').innerHTML =
             sec('Построение', MENU_TOOLS.map(([t, n]) => menuItem(t, n, toolIcon(t), `data-tool2="${t}"`)).join('')) +
-            sec('Связанные построения <small>(перестраиваются при движении точек)</small>', Object.keys(CONS).map((k) => menuItem(k, CONS[k].name, toolIcon('cons'), `data-cons="${k}"`)).join('')) +
+            sec('Связанные построения <small>(перестраиваются при движении точек)</small>', Object.keys(CONS).map((k) => menuItem(k, CONS[k].name, consIcon(k), `data-cons="${k}"`)).join('')) +
             sec('Многоугольники', POLY_SH.map((sh) => menuItem(sh.id, sh.name, shapeIcon(sh), `data-sid="${sh.id}"`)).join('')) +
             sec('Окружности', SHAPES.filter((sh) => !sh.v && !IS_3D[sh.id]).map((sh) => menuItem(sh.id, sh.name, shapeIcon(sh), `data-sid="${sh.id}"`)).join('')) +
             sec('Тела', SHAPES.filter((sh) => IS_3D[sh.id]).map((sh) => menuItem(sh.id, sh.name, shapeIcon(sh), `data-sid="${sh.id}"`)).join('')) +
@@ -2259,6 +2360,7 @@
         $('bdShapeMenu').addEventListener('click', (e) => {
             const b = e.target.closest('[data-sid],[data-tool2],[data-cons]'); if (!b) return;
             if (b.dataset.cons) { consKind = b.dataset.cons; setTool('cons'); consHint(); }
+            else if (b.dataset.sid === 'ptri') { setTool('tri3'); toast('Треугольник: щёлкните три вершины'); }
             else if (b.dataset.sid) { shapeId = b.dataset.sid; setTool('shape'); } else setTool(b.dataset.tool2);
             closeMenus();
         });
@@ -2281,7 +2383,7 @@
             chk('hm', 'Формулы — нейросетью <small>(точнее на сложных, но с лимитом запросов)</small>') +
             '<label>Язык письма <select data-cfg="hl"><option value="ru">русский</option><option value="en">английский</option><option value="uk">украинский</option></select></label>' +
             '<h4>Привязка</h4>' + chk('snap', 'Включена <small>(Alt — временно без неё)</small>') +
-            chk('sV', 'к точкам и вершинам', 1) + chk('sM', 'к серединам отрезков', 1) + chk('sG', 'к узлам клетки', 1) + chk('sO', 'к точкам на отрезках', 1) +
+            chk('sV', 'к точкам и вершинам', 1) + chk('sM', 'к серединам отрезков', 1) + chk('sG', 'к клеткам (узлы, края объектов)', 1) + chk('sO', 'к точкам на отрезках', 1) + chk('sA', 'объекты — к краям и центрам других (направляющие)', 1) +
             '<label class="bd-sub">Сила притяжения <input type="range" data-cfg="sR" min="4" max="30"></label>' +
             '<h4>Другие участники</h4>' + chk('cur', 'Показывать курсоры') + chk('names', 'Имена у курсоров', 1) + chk('drafts', 'Показывать недорисованные штрихи') +
             '<button class="mini-btn bd-ghost" id="bdCfgReset">Сбросить</button>';
@@ -3510,10 +3612,11 @@
     // Циркуль — инструмент: протяните радиус от центра, затем ведите — рисуется дуга.
     const inst = {
         ruler: { on: false, x: -300, y: 60, a: 0, len: 600, wd: 64 },
-        prot: { on: false, x: 0, y: 160, a: 0, r: 170 },
+        prot: { on: false, x: 0, y: 160, a: 0, r: 170, arm: Math.PI / 3 },   // arm — луч-указатель (угол от основания)
     };
     let compass = null;   // { cx, cy, r, phase, a0, sw }
-    const rLocal = (o, w) => rotPt(w.x, w.y, o.x, o.y, -o.a);
+    // точка в системе инструмента (начало — его опорная точка, ось x — вдоль него)
+    const rLocal = (o, w) => { const q = rotPt(w.x, w.y, o.x, o.y, -o.a); return { x: q.x - o.x, y: q.y - o.y }; };
     function rulerEdge() { const r = inst.ruler; return [r.x, r.y, r.x + Math.cos(r.a) * r.len, r.y + Math.sin(r.a) * r.len]; }
     function drawInstruments() {
         const acc = css('--accent') || '#f2a25c';
@@ -3547,12 +3650,35 @@
             for (let d = 0; d <= 180; d++) {
                 const a = Math.PI + d * Math.PI / 180, L = d % 10 === 0 ? 16 : d % 5 === 0 ? 10 : 5;
                 ctx.moveTo(Math.cos(a) * p.r, Math.sin(a) * p.r); ctx.lineTo(Math.cos(a) * (p.r - L), Math.sin(a) * (p.r - L));
-                if (d % 10 === 0) ctx.fillText(String(d), Math.cos(a) * (p.r - 26), Math.sin(a) * (p.r - 26));
+                if (d % 10 === 0) ctx.fillText(String(180 - d), Math.cos(a) * (p.r - 26), Math.sin(a) * (p.r - 26));   // 0° — справа, как у луча
             }
             ctx.moveTo(-6, 0); ctx.lineTo(6, 0); ctx.moveTo(0, -6); ctx.lineTo(0, 0);
             ctx.stroke();
             ctx.fillStyle = acc; ctx.beginPath(); ctx.arc(p.r - 10, -12, 8 / view.k + 4, 0, Math.PI * 2); ctx.fill();
+            // луч-указатель: тяните его конец — показывает угол; отрезок, начатый в центре, пойдёт по нему
+            const L = p.r * 1.35, ax = Math.cos(-p.arm) * L, ay = Math.sin(-p.arm) * L;
+            ctx.strokeStyle = acc; ctx.lineWidth = 2 / view.k; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(ax, ay); ctx.stroke();
+            ctx.beginPath(); ctx.arc(ax, ay, 7 / view.k + 3, 0, Math.PI * 2); ctx.fillStyle = acc; ctx.fill();
+            const deg = Math.round(p.arm * 180 / Math.PI * 10) / 10;
+            ctx.save(); ctx.translate(ax, ay); ctx.rotate(-p.a); ctx.font = '600 ' + textFont(13 / view.k); ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+            const tx = String(deg).replace('.', ',') + '°', tw = ctx.measureText(tx).width;
+            ctx.fillStyle = boardFill(); ctx.fillRect(10 / view.k, -9 / view.k, tw + 8 / view.k, 18 / view.k);
+            ctx.fillStyle = acc; ctx.fillText(tx, 14 / view.k, 0); ctx.restore();
             ctx.restore();
+        }
+        if (compass && compass.r > 0) {
+            // сам циркуль: шарнир над серединой, игла — в центре, грифель — на окружности
+            const pa = compass.lastA !== undefined ? compass.lastA : (compass.a0 !== undefined ? compass.a0 : 0);
+            const px = compass.cx + compass.r * Math.cos(pa), py = compass.cy + compass.r * Math.sin(pa);
+            const mx = (compass.cx + px) / 2, my = (compass.cy + py) / 2, nx = -(py - compass.cy) / compass.r, ny = (px - compass.cx) / compass.r, hgt = compass.r * .55 + 20 / view.k;
+            const hx = mx + (ny > 0 ? -nx : nx) * hgt, hy = my - Math.abs(ny) * hgt - (Math.abs(ny) < .2 ? hgt : 0);
+            ctx.save(); ctx.globalAlpha = .75; ctx.strokeStyle = ink; ctx.lineWidth = 3 / view.k; ctx.lineCap = 'round';
+            ctx.beginPath(); ctx.moveTo(compass.cx, compass.cy); ctx.lineTo(hx, hy); ctx.lineTo(px, py); ctx.stroke();
+            ctx.fillStyle = acc; ctx.beginPath(); ctx.arc(hx, hy, 5 / view.k, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(compass.cx, compass.cy, 7 / view.k, 0, Math.PI * 2); ctx.globalAlpha = .35; ctx.fill();
+            ctx.beginPath(); ctx.arc(px, py, 7 / view.k, 0, Math.PI * 2); ctx.fill();
+            ctx.restore();
+            compass.px = px; compass.py = py;
         }
         if (compass) {
             ctx.strokeStyle = acc; ctx.lineWidth = 1.5 / view.k; ctx.setLineDash([6 / view.k, 5 / view.k]);
@@ -3570,11 +3696,21 @@
             if (q.x >= 0 && q.x <= r.len && q.y >= 0 && q.y <= r.wd) return { which: 'ruler', mode: 'move' };
         }
         if (inst.prot.on) {
-            const p = inst.prot, q = rLocal(p, w);
+            const p = inst.prot, q = rLocal(p, w), L = p.r * 1.35;
+            if (Math.hypot(q.x - Math.cos(-p.arm) * L, q.y - Math.sin(-p.arm) * L) < 14 / view.k + 6) return { which: 'prot', mode: 'arm' };
             if (Math.hypot(q.x - (p.r - 10), q.y + 12) < 14 / view.k + 6) return { which: 'prot', mode: 'rot' };
             if (q.y <= 0 && Math.hypot(q.x, q.y) <= p.r) return { which: 'prot', mode: 'move' };
         }
         return null;
+    }
+    // транспортир: начало у центра → в центр; конец около луча → на луч (угол ровно по шкале)
+    function protSnap(w, end) {
+        const p = inst.prot; if (!p.on) return null;
+        if (!end) return Math.hypot(w.x - p.x, w.y - p.y) < 16 / view.k ? { x: p.x, y: p.y } : null;
+        const a = p.a - p.arm, ux = Math.cos(a), uy = Math.sin(a), t = (w.x - p.x) * ux + (w.y - p.y) * uy;
+        if (t <= 0) return null;
+        const px = p.x + ux * t, py = p.y + uy * t;
+        return Math.hypot(w.x - px, w.y - py) < 18 / view.k ? { x: px, y: py } : null;
     }
     // точка у края линейки → на край
     function rulerSnap(w) {
@@ -3862,11 +3998,12 @@
     function startMove(w) {
         const its = selItems(), ids = new Set(its.map((i) => i.id));
         const g = buildGlue(its, ids);
-        // опорная вершина для привязки при перетаскивании — ближайшая к месту захвата
+        // опорная вершина (только у геометрии) — ближайшая к месту захвата: она прилипает к точкам;
+        // рамка всей группы — к краям и центрам других объектов и к клеткам
         let anchor = null, ad = Infinity;
-        for (const it of its) for (const [x, y] of getV(it)) { const d = Math.hypot(x - w.x, y - w.y); if (d < ad) { ad = d; anchor = { x, y }; } }
-        if (!anchor && its.length) { const b = bounds(its[0]); anchor = { x: b.x, y: b.y }; }
-        drag = { mode: 'move', w0: w, befores: its.map(clone), glue: g.glue, tgts: g.tgts, anchor, ids };
+        for (const it of its) if (GEO[it.t]) for (const [x, y] of getV(it)) { const d = Math.hypot(x - w.x, y - w.y); if (d < ad) { ad = d; anchor = { x, y }; } }
+        const gb = its.length ? groupFrame(its) : null;
+        drag = { mode: 'move', w0: w, befores: its.map(clone), glue: g.glue, tgts: g.tgts, anchor, ids, b0: gb && { x: gb.cx - gb.w / 2, y: gb.cy - gb.h / 2, w: gb.w, h: gb.h } };
     }
     // новая рамка при растяжении за ручку hid (в системе координат повёрнутой рамки)
     function scaleFrame(f0, hid, w, keep) {
@@ -3945,7 +4082,7 @@
         if (sl && canEdit()) { drag = { mode: 'param', before: clone(sl.it), name: sl.s.n, glue: [], tgts: new Map() }; dragTo(w, e); render(); return; }
         // линейка / транспортир
         const ia = instAt(w);
-        if (ia && !(tool === 'pen' && rulerSnap(w))) {
+        if (ia && !((tool === 'pen' || tool === 'line' || tool === 'arrow') && ia.mode === 'move' && (rulerSnap(w) || protSnap(w)))) {
             const o = inst[ia.which];
             drag = { mode: 'inst', which: ia.which, im: ia.mode, w0: w, o0: Object.assign({}, o), a0: Math.atan2(w.y - o.y, w.x - o.x), glue: [], tgts: new Map() };
             return;
@@ -3953,6 +4090,8 @@
         if (tool === 'compass' && canEdit()) {
             const q = snap(w);
             if (!compass || compass.phase === 0) compass = { cx: q.x, cy: q.y, r: 0, phase: 1 };
+            else if (compass.phase === 2 && Math.hypot(w.x - compass.cx, w.y - compass.cy) < 12 / view.k) compass.moveC = { dx: compass.cx - w.x, dy: compass.cy - w.y };   // переставить иглу
+            else if (compass.phase === 2 && compass.px !== undefined && Math.hypot(w.x - compass.px, w.y - compass.py) < 12 / view.k && e.shiftKey) compass.moveR = true;   // Shift + грифель — сменить раствор
             else if (compass.phase === 2) { compass.a0 = Math.atan2(w.y - compass.cy, w.x - compass.cx); compass.sw = 0; compass.lastA = compass.a0; compass.drawing = true; }
             render(); return;
         }
@@ -3960,7 +4099,7 @@
         if (tool === 'select') {
             const h = handleAt(p.x, p.y), one = selOne();
             if (h === 'del') { deleteSelected(); return; }
-            if (h === 'more') { pointers.delete(e.pointerId); openSelMenu(); return; }
+            if (h === 'more') { pointers.delete(e.pointerId); setTimeout(openSelMenu, 0); return; }   // после всплытия этого же щелчка (иначе меню сразу закрывалось)
             if (h === 'edit') { editItem(one); return; }
             if (h && one) {
                 const f0 = frameOf(one);
@@ -4021,7 +4160,7 @@
             const sa = sideAngleAt(w);
             if (sa) { const it = { id: rid(12), z: newZ(), t: 'angle', arc: 1, c: color, w: size, p: sa }; if (commit({ add: [it] }) !== false) selectMade([it]); return; }
         }
-        if (tool === 'poly' || tool === 'angle') { geoClick(snap(w), p); return; }
+        if (tool === 'poly' || tool === 'angle' || tool === 'tri3') { geoClick(snap(w), p); return; }
         if (tool === 'mark') { markAt(w); return; }
         if (tool === 'cons') { consClick(w); return; }
         if (tool === 'extend') { extendAt(w); return; }
@@ -4032,10 +4171,12 @@
             return;
         }
         if (tool === 'circle' || tool === 'line' || tool === 'arrow') {
-            const rq = tool !== 'circle' && rulerSnap(w);
-            const q = rq || snap(w);
+            const pq = tool !== 'circle' && protSnap(w);
+            const rq = tool !== 'circle' && !pq && rulerSnap(w);
+            const q = pq || rq || snap(w);
             cur = { ...styleFor(tool), t: tool, c: color, w: size, x1: q.x, y1: q.y, x2: q.x, y2: q.y };
             if (rq) cur.rul = rq;
+            if (pq) cur.prot = 1;
             render();
             return;
         }
@@ -4069,10 +4210,18 @@
         if (drag.mode === 'move') {
             let dx = w.x - drag.w0.x, dy = w.y - drag.w0.y;
             if (e.shiftKey) { if (Math.abs(dx) > Math.abs(dy)) dy = 0; else dx = 0; }
-            else if (drag.anchor) {
+            else {
                 const ex = new Set([...drag.ids, ...drag.tgts.keys()]);
-                const q = snap({ x: drag.anchor.x + dx, y: drag.anchor.y + dy }, ex);
-                if (snapHint) { dx = q.x - drag.anchor.x; dy = q.y - drag.anchor.y; }
+                drag.guides = [];
+                if (drag.anchor) {
+                    const q = snap({ x: drag.anchor.x + dx, y: drag.anchor.y + dy }, ex);
+                    if (snapHint && snapHint.kind !== 'o' && snapHint.kind !== 'g') { dx = q.x - drag.anchor.x; dy = q.y - drag.anchor.y; }
+                    else snapHint = null;
+                }
+                if (!snapHint && drag.b0) {
+                    const a = alignSnap({ x: drag.b0.x + dx, y: drag.b0.y + dy, w: drag.b0.w, h: drag.b0.h }, ex);
+                    dx += a.dx; dy += a.dy; drag.guides = a.guides;
+                }
             }
             applyDrag(drag.befores.map((b) => moved(b, dx, dy)));
             return;
@@ -4100,6 +4249,12 @@
         if (drag.mode === 'inst') {
             const o = inst[drag.which], o0 = drag.o0;
             if (drag.im === 'move') { o.x = o0.x + w.x - drag.w0.x; o.y = o0.y + w.y - drag.w0.y; }
+            else if (drag.im === 'arm') {
+                const q = rLocal(o, w); let a = -Math.atan2(q.y, q.x);
+                if (a < 0) a = q.x >= 0 ? 0 : Math.PI;
+                if (!e.altKey) a = Math.round(a * 180 / Math.PI) * Math.PI / 180;   // по целым градусам
+                o.arm = a;
+            }
             else { let a = o0.a + Math.atan2(w.y - o0.y, w.x - o0.x) - drag.a0; if (!e.altKey) { const st = Math.PI / 12, ra = Math.round(a / st) * st; if (Math.abs(a - ra) < .05) a = ra; } o.a = a; }
             return;
         }
@@ -4167,7 +4322,9 @@
         if (drag) { dragTo(toWorld(p.x, p.y), e); (drag.mode === 'inst' || drag.mode === 'marquee') ? renderFast() : render(); return; }
         if (compass && tool === 'compass') {
             const w = toWorld(p.x, p.y);
-            if (compass.phase === 1) { const q = snap(w); compass.r = Math.hypot(q.x - compass.cx, q.y - compass.cy); compass.rx = q.x; compass.ry = q.y; }
+            if (compass.moveC) { const q = snap({ x: w.x + compass.moveC.dx, y: w.y + compass.moveC.dy }); compass.cx = q.x; compass.cy = q.y; }
+            else if (compass.moveR) { const q = snap(w); compass.r = Math.hypot(q.x - compass.cx, q.y - compass.cy); compass.lastA = Math.atan2(q.y - compass.cy, q.x - compass.cx); }
+            else if (compass.phase === 1) { const q = snap(w); compass.r = Math.hypot(q.x - compass.cx, q.y - compass.cy); compass.rx = q.x; compass.ry = q.y; compass.lastA = Math.atan2(q.y - compass.cy, q.x - compass.cx); }
             else if (compass.phase === 2 && compass.drawing) {
                 const a = Math.atan2(w.y - compass.cy, w.x - compass.cx); let d = a - compass.lastA;
                 while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI;
@@ -4216,6 +4373,7 @@
                 }
                 if (!e.shiftKey && (cur.t === 'line' || cur.t === 'arrow' || cur.t === 'circle' || cur.t === 'rect' || cur.t === 'ellipse' || cur.t === 'shapeDraft')) { const q = snap({ x, y }); x = q.x; y = q.y; }
                 if ((cur.t === 'line' || cur.t === 'arrow') && cur.rul) { const q = rulerSnap({ x, y }); if (q) { x = q.x; y = q.y; } }
+                if ((cur.t === 'line' || cur.t === 'arrow') && cur.prot) { const q = protSnap({ x, y }, true); if (q) { x = q.x; y = q.y; } }
                 cur.x2 = x; cur.y2 = y;
             }
         }
@@ -4228,15 +4386,16 @@
         snapHint = null;
         if (laser.on) { laser.on = false; laserLoop(); return; }
         if (compass && tool === 'compass') {
+            if (compass.moveC || compass.moveR) { compass.moveC = compass.moveR = null; render(); return; }
             if (compass.phase === 1) {
                 if (compass.r * view.k < 5) { compass = null; render(); return; }
-                compass.phase = 2; toast('Циркуль: ведите вокруг центра — рисуется дуга; щелчок — полная окружность');
+                compass.phase = 2; toast('Циркуль: ведите вокруг иглы — дуга; щелчок — окружность. Иглу можно перетащить, Shift + грифель — сменить раствор, Esc — заново');
             } else if (compass.phase === 2 && compass.drawing) {
                 const sw = Math.abs(compass.sw) < .05 ? 2 * Math.PI : compass.sw;
                 const it = Object.assign({ id: rid(12), z: newZ(), t: 'arc', c: color, w: size, x1: R2(compass.cx), y1: R2(compass.cy), x2: R2(compass.cx + compass.r * Math.cos(compass.a0)), y2: R2(compass.cy + compass.r * Math.sin(compass.a0)), sw }, styleFor('circle'));
                 if (!it.ls) delete it.ls;
                 commit({ add: [it] });
-                compass = { cx: compass.cx, cy: compass.cy, r: compass.r, phase: 2 };   // тем же раствором — ещё дуги; Esc — новый центр
+                compass = { cx: compass.cx, cy: compass.cy, r: compass.r, phase: 2, lastA: compass.lastA };   // тем же раствором — ещё дуги; Esc — новый центр
             }
             render(); return;
         }
@@ -4279,7 +4438,7 @@
                 cur.p = cur.p.map((v) => Math.round(v * 100) / 100);
             }
             const tiny = !cur.p && Math.hypot(cur.x2 - cur.x1, cur.y2 - cur.y1) * view.k < 3;
-            delete cur.rul;
+            delete cur.rul; delete cur.prot;
             const rec = !tiny && cur.t === 'pen' && bcfg.sr && recogShape(cur);
             if (rec) {
                 const made = rec.map((x, i) => Object.assign(x, { id: rid(12), z: newZ() + i * 1e-3 }));
@@ -4387,12 +4546,12 @@
         if (sb) {
             sb.classList.toggle('on', !!SHAPE_TOOLS[t]);
             const sh = SHAPES.find((x) => x.id === shapeId);
-            sb.querySelector('i').innerHTML = t === 'shape' && sh ? shapeIcon(sh) : SHAPE_TOOLS[t] && ICONS[t] ? toolIcon(t) : shapeIcon(POLY_SH[0]);
+            sb.querySelector('i').innerHTML = t === 'cons' ? consIcon(consKind) : t === 'shape' && sh ? shapeIcon(sh) : SHAPE_TOOLS[t] && ICONS[t] ? toolIcon(t) : shapeIcon(POLY_SH[0]);
         }
         $('bdPenBtn').hidden = t !== 'pen';
         if (t !== 'select') sel = [];
         stage.style.cursor = '';
-        document.querySelectorAll('#bdTools .bd-btn').forEach((b) => b.classList.toggle('on', b.dataset.tool === t));
+        document.querySelectorAll('#bdTools [data-tool]').forEach((b) => b.classList.toggle('on', b.dataset.tool === t));
         stage.className = 'bd-stage ' + (t === 'pan' ? 't-pan' : t === 'text' ? 't-text' : t === 'select' ? 't-select' : 't-draw');
         render();
     }
@@ -4898,8 +5057,12 @@
     function sendDraft(it) {
         if (!shared) return;
         // длинный штрих в черновике обрезаем — он всё равно придёт целиком после отпускания
-        let d = it ? clone(it) : null;
-        if (d && d.p && d.p.length > 1200) d.p = d.p.slice(-1200);
+        // не чаще ~7 раз в секунду и только хвост штриха — иначе длинная линия тормозит
+        const now = Date.now();
+        if (it && now - (sendDraft.t || 0) < 140) return;
+        sendDraft.t = it ? now : 0;
+        let d = null;
+        if (it) { d = Object.assign({}, it); delete d.raw; delete d.lt; if (d.p && d.p.length > 600) { d.p = d.p.slice(-600); if (d.pr) d.pr = d.pr.slice(-300); } }
         writePeer({ draft: d });
     }
     function updatePeople() {
