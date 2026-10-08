@@ -10,7 +10,7 @@
 <link rel="stylesheet" href="/assets/css/mathfield.css" />
 <style>
 main{
-  max-width:1400px;margin:0 auto;
+  max-width:calc(1400px * var(--bdz,1));margin:0 auto;
   padding:1rem clamp(.6rem,3vw,1.5rem) 2rem;
   padding-left:max(clamp(.6rem,3vw,1.5rem),var(--safe-l));
   padding-right:max(clamp(.6rem,3vw,1.5rem),var(--safe-r));
@@ -333,6 +333,8 @@ html.bd-fs #app-header{visibility:hidden}
   .bd-status{left:8px!important}
 }
 /* полный экран и рисование: никаких эффектов вокруг (см. mathframe-ui.js — фон сайта на паузе) */
+/* Масштаб интерфейса (интерактивные доски, 4K): --bdz ставит board.js — «Размер интерфейса» в настройках */
+.bd-bar,.bd-dock,.bd-props,.bd-pages,.bd-menu,.bd-selmenu,.bd-cmt,.bd-search,.bd-toast,.bd-dlg-card,.bd-fx{zoom:var(--bdz,1)}
 /* Анимации интерфейса доски (в режиме производительности html.mf-perf гасятся общим правилом common.css) */
 @keyframes bdPop{from{opacity:0;transform:translateY(-6px) scale(.97)}to{opacity:1;transform:none}}
 @keyframes bdFade{from{opacity:0}to{opacity:1}}

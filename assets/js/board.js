@@ -81,7 +81,7 @@
     let pinch = null;
     let textEd = null;
     let geo = null;                             // многоугольник/угол, который строится щелчками
-    let dpr = 1, W = 0, H = 0;
+    let dpr = 1, W = 0, H = 0, uiZ = 1;
     let viewSet = false;                        // без сохранённого вида начало координат — в центре
 
     const rid = (n = 20) => {
@@ -311,7 +311,7 @@
         canvas.width = Math.round(W * dpr);
         canvas.height = Math.round(H * dpr);
         if (!viewSet && W && H) { view = { x: -W / 2, y: -H / 2, k: 1 }; viewSet = true; }
-        render();
+        if (typeof applyUiZ === 'function') applyUiZ(); else render();
     }
 
     // Готовые листы: миллиметровка, точки, изометрическая (для объёмных фигур), полярная сетка, прописи.
@@ -791,7 +791,7 @@
     // палец (телефон, интерактивная доска) — ручки крупнее и ловятся издалека; мышь/перо — как обычно
     let coarse = false;
     try { coarse = matchMedia('(pointer: coarse)').matches; } catch (e) {}
-    const HS = () => (coarse ? 1.7 : 1);
+    const HS = () => (coarse ? 1.7 : 1) * Math.max(1, uiZ * .8);
     const hitTol = () => (coarse ? 16 : 6) / view.k;
     const toScreen = (x, y) => ({ x: (x - view.x) * view.k, y: (y - view.y) * view.k });
     const selItems = () => sel.map(byId).filter(Boolean);
@@ -1009,7 +1009,7 @@
     //  3) узлы клетки, 4) точка на отрезке/стороне/окружности. Найденная точка подсвечивается.
     let snapHint = null, snapAlt = false;
     // настройки доски (меню-шестерёнка): привязка и чужие курсоры; хранятся в этом браузере
-    const CFG_DEF = { sA: true, sr: false, ms: false, hd: 3, hf: false, hm: false, hl: 'ru', snap: true, sV: true, sM: true, sG: true, sO: true, sR: 11, cur: true, names: true, drafts: true };
+    const CFG_DEF = { sA: true, sr: false, ms: false, hd: 3, hf: false, hm: false, hl: 'ru', snap: true, sV: true, sM: true, sG: true, sO: true, sR: 11, ui: 'auto', cur: true, names: true, drafts: true };
     const bcfg = Object.assign({}, CFG_DEF, lsGet('mf-board-cfg', {}));
     if (bcfg.cv !== 2 && bcfg.cv !== 3) bcfg.hd = CFG_DEF.hd;      // новая задержка по умолчанию — 3 с
     if (bcfg.cv !== 3) { bcfg.hm = false; bcfg.cv = 3; }              // формулы теперь без нейросети
@@ -2340,6 +2340,37 @@
         render();
     }
 
+    // ================= МАСШТАБ ИНТЕРФЕЙСА =================
+    // Интерактивные доски: огромный экран при 100 % в Windows — кнопки и текст крошечные.
+    // «Авто» увеличивает панели, меню и диалоги по ширине экрана (и сенсору); холст не трогаем.
+    function autoUiZ() {
+        const w = Math.max(screen.width || 0, window.innerWidth || 0);
+        let touch = false;
+        try { touch = matchMedia('(any-pointer: coarse)').matches; } catch (e) {}
+        return w >= 3000 ? 2 : w >= 2400 ? 1.6 : w >= 1800 && touch ? 1.35 : 1;
+    }
+    function applyUiZ() {
+        const v = bcfg.ui;
+        uiZ = v === 'auto' || !v ? autoUiZ() : Math.min(3, Math.max(.75, +v || 1));
+        // не больше, чем помещается: панель инструментов должна влезать по высоте
+        uiZ = Math.min(uiZ, Math.max(1, (window.innerHeight || 800) / 640));
+        document.documentElement.style.setProperty('--bdz', uiZ);
+        render();
+    }
+    // меню, позиционированные в экранных пикселях: перевести в собственные (зум умножает left/top) и не дать вылезти за доску
+    function zfix(m) {
+        if (uiZ === 1 || m.hidden) return;
+        const l = parseFloat(m.style.left) || 0, t = parseFloat(m.style.top) || 0;
+        m.style.left = l / uiZ + 'px'; m.style.top = t / uiZ + 'px';
+        const r = m.getBoundingClientRect(), br = boardEl.getBoundingClientRect();
+        let dx = 0, dy = 0;
+        if (r.right > br.right - 4) dx = br.right - 4 - r.right;
+        if (r.left + dx < br.left + 4) dx = br.left + 4 - r.left;
+        if (r.bottom > br.bottom - 4) dy = br.bottom - 4 - r.bottom;
+        if (r.top + dy < br.top + 4) dy = br.top + 4 - r.top;
+        if (dx || dy) { m.style.left = (l + dx) / uiZ + 'px'; m.style.top = (t + dy) / uiZ + 'px'; }
+    }
+
     // ================= МЕНЮ «ФИГУРЫ», «ЗАГОТОВКИ», НАСТРОЙКИ ПЕРА =================
     function closeMenus(except) {
         ['bdShapeMenu', 'bdPresetMenu', 'bdPenCfg', 'bdLsMenu', 'bdCfgMenu', 'bdPageMenu', 'bdInstrMenu', 'bdMoreMenu'].forEach((id) => { if (id !== except && $(id)) $(id).hidden = true; });
@@ -2349,12 +2380,13 @@
         closeMenus(id);
         m.hidden = !m.hidden;
         if (m.hidden) return;
-        const r = anchor.getBoundingClientRect(), br = boardEl.getBoundingClientRect();
-        const clampX = (x) => Math.max(4, Math.min(x, br.width - m.offsetWidth - 4)), clampY = (y) => Math.max(4, Math.min(y, br.height - m.offsetHeight - 4));
+        const r = anchor.getBoundingClientRect(), br = boardEl.getBoundingClientRect(), mr = m.getBoundingClientRect(), mw = mr.width, mh = mr.height;
+        const clampX = (x) => Math.max(4, Math.min(x, br.width - mw - 4)), clampY = (y) => Math.max(4, Math.min(y, br.height - mh - 4));
         const dockV = anchor.closest('.bd-dock') && getComputedStyle($('bdDock')).flexDirection === 'column';
         if (dockV) { m.style.left = clampX(r.right - br.left + 8) + 'px'; m.style.top = clampY(r.top - br.top - 8) + 'px'; }
-        else if (anchor.closest('.bd-props, .bd-dock, .bd-pages')) { m.style.left = clampX(r.left - br.left) + 'px'; m.style.top = clampY(r.top - br.top - m.offsetHeight - 8) + 'px'; }
-        else { m.style.left = clampX(r.right - br.left - m.offsetWidth) + 'px'; m.style.top = (r.bottom - br.top + 6) + 'px'; }
+        else if (anchor.closest('.bd-props, .bd-dock, .bd-pages')) { m.style.left = clampX(r.left - br.left) + 'px'; m.style.top = clampY(r.top - br.top - mh - 8) + 'px'; }
+        else { m.style.left = clampX(r.right - br.left - mw) + 'px'; m.style.top = (r.bottom - br.top + 6) + 'px'; }
+        zfix(m);
     }
     function menuItem(id, name, icon, extra) {
         return `<button class="bd-mi" ${extra} title="${esc(name)}">${icon}<span>${esc(name)}</span></button>`;
@@ -2387,7 +2419,7 @@
         $('bdFig').onclick = () => toggleMenu('bdPresetMenu', $('bdFig'));
         // настройки доски
         const chk = (k, t, sub) => `<label class="bd-chk${sub ? ' bd-sub' : ''}"><input type="checkbox" data-cfg="${k}"> ${t}</label>`;
-        $('bdCfgMenu').innerHTML = '<h4>Отображение</h4>' + chk('ms', 'Измерения на лету <small>(длины, углы, площади; 1 = 2 клетки)</small>') +
+        $('bdCfgMenu').innerHTML = '<h4>Отображение</h4><label>Размер интерфейса <select data-cfg="ui"><option value="auto">авто (по экрану)</option><option value="1">100 %</option><option value="1.25">125 %</option><option value="1.5">150 %</option><option value="1.75">175 %</option><option value="2">200 %</option><option value="2.5">250 %</option></select></label>' + chk('ms', 'Измерения на лету <small>(длины, углы, площади; 1 = 2 клетки)</small>') +
             chk('sr', 'Фигуры от руки <small>(перо: прямая → отрезок, круг → окружность, многоугольник → с точками)</small>') + '<div id="bdOwnerCfg" hidden><h4>Общая доска (вы владелец)</h4><label class="bd-chk"><input type="checkbox" id="bdNoSolve"> Кнопка «Решить» у участников</label>' +
             '<label>Участники могут <select id="bdMode"><option value="edit">рисовать</option><option value="view">только смотреть</option></select></label></div>' +
             '<h4>Распознавание почерка</h4><label>Задержка, с <input type="range" data-cfg="hd" min="1" max="20"><b id="bdHdV"></b></label>' +
@@ -2410,8 +2442,9 @@
             const el = e.target.closest('[data-cfg]'); if (!el) return;
             bcfg[el.dataset.cfg] = el.type === 'checkbox' ? el.checked : el.tagName === 'SELECT' ? el.value : +el.value;
             lsSet('mf-board-cfg', bcfg); syncCfg(); render();
+            if (el.dataset.cfg === 'ui') { applyUiZ(); toggleMenu('bdCfgMenu', $('bdCfg')); toggleMenu('bdCfgMenu', $('bdCfg')); }
         });
-        $('bdCfgReset').onclick = () => { Object.assign(bcfg, CFG_DEF); lsSet('mf-board-cfg', bcfg); syncCfg(); render(); };
+        $('bdCfgReset').onclick = () => { Object.assign(bcfg, CFG_DEF); lsSet('mf-board-cfg', bcfg); syncCfg(); applyUiZ(); };
         $('bdCfg').onclick = () => { syncOwnerCfg(); toggleMenu('bdCfgMenu', $('bdCfg')); };
         $('bdMode').addEventListener('change', () => {
             if (!shared || !shared.owner) return;
@@ -3324,7 +3357,7 @@
         $('bdPageNext').onclick = () => { const i = pageIdx(); if (i < pages.length - 1) goPage(pages[i + 1].id); };
         $('bdPageAdd').onclick = addPage;
         $('bdPresent').onclick = () => present();
-        $('bdPageLbl').onclick = () => { toggleMenu('bdPageMenu', $('bdPageLbl')); pageMenu(); const m = $('bdPageMenu'), r = $('bdPageLbl').getBoundingClientRect(), br = boardEl.getBoundingClientRect(); m.style.top = Math.max(4, r.top - br.top - m.offsetHeight - 8) + 'px'; };
+        $('bdPageLbl').onclick = () => { toggleMenu('bdPageMenu', $('bdPageLbl')); pageMenu(); const m = $('bdPageMenu'), r = $('bdPageLbl').getBoundingClientRect(), br = boardEl.getBoundingClientRect(); m.style.top = Math.max(4, r.top - br.top - m.getBoundingClientRect().height - 8) + 'px'; zfix(m); };
         $('bdPageMenu').addEventListener('click', (e) => {
             const b = e.target.closest('[data-act]'); if (!b) return;
             const li = b.closest('[data-pid]'), id = li && li.dataset.pid, i = pages.findIndex((p) => p.id === id);
@@ -3463,8 +3496,9 @@
             '<div class="bd-cmin"><input id="bdCmtIn" placeholder="Комментарий…" maxlength="500"><button class="mini-btn" id="bdCmtSend">→</button></div>';
         box.hidden = false;
         const b = bounds(it), s = toScreen(b.x + b.w, b.y), br = stage.getBoundingClientRect();
-        box.style.left = Math.max(6, Math.min(s.x + 10, br.width - box.offsetWidth - 6)) + 'px';
-        box.style.top = Math.max(6, Math.min(s.y, br.height - box.offsetHeight - 6)) + 'px';
+        box.style.left = Math.max(6, Math.min(s.x + 10, br.width - box.getBoundingClientRect().width - 6)) + 'px';
+        box.style.top = Math.max(6, Math.min(s.y, br.height - box.getBoundingClientRect().height - 6)) + 'px';
+        zfix(box);
         const send = () => {
             const t = $('bdCmtIn').value.trim(); if (!t) return;
             updItem(it.id, (n) => { n.cm = (n.cm || []).concat({ a: me, t: t.slice(0, 500), ts: Date.now() }); });
@@ -3548,8 +3582,9 @@
         ].filter(Boolean).map(([a, n, k]) => `<button class="bd-smi" data-sa="${a}">${n}<small>${k}</small></button>`).join('');
         const f = its.length > 1 ? groupFrame(its) : frameOf(its[0]), s = toScreen(f.cx + f.w / 2, f.cy - f.h / 2), br = stage.getBoundingClientRect();
         m.hidden = false;
-        m.style.left = Math.max(6, Math.min(s.x + 30, br.width - m.offsetWidth - 6)) + 'px';
-        m.style.top = Math.max(6, Math.min(s.y + 10, br.height - m.offsetHeight - 6)) + 'px';
+        m.style.left = Math.max(6, Math.min(s.x + 30, br.width - m.getBoundingClientRect().width - 6)) + 'px';
+        m.style.top = Math.max(6, Math.min(s.y + 10, br.height - m.getBoundingClientRect().height - 6)) + 'px';
+        zfix(m);
     }
     function bindSelMenu() {
         $('bdSelMenu').addEventListener('click', (e) => {
