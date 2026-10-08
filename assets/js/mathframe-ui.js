@@ -1005,7 +1005,9 @@
     function frame(now) {
       raf = requestAnimationFrame(frame);
       // режим производительности — фон не считаем вовсе (включается и «на лету»)
-      if (!visible || document.documentElement.classList.contains('mf-perf')) { last = now; return; }
+      var hcl = document.documentElement.classList;
+      // доска: во весь экран и пока рисуют — фон не считаем (см. board.js)
+      if (!visible || hcl.contains('mf-perf') || hcl.contains('bd-fs') || hcl.contains('mf-bg-pause')) { last = now; return; }
       var dtRaw = now - last;
       var dt = Math.min(0.05, dtRaw / 1000); last = now;
       var field = BG.field, tracers = BG.tracers, layers = BG.layers;

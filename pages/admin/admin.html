@@ -687,6 +687,11 @@ service cloud.firestore {
         allow write: if signedIn() &amp;&amp; exists(/databases/$(database)/documents/boards/$(bid));
       }
     }
+    // Редактор иерархии (/admin/hierarchy-editor/): настройки ИИ и задание автогенерации
+    // синхронизируются между устройствами через aiSync/{uid} — только сам владелец.
+    match /aiSync/{uid} {
+      allow read, write: if request.auth != null &amp;&amp; request.auth.uid == uid;
+    }
     // AI-чаты: владелец — полностью; администраторы — только чтение (статистика в панели)
     match /aiChats/{uid}/chats/{chatId} {
       allow read, write: if request.auth.uid == uid;

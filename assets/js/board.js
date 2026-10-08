@@ -57,7 +57,8 @@
     const SIZES = [2, 4, 8, 16];
     const PEER_COLORS = ['#e5484d', '#3e8bff', '#30a46c', '#f2a25c', '#9b6bff', '#d6409f', '#12a594', '#e38d2c'];
 
-    const stage = $('bdStage'), canvas = $('bdCanvas'), ctx = canvas.getContext('2d');
+    // desynchronized — меньше задержка между движением пера и линией на экране (Chrome/Edge)
+    const stage = $('bdStage'), canvas = $('bdCanvas'), ctx = canvas.getContext('2d', { desynchronized: true }) || canvas.getContext('2d');
     const boardEl = $('board');
 
     let items = [];                             // отсортированы по z
@@ -886,20 +887,44 @@
         ctx.restore();
     }
 
-    function render() {
-        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    // ---- Отрисовка: не чаще раза в кадр. Полная (render) перерисовывает фон и все объекты в
+    // кэш-холст; быстрая (renderFast — пока рисуется штрих, двигается указка, курсоры) только
+    // копирует кэш и дорисовывает то, что меняется. Так перо не тормозит даже на большой доске.
+    const cacheCv = document.createElement('canvas'), cacheCtx = cacheCv.getContext('2d');
+    let rafId = 0, needFull = true, cacheKey = '';
+    function render() { needFull = true; if (!rafId) rafId = requestAnimationFrame(frame); }
+    function renderFast() { if (!rafId) rafId = requestAnimationFrame(frame); }
+    function frame() {
+        rafId = 0;
+        const key = [view.x, view.y, view.k, W, H, dpr, curPage].join('|');
+        if (needFull || key !== cacheKey) { drawScene(); cacheKey = key; needFull = false; }
+        drawOverlay();
+    }
+    function drawScene() {
+        if (cacheCv.width !== canvas.width || cacheCv.height !== canvas.height) { cacheCv.width = canvas.width; cacheCv.height = canvas.height; }
+        const c = cacheCtx;
+        c.setTransform(dpr, 0, 0, dpr, 0, 0);
         // непрозрачная заливка нужна «контрастному» цвету: разность считается с тем, что уже на холсте
-        ctx.fillStyle = boardFill();
-        ctx.fillRect(0, 0, W, H);
-        drawBg(ctx, W, H, view);
+        c.fillStyle = boardFill();
+        c.fillRect(0, 0, W, H);
+        drawBg(c, W, H, view);
+        c.setTransform(dpr * view.k, 0, 0, dpr * view.k, -view.x * view.k * dpr, -view.y * view.k * dpr);
+        drawList(c, items.filter(inView));
+        if (bcfg.ms) for (const it of items) drawMeasures(c, it);
+    }
+    function drawOverlay() {
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.globalCompositeOperation = 'copy';
+        ctx.drawImage(cacheCv, 0, 0);
+        ctx.globalCompositeOperation = 'source-over';
         ctx.setTransform(dpr * view.k, 0, 0, dpr * view.k, -view.x * view.k * dpr, -view.y * view.k * dpr);
         const extra = [];
         if (shared && bcfg.drafts) for (const p of shared.peers.values()) if (p.draft && fresh(p) && (p.pg || 'p1') === curPage) extra.push(p.draft);
         if (cur && cur.t !== 'erase') extra.push(cur);
         if (geo) extra.push(geo);
-        drawList(ctx, items.filter(inView).concat(extra));
-        if (bcfg.ms) for (const it of items) drawMeasures(ctx, it);
+        if (extra.length) drawList(ctx, extra);
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        if (textEd) textEd.place();          // редактор текста следует за масштабом и сдвигом
         drawInstruments();
         drawLasers();
         drawCmtBadges();
@@ -2204,7 +2229,7 @@
 
     // ================= МЕНЮ «ФИГУРЫ», «ЗАГОТОВКИ», НАСТРОЙКИ ПЕРА =================
     function closeMenus(except) {
-        ['bdShapeMenu', 'bdPresetMenu', 'bdPenCfg', 'bdLsMenu', 'bdCfgMenu', 'bdPageMenu', 'bdInstrMenu'].forEach((id) => { if (id !== except && $(id)) $(id).hidden = true; });
+        ['bdShapeMenu', 'bdPresetMenu', 'bdPenCfg', 'bdLsMenu', 'bdCfgMenu', 'bdPageMenu', 'bdInstrMenu', 'bdMoreMenu'].forEach((id) => { if (id !== except && $(id)) $(id).hidden = true; });
     }
     function toggleMenu(id, anchor) {
         const m = $(id);
@@ -2212,8 +2237,11 @@
         m.hidden = !m.hidden;
         if (m.hidden) return;
         const r = anchor.getBoundingClientRect(), br = boardEl.getBoundingClientRect();
-        m.style.left = Math.max(4, Math.min(r.left - br.left, br.width - m.offsetWidth - 4)) + 'px';
-        m.style.top = (r.bottom - br.top + 6) + 'px';
+        const clampX = (x) => Math.max(4, Math.min(x, br.width - m.offsetWidth - 4)), clampY = (y) => Math.max(4, Math.min(y, br.height - m.offsetHeight - 4));
+        const dockV = anchor.closest('.bd-dock') && getComputedStyle($('bdDock')).flexDirection === 'column';
+        if (dockV) { m.style.left = clampX(r.right - br.left + 8) + 'px'; m.style.top = clampY(r.top - br.top - 8) + 'px'; }
+        else if (anchor.closest('.bd-props, .bd-dock, .bd-pages')) { m.style.left = clampX(r.left - br.left) + 'px'; m.style.top = clampY(r.top - br.top - m.offsetHeight - 8) + 'px'; }
+        else { m.style.left = clampX(r.right - br.left - m.offsetWidth) + 'px'; m.style.top = (r.bottom - br.top + 6) + 'px'; }
     }
     function menuItem(id, name, icon, extra) {
         return `<button class="bd-mi" ${extra} title="${esc(name)}">${icon}<span>${esc(name)}</span></button>`;
@@ -2298,7 +2326,7 @@
         $('bdPenSt').checked = penCfg.st;
         $('bdPenSt').addEventListener('change', () => { penCfg.st = $('bdPenSt').checked; savePen(); });
         $('bdPenReset').onclick = () => { Object.assign(penCfg, PEN_DEF); savePen(); ['Sm', 'Th', 'Tp'].forEach((k) => { $('bdPen' + k).value = Math.round(penCfg[k.toLowerCase()] * 100); }); $('bdPenSt').checked = penCfg.st; penPreview(); };
-        document.addEventListener('pointerdown', (e) => { if (!e.target.closest('.bd-menu, #bdShapesBtn, #bdFig, #bdPenBtn, #bdLsBtn, #bdCfg, #bdPageLbl, #bdInstr')) closeMenus(); });
+        document.addEventListener('pointerdown', (e) => { if (!e.target.closest('.bd-menu, #bdShapesBtn, #bdFig, #bdPenBtn, #bdLsBtn, #bdCfg, #bdPageLbl, #bdInstr, #bdMore')) closeMenus(); });
     }
     // вид линии для новых объектов (и выделенных — при смене)
     const STYLED = { line: 1, arrow: 1, circle: 1, rect: 1, ellipse: 1, poly: 1 };
@@ -2906,7 +2934,7 @@
     function handTick() {   // отсчёт на подсказке
         cancelAnimationFrame(handRaf);
         if (!hand.due) return;
-        render();
+        renderFast();
         handRaf = requestAnimationFrame(() => setTimeout(handTick, 250));
     }
     function boxOf(list) {
@@ -3204,7 +3232,7 @@
         cancelAnimationFrame(laserRaf);
         const now = Date.now();
         const alive = laser.on || laser.pts.some((p) => now - p.t < 1200) || [...peerLaser.values()].some((l) => now - l.t < 1400);
-        render();
+        renderFast();
         if (alive) laserRaf = requestAnimationFrame(laserLoop);
     }
     function drawLaserTrail(pts, col) {
@@ -3882,8 +3910,12 @@
         return mapPts(b, (x, y) => ({ x: f1.cx + (x - f0.cx) * f1.sx, y: f1.cy + (y - f0.cy) * f1.sy }));
     }
 
+    // пока рисуют — живой фон сайта на паузе (вся мощность — доске); в полноэкранном режиме — всегда
+    let bgPauseT = 0;
+    const bgPause = (on) => { clearTimeout(bgPauseT); if (on) document.documentElement.classList.add('mf-bg-pause'); else bgPauseT = setTimeout(() => document.documentElement.classList.remove('mf-bg-pause'), 1500); };
     stage.addEventListener('pointerdown', (e) => {
         if (e.target !== canvas) return;
+        bgPause(true);
         snapAlt = e.altKey;
         const p = localPt(e);
         pointers.set(e.pointerId, p);
@@ -4105,7 +4137,7 @@
         const p = localPt(e);
         snapAlt = e.altKey;
         if (shared) sendCursor(toWorld(p.x, p.y));
-        if (geo) { const q = snap(toWorld(p.x, p.y)); geo.hx = q.x; geo.hy = q.y; render(); }
+        if (geo) { const q = snap(toWorld(p.x, p.y)); geo.hx = q.x; geo.hy = q.y; renderFast(); }
         if (!pointers.has(e.pointerId)) {
             if (tool === 'select') {
                 const h = handleAt(p.x, p.y), w = toWorld(p.x, p.y);
@@ -4132,7 +4164,7 @@
             render();
             return;
         }
-        if (drag) { dragTo(toWorld(p.x, p.y), e); render(); return; }
+        if (drag) { dragTo(toWorld(p.x, p.y), e); (drag.mode === 'inst' || drag.mode === 'marquee') ? renderFast() : render(); return; }
         if (compass && tool === 'compass') {
             const w = toWorld(p.x, p.y);
             if (compass.phase === 1) { const q = snap(w); compass.r = Math.hypot(q.x - compass.cx, q.y - compass.cy); compass.rx = q.x; compass.ry = q.y; }
@@ -4141,7 +4173,7 @@
                 while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI;
                 compass.sw = Math.max(-2 * Math.PI, Math.min(2 * Math.PI, compass.sw + d)); compass.lastA = a;
             }
-            render(); return;
+            renderFast(); return;
         }
         if (laser.on) { laserAdd(toWorld(p.x, p.y)); return; }
         if (!cur) return;
@@ -4187,11 +4219,12 @@
                 cur.x2 = x; cur.y2 = y;
             }
         }
-        if (cur.t !== 'erase') { render(); sendDraft(cur); }
+        if (cur.t !== 'erase') { renderFast(); sendDraft(cur); }
     });
     function endPointer(e) {
         if (!pointers.has(e.pointerId)) return;
         pointers.delete(e.pointerId);
+        if (!pointers.size) bgPause(false);
         snapHint = null;
         if (laser.on) { laser.on = false; laserLoop(); return; }
         if (compass && tool === 'compass') {
@@ -4466,6 +4499,8 @@
             else instToggle(b.dataset.inst);
             instUi();
         });
+        $('bdMore').onclick = () => toggleMenu('bdMoreMenu', $('bdMore'));
+        $('bdMoreMenu').addEventListener('click', (e) => { if (e.target.closest('.bd-wide')) closeMenus(); });
         $('bdSearchBtn').onclick = openSearch;
         $('bdSearchIn').addEventListener('input', doSearch);
         $('bdSearchIn').addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Escape') $('bdSearch').hidden = true; });
@@ -4831,7 +4866,7 @@
                 if (d.ls && (!old || old.lsT !== d.lsT)) { peerLaser.set(ch.doc.id, { pts: d.ls, t: Date.now() }); laserLoop(); }
                 if (shared.lead && shared.lead.peer === ch.doc.id && d.vw && (!old || JSON.stringify(old.vw) !== JSON.stringify(d.vw))) leadApply(d);
             });
-            updatePeople(); render();
+            updatePeople(); renderFast();
         }, () => {}));
 
         writePeer({ name: me.name, color: me.color, t: Date.now(), x: null, y: null, draft: null, pg: curPage, ls: null, vw: null });

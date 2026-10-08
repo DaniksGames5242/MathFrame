@@ -271,6 +271,67 @@ html.bd-fs #app-header{visibility:hidden}
   .bd-math-card{padding:.8rem}
   .bd-dlg{padding:.4rem;align-items:flex-end}
 }
+
+/* ===================== Компактный интерфейс доски =====================
+   Сверху — одна тонкая строка (доска, отмена, масштаб, поиск, «⋯», настройки, экран, участники);
+   на холсте: слева — колонка инструментов, снизу по центру — свойства (цвет, толщина, линия),
+   справа снизу — листы. Всё плавает над холстом и не отнимает у него место. */
+.bd{--pnl:linear-gradient(var(--bg-raised),var(--bg-raised)),var(--bg-body,#fff);--pnl-sh:0 10px 30px -14px rgba(0,0,0,.4)}
+.bd-bar{flex-wrap:nowrap;gap:.25rem;padding:.3rem .45rem;overflow-x:auto;scrollbar-width:none;min-height:46px}
+.bd-bar::-webkit-scrollbar{display:none}
+.bd-bar .bd-grp{border-right:0;padding-right:0;margin-right:0;gap:.1rem;flex:none}
+.bd-bar .bd-mid{margin-left:auto}
+.bd-bar .bd-right{padding-left:.3rem;border-left:1px solid var(--border)}
+.bd-bar .bd-collab{margin-left:.3rem;padding-left:.3rem;border-left:1px solid var(--border)}
+.bd-btn{min-width:34px;height:34px;border-radius:9px;padding:0 .35rem}
+.bd-btn svg{width:19px;height:19px}
+.bd-boards{max-width:230px;font-weight:600;color:var(--text-primary)}
+.bd-boards span{font-size:.86rem}
+.bd-dock{position:absolute;z-index:6;left:8px;top:8px;display:flex;flex-direction:column;gap:.15rem;padding:.25rem;
+  border-radius:14px;border:1px solid var(--border);background:var(--pnl);box-shadow:var(--pnl-sh);max-height:calc(100% - 16px);overflow-y:auto;scrollbar-width:none}
+.bd-dock::-webkit-scrollbar{display:none}
+.bd-dock .bd-grp{flex-direction:column;border:0;padding:0;margin:0;gap:.1rem}
+.bd-dock .bd-btn{width:36px;min-width:36px;height:36px;padding:0}
+.bd-dock .bd-mbtn span,.bd-dock .bd-shbtn b{display:none}
+.bd-dock .bd-shbtn i{width:20px;height:20px}
+.bd-sep{height:1px;background:var(--border);margin:.2rem .2rem}
+.bd-props{position:absolute;z-index:6;left:50%;bottom:10px;transform:translateX(-50%);display:flex;align-items:center;gap:.35rem;
+  padding:.25rem .5rem;border-radius:999px;border:1px solid var(--border);background:var(--pnl);box-shadow:var(--pnl-sh);max-width:calc(100% - 200px);overflow-x:auto;scrollbar-width:none}
+.bd-props::-webkit-scrollbar{display:none}
+.bd-props .bd-grp{border-right:1px solid var(--border);padding-right:.35rem;margin:0;gap:.2rem;flex:none}
+.bd-props .bd-grp:last-child{border-right:0;padding-right:0}
+.bd-props .bd-sw{width:22px;height:22px}
+.bd-props .bd-btn{min-width:28px;height:28px}
+.bd-props .bd-range-w input{width:70px}
+.bd-pages{left:auto!important;right:10px;transform:none!important}
+.bd-moremenu{width:min(280px,calc(100% - 8px))}
+.bd-moremenu h4{font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:var(--text-tertiary);margin:.45rem 0 .3rem}
+.bd-moremenu h4:first-child{margin-top:0}
+.bd-moremenu .bd-sel{width:100%}
+.bd-mrow{display:flex;flex-direction:column;gap:.15rem}
+.bd-wide{justify-content:flex-start;gap:.5rem;width:100%;font-size:.86rem;color:var(--text-primary)}
+.bd-danger2{color:#e5484d}
+.bd-toast{bottom:60px!important}
+.bd-status{left:58px!important}
+.bd.present .bd-dock,.bd.present .bd-props{display:none}
+@media (max-width:640px){
+  .bd-dock{top:auto;bottom:54px;left:6px;right:6px;flex-direction:row;overflow-x:auto;overflow-y:hidden;max-height:none;border-radius:12px}
+  .bd-dock .bd-grp{flex-direction:row}
+  .bd-dock #bdTools{flex-wrap:nowrap}
+  .bd-dock .bd-grp,.bd-dock .bd-btn,.bd-props .bd-sw,.bd-props .bd-btn{flex:none}
+  .bd-bar .bd-mid{display:none}
+  .bd-bar .bd-right{margin-left:auto}
+  .bd-sep{width:1px;height:auto;margin:.2rem .1rem}
+  .bd-props{bottom:8px;left:6px;right:96px;transform:none;max-width:none}
+  .bd-pages{bottom:8px;right:6px}
+  .bd-pages #bdPagePrev,.bd-pages #bdPageNext,.bd-pages #bdPresent{display:none}
+  .bd-bar .bd-right{border-left:0}
+  .bd-boards{max-width:120px}
+  .bd-toast{bottom:110px!important}
+  .bd-status{left:8px!important}
+}
+/* полный экран и рисование: никаких эффектов вокруг (см. mathframe-ui.js — фон сайта на паузе) */
+html.bd-fs *{transition-duration:0s!important}
 </style>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
@@ -286,17 +347,35 @@ html.bd-fs #app-header{visibility:hidden}
   <p class="bd-love"> </p>
   <section class="bd" id="board" aria-label="Электронная доска">
     <div class="bd-bar" id="bdBar">
-      <div class="bd-grp" id="bdTools" role="toolbar" aria-label="Инструменты"></div>
-      <div class="bd-grp" id="bdColors" aria-label="Цвет"></div>
-      <div class="bd-grp" id="bdSizes" aria-label="Толщина"></div>
-      <div class="bd-grp bd-mathgrp" aria-label="Математика">
-        <button class="bd-btn bd-mbtn bd-hand" id="bdSr" aria-label="Фигуры от руки" title="Фигуры от руки: перо рисует ровные отрезки, окружности и многоугольники"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18c2-8 4-12 8-12s6 4 8 12" stroke-dasharray="2 2"/><path d="M4 18 12 6l8 12z"/></svg><span>Фигуры от руки</span></button>
-        <button class="bd-btn bd-mbtn bd-hand" id="bdHand" aria-label="Распознавание почерка"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17c2-4 4-6 5-6s1 3 2 3 2-5 3.5-5 1 6 2.5 6 2-2 3-3"/><path d="M4 21h16"/></svg><span>Почерк → текст</span></button>
-        <button class="bd-btn bd-mbtn" id="bdGraph" title="График функции" aria-label="График"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h18M12 3v18"/><path d="M4 20c4-1 5-14 8-14s4 9 8 8" opacity=".75"/></svg><span>График</span></button>
-        <button class="bd-btn bd-mbtn" id="bdFig" title="Заготовки: единичная окружность, числовая прямая, координатная плоскость, готовые формулы" aria-label="Заготовки"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7 8h10M7 12h10M7 16h6"/></svg><span>Заготовки</span></button>
+      <div class="bd-grp bd-left">
+        <button class="bd-btn bd-boards" id="bdBoards" title="Мои доски: создать, открыть, переименовать, удалить"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg><span id="bdBoardName">Доска</span></button>
+        <button class="bd-btn" id="bdUndo" title="Отменить (Ctrl+Z)" aria-label="Отменить"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg></button>
+        <button class="bd-btn" id="bdRedo" title="Повторить (Ctrl+Y)" aria-label="Повторить"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 14 5-5-5-5"/><path d="M20 9H9a5 5 0 0 0 0 10h3"/></svg></button>
       </div>
-      <div class="bd-grp">
-        <select class="bd-sel" id="bdBg" title="Фон доски" aria-label="Фон доски">
+      <div class="bd-grp bd-mid">
+        <button class="bd-btn" id="bdZoomOut" title="Отдалить" aria-label="Отдалить">−</button>
+        <button class="bd-btn bd-zoom" id="bdZoom" title="Сбросить масштаб и положение">100%</button>
+        <button class="bd-btn" id="bdZoomIn" title="Приблизить" aria-label="Приблизить">+</button>
+      </div>
+      <div class="bd-grp bd-right">
+        <button class="bd-btn" id="bdSearchBtn" title="Поиск по доске (Ctrl+F)" aria-label="Поиск"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg></button>
+        <button class="bd-btn" id="bdImg" title="Вставить изображение (I) — можно и перетащить файл или вставить Ctrl+V" aria-label="Вставить изображение"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="m21 16-5-5L5 20"/></svg></button>
+        <input type="file" id="bdFile" accept="image/*" multiple hidden>
+        <button class="bd-btn" id="bdMore" title="Ещё: фон, сохранить PNG и PDF, очистить" aria-label="Ещё"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg></button>
+        <button class="bd-btn" id="bdCfg" title="Настройки доски: привязка, курсоры участников" aria-label="Настройки доски"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
+        <button class="bd-btn" id="bdFull" title="Во весь экран (F)" aria-label="Во весь экран"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+      </div>
+      <div class="bd-grp bd-collab">
+        <button class="bd-btn bd-lead" id="bdLead" hidden>Вести урок</button>
+        <span class="bd-ro" id="bdRo" hidden title="Владелец доски включил режим «только просмотр»: доступны выбор, сдвиг и указка">👁 Только просмотр</span>
+        <div class="bd-people" id="bdPeople"></div>
+        <button class="bd-btn bd-share" id="bdShare" title="Поделиться ссылкой — рисовать вместе"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4"/></svg><span>Поделиться</span></button>
+        <button class="bd-btn bd-leave" id="bdLeave" title="Вернуться к своей личной доске">Моя доска</button>
+      </div>
+    </div>
+    <div class="bd-menu bd-moremenu" id="bdMoreMenu" hidden>
+      <h4>Фон</h4>
+      <select class="bd-sel" id="bdBg" title="Фон доски" aria-label="Фон доски">
           <option value="cells">Клетка</option>
           <option value="grid">Координаты</option>
           <option value="lines">Линейка</option>
@@ -307,35 +386,10 @@ html.bd-fs #app-header{visibility:hidden}
           <option value="pr">Прописи</option>
           <option value="none">Чистый</option>
         </select>
-      </div>
-      <div class="bd-grp">
-        <button class="bd-btn" id="bdUndo" title="Отменить (Ctrl+Z)" aria-label="Отменить"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg></button>
-        <button class="bd-btn" id="bdRedo" title="Повторить (Ctrl+Y)" aria-label="Повторить"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 14 5-5-5-5"/><path d="M20 9H9a5 5 0 0 0 0 10h3"/></svg></button>
-        <button class="bd-btn" id="bdClear" title="Очистить доску" aria-label="Очистить доску"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg></button>
-      </div>
-      <div class="bd-grp">
-        <button class="bd-btn" id="bdZoomOut" title="Отдалить" aria-label="Отдалить">−</button>
-        <button class="bd-btn bd-zoom" id="bdZoom" title="Сбросить масштаб и положение">100%</button>
-        <button class="bd-btn" id="bdZoomIn" title="Приблизить" aria-label="Приблизить">+</button>
-      </div>
-      <div class="bd-grp">
-        <button class="bd-btn" id="bdImg" title="Вставить изображение (I) — можно и перетащить файл или вставить Ctrl+V" aria-label="Вставить изображение"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="m21 16-5-5L5 20"/></svg></button>
-        <input type="file" id="bdFile" accept="image/*" multiple hidden>
-        <button class="bd-btn" id="bdSave" title="Скачать PNG" aria-label="Скачать PNG"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg></button>
-        <button class="bd-btn" id="bdPdf" title="Скачать PDF (все листы)" aria-label="Скачать PDF"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z"/><path d="M14 3v5h5"/><path d="M9 15h6M12 12v6"/></svg></button>
-        <button class="bd-btn" id="bdSearchBtn" title="Поиск по доске (Ctrl+F)" aria-label="Поиск"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg></button>
-        <button class="bd-btn" id="bdInstr" title="Инструменты: линейка, транспортир, циркуль" aria-label="Инструменты"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21 21 3"/><path d="M7 17l2 2M10 14l2 2M13 11l2 2M16 8l2 2"/></svg></button>
-        <button class="bd-btn" id="bdCfg" title="Настройки доски: привязка, курсоры участников" aria-label="Настройки доски"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
-        <button class="bd-btn" id="bdFull" title="Во весь экран (F)" aria-label="Во весь экран"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
-      </div>
-      <div class="bd-grp bd-collab">
-        <button class="bd-btn bd-boards" id="bdBoards" title="Мои доски: создать, открыть, переименовать, удалить"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg><span id="bdBoardName">Доска</span></button>
-        <button class="bd-btn bd-lead" id="bdLead" hidden>Вести урок</button>
-        <span class="bd-ro" id="bdRo" hidden title="Владелец доски включил режим «только просмотр»: доступны выбор, сдвиг и указка">👁 Только просмотр</span>
-        <div class="bd-people" id="bdPeople"></div>
-        <button class="bd-btn bd-share" id="bdShare" title="Поделиться ссылкой — рисовать вместе"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4"/></svg><span>Поделиться</span></button>
-        <button class="bd-btn bd-leave" id="bdLeave" title="Вернуться к своей личной доске">Моя доска</button>
-      </div>
+      <h4>Сохранить</h4>
+      <div class="bd-mrow"><button class="bd-btn bd-wide" id="bdSave" title="Скачать PNG" aria-label="Скачать PNG"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg><span>PNG</span></button><button class="bd-btn bd-wide" id="bdPdf" title="Скачать PDF (все листы)" aria-label="Скачать PDF"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z"/><path d="M14 3v5h5"/><path d="M9 15h6M12 12v6"/></svg><span>PDF (все листы)</span></button></div>
+      <h4>Доска</h4>
+      <div class="bd-mrow"><button class="bd-btn bd-wide bd-danger2" id="bdClear" title="Очистить доску" aria-label="Очистить доску"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg><span>Очистить лист</span></button></div>
     </div>
     <div class="bd-menu" id="bdShapeMenu" hidden></div>
     <div class="bd-menu" id="bdPresetMenu" hidden></div>
@@ -354,6 +408,21 @@ html.bd-fs #app-header{visibility:hidden}
     </div>
     <div class="bd-stage t-draw" id="bdStage">
       <canvas id="bdCanvas"></canvas>
+      <div class="bd-dock" id="bdDock" aria-label="Инструменты">
+        <div class="bd-grp" id="bdTools" role="toolbar" aria-label="Инструменты"></div>
+        <div class="bd-sep"></div>
+        <div class="bd-grp bd-mathgrp" aria-label="Математика">
+          <button class="bd-btn bd-mbtn" id="bdGraph" title="График функции" aria-label="График"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h18M12 3v18"/><path d="M4 20c4-1 5-14 8-14s4 9 8 8" opacity=".75"/></svg><span>График</span></button>
+          <button class="bd-btn bd-mbtn" id="bdFig" title="Заготовки: единичная окружность, числовая прямая, координатная плоскость, готовые формулы" aria-label="Заготовки"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7 8h10M7 12h10M7 16h6"/></svg><span>Заготовки</span></button>
+          <button class="bd-btn" id="bdInstr" title="Инструменты: линейка, транспортир, циркуль" aria-label="Инструменты"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21 21 3"/><path d="M7 17l2 2M10 14l2 2M13 11l2 2M16 8l2 2"/></svg></button>
+          <button class="bd-btn bd-mbtn bd-hand" id="bdSr" aria-label="Фигуры от руки" title="Фигуры от руки: перо рисует ровные отрезки, окружности и многоугольники"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18c2-8 4-12 8-12s6 4 8 12" stroke-dasharray="2 2"/><path d="M4 18 12 6l8 12z"/></svg><span>Фигуры от руки</span></button>
+          <button class="bd-btn bd-mbtn bd-hand" id="bdHand" aria-label="Распознавание почерка"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17c2-4 4-6 5-6s1 3 2 3 2-5 3.5-5 1 6 2.5 6 2-2 3-3"/><path d="M4 21h16"/></svg><span>Почерк → текст</span></button>
+        </div>
+      </div>
+      <div class="bd-props" id="bdProps">
+        <div class="bd-grp" id="bdColors" aria-label="Цвет"></div>
+        <div class="bd-grp" id="bdSizes" aria-label="Толщина"></div>
+      </div>
       <div class="bd-status" id="bdStatus" aria-live="polite"></div>
       <div class="bd-toast" id="bdToast" role="status"></div>
       <div class="bd-cmt" id="bdCmt" hidden></div>
@@ -369,7 +438,6 @@ html.bd-fs #app-header{visibility:hidden}
       <div class="bd-fx" id="bdFx" hidden>
         <div id="bdFxKb"></div>
       </div>
-      <div class="bd-hint">Выбор: рамкой или с Shift/Ctrl — несколько; щелчок по выделенному — правка или подпись; Ctrl+C/X/V/D. Колесо — масштаб, пробел — сдвиг. Картинку можно перетащить или вставить Ctrl+V.</div>
     </div>
   </section>
 
