@@ -305,8 +305,9 @@
     }
 
     function resize() {
-        dpr = window.devicePixelRatio || 1;
         W = stage.clientWidth; H = stage.clientHeight;
+        // большие 4K-панели (интерактивные доски) на слабых ПК: не больше ~8 Мп на холст
+        dpr = Math.min(window.devicePixelRatio || 1, Math.max(1, Math.sqrt(8e6 / Math.max(1, W * H))));
         canvas.width = Math.round(W * dpr);
         canvas.height = Math.round(H * dpr);
         if (!viewSet && W && H) { view = { x: -W / 2, y: -H / 2, k: 1 }; viewSet = true; }
@@ -787,6 +788,11 @@
 
     // ---------- ручки выделения (экранные координаты)
     const HANDLE = 9;
+    // палец (телефон, интерактивная доска) — ручки крупнее и ловятся издалека; мышь/перо — как обычно
+    let coarse = false;
+    try { coarse = matchMedia('(pointer: coarse)').matches; } catch (e) {}
+    const HS = () => (coarse ? 1.7 : 1);
+    const hitTol = () => (coarse ? 16 : 6) / view.k;
     const toScreen = (x, y) => ({ x: (x - view.x) * view.k, y: (y - view.y) * view.k });
     const selItems = () => sel.map(byId).filter(Boolean);
     const selOne = () => (sel.length === 1 ? byId(sel[0]) : null);
@@ -802,20 +808,22 @@
         if (!its.length) return [];
         const one = its.length === 1 ? its[0] : null;
         const f = one ? frameOf(one) : groupFrame(its);
-        const P = (dx, dy) => { const w = rotPt(f.cx + dx * f.w / 2, f.cy + dy * f.h / 2, f.cx, f.cy, f.rot); return toScreen(w.x, w.y); };
+        // на касаниях маленькую рамку раздвигаем, чтобы угловые ручки не слипались под пальцем
+        const S = HS(), pad = coarse ? Math.max(0, (44 - Math.min(f.w, f.h) * view.k) / 2) / view.k : 0;
+        const P = (dx, dy) => { const w = rotPt(f.cx + dx * (f.w / 2 + pad), f.cy + dy * (f.h / 2 + pad), f.cx, f.cy, f.rot); return toScreen(w.x, w.y); };
         const up = { x: Math.sin(f.rot), y: -Math.cos(f.rot) }, rt = { x: Math.cos(f.rot), y: Math.sin(f.rot) };
         const out = [];
         const ne = P(1, -1), nn = P(0, -1);
-        out.push({ id: 'del', x: ne.x + (up.x + rt.x) * 18, y: ne.y + (up.y + rt.y) * 18 });
-        out.push({ id: 'more', x: ne.x + (up.x + rt.x) * 18 + rt.x * 26, y: ne.y + (up.y + rt.y) * 18 + rt.y * 26 });
+        out.push({ id: 'del', x: ne.x + (up.x + rt.x) * 18 * S, y: ne.y + (up.y + rt.y) * 18 * S });
+        out.push({ id: 'more', x: ne.x + (up.x + rt.x) * 18 * S + rt.x * 26 * S, y: ne.y + (up.y + rt.y) * 18 * S + rt.y * 26 * S });
         if (!one || one.t === 'point') return out;
-        out.push({ id: 'rot', x: nn.x + up.x * 28, y: nn.y + up.y * 28 });
-        if (one.t === 'solid') { const ss = P(0, 1); out.push({ id: 'r3', x: ss.x - up.x * 30, y: ss.y - up.y * 30 }); }
+        out.push({ id: 'rot', x: nn.x + up.x * 28 * S, y: nn.y + up.y * 28 * S });
+        if (one.t === 'solid') { const ss = P(0, 1); out.push({ id: 'r3', x: ss.x - up.x * 30 * S, y: ss.y - up.y * 30 * S }); }
         if (GEO[one.t]) getV(one).forEach(([x, y], i) => { const s = toScreen(x, y); out.push({ id: 'v' + i, x: s.x, y: s.y }); });
         if (one.t === 'line' || one.t === 'arrow' || one.t === 'angle' || one.t === 'circle') return out;
-        const bigW = f.w * view.k > 34, bigH = f.h * view.k > 34;
+        const bigW = f.w * view.k > 34 * S, bigH = f.h * view.k > 34 * S;
         for (const [id, dx, dy] of [['nw', -1, -1], ['ne', 1, -1], ['se', 1, 1], ['sw', -1, 1]]) {
-            if (f.w * view.k < 2 || f.h * view.k < 2) break;
+            if (!coarse && (f.w * view.k < 2 || f.h * view.k < 2)) break;
             const s = P(dx, dy); out.push({ id, x: s.x, y: s.y });
         }
         if (bigH) for (const [id, dx] of [['e', 1], ['w', -1]]) { const s = P(dx, 0); out.push({ id, x: s.x, y: s.y }); }
@@ -827,7 +835,7 @@
         // кнопки и вершины важнее ручек рамки
         const order = (h) => (h.id === 'del' || h.id === 'edit' || h.id === 'more' ? 0 : h.id === 'rot' || h.id === 'r3' ? 1 : h.id[0] === 'v' ? 2 : 3);
         hs.sort((a, b) => order(a) - order(b));
-        const h = hs.find((q) => Math.hypot(q.x - sx, q.y - sy) < HANDLE + (q.id === 'del' || q.id === 'edit' || q.id === 'more' ? 4 : 3));
+        const h = hs.find((q) => Math.hypot(q.x - sx, q.y - sy) < (HANDLE + (q.id === 'del' || q.id === 'edit' || q.id === 'more' ? 4 : 3)) * (coarse ? 1.9 : 1));
         return h ? h.id : null;
     }
     function drawSelection() {
@@ -855,7 +863,10 @@
         };
         if (its.length > 1) { ctx.globalAlpha = .55; its.forEach((it) => box(frameOf(it), true)); ctx.globalAlpha = 1; box(groupFrame(its), true); }
         else if (!(GEO[its[0].t] && its[0].t !== 'poly')) box(frameOf(its[0]), true);
+        const HSc = HS();
         for (const h of handles()) {
+            ctx.save();
+            if (HSc !== 1) { ctx.translate(h.x, h.y); ctx.scale(HSc, HSc); ctx.translate(-h.x, -h.y); }
             ctx.beginPath();
             if (h.id === 'more') {
                 ctx.fillStyle = boardFill(); ctx.arc(h.x, h.y, 10, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
@@ -883,6 +894,7 @@
             } else {
                 ctx.fillStyle = boardFill(); ctx.rect(h.x - 5, h.y - 5, 10, 10); ctx.fill(); ctx.stroke();
             }
+            ctx.restore();
         }
         ctx.restore();
     }
@@ -2544,7 +2556,7 @@
         if (tool === 'poly' && geo) { finishGeo(true, false); return; }
         if (tool !== 'select') return;
         const p = localPt(e), w = toWorld(p.x, p.y);
-        const it = topHit(w.x, w.y, 6 / view.k, true);
+        const it = topHit(w.x, w.y, hitTol(), true);
         if (!it) return;
         sel = [it.id];
         if (it.t === 'plot' || it.t === 'tex' || it.t === 'text') editItem(it);
@@ -4049,15 +4061,27 @@
 
     // пока рисуют — живой фон сайта на паузе (вся мощность — доске); в полноэкранном режиме — всегда
     let bgPauseT = 0;
+    let penEraseFrom = null;
     const bgPause = (on) => { clearTimeout(bgPauseT); if (on) document.documentElement.classList.add('mf-bg-pause'); else bgPauseT = setTimeout(() => document.documentElement.classList.remove('mf-bg-pause'), 1500); };
     stage.addEventListener('pointerdown', (e) => {
         if (e.target !== canvas) return;
+        coarse = e.pointerType === 'touch';
+        // обратный конец стилуса интерактивной доски (кнопка 5) — временный ластик
+        if (e.pointerType === 'pen' && e.button === 5 && tool !== 'eraser' && pointers.size === 0) { penEraseFrom = tool; setTool('eraser'); }
         bgPause(true);
         snapAlt = e.altKey;
         const p = localPt(e);
         pointers.set(e.pointerId, p);
         stage.setPointerCapture(e.pointerId);
         if (pointers.size === 2) {
+            // второй палец на выделенном объекте — масштаб объекта щипком (без мыши: телефон, доска)
+            const one = selOne();
+            if (tool === 'select' && one && drag && drag.mode === 'move' && !one.lk && canEdit()) {
+                cancelCurrent();
+                const [a, b] = [...pointers.values()], f0 = frameOf(one), g = buildGlue([one], new Set([one.id]));
+                drag = { mode: 'pinchObj', before: clone(one), f0, d0: Math.max(10, Math.hypot(a.x - b.x, a.y - b.y)), c0: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }, glue: g.glue, tgts: g.tgts };
+                render(); return;
+            }
             // второй палец — отменяем начатое действие и переходим в жест
             cancelCurrent(); startPinch(); render();
             return;
@@ -4076,7 +4100,7 @@
             stage.classList.add('drag');
             return;
         }
-        if (e.button !== 0) return;
+        if (e.button !== 0 && e.button !== 5) return;
         // ползунок параметра графика
         const sl = sliderAt(w);
         if (sl && canEdit()) { drag = { mode: 'param', before: clone(sl.it), name: sl.s.n, glue: [], tgts: new Map() }; dragTo(w, e); render(); return; }
@@ -4115,13 +4139,15 @@
                     drag = { mode: 'vertex', before: clone(one), i, glue, tgts: g.tgts, except: new Set([one.id, ...glue.map((x) => x.tgt)]), v0: v };
                 } else {
                     const g = buildGlue([one], new Set([one.id]));
-                    drag = { mode: 'scale', hid: h, before: clone(one), f0, glue: g.glue, tgts: g.tgts };
+                    const HD = { nw: [-1, -1], ne: [1, -1], se: [1, 1], sw: [-1, 1], n: [0, -1], s: [0, 1], e: [1, 0], w: [-1, 0] }[h] || [0, 0];
+                    const c = rotPt(f0.cx + HD[0] * f0.w / 2, f0.cy + HD[1] * f0.h / 2, f0.cx, f0.cy, f0.rot);
+                    drag = { mode: 'scale', hid: h, before: clone(one), f0, off: { x: c.x - w.x, y: c.y - w.y }, glue: g.glue, tgts: g.tgts };
                 }
                 render();
                 return;
             }
             const add = e.shiftKey || e.ctrlKey || e.metaKey;
-            const it = topHit(w.x, w.y, 6 / view.k, true);
+            const it = topHit(w.x, w.y, hitTol(), true);
             if (it) {
                 if (add) { const g = groupExpand([it.id]); sel = sel.includes(it.id) ? sel.filter((x) => !g.includes(x)) : [...new Set(sel.concat(g))]; render(); return; }
                 const was = sel.includes(it.id), alone = was && (sel.length === 1 || (it.gr && sel.every((id) => (byId(id) || {}).gr === it.gr)));
@@ -4284,7 +4310,7 @@
         }
         if (drag.mode === 'scale') {
             const keep = KEEP[b.t] ? !e.shiftKey : e.shiftKey;
-            const f1 = scaleFrame(drag.f0, drag.hid, w, keep);
+            const f1 = scaleFrame(drag.f0, drag.hid, drag.off ? { x: w.x + drag.off.x, y: w.y + drag.off.y } : w, keep);
             applyDrag([applyFrame(b, drag.f0, f1)]);
         }
     }
@@ -4297,11 +4323,21 @@
             if (tool === 'select') {
                 const h = handleAt(p.x, p.y), w = toWorld(p.x, p.y);
                 const CUR = { r3: 'grab', nw: 'nwse-resize', se: 'nwse-resize', ne: 'nesw-resize', sw: 'nesw-resize', n: 'ns-resize', s: 'ns-resize', e: 'ew-resize', w: 'ew-resize', rot: 'grab', del: 'pointer', edit: 'pointer' };
-                stage.style.cursor = h ? CUR[h] || 'move' : topHit(w.x, w.y, 6 / view.k, true) ? 'move' : '';
+                stage.style.cursor = h ? CUR[h] || 'move' : topHit(w.x, w.y, hitTol(), true) ? 'move' : '';
             }
             return;
         }
         pointers.set(e.pointerId, p);
+        if (drag && drag.mode === 'pinchObj') {
+            if (pointers.size !== 2) return;
+            const [a, b] = [...pointers.values()], f0 = drag.f0;
+            const k = Math.max(.05, Math.hypot(a.x - b.x, a.y - b.y) / drag.d0);
+            const dx = ((a.x + b.x) / 2 - drag.c0.x) / view.k, dy = ((a.y + b.y) / 2 - drag.c0.y) / view.k;
+            const f1 = { cx: f0.cx + dx, cy: f0.cy + dy, w: f0.w * k, h: f0.h * k, rot: f0.rot, sx: k, sy: k };
+            drag.moved = true;
+            applyDrag([applyFrame(drag.before, f0, f1)]);
+            render(); return;
+        }
         if (pinch && pointers.size === 2) {
             const [a, b] = [...pointers.values()];
             const d = Math.hypot(a.x - b.x, a.y - b.y), cx = (a.x + b.x) / 2, cy = (a.y + b.y) / 2;
@@ -4460,6 +4496,11 @@
     stage.addEventListener('auxclick', (e) => { if (e.button === 1) e.preventDefault(); });
     stage.addEventListener('pointerup', endPointer);
     stage.addEventListener('pointercancel', endPointer);
+    const penEraseEnd = () => { if (penEraseFrom && !pointers.size) { const t = penEraseFrom; penEraseFrom = null; setTool(t); } };
+    stage.addEventListener('pointerup', penEraseEnd);
+    stage.addEventListener('pointercancel', penEraseEnd);
+    // долгое касание не должно открывать системное меню / выделение текста
+    stage.addEventListener('contextmenu', (e) => { if (e.target === canvas) e.preventDefault(); });
     stage.addEventListener('wheel', (e) => {
         e.preventDefault();
         userMovedView();
