@@ -354,6 +354,62 @@ html.bd-fs #app-header{visibility:hidden}
 @media (hover:hover){.bd-sw:hover{transform:scale(1.12)}}
 .bd-sw.on{transform:scale(1.08)}
 .bd-toast{transition:opacity .22s ease,transform .28s cubic-bezier(.2,.9,.3,1.25)}
+/* — анимации, расширенный набор — */
+:root{--bd-ease:cubic-bezier(.2,.9,.3,1);--bd-spring:cubic-bezier(.2,.9,.3,1.35)}
+@keyframes bdOut{to{opacity:0;transform:translateY(-4px) scale(.97)}}
+@keyframes bdOutFade{to{opacity:0}}
+@keyframes bdOutCard{to{opacity:0;transform:translateY(10px) scale(.97)}}
+@keyframes bdItem{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@keyframes bdRipple{from{opacity:.35;transform:translate(-50%,-50%) scale(0)}to{opacity:0;transform:translate(-50%,-50%) scale(1)}}
+@keyframes bdAv{from{opacity:0;transform:scale(.4)}to{opacity:1;transform:none}}
+/* закрытие: атрибут hidden уже стоит, класс bd-out держит элемент видимым до конца анимации */
+.bd-menu[hidden].bd-out,.bd-cmt[hidden].bd-out,.bd-search[hidden].bd-out,.bd-fx[hidden].bd-out{display:block;animation:bdOut .14s ease-in forwards;pointer-events:none}
+.bd-selmenu[hidden].bd-out{display:flex;animation:bdOut .14s ease-in forwards;pointer-events:none}
+.bd-dlg[hidden].bd-out{display:flex;animation:bdOutFade .18s ease-in forwards;pointer-events:none}
+.bd-dlg[hidden].bd-out .bd-dlg-card{animation:bdOutCard .18s ease-in forwards}
+.bd-fx:not([hidden]){animation:bdSlideU .25s var(--bd-ease)}
+/* содержимое меню и списков появляется лесенкой */
+.bd-menu:not([hidden]) .bd-mi,.bd-menu:not([hidden]) .bd-lsi,.bd-menu:not([hidden]) label,.bd-menu:not([hidden]) h4,.bd-menu:not([hidden]) .bd-smi,
+.bd-selmenu:not([hidden]) .bd-smi,.bd-menu:not([hidden]) .bd-brow,.bd-dlg:not([hidden]) .bd-brow,#bdSearchRes .bd-sr,.bd-cm{animation:bdItem .28s var(--bd-ease) both}
+.bd-mi:nth-child(2),.bd-smi:nth-child(2),.bd-brow:nth-child(2),.bd-lsi:nth-child(2),label:nth-of-type(2),.bd-sr:nth-child(2){animation-delay:.02s!important}
+.bd-mi:nth-child(3),.bd-smi:nth-child(3),.bd-brow:nth-child(3),.bd-lsi:nth-child(3),label:nth-of-type(3),.bd-sr:nth-child(3){animation-delay:.04s!important}
+.bd-mi:nth-child(4),.bd-smi:nth-child(4),.bd-brow:nth-child(4),.bd-lsi:nth-child(4),label:nth-of-type(4),.bd-sr:nth-child(4){animation-delay:.06s!important}
+.bd-mi:nth-child(5),.bd-smi:nth-child(5),.bd-brow:nth-child(5),.bd-lsi:nth-child(5),label:nth-of-type(5),.bd-sr:nth-child(5){animation-delay:.08s!important}
+.bd-mi:nth-child(6),.bd-smi:nth-child(6),.bd-brow:nth-child(6),.bd-lsi:nth-child(6),label:nth-of-type(6),.bd-sr:nth-child(6){animation-delay:.1s!important}
+.bd-mi:nth-child(7),.bd-smi:nth-child(7),.bd-brow:nth-child(7),label:nth-of-type(7),.bd-sr:nth-child(7){animation-delay:.12s!important}
+.bd-mi:nth-child(8),.bd-smi:nth-child(8),.bd-brow:nth-child(8),label:nth-of-type(8){animation-delay:.14s!important}
+.bd-mi:nth-child(n+9),.bd-smi:nth-child(n+9),.bd-brow:nth-child(n+9),label:nth-of-type(n+9){animation-delay:.16s!important}
+.bd-dlg:not([hidden]) .bd-dlg-card>*{animation:bdItem .3s var(--bd-ease) both}
+.bd-dlg:not([hidden]) .bd-dlg-card>:nth-child(2){animation-delay:.04s}
+.bd-dlg:not([hidden]) .bd-dlg-card>:nth-child(3){animation-delay:.08s}
+.bd-dlg:not([hidden]) .bd-dlg-card>:nth-child(n+4){animation-delay:.12s}
+/* наведение и нажатие */
+.bd-mi,.bd-lsi{transition:transform .18s var(--bd-spring),border-color .15s,color .15s,background .15s,box-shadow .2s}
+@media (hover:hover){
+  .bd-mi:hover,.bd-lsi:hover{transform:translateY(-2px);box-shadow:0 8px 18px -10px rgba(0,0,0,.4)}
+  .bd-mi:hover svg{transform:scale(1.08)}
+  .bd-smi:hover,.bd-sr:hover{padding-left:.8rem}
+  .bd-brow:hover{background:var(--accent-soft)}
+  .bd-rxb:hover{transform:scale(1.15)}
+  .bd-cfgmenu label:hover{color:var(--accent)}
+  .bd-btn:hover svg{transform:translateY(-1px)}
+}
+.bd-mi svg,.bd-btn svg{transition:transform .2s var(--bd-spring)}
+.bd-mi:active,.bd-lsi:active,.bd-smi:active,.bd-sr:active,.bd-bopen:active{transform:scale(.95)}
+.bd-smi,.bd-sr{transition:padding .18s var(--bd-ease),background .15s,color .15s,transform .1s}
+.bd-brow{transition:background .15s}
+.bd-rxb{transition:transform .18s var(--bd-spring),background .15s,border-color .15s}
+.bd-rxb.on{animation:bdPop .3s var(--bd-spring)}
+.bd-cfgmenu label{transition:color .15s}
+.bd-sel,.bd-search input,.bd-cmin input,.bd-lbl{transition:border-color .15s,box-shadow .2s}
+.bd-sel:focus,.bd-search input:focus,.bd-cmin input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);outline:0}
+.bd-btn.on{transition:color var(--t),border-color var(--t),background var(--t),transform .12s,box-shadow .25s;box-shadow:0 0 0 3px var(--accent-soft)}
+.bd-ripple{position:absolute;pointer-events:none;border-radius:50%;background:currentColor;animation:bdRipple .45s ease-out forwards}
+.bd-people>*{animation:bdAv .3s var(--bd-spring) both}
+.bd-fxbtn{animation:bdPop .25s var(--bd-spring);transition:transform .15s var(--bd-spring)}
+.bd-fxbtn:hover{transform:scale(1.1)}
+.bd-pages .bd-plbl{transition:color .2s}
+.bd-dock .bd-sep{transition:opacity .2s}
 @media (prefers-reduced-motion:reduce){.bd *,.bd-dlg *{animation:none!important;transition-duration:0s!important}}
 html.bd-fs *{transition-duration:0s!important}
 </style>
@@ -539,6 +595,38 @@ html.bd-fs *{transition-duration:0s!important}
 <script src="/assets/js/mf-solver.js"></script>
 <script src="/assets/js/mf-keyboard.js"></script>
 <script src="/assets/js/board.js"></script>
+<script>
+/* Анимации закрытия и «рябь» на кнопках доски (выключены в режиме производительности) */
+(function () {
+  const H = document.documentElement;
+  const off = () => H.classList.contains('mf-perf') || H.classList.contains('bd-fs') || matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const SEL = '.bd-menu,.bd-selmenu,.bd-cmt,.bd-search,.bd-dlg,.bd-fx';
+  new MutationObserver((ms) => {
+    for (const m of ms) {
+      const el = m.target;
+      if (!el.matches || !el.matches(SEL)) continue;
+      if (!el.hidden) { el.classList.remove('bd-out'); continue; }
+      if (m.oldValue !== null || off() || !el.getClientRects) continue;
+      el.classList.add('bd-out');
+      clearTimeout(el._bdOut);
+      el._bdOut = setTimeout(() => el.classList.remove('bd-out'), 220);
+    }
+  }).observe(document.body, { subtree: true, attributes: true, attributeFilter: ['hidden'], attributeOldValue: true });
+  document.addEventListener('pointerdown', (e) => {
+    const b = e.target.closest && e.target.closest('.bd-btn,.bd-mi,.bd-smi');
+    if (!b || off() || b.disabled) return;
+    const r = b.getBoundingClientRect(), d = Math.max(r.width, r.height) * 2.2;
+    const s = document.createElement('span');
+    s.className = 'bd-ripple';
+    s.style.cssText = `width:${d}px;height:${d}px;left:${e.clientX - r.left}px;top:${e.clientY - r.top}px`;
+    const st = b.style, pos = st.position, ov = st.overflow;
+    if (getComputedStyle(b).position === 'static') st.position = 'relative';
+    st.overflow = 'hidden';
+    b.appendChild(s);
+    setTimeout(() => { s.remove(); st.position = pos; st.overflow = ov; }, 460);
+  }, true);
+})();
+</script>
 <script>var PAGE_ROOT = '/';</script>
 <script src="/assets/js/auth.js"></script>
 <script src="/assets/js/common.js"></script>
