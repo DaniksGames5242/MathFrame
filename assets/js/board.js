@@ -269,7 +269,7 @@
     const toWorld = (sx, sy) => ({ x: sx / view.k + view.x, y: sy / view.k + view.y });
     function localPt(e) {
         const r = stage.getBoundingClientRect();
-        return { x: e.clientX - r.left, y: e.clientY - r.top };
+        return { x: (e.clientX - r.left) / uiZ, y: (e.clientY - r.top) / uiZ };
     }
     function zoomAt(sx, sy, factor) {
         userMovedView();
@@ -305,13 +305,16 @@
     }
 
     function resize() {
-        W = stage.clientWidth; H = stage.clientHeight;
+        // холст рисуется в «логических» пикселях: на больших экранах (масштаб интерфейса uiZ) всё —
+        // линии, текст, сетка, ручки — крупнее, как при зуме страницы; dpr включает uiZ
+        const cw = stage.clientWidth, chh = stage.clientHeight;
         // большие 4K-панели (интерактивные доски) на слабых ПК: не больше ~8 Мп на холст
-        dpr = Math.min(window.devicePixelRatio || 1, Math.max(1, Math.sqrt(8e6 / Math.max(1, W * H))));
-        canvas.width = Math.round(W * dpr);
-        canvas.height = Math.round(H * dpr);
+        const real = Math.min(window.devicePixelRatio || 1, Math.max(1, Math.sqrt(8e6 / Math.max(1, cw * chh))));
+        W = cw / uiZ; H = chh / uiZ; dpr = real * uiZ;
+        canvas.width = Math.round(cw * real);
+        canvas.height = Math.round(chh * real);
         if (!viewSet && W && H) { view = { x: -W / 2, y: -H / 2, k: 1 }; viewSet = true; }
-        if (typeof applyUiZ === 'function') applyUiZ(); else render();
+        render();
     }
 
     // Готовые листы: миллиметровка, точки, изометрическая (для объёмных фигур), полярная сетка, прописи.
@@ -791,7 +794,7 @@
     // палец (телефон, интерактивная доска) — ручки крупнее и ловятся издалека; мышь/перо — как обычно
     let coarse = false;
     try { coarse = matchMedia('(pointer: coarse)').matches; } catch (e) {}
-    const HS = () => (coarse ? 1.7 : 1) * Math.max(1, uiZ * .8);
+    const HS = () => (coarse ? 1.7 : 1);
     const hitTol = () => (coarse ? 16 : 6) / view.k;
     const toScreen = (x, y) => ({ x: (x - view.x) * view.k, y: (y - view.y) * view.k });
     const selItems = () => sel.map(byId).filter(Boolean);
@@ -2350,11 +2353,17 @@
         return w >= 3000 ? 2 : w >= 2400 ? 1.6 : w >= 1800 && touch ? 1.35 : 1;
     }
     function applyUiZ() {
-        const v = bcfg.ui;
+        const v = bcfg.ui, prevZ = uiZ;
         uiZ = v === 'auto' || !v ? autoUiZ() : Math.min(3, Math.max(.75, +v || 1));
         // не больше, чем помещается: панель инструментов должна влезать по высоте
         uiZ = Math.min(uiZ, Math.max(1, (window.innerHeight || 800) / 640));
         document.documentElement.style.setProperty('--bdz', uiZ);
+        if (uiZ !== prevZ) {
+            // центр вида остаётся на месте
+            const cx = view.x + W / 2, cy = view.y + H / 2;
+            resize();
+            if (viewSet) { view.x = cx - W / 2; view.y = cy - H / 2; }
+        }
         render();
     }
     // меню, позиционированные в экранных пикселях: перевести в собственные (зум умножает left/top) и не дать вылезти за доску
@@ -3496,8 +3505,8 @@
             '<div class="bd-cmin"><input id="bdCmtIn" placeholder="Комментарий…" maxlength="500"><button class="mini-btn" id="bdCmtSend">→</button></div>';
         box.hidden = false;
         const b = bounds(it), s = toScreen(b.x + b.w, b.y), br = stage.getBoundingClientRect();
-        box.style.left = Math.max(6, Math.min(s.x + 10, br.width - box.getBoundingClientRect().width - 6)) + 'px';
-        box.style.top = Math.max(6, Math.min(s.y, br.height - box.getBoundingClientRect().height - 6)) + 'px';
+        box.style.left = Math.max(6, Math.min(s.x * uiZ + 10, br.width - box.getBoundingClientRect().width - 6)) + 'px';
+        box.style.top = Math.max(6, Math.min(s.y * uiZ, br.height - box.getBoundingClientRect().height - 6)) + 'px';
         zfix(box);
         const send = () => {
             const t = $('bdCmtIn').value.trim(); if (!t) return;
@@ -3582,8 +3591,8 @@
         ].filter(Boolean).map(([a, n, k]) => `<button class="bd-smi" data-sa="${a}">${n}<small>${k}</small></button>`).join('');
         const f = its.length > 1 ? groupFrame(its) : frameOf(its[0]), s = toScreen(f.cx + f.w / 2, f.cy - f.h / 2), br = stage.getBoundingClientRect();
         m.hidden = false;
-        m.style.left = Math.max(6, Math.min(s.x + 30, br.width - m.getBoundingClientRect().width - 6)) + 'px';
-        m.style.top = Math.max(6, Math.min(s.y + 10, br.height - m.getBoundingClientRect().height - 6)) + 'px';
+        m.style.left = Math.max(6, Math.min(s.x * uiZ + 30, br.width - m.getBoundingClientRect().width - 6)) + 'px';
+        m.style.top = Math.max(6, Math.min(s.y * uiZ + 10, br.height - m.getBoundingClientRect().height - 6)) + 'px';
         zfix(m);
     }
     function bindSelMenu() {
@@ -5243,7 +5252,9 @@
     syncHistory();
     $('bdZoom').textContent = Math.round(view.k * 100) + '%';
     new ResizeObserver(resize).observe(stage);
+    applyUiZ();
     resize();
+    window.addEventListener('resize', () => { if (bcfg.ui === 'auto' || !bcfg.ui) applyUiZ(); });
     if (sharedId) joinShared(sharedId).catch(syncError);
     if (items.some((i) => i.t === 'tex' || i.t === 'plot')) loadMathJax().then(render, () => {});
     })();
