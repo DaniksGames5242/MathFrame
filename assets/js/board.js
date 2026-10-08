@@ -970,6 +970,24 @@
         ctx.drawImage(liveCv, 0, 0);
         ctx.restore();
     }
+    // «хвост» от последней точки штриха до пера (и чуть вперёд — по предсказанию браузера):
+    // линия появляется прямо под пером, без отставания на кадр и на сглаживание
+    function drawInkTail() {
+        const it = cur, n = it.p.length;
+        const pts = [];
+        if (it.raw) pts.push(it.raw);
+        if (it.pred) pts.push(it.pred);
+        if (!pts.length || n < 2) return;
+        ctx.save();
+        ctx.setTransform(dpr * view.k, 0, 0, dpr * view.k, -view.x * view.k * dpr, -view.y * view.k * dpr);
+        if (it.c === 'contrast') ctx.globalCompositeOperation = 'difference';
+        ctx.strokeStyle = paint(it.c); ctx.lineCap = ctx.lineJoin = 'round';
+        ctx.lineWidth = Math.max(.6, (live && live.lr ? live.lr * 2 : it.w));
+        ctx.beginPath(); ctx.moveTo(it.p[n - 2], it.p[n - 1]);
+        for (const q of pts) ctx.lineTo(q.x, q.y);
+        ctx.stroke();
+        ctx.restore();
+    }
     function drawOverlay() {
         ctx.setTransform(1, 0, 0, 1, 0, 0);
         ctx.globalCompositeOperation = 'copy';
@@ -978,7 +996,7 @@
         ctx.setTransform(dpr * view.k, 0, 0, dpr * view.k, -view.x * view.k * dpr, -view.y * view.k * dpr);
         const extra = [];
         if (shared && bcfg.drafts) for (const p of shared.peers.values()) if (p.draft && fresh(p) && (p.pg || 'p1') === curPage) extra.push(p.draft);
-        if (cur && cur.t === 'pen' && cur.pr) drawLiveInk();
+        if (cur && cur.t === 'pen' && cur.pr) { drawLiveInk(); drawInkTail(); }
         else if (cur && cur.t !== 'erase') extra.push(cur);
         if (geo) extra.push(geo);
         if (extra.length) drawList(ctx, extra);
@@ -2493,7 +2511,7 @@
         const pairs = selItems().map((it) => { const n = clone(it); fn(n); return [clone(it), n]; }).filter(([a, b]) => JSON.stringify(a) !== JSON.stringify(b));
         if (pairs.length) { commit({ mod: pairs }); render(); }
     }
-    const PEN_DEF = { sm: .5, th: .6, tp: .5, st: true };
+    const PEN_DEF = { sm: .3, th: .6, tp: .5, st: true };
     const penCfg = Object.assign({}, PEN_DEF, lsGet('mf-board-pen', {}));
     const savePen = () => lsSet('mf-board-pen', penCfg);
     // образец штриха в окне настроек
@@ -4414,6 +4432,12 @@
         }
         if (laser.on) { laserAdd(toWorld(p.x, p.y)); return; }
         if (!cur) return;
+        if (cur.t === 'pen' && !cur.rul) {
+            // предсказанная точка (Chrome/Edge): рисуется только «хвостом», в штрих не попадает
+            let pe = null;
+            try { const pr = e.getPredictedEvents ? e.getPredictedEvents() : []; pe = pr.length ? pr[Math.min(pr.length - 1, 1)] : null; } catch (er) {}
+            if (pe) { const lp = localPt(pe); cur.pred = toWorld(lp.x, lp.y); } else delete cur.pred;
+        }
         const evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
         for (const ev of evs.length ? evs : [e]) {
             const lp = localPt(ev), w = toWorld(lp.x, lp.y);
@@ -4425,7 +4449,9 @@
             } else if (cur.t === 'pen') {
                 // стабилизатор: точка «догоняет» курсор, сглаживая дрожание руки
                 const n = cur.p.length, lx = cur.p[n - 2], ly = cur.p[n - 1];
-                const k = 1 - penCfg.sm * .82;
+                // чем быстрее ведут, тем слабее сглаживание — линия не отстаёт от пера
+                const sp = Math.hypot(w.x - lx, w.y - ly) * view.k;
+                const k = Math.min(1, 1 - penCfg.sm * .82 + sp / 40);
                 const nx = lx + (w.x - lx) * k, ny = ly + (w.y - ly) * k;
                 const dScr = Math.hypot(nx - lx, ny - ly) * view.k;
                 cur.raw = w;
@@ -4457,7 +4483,8 @@
                 cur.x2 = x; cur.y2 = y;
             }
         }
-        if (cur.t !== 'erase') { renderFast(); sendDraft(cur); }
+        if (cur.t === 'pen') { if (rafId) { cancelAnimationFrame(rafId); rafId = 0; } frame(); sendDraft(cur); }   // перо — сразу в этом же событии, без ожидания кадра
+        else if (cur.t !== 'erase') { renderFast(); sendDraft(cur); }
     });
     function endPointer(e) {
         if (!pointers.has(e.pointerId)) return;
@@ -4514,7 +4541,7 @@
                 // догоняем последнюю точку и чистим служебные поля
                 const n = cur.p.length;
                 if (cur.raw && Math.hypot(cur.raw.x - cur.p[n - 2], cur.raw.y - cur.p[n - 1]) * view.k > .5) { cur.p.push(cur.raw.x, cur.raw.y); cur.pr.push(cur.pr[cur.pr.length - 1]); }
-                delete cur.raw; delete cur.lt;
+                delete cur.raw; delete cur.lt; delete cur.pred;
                 cur.p = cur.p.map((v) => Math.round(v * 100) / 100);
             }
             const tiny = !cur.p && Math.hypot(cur.x2 - cur.x1, cur.y2 - cur.y1) * view.k < 3;
