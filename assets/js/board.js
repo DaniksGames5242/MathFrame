@@ -5190,9 +5190,12 @@
     function updatePeople() {
         const list = [...shared.peers.values()].filter(fresh);
         const el = $('bdPeople');
-        el.innerHTML = [shared.me, ...list].slice(0, 8).map((p, i) =>
+        // курсоры участников обновляют список много раз в секунду — перерисовываем
+        // значки только при реальном изменении, иначе они мигают
+        const html = [shared.me, ...list].slice(0, 8).map((p, i) =>
             `<span class="bd-ava" style="background:${p.color}" title="${esc(p.name)}${i ? '' : ' (вы)'}">${esc(String(p.name || '?').trim()[0] || '?').toUpperCase()}</span>`).join('') +
             (list.length > 7 ? `<span class="bd-ava more">+${list.length - 7}</span>` : '');
+        if (el._html !== html) el.innerHTML = el._html = html;
         el.title = (list.length + 1) + ' на доске';
     }
     const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
