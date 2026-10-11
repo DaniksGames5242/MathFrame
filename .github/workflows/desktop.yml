@@ -18,7 +18,24 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  init:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Подготовить релиз desktop-latest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git tag -f desktop-latest "$GITHUB_SHA"
+          git push -f origin refs/tags/desktop-latest
+          if ! gh release view desktop-latest >/dev/null 2>&1; then
+            gh release create desktop-latest --title "MathFrame — Доска (приложение)" \
+              --notes "Офлайн-версия электронной доски MathFrame для Linux, Windows и Android. Собирается автоматически из main." --latest=false
+          fi
+          gh release edit desktop-latest --notes "Офлайн-версия электронной доски MathFrame для Linux, Windows и Android. Сборка из коммита ${GITHUB_SHA::7}."
+
   desktop:
+    needs: init
     strategy:
       fail-fast: false
       matrix:
@@ -46,13 +63,14 @@ jobs:
       - run: npm run dist:${{ matrix.target }}
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
-      - uses: actions/upload-artifact@v4
-        with:
-          name: board-${{ matrix.target }}
-          path: ${{ matrix.files }}
-          if-no-files-found: error
+      - name: Загрузить в релиз
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload desktop-latest $(echo "${{ matrix.files }}" | sed 's#desktop/##') --clobber
 
   android:
+    needs: init
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -75,32 +93,7 @@ jobs:
           gradle --no-daemon assembleDebug
           mkdir -p ../dist
           cp app/build/outputs/apk/debug/app-debug.apk ../dist/MathFrame-Board-android.apk
-      - uses: actions/upload-artifact@v4
-        with:
-          name: board-android
-          path: desktop/dist/MathFrame-Board-android.apk
-          if-no-files-found: error
-
-  release:
-    needs: [desktop, android]
-    if: ${{ !cancelled() && needs.desktop.result == 'success' }}
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
-        with:
-          path: out
-          merge-multiple: true
-      - name: Обновить релиз desktop-latest
+      - name: Загрузить в релиз
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          ls -la out
-          git tag -f desktop-latest "$GITHUB_SHA"
-          git push -f origin refs/tags/desktop-latest
-          if ! gh release view desktop-latest >/dev/null 2>&1; then
-            gh release create desktop-latest --title "MathFrame — Доска (приложение)" \
-              --notes "Офлайн-версия электронной доски MathFrame для Linux, Windows и Android. Собирается автоматически из main." --latest=false
-          fi
-          gh release upload desktop-latest out/* --clobber
-          gh release edit desktop-latest --notes "Офлайн-версия электронной доски MathFrame для Linux, Windows и Android. Сборка из коммита ${GITHUB_SHA::7}."
+        run: gh release upload desktop-latest desktop/dist/MathFrame-Board-android.apk --clobber
