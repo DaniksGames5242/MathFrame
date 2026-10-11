@@ -5,6 +5,7 @@
   "description": "MathFrame — электронная доска (офлайн, настольная версия)",
   "author": "MathFrame <mathframe.ru@gmail.com>",
   "homepage": "https://mathframe.ru/board/",
+  "repository": "github:DaniksGames5242/MathFrame",
   "license": "UNLICENSED",
   "private": true,
   "main": "main.js",
