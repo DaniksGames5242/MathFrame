@@ -927,7 +927,10 @@
         c.fillRect(0, 0, W, H);
         drawBg(c, W, H, view);
         c.setTransform(dpr * view.k, 0, 0, dpr * view.k, -view.x * view.k * dpr, -view.y * view.k * dpr);
-        drawList(c, items.filter(inView));
+        // оригинал текста, который сейчас правит другой участник, скрыт — вместо него его живой черновик
+        const editing = new Set();
+        if (shared) for (const p of shared.peers.values()) if (p.draft && p.draft.eid && fresh(p)) editing.add(p.draft.eid);
+        drawList(c, items.filter((i) => inView(i) && !editing.has(i.id)));
         if (bcfg.ms) for (const it of items) drawMeasures(c, it);
     }
     // Штрих пера, пока его ведут: на отдельный слой каждый кадр дорисовываются только новые
@@ -2670,7 +2673,7 @@
         if (tree || !latex) {
             const f = new MathField(host, {
                 label: 'Формула',
-                onChange: (fld, enter) => { if (enter) leaveFormula(fld, 1); if (textEd) textEd.place(); },
+                onChange: (fld, enter) => { if (enter) leaveFormula(fld, 1); if (textEd) { textEd.place(); sendTextDraft(); } },
                 onExit: (d) => leaveFormula(f, d)
             });
             if (tree) { try { f.setTree(tree); } catch (e) {} }
@@ -2733,6 +2736,15 @@
         addText(text.slice(last));
         if (!ed.childNodes.length) ed.appendChild(document.createTextNode(''));
     }
+    // набираемый текст виден остальным сразу (как черновик штриха)
+    function sendTextDraft() {
+        if (!shared || !textEd) return;
+        const r = serializeEd(textEd.ed);
+        const d = { id: textEd.existing ? textEd.existing.id : 'draft-' + shared.peerId, t: 'text', x: textEd.wx, y: textEd.wy, s: textEd.s, c: textEd.col, w: 0, text: r.text, z: 1e9 };
+        if (r.fx.some(Boolean)) d.fx = r.fx;
+        if (textEd.existing) d.eid = textEd.existing.id;
+        writePeer({ draft: d, pg: curPage });
+    }
     function openText(wx, wy, existing) {
         closeText();
         const ed = document.createElement('div');
@@ -2754,7 +2766,7 @@
             ed.style.fontSize = s * view.k + 'px';
             ed.style.color = paint(col === 'contrast' ? 'ink' : col);
         };
-        ed.addEventListener('input', place);
+        ed.addEventListener('input', () => { place(); sendTextDraft(); });
         ed.addEventListener('paste', (e) => {
             // только простой текст
             e.preventDefault(); e.stopPropagation();
@@ -2782,6 +2794,7 @@
         textEd = { ed, fx, wx, wy, s, col, place, existing: existing ? clone(existing) : null };
         if (existing) { items = items.filter((i) => i.id !== existing.id); render(); }
         stage.appendChild(ed);
+        setTimeout(sendTextDraft, 0);
         stage.appendChild(fx);
         place();
         ed.focus({ preventScroll: true });
@@ -2792,6 +2805,7 @@
         if (!textEd) return;
         const { ed, fx, wx, wy, s, col, existing } = textEd;
         textEd = null;
+        if (shared) writePeer({ draft: null });
         hideFxKb();
         const r = serializeEd(ed);
         const text = r.text.replace(/\s+$/, '');
@@ -5148,6 +5162,9 @@
                 if (shared.lead && shared.lead.peer === ch.doc.id && d.vw && (!old || JSON.stringify(old.vw) !== JSON.stringify(d.vw))) leadApply(d);
             });
             updatePeople(); renderFast();
+            // сменился набор скрываемых оригиналов или идёт набор текста — перерисовать сцену
+            const key = [...shared.peers.values()].filter((p) => p.draft && fresh(p) && (p.draft.eid || p.draft.t === 'text')).map((p) => p.draft.eid || '').join();
+            if (key !== shared.hidKey || key) { shared.hidKey = key; render(); }
         }, () => {}));
 
         writePeer({ name: me.name, color: me.color, t: Date.now(), x: null, y: null, draft: null, pg: curPage, ls: null, vw: null });
