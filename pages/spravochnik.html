@@ -5776,6 +5776,17 @@
 
       function needsDescription(topic) { return descriptionsPartial && topic && topic.description === undefined; }
 
+      // Английский язык (настройки → Язык): описание темы переводит нейросеть (assets/js/i18n.js › translateHtml),
+      // перевод кладётся в отдельное поле descEn и НИКОГДА не попадает в config.json (описания там русские).
+      // i18n.js подключается позже страницы — язык проверяем при каждом обращении
+      const isEn = () => window.MF_LANG === 'en' && !!window.MF_i18n;
+      function descOf(topic) { return (isEn() && topic.descEn) || topic.description || ''; }
+      function ensureEnglish(topic) {
+        if (!isEn() || !topic || topic.descEn || !topic.description) return Promise.resolve(false);
+        if (!topic.__trP) topic.__trP = window.MF_i18n.translateHtml(topic.description).then(h => { topic.descEn = h; const ok = h !== topic.description; if (!ok) document.querySelectorAll('.spr-tr-note').forEach(n => n.remove()); return ok; });
+        return topic.__trP;
+      }
+
       function ensureDescription(topic) {
         if (!needsDescription(topic)) return Promise.resolve();
         if (!descPromises.has(topic.id)) {
@@ -6638,11 +6649,15 @@
 
       function renderTopic(id, opts) {
         const t0 = topicsById.get(id);
+        if (isEn() && t0 && t0.description !== undefined && !t0.descEn) {
+          // сначала показываем оригинал, затем подменяем переведённым текстом (если пользователь не ушёл с темы)
+          ensureEnglish(t0).then(ok => { if (ok && currentId === id) renderTopicNow(id, Object.assign({}, opts, { skipScroll: true, noHistory: true })); });
+        }
         if (needsDescription(t0)) {
           // Описание ещё не загружено — подгружаем его и рисуем тему сразу после (если пользователь не ушёл).
           currentId = id;
           if (!targetId) targetId = id;
-          ensureDescription(t0).then(() => { if (currentId === id) renderTopicNow(id, opts); });
+          ensureDescription(t0).then(() => { if (currentId === id) { renderTopicNow(id, opts); if (isEn()) ensureEnglish(t0).then(ok => { if (ok && currentId === id) renderTopicNow(id, Object.assign({}, opts, { skipScroll: true, noHistory: true })); }); } });
           return;
         }
         renderTopicNow(id, opts);
@@ -6719,7 +6734,8 @@
           renderProofDescription(topic);
           return;
         }
-        els.description.innerHTML = topic.description || '';
+        els.description.innerHTML = descOf(topic);
+        if (isEn() && !topic.descEn && /[А-Яа-яЁё]/.test(topic.description || '')) els.description.insertAdjacentHTML('afterbegin', '<p class="spr-tr-note" style="opacity:.6;font-style:italic">Translating the article to English…</p>');
         els.description.querySelectorAll('a[href^="topic:"]').forEach(a => {
           const targetId = a.getAttribute('href').slice('topic:'.length);
           a.addEventListener('click', (e) => {
@@ -7114,7 +7130,7 @@
       // пример (iframe) как номер GMS-кластера (step = индекс + 1) через sendStepToFrame —
       // см. renderExample.
       function renderProofDescription(topic) {
-        const raw = topic.description || '';
+        const raw = descOf(topic);
         const parseContainer = document.createElement('div');
         parseContainer.innerHTML = raw;
 
@@ -7393,7 +7409,9 @@
             loadEmbed(),
           ]);
           if (!document.body.contains(frame)) return;
-          const result = mod.compile(source);
+          const en = isEn();
+          const result = mod.compile(en ? await window.MF_i18n.translateGms(source) : source);
+          if (!document.body.contains(frame)) return;
           if (!result.success) {
             status.innerHTML = 'Ошибка компиляции:<br>' + result.errors.join('<br>');
             status.classList.add('error');
@@ -7410,7 +7428,7 @@
               if (topic.type === 'proof') sendStepToFrame(frame, currentProofStepIndex + 1);
             },
           });
-          frame.srcdoc = result.html;
+          frame.srcdoc = en ? window.MF_i18n.injectIntoHtml(result.html) : result.html;
         } catch (e) {
           status.innerHTML = 'Не удалось загрузить пример: ' + e.message;
           status.classList.add('error');

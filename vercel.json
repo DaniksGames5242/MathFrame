@@ -79,6 +79,10 @@
   ],
   "rewrites": [
     {
+      "source": "/api/translate",
+      "destination": "/api/seo?kind=translate"
+    },
+    {
       "source": "/api/topics",
       "destination": "/api/seo?kind=topics"
     },
@@ -250,6 +254,15 @@
           "value": "public, max-age=300, must-revalidate"
         }
       ]
+    },
+    {
+      "source": "/assets/i18n/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, no-cache"
+        }
+      ]
     }
   ],
   "functions": {
@@ -271,7 +284,7 @@
       "maxDuration": 60
     },
     "api/seo.js": {
-      "maxDuration": 30,
+      "maxDuration": 60,
       "includeFiles": "data/topics/config.json"
     },
     "api/relay.js": {

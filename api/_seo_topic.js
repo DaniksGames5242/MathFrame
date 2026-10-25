@@ -84,11 +84,11 @@ module.exports = async function handler(req, res) {
     '<nav class="tp-crumbs"><a href="/spravochnik/">Справочник</a>' + crumbs.map(c => ' › <a href="' + url(c.id) + '">' + esc(c.title) + '</a>').join('') + '</nav>\n' +
     '<p class="tp-kind">' + kind + cls + '</p>\n<h1>' + esc(t.title) + '</h1>\n' +
     '<a class="tp-cta" href="/spravochnik/#' + encodeURIComponent(t.id) + '">' + (t.example ? 'Открыть интерактивный пример' : 'Открыть в справочнике') + '</a>\n' +
-    '<div class="tp-body" id="tpBody">' + fixLinks(t.description) + '</div>\n' +
+    '<div class="tp-body" id="tpBody" translate="no">' + fixLinks(t.description) + '</div>\n' +
     (kids.length ? '<section class="tp-more"><h2>' + (t.type === 'folder' ? 'В этом разделе' : 'Подтемы') + '</h2><ul>' + kids.map(link).join('') + '</ul></section>\n' : '') +
     (sibs.length ? '<section class="tp-more"><h2>Рядом</h2><ul>' + sibs.map(link).join('') + '</ul></section>\n' : '') +
     '</article>\n</main>\n<div id="app-footer"></div>\n<script>var PAGE_ROOT = \'/\';</script>\n<script src="/assets/js/auth.js"></script>\n<script src="/assets/js/common.js"></script>\n' +
-    '<script>window.addEventListener("load",function(){if(window.renderMathInElement)renderMathInElement(document.getElementById("tpBody"),{delimiters:[{left:"$$",right:"$$",display:true},{left:"$",right:"$",display:false}],throwOnError:false});});</script>\n</body>\n</html>\n';
+    '<script>window.addEventListener("load",function(){var body=document.getElementById("tpBody");function math(){if(window.renderMathInElement)renderMathInElement(body,{delimiters:[{left:"$$",right:"$$",display:true},{left:"$",right:"$",display:false}],throwOnError:false});}math();var en=false;try{en=localStorage.getItem("mf-lang")==="en"}catch(e){}if(en){var tries=0,t=setInterval(function(){if(window.MF_i18n&&window.MF_i18n.translateHtml){clearInterval(t);var src=body.innerHTML;window.MF_i18n.translateHtml(src).then(function(h){if(h!==src){body.innerHTML=h;math();}});}else if(++tries>60)clearInterval(t);},100);}});</script>\n</body>\n</html>\n';
 
   res.status(200);
   res.setHeader('content-type', 'text/html; charset=utf-8');

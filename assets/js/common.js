@@ -1447,7 +1447,7 @@ function injectSettingsModal() {
         </label>
         <div class="st-row st-row-lang">
           <span class="st-row-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/></svg></span>
-          <span class="st-row-text"><b>Язык</b><small>Пока влияет на запись чисел в интерактивных примерах: 2,5 (русский) или 2.5 (английский)</small></span>
+          <span class="st-row-text"><b>Язык</b><small>Язык сайта: интерфейс, темы справочника (перевод нейросетью) и запись чисел в примерах (2,5 или 2.5)</small></span>
           <span class="st-seg" id="st-lang" role="radiogroup" aria-label="Язык">
             <button type="button" role="radio" data-lang="ru">Русский</button><button type="button" role="radio" data-lang="en">English</button>
           </span>
@@ -1538,7 +1538,8 @@ function injectSettingsModal() {
         try { localStorage.setItem('mf-lang', b.dataset.lang); } catch (er) {}
         document.documentElement.lang = b.dataset.lang;
         paintLang();
-        say(b.dataset.lang === 'en' ? 'Числа в примерах — с точкой (2.5). Откройте пример заново, чтобы увидеть.' : 'Числа в примерах — с запятой (2,5). Откройте пример заново, чтобы увидеть.', 'ok');
+        // язык меняет весь сайт — перезагружаем страницу, чтобы перевод применился целиком
+        setTimeout(() => location.reload(), 150);
     });
 
     // ===== Тема =====
@@ -2094,6 +2095,17 @@ function mfRevealPage() {
 
 window.applyTheme = applyTheme;
 window.applySystemTheme = applySystemTheme;
+// Английская версия сайта (assets/js/i18n.js — при языке «Русский» ничего не делает)
+(function loadI18n() {
+    if (window.MF_DESKTOP) return;
+    let en = false;
+    try { en = localStorage.getItem('mf-lang') === 'en'; } catch (e) {}
+    if (!en) return;
+    const s = document.createElement('script');
+    s.src = '/assets/js/i18n.js';
+    document.head.appendChild(s);
+})();
+
 // Аналитика с согласием посетителя (assets/js/analytics.js — без номера счётчика ничего не делает)
 (function loadAnalytics() {
     if (window.MF_DESKTOP) return;
