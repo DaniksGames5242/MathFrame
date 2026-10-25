@@ -231,6 +231,10 @@
     "api/ai-task.js": {
       "maxDuration": 60
     },
+    "api/topics.js": {
+      "maxDuration": 30,
+      "includeFiles": "data/topics/config.json"
+    },
     "api/topic.js": {
       "maxDuration": 30,
       "includeFiles": "data/topics/config.json"

@@ -5747,12 +5747,56 @@
       // ===================================================================
       // КОНФИГ
       // ===================================================================
-      async function loadConfig() {
+      // Быстрая первая загрузка: /api/topics отдаёт темы БЕЗ описаний (~100 КБ вместо ~3 МБ в gzip).
+      // Описание открываемой темы подгружается по месту (ensureDescription), весь config.json с описаниями —
+      // только когда он нужен: поиск по тексту, выгрузка, сохранение (ensureAllDescriptions). Если /api/topics
+      // недоступен (локальный просмотр без функций) — грузится полный config.json, как раньше.
+      let descriptionsPartial = false;
+      let fullLoadPromise = null;
+      const descPromises = new Map();
+
+      async function fetchFullConfig() {
         const res = await fetch(CONFIG_URL, { cache: 'no-cache' });
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const data = await res.json();
         if (!Array.isArray(data)) throw new Error('config.json должен содержать массив тем');
         return data;
+      }
+
+      async function loadConfig() {
+        try {
+          const res = await fetch('/api/topics');
+          if (res.ok) {
+            const data = await res.json();
+            if (Array.isArray(data) && data.length) { descriptionsPartial = true; return data; }
+          }
+        } catch (e) { /* функции недоступны — полный файл ниже */ }
+        return fetchFullConfig();
+      }
+
+      function needsDescription(topic) { return descriptionsPartial && topic && topic.description === undefined; }
+
+      function ensureDescription(topic) {
+        if (!needsDescription(topic)) return Promise.resolve();
+        if (!descPromises.has(topic.id)) {
+          descPromises.set(topic.id, fetch('/api/topics?id=' + encodeURIComponent(topic.id))
+            .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+            .then(d => { if (topic.description === undefined) topic.description = d.description || ''; })
+            .catch(() => ensureAllDescriptions())
+            .finally(() => descPromises.delete(topic.id)));
+        }
+        return descPromises.get(topic.id);
+      }
+
+      function ensureAllDescriptions() {
+        if (!descriptionsPartial) return Promise.resolve();
+        if (!fullLoadPromise) {
+          fullLoadPromise = fetchFullConfig().then(full => {
+            for (const f of full) { const t = topicsById.get(f.id); if (t && t.description === undefined) t.description = f.description || ''; }
+            descriptionsPartial = false;
+          }).catch(e => { fullLoadPromise = null; throw e; });
+        }
+        return fullLoadPromise;
       }
 
       function buildIndexes(list) {
@@ -6117,6 +6161,9 @@
 
       function runSearch() {
         lastQuery = els.searchInput.value.trim();
+        if (lastQuery && els.optDescription.checked && descriptionsPartial) {
+          ensureAllDescriptions().then(() => { if (els.searchInput.value.trim() === lastQuery) runSearch(); }).catch(() => {});
+        }
         renderTree();
         renderSearchList();
         if (currentId) renderTopic(currentId, { skipScroll: true, noHistory: true });
@@ -6590,6 +6637,18 @@
       }
 
       function renderTopic(id, opts) {
+        const t0 = topicsById.get(id);
+        if (needsDescription(t0)) {
+          // Описание ещё не загружено — подгружаем его и рисуем тему сразу после (если пользователь не ушёл).
+          currentId = id;
+          if (!targetId) targetId = id;
+          ensureDescription(t0).then(() => { if (currentId === id) renderTopicNow(id, opts); });
+          return;
+        }
+        renderTopicNow(id, opts);
+      }
+
+      function renderTopicNow(id, opts) {
         opts = opts || {};
         const topic = topicsById.get(id);
         if (!topic) return;
@@ -7200,6 +7259,7 @@
       // массива тем в /api/config. topics здесь — тот же плоский массив,
       // что рендерит страницу, так что достаточно поменять поле на месте.
       async function saveTopicsConfig() {
+        await ensureAllDescriptions();   // сохраняется весь массив — описания должны быть на месте
         const r = await fetch('/api/config', {
           method: 'POST',
           headers: Object.assign({ 'Content-Type': 'application/json' }, await window.Auth.authHeader()),
@@ -7510,7 +7570,8 @@
       }
 
       // -------- 1. Markdown (.md) ZIP --------
-      function generateMdZip() {
+      async function generateMdZip() {
+        await ensureAllDescriptions();
         const zip = new JSZip();
         const rootIds = getChildren(null);
         for (const id of rootIds) {
@@ -8001,7 +8062,8 @@ ${bodyXml}
         return docZip.generateAsync({ type: 'blob' });
       }
 
-      function generateDocxZip() {
+      async function generateDocxZip() {
+        await ensureAllDescriptions();
         const zip = new JSZip();
         const rootIds = getChildren(null);
         (async () => {
@@ -8057,7 +8119,8 @@ ${bodyXml}
       }
 
       // -------- 3. Единый HTML (с исправленными ссылками) --------
-      function generateSingleHtml() {
+      async function generateSingleHtml() {
+        await ensureAllDescriptions();
         let html = `<!DOCTYPE html>
         <html lang="ru">
         <head>
