@@ -35,7 +35,7 @@ cd android && gradle assembleDebug   # app/build/outputs/apk/debug/app-debug.apk
 ```
 Установка APK: скачайте `MathFrame-Board-android.apk`, откройте файл и разрешите установку
 из неизвестных источников (Настройки → Безопасность / «Установка неизвестных приложений» для браузера
-или файлового менеджера). APK подписан отладочным ключом.
+или файлового менеджера). Без секретов подписи CI собирает APK отладочным ключом; для релизной подписи см. раздел «Релизная подпись Android» ниже.
 
 ## Автосборка
 `.github/workflows/desktop.yml` при пуше в `main` (изменения `desktop/**`, `pages/board.html`, `assets/**`)
@@ -45,3 +45,10 @@ cd android && gradle assembleDebug   # app/build/outputs/apk/debug/app-debug.apk
 - https://github.com/DaniksGames5242/MathFrame/releases/download/desktop-latest/MathFrame-Board-windows-setup.exe
 - https://github.com/DaniksGames5242/MathFrame/releases/download/desktop-latest/MathFrame-Board-windows-portable.exe
 - https://github.com/DaniksGames5242/MathFrame/releases/download/desktop-latest/MathFrame-Board-android.apk
+
+## Релизная подпись Android
+1. Создайте ключ (один раз, храните файл и пароли в надёжном месте — потеряв ключ, обновить приложение у пользователей будет нельзя):
+   `keytool -genkeypair -v -keystore mathframe-release.jks -alias mathframe -keyalg RSA -keysize 2048 -validity 10000`
+2. В репозитории GitHub → Settings → Secrets and variables → Actions добавьте секреты:
+   `ANDROID_KEYSTORE_BASE64` (`base64 -w0 mathframe-release.jks`), `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`.
+3. Следующая сборка в `main` выложит подписанный `MathFrame-Board-android.apk` в релиз `desktop-latest`.

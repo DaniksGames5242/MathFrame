@@ -76,7 +76,7 @@ module.exports = async function handler(req, res) {
     '<style>main{max-width:820px;margin:0 auto;padding:1.4rem 1rem 4rem}.tp-card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r-lg);padding:1.4rem 1.6rem}' +
     '.tp-crumbs{font-size:.85rem;color:var(--text-tertiary);margin:0 0 .8rem}.tp-crumbs a{color:var(--text-secondary)}.tp-kind{font-size:.8rem;color:var(--text-tertiary);margin:0}' +
     '.tp-card h1{margin:.15rem 0 1rem;font-size:1.9rem}.tp-body{line-height:1.7;color:var(--text-secondary)}.tp-body h2{color:var(--text-primary);margin:1.4rem 0 .4rem;font-size:1.2rem}.tp-body a{color:var(--accent);text-decoration:underline;text-underline-offset:2px}' +
-    '.tp-cta{display:inline-block;margin:0 0 1.2rem;padding:.7rem 1.2rem;border-radius:var(--r-md,10px);background:var(--accent);color:#fff!important;text-decoration:none;font-weight:600}' +
+    '.tp-cta{display:inline-block;margin:0 0 1.2rem;padding:.7rem 1.2rem;border-radius:var(--r-md,10px);background:#2f5bd0;color:#fff!important;text-decoration:none;font-weight:600}' +
     '.tp-more h2{font-size:1.05rem;margin:1.6rem 0 .5rem}.tp-more ul{columns:2;column-gap:2rem;padding-left:1.1rem;margin:0}.tp-more a{color:var(--accent)}@media(max-width:560px){.tp-more ul{columns:1}}</style>\n' +
     '<script type="application/ld+json">' + JSON.stringify(ld).replace(/</g, '\\u003c') + '</script>\n' +
     '<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>\n<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>\n<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>\n' +

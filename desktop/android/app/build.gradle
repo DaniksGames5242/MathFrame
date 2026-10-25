@@ -7,12 +7,31 @@ android {
         applicationId 'ru.mathframe.board'
         minSdk 24
         targetSdk 34
-        versionCode 1
+        // номер сборки из CI — чтобы обновление ставилось поверх предыдущего
+        versionCode (System.getenv('GITHUB_RUN_NUMBER') ?: '1') as int
         versionName '1.0.0'
     }
     // Офлайн-копия доски — та же, что у настольной версии (desktop/app, собирается scripts/copy-site.js)
     sourceSets { main { assets.srcDirs = ['../../app'] } }
     aaptOptions { ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:!CVS:!thumbs.db:!picasa.ini:!*~' }
     compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
-    buildTypes { debug { minifyEnabled false } }
+    // Релизная подпись: задаётся секретами CI (ANDROID_KEYSTORE_FILE/…); без них собирается только отладочная сборка.
+    signingConfigs {
+        release {
+            def ks = System.getenv('ANDROID_KEYSTORE_FILE')
+            if (ks) {
+                storeFile file(ks)
+                storePassword System.getenv('ANDROID_KEYSTORE_PASSWORD')
+                keyAlias System.getenv('ANDROID_KEY_ALIAS')
+                keyPassword System.getenv('ANDROID_KEY_PASSWORD')
+            }
+        }
+    }
+    buildTypes {
+        debug { minifyEnabled false }
+        release {
+            minifyEnabled false
+            if (System.getenv('ANDROID_KEYSTORE_FILE')) signingConfig signingConfigs.release
+        }
+    }
 }
