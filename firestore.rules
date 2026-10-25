@@ -69,6 +69,10 @@ service cloud.firestore {
     match /forumDrafts/{id} {
       allow read, write: if false;
     }
+    // Общий счётчик лимитов запросов (api/_ratelimit.js): только сервер.
+    match /rateLimits/{id} {
+      allow read, write: if false;
+    }
     // Электронная доска (/board/?b=<id>, assets/js/board.js): общие доски — только для вошедших.
     // Создаёт доску владелец (owner = uid); имя и noSolve (кнопка «Решить» у участников) меняет только он, фон — любой участник.
     // Лимиты (10 досок на пользователя, 5000 объектов / 5 МБ на доску, без лимитов у админов)

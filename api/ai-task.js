@@ -29,7 +29,7 @@
 const chat = require('./chat');
 const AI = require('./_ai');
 const { classify } = require('./_classify');
-const { getConfig, identify, checkRateLimit, loadAiSettings, bearerToken, DEFAULT_DISABLED_MESSAGE } = chat._internal;
+const { getConfig, identify, checkRateLimitShared, loadAiSettings, bearerToken, DEFAULT_DISABLED_MESSAGE } = chat._internal;
 
 const MAX_TEXT = 3000;
 const MAX_IMAGE = 4 * 1024 * 1024;   // символов data URL (~3 МБ картинки)
@@ -334,7 +334,7 @@ async function handler(req, res) {
 
   if (!isAdmin) {
     const base = Math.max(1, parseInt(process.env.AI_TASK_RATE_LIMIT, 10) || 30);
-    const rl = checkRateLimit('task:' + who.uid, base, COST[task]);
+    const rl = await checkRateLimitShared('task:' + who.uid, base, COST[task]);
     if (!rl.ok) {
       res.setHeader('retry-after', String(rl.retryAfterSec));
       res.status(429).json({ error: 'Слишком много запросов к нейросети. Попробуйте примерно через ' + Math.max(1, Math.ceil(rl.retryAfterSec / 60)) + ' мин.', code: 'rate', retryAfterSec: rl.retryAfterSec });

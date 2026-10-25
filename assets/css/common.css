@@ -1867,3 +1867,11 @@ html.agent-page .mf-site-banner .msb-close.is-temp { display: flex; }
 
 .auth-consent { margin: .2rem 0 0; font-size: .78rem; line-height: 1.45; color: var(--text-tertiary); text-align: center; }
 .auth-consent a { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
+
+/* Согласие на статистику (assets/js/analytics.js) */
+#mf-consent { position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%); z-index: 9000; width: min(560px, calc(100vw - 24px));
+  display: flex; align-items: center; gap: .9rem; flex-wrap: wrap; padding: .8rem 1rem; background: var(--bg-card); color: var(--text-secondary);
+  border: 1px solid var(--border); border-radius: var(--r-lg); box-shadow: 0 8px 30px rgba(0,0,0,.25); font-size: .82rem; line-height: 1.45; }
+#mf-consent p { margin: 0; flex: 1 1 240px; }
+#mf-consent a { color: var(--accent); }
+#mf-consent .mf-consent-btns { display: flex; gap: .5rem; margin-left: auto; }

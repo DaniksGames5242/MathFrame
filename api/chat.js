@@ -327,6 +327,13 @@ function checkRateLimit(uid, limit, cost) {
   return { ok: true };
 }
 
+// Локальный счётчик + общий в Firestore (api/_ratelimit.js): лимит действует между экземплярами функции.
+async function checkRateLimitShared(uid, limit, cost) {
+  const local = checkRateLimit(uid, limit, cost);
+  if (!local.ok) return local;
+  return require('./_ratelimit').sharedCheck(uid, limit, cost);
+}
+
 /* ---------------- request sanitising ---------------- */
 function sanitizeMessages(raw, limits) {
   limits = limits || USER_LIMITS;
@@ -721,7 +728,7 @@ async function handler(req, res) {
 
   // Administrators (owner included) are not rate-limited.
   if (role === 'user') {
-    const rl = checkRateLimit(who.uid, rateLimit, requestCost(cfg));
+    const rl = await checkRateLimitShared(who.uid, rateLimit, requestCost(cfg));
     if (!rl.ok) {
       res.setHeader('retry-after', String(rl.retryAfterSec));
       res.status(429).json({
@@ -913,4 +920,4 @@ function formatHandbookSources(topics) {
 
 module.exports = handler;
 // Exposed for tests only — Vercel ignores extra properties on the handler.
-module.exports._internal = { formatHandbookSources, sanitizeMessages, sanitizeContext, buildSystemPrompt, checkRateLimit, extractDelta, getConfig, formatSources, identify, bearerToken, requestCost, composeJarvisMessage, superEmails, RESET_MARK, loadAiSettings, parseAiSettings, resetAiSettingsCache, DEFAULT_DISABLED_MESSAGE };
+module.exports._internal = { formatHandbookSources, sanitizeMessages, sanitizeContext, buildSystemPrompt, checkRateLimit, checkRateLimitShared, extractDelta, getConfig, formatSources, identify, bearerToken, requestCost, composeJarvisMessage, superEmails, RESET_MARK, loadAiSettings, parseAiSettings, resetAiSettingsCache, DEFAULT_DISABLED_MESSAGE };

@@ -33,3 +33,11 @@
   (по умолчанию на mathframe.ru@gmail.com; с тестового `onboarding@resend.dev` Resend шлёт только владельцу своего аккаунта).
 - Firestore Rules: чтобы модерацию нельзя было обойти, клиенту нужно запретить `create` в `forumArticles`
   (создание/правка статьи — только сервер; лайки, просмотры, закрепление админом — как раньше) и закрыть коллекцию `forumDrafts` целиком.
+
+## Запуск, безопасность и SEO
+- `api/config.js`, `example.js`, `file.js`, `examples.js` — только владелец/админ (`api/_admin.js`, токен Firebase). Клиенту токен даёт `Auth.authHeader()` (`assets/js/auth.js`).
+- Правила Firestore лежат в `firestore.rules` (тот же текст — в админ-панели → Безопасность). Менять в обоих местах и публиковать в консоли Firebase / `firebase deploy --only firestore:rules`.
+- Лимиты запросов: локальный счётчик + общий в Firestore (`api/_ratelimit.js`, коллекция `rateLimits`, клиенту закрыта) — `checkRateLimitShared` в `api/chat.js`.
+- Страницы тем для поисковиков: `/spravochnik/<id>/` (`api/topic.js`), карта сайта `/sitemap.xml` (`api/sitemap.js`). Домен — переменная Vercel `SITE_URL`; в статических страницах (`canonical`, `og`) домен прописан вручную.
+- Аналитика: номер счётчика Яндекс.Метрики — константа `METRIKA_ID` в `assets/js/analytics.js` (0 = выключено, баннер согласия не показывается).
+- Письма: чтобы они уходили не только владельцу аккаунта Resend, подтвердите свой домен в Resend и задайте `MAIL_FROM` (например `MathFrame <noreply@ваш-домен>`).

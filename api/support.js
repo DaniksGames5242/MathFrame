@@ -9,7 +9,7 @@
 const chat = require('./chat');
 const mail = require('./_mail');
 
-const { identify, bearerToken, checkRateLimit } = chat._internal;
+const { identify, bearerToken, checkRateLimitShared } = chat._internal;
 const LIMIT_PER_HOUR = 5;
 
 const str = (v, max) => (typeof v === 'string' ? v : '').replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, '').slice(0, max).trim();
@@ -38,7 +38,7 @@ async function handler(req, res) {
   const token = bearerToken(req);
   if (token) who = await identify(token).catch(() => null);
 
-  const rl = checkRateLimit('support:' + (who ? who.uid : clientIp(req)), LIMIT_PER_HOUR, 1);
+  const rl = await checkRateLimitShared('support:' + (who ? who.uid : clientIp(req)), LIMIT_PER_HOUR, 1);
   if (!rl.ok) return res.status(429).json({ error: 'Вы уже отправили несколько сообщений. Попробуйте через ' + Math.max(1, Math.ceil(rl.retryAfterSec / 60)) + ' мин.', code: 'rate' });
 
   if (!mail.configured()) return res.status(503).json({ error: 'Отправка сообщений пока не настроена. Напишите на mathframe.ru@gmail.com.', code: 'config' });

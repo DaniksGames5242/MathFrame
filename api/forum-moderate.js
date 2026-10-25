@@ -22,7 +22,7 @@ const aiTask = require('./ai-task');
 const fs = require('./_fs');
 const mail = require('./_mail');
 
-const { identify, bearerToken, checkRateLimit } = chat._internal;
+const { identify, bearerToken, checkRateLimitShared } = chat._internal;
 const { run, chain, extractJson } = aiTask._internal;
 
 const MAX_TITLE = 160;
@@ -184,7 +184,7 @@ function draftView(d) {
 
 async function actSubmit(req, res, who, b) {
   if (!isStaff(who)) {
-    const rl = checkRateLimit('forum:' + who.uid, SUBMIT_LIMIT_PER_HOUR, 1);
+    const rl = await checkRateLimitShared('forum:' + who.uid, SUBMIT_LIMIT_PER_HOUR, 1);
     if (!rl.ok) return res.status(429).json({ error: 'Слишком много публикаций. Попробуйте через ' + Math.max(1, Math.ceil(rl.retryAfterSec / 60)) + ' мин.', code: 'rate' });
   }
   const a = normalizeArticle(b);

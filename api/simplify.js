@@ -35,7 +35,7 @@
 // that served the request (others expire on their own / on the next deploy).
 
 const chat = require('./chat');
-const { getConfig, identify, checkRateLimit, loadAiSettings, DEFAULT_DISABLED_MESSAGE } = chat._internal;
+const { getConfig, identify, checkRateLimitShared, loadAiSettings, DEFAULT_DISABLED_MESSAGE } = chat._internal;
 const AI = require('./_ai');
 
 const MAX_TEXT = 12000;
@@ -257,7 +257,7 @@ async function handler(req, res) {
   // Rate limit: administrators — none; signed-in users — by account; others — by IP.
   if (!isAdmin) {
     const base = ai.simplifyRateLimit || Math.max(1, parseInt(process.env.SIMPLIFY_RATE_LIMIT, 10) || 20);
-    const rl = checkRateLimit('simplify:' + who.uid, base);
+    const rl = await checkRateLimitShared('simplify:' + who.uid, base);
     if (!rl.ok) {
       res.setHeader('retry-after', String(rl.retryAfterSec));
       res.status(429).json({

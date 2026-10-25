@@ -2094,3 +2094,11 @@ function mfRevealPage() {
 
 window.applyTheme = applyTheme;
 window.applySystemTheme = applySystemTheme;
+// Аналитика с согласием посетителя (assets/js/analytics.js — без номера счётчика ничего не делает)
+(function loadAnalytics() {
+    if (window.MF_DESKTOP) return;
+    const s = document.createElement('script');
+    s.src = '/assets/js/analytics.js';
+    s.defer = true;
+    document.head.appendChild(s);
+})();
