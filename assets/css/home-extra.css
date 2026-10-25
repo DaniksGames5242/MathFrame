@@ -1,0 +1,74 @@
+/* Главная: дополнительные разделы (живой график, задача дня, факты, путь по классам, призыв) */
+.hx{max-width:1180px;margin:0 auto;padding:1.5rem clamp(1rem,4vw,1.5rem) 2.5rem;
+  padding-left:max(clamp(1rem,4vw,1.5rem),var(--safe-l));padding-right:max(clamp(1rem,4vw,1.5rem),var(--safe-r));position:relative;z-index:2}
+.hx-head{margin-bottom:1.5rem}
+.hx-head h2{font-size:clamp(1.6rem,3vw,2.2rem);margin:.55rem 0 .6rem}
+.hx-head p{color:var(--text-secondary);max-width:56ch;margin:0}
+.hx-card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r-lg,16px);padding:1.4rem;box-shadow:var(--shadow-sm)}
+.hx-grid2{display:grid;grid-template-columns:1.25fr 1fr;gap:1.2rem;align-items:stretch}
+
+/* живой график */
+.hx-plot svg{width:100%;height:auto;display:block;border-radius:var(--r,12px);background:var(--bg-sunken)}
+.hx-plot .ax{stroke:var(--border-strong);stroke-width:1}
+.hx-plot .gr{stroke:var(--border);stroke-width:.5}
+.hx-plot .fn{stroke:var(--accent);stroke-width:2.6;fill:none;filter:drop-shadow(0 0 6px var(--accent-glow))}
+.hx-tabs{display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:1rem}
+.hx-tab{font:inherit;font-size:.85rem;padding:.4rem .8rem;border-radius:999px;border:1px solid var(--border);
+  background:transparent;color:var(--text-secondary);cursor:pointer;transition:all var(--t-fast,.15s)}
+.hx-tab[aria-pressed="true"]{background:var(--accent-soft);color:var(--accent);border-color:var(--accent)}
+.hx-formula{font-family:var(--font-math);font-style:italic;font-size:1.35rem;color:var(--accent);margin:.2rem 0 1rem;min-height:1.6em}
+.hx-sl{display:grid;grid-template-columns:1.6rem 1fr 3rem;align-items:center;gap:.6rem;margin:.55rem 0}
+.hx-sl label{font-family:var(--font-math);font-style:italic;color:var(--text-secondary)}
+.hx-sl input{width:100%;accent-color:var(--accent);min-height:28px}
+.hx-sl output{font-family:var(--font-mono);font-size:.85rem;text-align:right;color:var(--text-primary)}
+.hx-note{font-size:.9rem;color:var(--text-tertiary);margin-top:1rem}
+
+/* задача дня */
+.hx-task{display:flex;flex-direction:column;gap:.9rem}
+.hx-task .q{font-size:1.08rem;line-height:1.55}
+.hx-opts{display:grid;grid-template-columns:1fr 1fr;gap:.5rem}
+.hx-opt{font:inherit;padding:.7rem;border-radius:var(--r-sm,8px);border:1px solid var(--border);background:var(--bg-raised);
+  color:var(--text-primary);cursor:pointer;transition:all var(--t-fast,.15s)}
+.hx-opt:hover{border-color:var(--accent)}
+.hx-opt.ok{border-color:var(--accent-2);background:rgba(86,220,200,.15)}
+.hx-opt.bad{border-color:#e36b6b;background:rgba(227,107,107,.12);animation:hxShake .35s}
+@keyframes hxShake{25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
+.hx-expl{color:var(--text-secondary);font-size:.95rem;border-left:2px solid var(--accent-2);padding-left:.8rem}
+.hx-row{display:flex;justify-content:space-between;align-items:center;gap:.6rem;flex-wrap:wrap}
+.hx-mono{font-family:var(--font-mono);font-size:.7rem;letter-spacing:.12em;text-transform:uppercase;color:var(--text-tertiary)}
+.hx-link{font:inherit;background:none;border:0;color:var(--accent);cursor:pointer;padding:.3rem 0}
+
+/* факты */
+.hx-facts{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem}
+.hx-fact{position:relative;overflow:hidden;cursor:pointer;min-height:170px;display:flex;flex-direction:column;justify-content:space-between;
+  transition:transform var(--t,.25s) var(--e-out),border-color var(--t,.25s)}
+.hx-fact:hover{transform:translateY(-3px);border-color:var(--accent)}
+.hx-fact .big{font-family:var(--font-math);font-size:2.2rem;color:var(--accent);line-height:1.1}
+.hx-fact:nth-child(2) .big{color:var(--accent-2)}
+.hx-fact:nth-child(3) .big{color:var(--accent-3)}
+.hx-fact p{color:var(--text-secondary);margin:.6rem 0 0;font-size:.95rem}
+.hx-fact.flip{animation:hxFlip .45s var(--e-out)}
+@keyframes hxFlip{0%{opacity:0;transform:rotateX(70deg)}100%{opacity:1;transform:none}}
+
+/* путь по классам */
+.hx-path{display:flex;gap:.6rem;overflow-x:auto;padding:.4rem .1rem 1rem;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch}
+.hx-step{flex:0 0 190px;scroll-snap-align:start;text-decoration:none;color:inherit;position:relative}
+.hx-step .n{font-family:var(--font-display);font-size:2rem;font-weight:700;color:var(--accent)}
+.hx-step .n small{font-size:.8rem;color:var(--text-tertiary);font-weight:400;margin-left:.3rem}
+.hx-step p{margin:.3rem 0 0;font-size:.9rem;color:var(--text-secondary)}
+.hx-step:hover{border-color:var(--accent)}
+
+/* призыв */
+.hx-cta{text-align:center;padding:2.4rem 1.4rem;background:
+  radial-gradient(120% 140% at 50% 0%,var(--accent-soft),transparent 70%),var(--bg-card)}
+.hx-cta h2{font-size:clamp(1.5rem,3vw,2.1rem);margin:.2rem 0 .7rem}
+.hx-cta p{color:var(--text-secondary);max-width:52ch;margin:0 auto 1.4rem}
+.hx-cta .acts{display:flex;gap:.7rem;justify-content:center;flex-wrap:wrap}
+
+/* появление при прокрутке */
+.hx-reveal{opacity:0;transform:translateY(18px);transition:opacity .7s var(--e-out),transform .7s var(--e-out)}
+.hx-reveal.in{opacity:1;transform:none}
+@media (prefers-reduced-motion:reduce){.hx-reveal{opacity:1;transform:none;transition:none}}
+
+@media (max-width:900px){.hx-grid2{grid-template-columns:1fr}.hx-facts{grid-template-columns:1fr}}
+@media (max-width:640px){.hx-card{padding:1.1rem}.hx-opts{grid-template-columns:1fr 1fr}.hx-fact{min-height:0}.hx-cta .acts .btn{flex:1 1 100%}}

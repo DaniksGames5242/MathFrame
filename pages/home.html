@@ -26,6 +26,7 @@
   </style>
   <link rel="stylesheet" href="/assets/css/common.css" />
   <link rel="stylesheet" href="/assets/css/home-tools.css" />
+  <link rel="stylesheet" href="/assets/css/home-extra.css" />
 
   <style>
   /* ======================================================================
@@ -372,6 +373,67 @@
       <div class="tool-ghost" id="toolGhost" aria-hidden="true"></div>
       </div>
     </div>
+    <section class="hx hx-reveal" aria-labelledby="hxPlayH">
+      <div class="hx-head"><span class="mf-label">Попробуйте сами</span>
+        <h2 class="mf-axis-title" id="hxPlayH">Математика, которую можно потрогать</h2>
+        <p>Двигайте ползунки и смотрите, как параметры меняют график. Так устроены примеры в справочнике.</p></div>
+      <div class="hx-grid2">
+        <div class="hx-card hx-plot" id="hxPlot">
+          <div class="hx-tabs">
+            <button type="button" class="hx-tab" data-fn="parab">Парабола</button>
+            <button type="button" class="hx-tab" data-fn="sin">Синусоида</button>
+            <button type="button" class="hx-tab" data-fn="lin">Прямая</button>
+            <button type="button" class="hx-tab" data-fn="exp">Экспонента</button>
+          </div>
+          <svg viewBox="0 0 400 260" role="img" aria-label="График функции"><path class="fn"/></svg>
+        </div>
+        <div class="hx-card">
+          <div class="hx-mono">функция</div>
+          <div class="hx-formula" id="hxFormula"></div>
+          <div id="hxSliders"></div>
+          <p class="hx-note" id="hxNote"></p>
+        </div>
+      </div>
+    </section>
+
+    <section class="hx hx-reveal" aria-labelledby="hxTaskH">
+      <div class="hx-head"><span class="mf-label">Разминка</span>
+        <h2 class="mf-axis-title" id="hxTaskH">Задача и любопытные факты</h2>
+        <p>Каждый день — новая задача. Нажмите на карточку с фактом, чтобы узнать следующий.</p></div>
+      <div class="hx-grid2">
+        <div class="hx-card hx-task" id="hxTask">
+          <div class="hx-row"><span class="hx-mono" id="hxTaskNum">задача дня</span>
+            <button type="button" class="hx-link" id="hxNext">Другая задача →</button></div>
+          <div class="q"></div>
+          <div class="hx-opts"></div>
+          <div class="hx-expl" hidden></div>
+        </div>
+        <div class="hx-facts" style="grid-template-columns:1fr">
+          <div class="hx-card hx-fact" tabindex="0" role="button" aria-label="Следующий факт"><div class="big"></div><p></p></div>
+          <div class="hx-card hx-fact" tabindex="0" role="button" aria-label="Следующий факт"><div class="big"></div><p></p></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="hx hx-reveal" aria-labelledby="hxPathH">
+      <div class="hx-head"><span class="mf-label">Программа</span>
+        <h2 class="mf-axis-title" id="hxPathH">С 1 по 11 класс</h2>
+        <p>От счёта на пальцах до интегралов — каждая тема с объяснением, почему она устроена именно так.</p></div>
+      <div class="hx-path"><a class="hx-card hx-step" href="/spravochnik/" data-nav-page="reference"><div class="n">1–4<small>класс</small></div><p>Счёт, дроби, первые фигуры и задачи на логику.</p></a><a class="hx-card hx-step" href="/spravochnik/" data-nav-page="reference"><div class="n">5–6<small>класс</small></div><p>Делимость, проценты, отрицательные числа, координаты.</p></a><a class="hx-card hx-step" href="/spravochnik/" data-nav-page="reference"><div class="n">7<small>класс</small></div><p>Линейные функции, уравнения, треугольники.</p></a><a class="hx-card hx-step" href="/spravochnik/" data-nav-page="reference"><div class="n">8<small>класс</small></div><p>Квадратные уравнения, корни, теорема Пифагора.</p></a><a class="hx-card hx-step" href="/spravochnik/" data-nav-page="reference"><div class="n">9<small>класс</small></div><p>Прогрессии, неравенства, векторы, вероятность.</p></a><a class="hx-card hx-step" href="/spravochnik/" data-nav-page="reference"><div class="n">10<small>класс</small></div><p>Тригонометрия, производная, стереометрия.</p></a><a class="hx-card hx-step" href="/spravochnik/" data-nav-page="reference"><div class="n">11<small>класс</small></div><p>Интегралы, логарифмы, тела вращения, ЕГЭ.</p></a></div>
+    </section>
+
+    <section class="hx hx-reveal">
+      <div class="hx-card hx-cta">
+        <span class="mf-label">Начать</span>
+        <h2>Готовы понять, а не запомнить?</h2>
+        <p>Откройте любую тему справочника, задайте вопрос AI‑агенту или соберите свою сцену в песочнице.</p>
+        <div class="acts">
+          <a href="/spravochnik/" class="btn btn-primary" data-nav-page="reference">Открыть справочник</a>
+          <a href="/ai-agent/" class="btn btn-outline" data-nav-page="ai-agent">Спросить AI‑агента</a>
+          <a href="#" class="btn" id="hxRegister">Регистрация</a>
+        </div>
+      </div>
+    </section>
   </main>
 
   <div id="app-footer"></div>
@@ -381,6 +443,7 @@
   <script src="/assets/js/auth.js"></script>
   <script src="/assets/js/common.js"></script>
   <script src="/assets/js/home-tools.js"></script>
+  <script src="/assets/js/home-extra.js"></script>
 
   <script>
   /* Логотип подстраивается под тему. Если файла нет — onerror в разметке
