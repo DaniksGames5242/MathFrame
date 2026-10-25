@@ -75,7 +75,7 @@
 
   --text-primary:   #e9eef9;
   --text-secondary: #93a3c0;
-  --text-tertiary:  #66748f;
+  --text-tertiary:  #7886a3;
 
   --bg-body:   var(--mf-ink-0);
   --bg-card:   rgba(12, 17, 32, 0.66);
@@ -147,7 +147,7 @@ html.light {
 
   --text-primary:   #101728;
   --text-secondary: #4a5773;
-  --text-tertiary:  #7d89a3;
+  --text-tertiary:  #5f6d89;
 
   --bg-body:   var(--mf-ink-0);
   --bg-card:   rgba(255, 255, 255, 0.76);

@@ -5428,7 +5428,7 @@
                 <!-- Низ: фильтры и параметры -->
                 <div class="spr-sidebar-bottom">
                   <div class="spr-filters">
-                    <select id="sprClassFilter">
+                    <select id="sprClassFilter" aria-label="Фильтр по классу">
                       <option value="all">Все классы</option>
                       <option value="1">1 класс</option>
                       <option value="2">2 класс</option>
@@ -5443,7 +5443,7 @@
                       <option value="11">11 класс</option>
                       <option value="other">Не проходят в школе</option>
                     </select>
-                    <select id="sprTypeFilter">
+                    <select id="sprTypeFilter" aria-label="Фильтр по типу">
                       <option value="all">Все типы</option>
                       <option value="folder">Папки</option>
                       <option value="topic">Темы</option>
@@ -5451,7 +5451,7 @@
                       <option value="proof">Доказательства</option>
                       <option value="example">Примеры</option>
                     </select>
-                    <select id="sprSortMode">
+                    <select id="sprSortMode" aria-label="Сортировка тем">
                       <option value="default">По умолчанию</option>
                       <option value="class-asc">По классу (возр.)</option>
                       <option value="class-desc">По классу (убыв.)</option>
@@ -5483,7 +5483,7 @@
               </div>
             </aside>
 
-            <main class="spr-content" id="sprContent">
+            <div class="spr-content" id="sprContent" role="region" aria-label="Тема справочника">
               <div class="spr-content-inner" id="sprContentInner">
                 <div id="sprTopicView" hidden>
                   <div class="spr-topbar">
@@ -5524,7 +5524,7 @@
                 </div>
                 <div class="spr-empty-state" id="sprEmptyState" hidden></div>
               </div>
-            </main>
+            </div>
           </div>
         `;
 

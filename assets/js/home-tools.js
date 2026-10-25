@@ -598,7 +598,10 @@
 
     grid.querySelectorAll('.section-card[data-tool]').forEach(function (card) {
       card.setAttribute('tabindex', '0');
-      card.setAttribute('role', 'button');
+      // внутри карточки есть ссылка — роль button с вложенной интерактивностью недопустима
+      card.setAttribute('role', 'group');
+      var h = card.querySelector('h3');
+      if (h) card.setAttribute('aria-label', h.textContent.replace(/\s+/g, ' ').trim());
       card.addEventListener('keydown', function (e) {
         if (e.key === 'Enter' || e.key === ' ') {
           if (e.target !== card) return;
