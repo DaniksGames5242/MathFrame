@@ -1,0 +1,27 @@
+name: Проверки
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Синтаксис серверных функций
+        run: for f in api/*.js; do node --check "$f"; done
+      - name: Конфигурация Vercel (JSON)
+        run: node -e "JSON.parse(require('fs').readFileSync('vercel.json','utf8'))"
+      - name: Данные справочника
+        run: node tools/check-data.mjs
+      - name: Все интерактивные примеры собираются
+        run: node tools/check-examples.mjs
+      - name: Решатель алгебры
+        run: node tools/alg-solver/test.cjs
+      - name: Решатель геометрии
+        run: node tools/geo-solver/test.mjs
