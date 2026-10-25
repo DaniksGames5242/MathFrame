@@ -5,41 +5,61 @@
 
   /* ---------- живой график ---------- */
   var FN = {
-    parab: { f: 'y = a·(x − b)² + c', p: [['a', -2, 2, .1, 1], ['b', -4, 4, .1, 0], ['c', -4, 4, .1, -1]],
+    parab: { f: 'y = a·(x − b)² + c', p: [['a', -2, 2, .01, 1], ['b', -4, 4, .01, 0], ['c', -4, 4, .01, -1]],
       y: function (x, a, b, c) { return a * (x - b) * (x - b) + c; },
+      vx: function (v) { return v[1]; },
       note: 'a — «ширина» и направление ветвей, b и c сдвигают вершину.' },
-    sin: { f: 'y = a·sin(b·x + c)', p: [['a', -3, 3, .1, 2], ['b', .2, 4, .1, 1], ['c', -3.14, 3.14, .01, 0]],
+    sin: { f: 'y = a·sin(b·x + c)', p: [['a', -3, 3, .01, 2], ['b', .2, 4, .01, 1], ['c', -3.14, 3.14, .01, 0]],
       y: function (x, a, b, c) { return a * Math.sin(b * x + c); },
       note: 'a — амплитуда, b меняет период 2π/b, c — фазовый сдвиг.' },
-    lin: { f: 'y = a·x + b', p: [['a', -4, 4, .1, .5], ['b', -4, 4, .1, 1]],
+    lin: { f: 'y = a·x + b', p: [['a', -4, 4, .01, .5], ['b', -4, 4, .01, 1]],
       y: function (x, a, b) { return a * x + b; },
       note: 'a — угловой коэффициент (тангенс угла наклона), b — точка на оси y.' },
-    exp: { f: 'y = a · bˣ', p: [['a', -3, 3, .1, 1], ['b', .1, 3, .05, 1.5]],
+    exp: { f: 'y = a · bˣ', p: [['a', -3, 3, .01, 1], ['b', .1, 3, .01, 1.5]],
       y: function (x, a, b) { return a * Math.pow(b, x); },
       note: 'При b > 1 функция растёт, при 0 < b < 1 — убывает, при b = 1 — постоянна.' }
   };
   var plot = $('#hxPlot');
   if (plot) {
     var svg = $('svg', plot), path = $('.fn', svg), sl = $('#hxSliders'), fx = $('#hxFormula'), note = $('#hxNote');
-    var W = 400, H = 260, S = 25, cur = 'parab';
+    var W = 400, H = 260, S = 25, cur = '';
     var g = '';
     for (var i = 0; i <= W; i += S) g += '<line class="gr" x1="' + i + '" y1="0" x2="' + i + '" y2="' + H + '"/>';
     for (var j = 5; j <= H; j += S) g += '<line class="gr" x1="0" y1="' + j + '" x2="' + W + '" y2="' + j + '"/>';
     g += '<line class="ax" x1="0" y1="' + H / 2 + '" x2="' + W + '" y2="' + H / 2 + '"/><line class="ax" x1="' + W / 2 + '" y1="0" x2="' + W / 2 + '" y2="' + H + '"/>';
     svg.insertAdjacentHTML('afterbegin', g);
-    var draw = function () {
-      var d = FN[cur], v = [].map.call(sl.querySelectorAll('input'), function (n) { return +n.value; }), pts = [];
-      for (var px = 0; px <= W; px += 2) {
-        var x = (px - W / 2) / S, y = d.y.apply(null, [x].concat(v)), py = H / 2 - y * S;
-        if (!isFinite(py)) continue;
-        pts.push((pts.length ? 'L' : 'M') + px + ' ' + Math.max(-500, Math.min(H + 500, py)).toFixed(1));
+    /* Значения плавно догоняют ползунки (rAF), график строится по каждому пикселю. */
+    var shown = null, raf = 0, dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    dot.setAttribute('class', 'dot'); dot.setAttribute('r', 4.5); svg.appendChild(dot);
+    var target = function () { return [].map.call(sl.querySelectorAll('input'), function (n) { return +n.value; }); };
+    var render = function (v) {
+      var d = FN[cur], pts = [], pen = false;
+      for (var px = 0; px <= W; px += 1) {
+        var x = (px - W / 2) / S, py = H / 2 - d.y.apply(null, [x].concat(v)) * S;
+        if (!isFinite(py) || py < -H || py > 2 * H) { pen = false; continue; }
+        pts.push((pen ? 'L' : 'M') + px + ' ' + py.toFixed(2)); pen = true;
       }
       path.setAttribute('d', pts.join(''));
-      [].forEach.call(sl.querySelectorAll('output'), function (o, k) { o.textContent = v[k].toFixed(2).replace(/\.?0+$/, '') || '0'; });
+      var vy = H / 2 - d.y.apply(null, [d.vx ? d.vx(v) : 0].concat(v)) * S;
+      dot.setAttribute('cx', W / 2 + (d.vx ? d.vx(v) : 0) * S); dot.setAttribute('cy', vy);
+      dot.style.opacity = vy > 0 && vy < H ? 1 : 0;
+      [].forEach.call(sl.querySelectorAll('output'), function (o, k) { o.textContent = (+target()[k].toFixed(2)).toString().replace('.', ','); });
     };
+    var tick = function () {
+      var t = target(), done = true;
+      shown = shown && shown.length === t.length ? shown : t.slice();
+      for (var k = 0; k < t.length; k++) {
+        var diff = t[k] - shown[k];
+        if (Math.abs(diff) > 1e-4) { shown[k] += diff * .22; done = false; } else shown[k] = t[k];
+      }
+      render(shown);
+      raf = done ? 0 : requestAnimationFrame(tick);
+    };
+    var draw = function () { if (!raf) raf = requestAnimationFrame(tick); };
     var pick = function (k) {
-      cur = k; var d = FN[k];
-      fx.textContent = d.f; note.textContent = d.note;
+      var first = !cur || cur === k && !sl.children.length; cur = k; var d = FN[k];
+      fx.classList.add('sw'); setTimeout(function () { fx.textContent = d.f; fx.classList.remove('sw'); }, first ? 0 : 200);
+      note.textContent = d.note; shown = null;
       sl.innerHTML = d.p.map(function (p) {
         return '<div class="hx-sl"><label for="hx-' + p[0] + '">' + p[0] + '</label><input id="hx-' + p[0] + '" type="range" min="' + p[1] + '" max="' + p[2] + '" step="' + p[3] + '" value="' + p[4] + '"><output></output></div>';
       }).join('');
@@ -90,7 +110,7 @@
 
   /* ---------- факты ---------- */
   var FACTS = [
-    ['e^(iπ) + 1 = 0', 'Тождество Эйлера связывает пять главных констант математики.'],
+    ['e<sup>iπ</sup> + 1 = 0', 'Тождество Эйлера связывает пять главных констант математики.'],
     ['π ≈ 3,14159…', 'Знаки π никогда не повторяются периодически: число иррационально.'],
     ['23', 'Уже в группе из 23 человек вероятность совпадения дней рождения больше 50 %.'],
     ['∞ ≠ ∞', 'Действительных чисел «больше», чем натуральных — доказал Кантор диагональным методом.'],
@@ -105,7 +125,7 @@
     var fi = Math.floor(Math.random() * FACTS.length);
     var put = function (el) {
       var f = FACTS[fi++ % FACTS.length];
-      $('.big', el).textContent = f[0]; $('p', el).textContent = f[1];
+      $('.big', el).innerHTML = f[0]; $('p', el).textContent = f[1];
       el.classList.remove('flip'); void el.offsetWidth; el.classList.add('flip');
     };
     [].forEach.call(facts, function (el) {
@@ -125,6 +145,15 @@
   } else [].forEach.call(rv, function (n) { n.classList.add('in'); });
 
   /* кнопка регистрации в финальном блоке повторяет верхнюю */
-  var cr = $('#hxRegister');
-  if (cr) cr.addEventListener('click', function (e) { e.preventDefault(); var r = $('#registerBtn'); if (r) r.click(); });
+  /* и прячется вместе с ней, когда пользователь вошёл */
+  var cr = $('#hxRegister'), rb = $('#registerBtn');
+  if (cr && rb) {
+    cr.addEventListener('click', function (e) { e.preventDefault(); rb.click(); });
+    var sync = function () { cr.style.display = rb.style.display === 'none' ? 'none' : ''; };
+    sync(); new MutationObserver(sync).observe(rb, { attributes: true, attributeFilter: ['style'] });
+  }
+  /* порядковые задержки появления карточек */
+  [].forEach.call(document.querySelectorAll('.hx-reveal'), function (sec) {
+    [].forEach.call(sec.querySelectorAll('.hx-card'), function (c, i) { if (!c.style.getPropertyValue('--i')) c.style.setProperty('--i', i); });
+  });
 })();

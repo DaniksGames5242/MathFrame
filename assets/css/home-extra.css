@@ -50,13 +50,19 @@
 .hx-fact.flip{animation:hxFlip .45s var(--e-out)}
 @keyframes hxFlip{0%{opacity:0;transform:rotateX(70deg)}100%{opacity:1;transform:none}}
 
-/* путь по классам */
-.hx-path{display:flex;gap:.6rem;overflow-x:auto;padding:.4rem .1rem 1rem;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch}
-.hx-step{flex:0 0 190px;scroll-snap-align:start;text-decoration:none;color:inherit;position:relative}
-.hx-step .n{font-family:var(--font-display);font-size:2rem;font-weight:700;color:var(--accent)}
-.hx-step .n small{font-size:.8rem;color:var(--text-tertiary);font-weight:400;margin-left:.3rem}
-.hx-step p{margin:.3rem 0 0;font-size:.9rem;color:var(--text-secondary)}
-.hx-step:hover{border-color:var(--accent)}
+/* темы: школа + вуз, без прокрутки */
+.hx-group{margin:1.2rem 0 .6rem}
+.hx-path{display:grid;grid-template-columns:repeat(4,1fr);gap:.8rem}
+.hx-step{text-decoration:none;color:inherit;position:relative;padding:1.1rem;overflow:hidden;
+  transition:transform .35s var(--e-spring),border-color .25s,box-shadow .35s}
+.hx-step::after{content:'';position:absolute;inset:auto 0 0 0;height:3px;background:var(--accent);transform:scaleX(0);transform-origin:left;transition:transform .4s var(--e-out)}
+.hx-step:hover{transform:translateY(-5px);border-color:var(--accent);box-shadow:0 12px 30px -12px var(--accent-glow)}
+.hx-step:hover::after{transform:scaleX(1)}
+.hx-step .n{font-family:var(--font-display);font-size:1.7rem;font-weight:700;color:var(--accent);line-height:1.1}
+.hx-step.uni .n{font-family:var(--font-math);color:var(--accent-2)}
+.hx-step.uni::after{background:var(--accent-2)}
+.hx-step .n small{display:block;font-family:var(--font-mono);font-size:.62rem;letter-spacing:.1em;text-transform:uppercase;color:var(--text-tertiary);font-weight:400;margin-top:.25rem}
+.hx-step p{margin:.5rem 0 0;font-size:.85rem;line-height:1.45;color:var(--text-secondary)}
 
 /* призыв */
 .hx-cta{text-align:center;padding:2.4rem 1.4rem;background:
@@ -66,9 +72,35 @@
 .hx-cta .acts{display:flex;gap:.7rem;justify-content:center;flex-wrap:wrap}
 
 /* появление при прокрутке */
-.hx-reveal{opacity:0;transform:translateY(18px);transition:opacity .7s var(--e-out),transform .7s var(--e-out)}
-.hx-reveal.in{opacity:1;transform:none}
 @media (prefers-reduced-motion:reduce){.hx-reveal{opacity:1;transform:none;transition:none}}
 
+
 @media (max-width:900px){.hx-grid2{grid-template-columns:1fr}.hx-facts{grid-template-columns:1fr}}
-@media (max-width:640px){.hx-card{padding:1.1rem}.hx-opts{grid-template-columns:1fr 1fr}.hx-fact{min-height:0}.hx-cta .acts .btn{flex:1 1 100%}}
+@media (max-width:640px){.hx-card{padding:1.1rem}.hx-opts{grid-template-columns:1fr 1fr}.hx-fact{min-height:0}.hx-cta .acts .btn{flex:1 1 100%}.hx-path{grid-template-columns:1fr 1fr;gap:.55rem}.hx-step{padding:.9rem}.hx-step .n{font-size:1.45rem}.hx-step p{font-size:.8rem}.hx-tab{flex:1 1 calc(50% - .4rem);min-height:40px}.hx-opt{min-height:48px}.hx-sl input{min-height:36px}}
+
+/* ---- анимации ---- */
+.hx-reveal .hx-card,.hx-reveal .hx-head>*{opacity:0;transform:translateY(22px) scale(.98);
+  transition:opacity .7s var(--e-out),transform .8s var(--e-spring);transition-delay:calc(var(--i,0)*70ms + 80ms)}
+.hx-reveal.in .hx-card,.hx-reveal.in .hx-head>*{opacity:1;transform:none}
+.hx-reveal.in .hx-step:hover{transform:translateY(-5px)}
+.hx-reveal{opacity:1;transform:none}
+.hx-plot .fn{stroke-dasharray:1600;stroke-dashoffset:1600}
+.hx-reveal.in .hx-plot .fn{animation:hxDraw 1.6s var(--e-out) .3s forwards}
+@keyframes hxDraw{to{stroke-dashoffset:0}}
+.hx-plot .dot{fill:var(--accent);filter:drop-shadow(0 0 6px var(--accent-glow))}
+.hx-formula{transition:opacity .25s}
+.hx-formula.sw{opacity:0}
+.hx-opt.ok{animation:hxPop .5s var(--e-spring)}
+@keyframes hxPop{40%{transform:scale(1.06)}}
+.hx-expl{animation:hxIn .45s var(--e-out)}
+@keyframes hxIn{from{opacity:0;transform:translateY(-6px)}}
+.hx-cta{position:relative;overflow:hidden}
+.hx-cta::before{content:'π ∑ ∫ √ ∞ φ Δ ∂ λ θ';position:absolute;inset:0;font-family:var(--font-math);font-size:3.2rem;
+  letter-spacing:2.4rem;line-height:5rem;color:var(--accent);opacity:.06;white-space:normal;word-break:break-all;
+  animation:hxDrift 26s linear infinite;pointer-events:none}
+@keyframes hxDrift{to{transform:translateY(-5rem)}}
+.hx-cta>*{position:relative}
+.hx-cta .btn-primary{animation:hxPulse 2.8s var(--e-inout) infinite}
+@keyframes hxPulse{0%,100%{box-shadow:0 0 0 0 var(--accent-glow)}50%{box-shadow:0 0 0 10px transparent}}
+@media (prefers-reduced-motion:reduce){.hx-reveal .hx-card,.hx-reveal .hx-head>*{opacity:1;transform:none;transition:none}
+  .hx-plot .fn{stroke-dasharray:none;animation:none!important}.hx-cta::before,.hx-cta .btn-primary{animation:none}}
