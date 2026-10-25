@@ -3,7 +3,7 @@
    Подключается из common.js; в админке и настольном приложении не работает. */
 (function () {
   'use strict';
-  var METRIKA_ID = 0;
+  var METRIKA_ID = 113787817;
 
   var KEY = 'mf-consent';
   if (!METRIKA_ID || window.MF_DESKTOP || /^\/(admin|pages\/admin)\//.test(location.pathname)) return;
@@ -18,7 +18,7 @@
       m[i] = m[i] || function () { (m[i].a = m[i].a || []).push(arguments); };
       m[i].l = 1 * new Date();
       k = e.createElement(t); a = e.getElementsByTagName(t)[0]; k.async = 1; k.src = r; a.parentNode.insertBefore(k, a);
-    })(window, document, 'script', 'https://mc.yandex.ru/metrika/tag.js', 'ym');
+    })(window, document, 'script', 'https://mc.yandex.ru/metrika/tag.js?id=113787817', 'ym');
     window.ym(METRIKA_ID, 'init', { clickmap: true, trackLinks: true, accurateTrackBounce: true, webvisor: false });
   }
 
