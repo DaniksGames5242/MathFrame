@@ -825,7 +825,13 @@
         const ne = P(1, -1), nn = P(0, -1);
         out.push({ id: 'del', x: ne.x + (up.x + rt.x) * 18 * S, y: ne.y + (up.y + rt.y) * 18 * S });
         out.push({ id: 'more', x: ne.x + (up.x + rt.x) * 18 * S + rt.x * 26 * S, y: ne.y + (up.y + rt.y) * 18 * S + rt.y * 26 * S });
-        if (one && one.t === 'point') return out;
+        if (one && one.t === 'point') {
+            // подпись точки стоит справа-сверху — кнопки уводим вниз, чтобы не закрывать её
+            const ps = toScreen(one.x, one.y);
+            out[0] = { id: 'del', x: ps.x + 6 * S, y: ps.y + 24 * S };
+            out[1] = { id: 'more', x: ps.x + 6 * S + 26 * S, y: ps.y + 24 * S };
+            return out;
+        }
         if (one) out.push({ id: 'rot', x: nn.x + up.x * 28 * S, y: nn.y + up.y * 28 * S });
         if (one && one.t === 'solid') { const ss = P(0, 1); out.push({ id: 'r3', x: ss.x - up.x * 30 * S, y: ss.y - up.y * 30 * S }); }
         if (one && GEO[one.t]) getV(one).forEach(([x, y], i) => { const s = toScreen(x, y); out.push({ id: 'v' + i, x: s.x, y: s.y }); });
