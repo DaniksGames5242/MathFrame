@@ -64,7 +64,7 @@
     let items = [];                             // отсортированы по z
     let bg = 'cells';
     let view = { x: 0, y: 0, k: 1 };            // экран = (мир − (x,y)) · k
-    let tool = 'pen', color = 'ink', size = 4;
+    let tool = 'pen', color = 'contrast', size = 4;
     let undo = [], redo = [];
     let cur = null;                             // объект, который рисуется сейчас
     let drag = null;                            // перемещение/масштаб в режиме «Выбор»
@@ -825,11 +825,11 @@
         const ne = P(1, -1), nn = P(0, -1);
         out.push({ id: 'del', x: ne.x + (up.x + rt.x) * 18 * S, y: ne.y + (up.y + rt.y) * 18 * S });
         out.push({ id: 'more', x: ne.x + (up.x + rt.x) * 18 * S + rt.x * 26 * S, y: ne.y + (up.y + rt.y) * 18 * S + rt.y * 26 * S });
-        if (!one || one.t === 'point') return out;
-        out.push({ id: 'rot', x: nn.x + up.x * 28 * S, y: nn.y + up.y * 28 * S });
-        if (one.t === 'solid') { const ss = P(0, 1); out.push({ id: 'r3', x: ss.x - up.x * 30 * S, y: ss.y - up.y * 30 * S }); }
-        if (GEO[one.t]) getV(one).forEach(([x, y], i) => { const s = toScreen(x, y); out.push({ id: 'v' + i, x: s.x, y: s.y }); });
-        if (one.t === 'line' || one.t === 'arrow' || one.t === 'angle' || one.t === 'circle') return out;
+        if (one && one.t === 'point') return out;
+        if (one) out.push({ id: 'rot', x: nn.x + up.x * 28 * S, y: nn.y + up.y * 28 * S });
+        if (one && one.t === 'solid') { const ss = P(0, 1); out.push({ id: 'r3', x: ss.x - up.x * 30 * S, y: ss.y - up.y * 30 * S }); }
+        if (one && GEO[one.t]) getV(one).forEach(([x, y], i) => { const s = toScreen(x, y); out.push({ id: 'v' + i, x: s.x, y: s.y }); });
+        if (one && (one.t === 'line' || one.t === 'arrow' || one.t === 'angle' || one.t === 'circle')) return out;
         const bigW = f.w * view.k > 34 * S, bigH = f.h * view.k > 34 * S;
         for (const [id, dx, dy] of [['nw', -1, -1], ['ne', 1, -1], ['se', 1, 1], ['sw', -1, 1]]) {
             if (!coarse && (f.w * view.k < 2 || f.h * view.k < 2)) break;
@@ -4118,6 +4118,16 @@
         const c = rotPt(f0.cx + (l + r) / 2, f0.cy + (t + b) / 2, f0.cx, f0.cy, f0.rot);
         return { cx: c.x, cy: c.y, w: r - l, h: b - t, rot: f0.rot, sx: f0.w ? (r - l) / f0.w : 1, sy: f0.h ? (b - t) / f0.h : 1 };
     }
+    // масштаб одного объекта вместе с группой: рамка группы f0 → f1
+    function groupApply(b, f0, f1) {
+        const sx = f1.sx, sy = f1.sy, X = (x) => f1.cx + (x - f0.cx) * sx, Y = (y) => f1.cy + (y - f0.cy) * sy;
+        const n = clone(b);
+        if (n.t === 'solid') return n;
+        if (BOX[n.t]) { n.x = X(b.x); n.y = Y(b.y); n.w = b.w * sx; n.h = b.h * sy; return n; }
+        if (n.t === 'rect' || n.t === 'ellipse') { n.x1 = X(b.x1); n.x2 = X(b.x2); n.y1 = Y(b.y1); n.y2 = Y(b.y2); return n; }
+        if (n.t === 'text') { n.s = Math.max(6, b.s * Math.max(sx, sy)); n.x = X(b.x); n.y = Y(b.y); return n; }
+        return applyFrame(b, f0, f1);
+    }
     const KEEP = { img: 1, tex: 1, text: 1, circle: 1 };
     function applyFrame(b, f0, f1) {
         const n = clone(b);
@@ -4210,6 +4220,14 @@
             if (h === 'del') { deleteSelected(); return; }
             if (h === 'more') { pointers.delete(e.pointerId); setTimeout(openSelMenu, 0); return; }   // после всплытия этого же щелчка (иначе меню сразу закрывалось)
             if (h === 'edit') { editItem(one); return; }
+            if (h && !one && sel.length > 1 && /^(nw|ne|se|sw|n|s|e|w)$/.test(h)) {
+                // изменение размера всей выделенной группы
+                const its = selItems(), f0 = groupFrame(its);
+                const HD = { nw: [-1, -1], ne: [1, -1], se: [1, 1], sw: [-1, 1], n: [0, -1], s: [0, 1], e: [1, 0], w: [-1, 0] }[h];
+                drag = { mode: 'gscale', hid: h, befores: its.map(clone), f0, off: { x: f0.cx + HD[0] * f0.w / 2 - w.x, y: f0.cy + HD[1] * f0.h / 2 - w.y }, glue: [], tgts: new Map() };
+                render();
+                return;
+            }
             if (h && one) {
                 const f0 = frameOf(one);
                 if (h === 'r3') {
@@ -4391,6 +4409,11 @@
                 n.rot = r;
             } else n = mapPts(b, (x, y) => rotPt(x, y, f.cx, f.cy, a));
             applyDrag([n]);
+            return;
+        }
+        if (drag.mode === 'gscale') {
+            const f0 = drag.f0, f1 = scaleFrame(f0, drag.hid, { x: w.x + drag.off.x, y: w.y + drag.off.y }, drag.hid.length === 2 && !e.shiftKey);
+            applyDrag(drag.befores.map((b) => groupApply(b, f0, f1)));
             return;
         }
         if (drag.mode === 'scale') {
