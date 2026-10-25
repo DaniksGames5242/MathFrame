@@ -422,8 +422,7 @@ html.bd-fs *{transition-duration:0s!important}
 #bdDlApp a.bd-btn{text-decoration:none}
 #bdDlApp a.bd-os{outline:2px solid var(--accent,#6c8cff);outline-offset:-2px;font-weight:600}
 html.mf-desktop #bdDlApp,html.mf-desktop #app-header,html.mf-desktop #app-footer,html.mf-desktop .bd-love,
-html.mf-desktop #bdShare,html.mf-desktop #bdLeave,html.mf-desktop #bdLead,html.mf-desktop #bdPeople,
-html.mf-desktop #bdBoardsDlg .bd-bsec:not(:nth-child(2)),html.mf-desktop #bdBoardsDlg .bd-dlg-note{display:none!important}
+html:not(.mf-desktop) #bdJoinRow{display:none}
 html.mf-desktop body{padding-top:0!important;min-height:0}
 html.mf-desktop main{max-width:none;padding:0}
 html.mf-desktop .bd{height:100dvh!important;border:0;border-radius:0}
@@ -579,6 +578,10 @@ html.mf-desktop .bd{height:100dvh!important;border:0;border-radius:0}
         <div class="bd-bhead"><h3>Общие</h3><small>на сервере, рисовать вместе по ссылке · <span id="bdCloudCount"></span></small></div>
         <ul class="bd-blist" id="bdCloudList"></ul>
         <button class="mini-btn" id="bdNewCloud">+ Новая общая доска</button>
+      </div>
+      <div class="bd-bsec" id="bdJoinRow">
+        <div class="bd-bhead"><h3>Открыть по ссылке</h3><small>вставьте ссылку на общую доску</small></div>
+        <div class="bd-link-row"><input id="bdJoinLink" placeholder="https://math-frame.vercel.app/board/?b=…" aria-label="Ссылка на общую доску"><button class="mini-btn" id="bdJoinBtn">Открыть</button></div>
       </div>
       <div class="bd-bsec" id="bdRecentWrap" hidden>
         <div class="bd-bhead"><h3>Открытые по ссылке</h3></div>

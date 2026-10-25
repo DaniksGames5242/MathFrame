@@ -4904,7 +4904,6 @@
         $('bdCloudList').innerHTML = '<li class="bd-bnote">Загрузка…</li>';
         $('bdRecentList').innerHTML = '';
         $('bdCloudCount').textContent = '';
-        if (DESK) return;
         let au;
         try { au = await waitUser(); } catch (e) { $('bdCloudList').innerHTML = '<li class="bd-bnote">Сервер недоступен</li>'; return; }
         if (!au.user) {
@@ -4979,6 +4978,15 @@
             catch (e) { syncError(e); } finally { $('bdNewCloud').disabled = false; }
         };
         $('bdClearCur').onclick = () => { $('bdBoardsDlg').hidden = true; clearBoard(); };
+    }
+    if ($('bdJoinBtn')) {
+        const join = () => {
+            const v = $('bdJoinLink').value.trim(), m = v.match(/[?&]b=([A-Za-z0-9]+)/) || v.match(/^([A-Za-z0-9]{10,})$/);
+            if (!m) return toast('Не похоже на ссылку на общую доску');
+            location.href = location.pathname + '?b=' + m[1];
+        };
+        $('bdJoinBtn').onclick = join;
+        $('bdJoinLink').addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') join(); });
     }
     function clearBoard() {
         if (!items.length) { toast('Доска уже пустая'); return; }
@@ -5061,7 +5069,8 @@
         } finally { $('bdShare').disabled = false; }
     }
     function showShare() {
-        const url = location.origin + location.pathname + '?b=' + shared.id;
+        // в приложении адрес mf:// никому не открыть — даём ссылку на сайт; её же можно вставить в «Доски → Открыть по ссылке»
+        const url = (DESK ? 'https://math-frame.vercel.app/board/' : location.origin + location.pathname) + '?b=' + shared.id;
         $('bdLink').value = url;
         $('bdShareDlg').hidden = false;
         $('bdLink').select();
@@ -5324,7 +5333,7 @@
 
     // окна — прямо в <body>: внутри <main> (свой z-index) их перекрывала шапка сайта
     ['bdMathDlg', 'bdShareDlg', 'bdBoardsDlg'].forEach((id) => document.body.appendChild($(id)));
-    const sharedId = DESK ? '' : (params.get('b') || '').replace(/[^A-Za-z0-9]/g, '');
+    const sharedId = (params.get('b') || '').replace(/[^A-Za-z0-9]/g, '');
     (async () => {
     if (!sharedId) await loadLocal(params.get('l')).catch(() => {});
     buildBar();
