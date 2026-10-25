@@ -672,10 +672,12 @@
     }
 
     // ---------- «приятное» перо: переменная толщина (скорость/нажим), сглаживание, сужение концов
-    const inkCache = new Map();
+    const inkCache = new Map(), draftInk = new WeakMap();
     function inkPath(it) {
         const key = it.id ? it.id + ':' + it.p.length + ':' + it.p[0] + ':' + it.p[1] : null;
         if (key && inkCache.has(key)) return inkCache.get(key);
+        // чужой недорисованный штрих (без id): объект меняется только с новым снимком — путь считаем один раз
+        if (!key && it.__d && draftInk.has(it)) return draftInk.get(it);
         let pts = [];
         for (let i = 0; i < it.p.length; i += 2) pts.push([it.p[i], it.p[i + 1], it.pr[i / 2] === undefined ? .5 : it.pr[i / 2]]);
         // сглаживание Чайкина (концы сохраняем)
@@ -714,6 +716,7 @@
             path.moveTo(q[0][0], q[0][1]); path.lineTo(q[1][0], q[1][1]); path.lineTo(q[2][0], q[2][1]); path.lineTo(q[3][0], q[3][1]); path.closePath();
         }
         if (key) { if (inkCache.size > 3000) inkCache.clear(); inkCache.set(key, path); }
+        else if (it.__d) draftInk.set(it, path);
         return path;
     }
 
@@ -5157,6 +5160,7 @@
                 if (ch.doc.id === peerId) return;
                 if (ch.type === 'removed') { shared.peers.delete(ch.doc.id); peerLaser.delete(ch.doc.id); return; }
                 const d = ch.doc.data(), old = shared.peers.get(ch.doc.id);
+                if (d.draft) d.draft.__d = 1;
                 shared.peers.set(ch.doc.id, d);
                 if (d.ls && (!old || old.lsT !== d.lsT)) { peerLaser.set(ch.doc.id, { pts: d.ls, t: Date.now() }); laserLoop(); }
                 if (shared.lead && shared.lead.peer === ch.doc.id && d.vw && (!old || JSON.stringify(old.vw) !== JSON.stringify(d.vw))) leadApply(d);
