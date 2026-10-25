@@ -183,7 +183,7 @@
     {
      "name": "pauseOnDrag",
      "kind": "bool",
-     "default": true
+     "default": false
     },
     {
      "name": "layer",

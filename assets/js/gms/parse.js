@@ -1124,7 +1124,10 @@ function parsePunctirBlock(block, vars) {
             // чертежам (геометрический калькулятор): подпись вершины выносится наружу фигуры.
             const textDirMatch = block.match(/textDir\s*=\s*\(\s*(-?[\d.]+(?:[eE][+-]?\d+)?)\s*,\s*(-?[\d.]+(?:[eE][+-]?\d+)?)\s*\)/);
             const textDir = textDirMatch ? { x: parseFloat(textDirMatch[1]), y: parseFloat(textDirMatch[2]) } : null;
-            const pauseOnDrag = parseBoolField(block, vars, 'pauseOnDrag', true);
+            // По умолчанию Update идёт и пока точку тянут: всё, что от неё зависит (построения,
+            // подписи, ограничения), пересчитывается каждый кадр, а не после отпускания.
+            // pauseOnDrag = true — для точек, которые сценарий сам двигает в Update (анимация).
+            const pauseOnDrag = parseBoolField(block, vars, 'pauseOnDrag', false);
             const layer = parseNumberField(block, vars, 'layer', 40, false);
 
             const collision = parseBoolField(block, vars, 'collision', true);
