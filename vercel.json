@@ -87,6 +87,14 @@
       "destination": "/pages/spravochnik.html"
     },
     {
+      "source": "/spravochnik/:id/",
+      "destination": "/api/topic?id=:id"
+    },
+    {
+      "source": "/sitemap.xml",
+      "destination": "/api/sitemap"
+    },
+    {
       "source": "/forum/",
       "destination": "/pages/forum.html"
     },
@@ -211,6 +219,14 @@
     },
     "api/ai-task.js": {
       "maxDuration": 60
+    },
+    "api/topic.js": {
+      "maxDuration": 30,
+      "includeFiles": "data/topics/config.json"
+    },
+    "api/sitemap.js": {
+      "maxDuration": 30,
+      "includeFiles": "data/topics/config.json"
     },
     "api/forum-moderate.js": {
       "maxDuration": 60
