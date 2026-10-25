@@ -104,3 +104,15 @@
 @keyframes hxPulse{0%,100%{box-shadow:0 0 0 0 var(--accent-glow)}50%{box-shadow:0 0 0 10px transparent}}
 @media (prefers-reduced-motion:reduce){.hx-reveal .hx-card,.hx-reveal .hx-head>*{opacity:1;transform:none;transition:none}
   .hx-plot .fn{stroke-dasharray:none;animation:none!important}.hx-cta::before,.hx-cta .btn-primary{animation:none}}
+
+/* смена задачи */
+.hx-task .q,.hx-task .hx-opts,.hx-task .hx-expl{transition:opacity .26s,transform .26s var(--e-out)}
+.hx-task.out .q,.hx-task.out .hx-opts,.hx-task.out .hx-expl{opacity:0;transform:translateX(-24px)}
+.hx-task.enter .q{animation:hxSlide .45s var(--e-out) both}
+.hx-task.enter .hx-opt{animation:hxSlide .45s var(--e-spring) both}
+.hx-task.enter .hx-opt:nth-child(2){animation-delay:.05s}
+.hx-task.enter .hx-opt:nth-child(3){animation-delay:.1s}
+.hx-task.enter .hx-opt:nth-child(4){animation-delay:.15s}
+@keyframes hxSlide{from{opacity:0;transform:translateX(26px)}}
+#hxNext span{display:inline-block;transition:transform .25s var(--e-out)}
+#hxNext:hover span{transform:translateX(4px)}

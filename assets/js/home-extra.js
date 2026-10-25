@@ -103,7 +103,14 @@
           [].forEach.call(task.querySelectorAll('.hx-opt'), function (x) { x.disabled = true; });
         } else { b.classList.remove('bad'); void b.offsetWidth; b.classList.add('bad'); }
       }
-      if (e.target.closest('#hxNext')) { idx = (idx + 1) % TASKS.length; show(idx); }
+      if (e.target.closest('#hxNext') && !task.classList.contains('out')) {
+        /* старая задача уезжает влево, новая въезжает справа */
+        idx = (idx + 1) % TASKS.length;
+        if (matchMedia('(prefers-reduced-motion: reduce)').matches) return show(idx);
+        task.classList.add('out');
+        setTimeout(function () { show(idx); task.classList.remove('out'); task.classList.add('enter');
+          setTimeout(function () { task.classList.remove('enter'); }, 600); }, 260);
+      }
     });
     show(idx);
   }
