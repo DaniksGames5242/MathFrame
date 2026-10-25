@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<script>/* MathFrame: тема до первого кадра (см. common.js) */(function(){var d=document.documentElement;try{var t=localStorage.getItem('theme');if(t==='light'||(t!=='dark'&&!matchMedia('(prefers-color-scheme: dark)').matches))d.classList.add('light');}catch(e){}})();</script>
+<title>Политика конфиденциальности — MathFrame</title>
+<link rel="icon" href="/favicon.ico" sizes="any" />
+<link rel="icon" type="image/png" sizes="32x32" href="/assets/img/favicon-32.png" />
+<link rel="apple-touch-icon" href="/assets/img/apple-touch-icon.png" />
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="MathFrame" />
+<meta property="og:title" content="Политика конфиденциальности — MathFrame" />
+<meta property="og:description" content="Какие данные собирает MathFrame, зачем и как ими управлять." />
+<meta property="og:url" content="https://math-frame.vercel.app/privacy/" />
+<meta property="og:image" content="https://math-frame.vercel.app/assets/img/og-image.png" />
+<meta name="description" content="Какие данные собирает MathFrame, зачем и как ими управлять." />
+<link rel="canonical" href="https://math-frame.vercel.app/privacy/" />
+<link rel="stylesheet" href="/assets/css/common.css" />
+<style>
+main{max-width:760px;margin:0 auto;padding:1.6rem 1rem 4rem}
+.legal{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r-lg);padding:1.5rem 1.6rem}
+.legal h1{margin:0 0 .3rem;font-size:1.8rem}
+.legal h2{margin:1.6rem 0 .5rem;font-size:1.15rem}
+.legal p,.legal li{line-height:1.6;color:var(--text-secondary)}
+.legal ul{padding-left:1.2rem;margin:.4rem 0}
+.legal a{color:var(--accent)}
+.legal .legal-date{font-size:.85rem;color:var(--text-tertiary);margin:0 0 1rem}
+</style>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
+</head>
+<body data-page="privacy">
+
+<div id="app-header"></div>
+
+<main>
+  <article class="legal">
+    <h1>Политика конфиденциальности</h1>
+    <p class="legal-date">Действует с 25 октября 2026 г.</p>
+    <!-- ЗАПОЛНИТЬ перед запуском: ФИО/наименование и ИНН оператора, при необходимости адрес. Текст — черновик, его стоит показать юристу. -->
+    <p>Эта политика объясняет, какие данные собирает сайт MathFrame (далее — «сайт»), зачем и как ими можно управлять. Оператор данных — владелец сайта; связь: <a href="mailto:mathframe.ru@gmail.com">mathframe.ru@gmail.com</a>.</p>
+
+    <h2>1. Какие данные мы обрабатываем</h2>
+    <ul>
+      <li><b>Аккаунт:</b> адрес электронной почты или номер телефона, имя (ник), фото профиля (если вы входите через сервис, который его передаёт), дата регистрации и последнего входа. Пароль мы не видим и не храним — им управляет сервис авторизации Google Firebase.</li>
+      <li><b>Контент, который вы публикуете:</b> статьи и ответы на форуме, общие доски, сохранённые чаты с ИИ-агентом, заметки и черновики.</li>
+      <li><b>Обращения:</b> текст сообщения в поддержку или об ошибке, указанная почта и имя, ссылка на страницу.</li>
+      <li><b>Запросы к нейросетям:</b> текст, который вы отправляете ИИ-агенту, упрощению объяснений, распознаванию задач и проверке статей форума.</li>
+      <li><b>Статистика посещений:</b> обезличенные счётчики (общее число и число по дням) без привязки к вам.</li>
+      <li><b>Технические данные:</b> IP-адрес и сведения о браузере в журналах хостинга; IP временно используется для ограничения частоты обращений.</li>
+    </ul>
+
+    <h2>2. Зачем</h2>
+    <p>Чтобы работали вход и профиль, форум, общие доски и ИИ-функции; чтобы модерировать публикации и отвечать на обращения; чтобы защитить сайт от злоупотреблений и понимать его общую посещаемость. Рекламных профилей мы не строим и данные не продаём.</p>
+
+    <h2>3. Кому данные передаются</h2>
+    <p>Для работы сайта используются сторонние сервисы, которые обрабатывают данные по нашему поручению:</p>
+    <ul>
+      <li>Google Firebase — вход, база данных (форум, доски, профили) и хранилище файлов;</li>
+      <li>Vercel — хостинг сайта и серверных функций;</li>
+      <li>провайдеры нейросетей — получают текст ваших запросов к ИИ и статей, отправляемых на проверку (без вашей почты и имени);</li>
+      <li>Resend — отправка писем владельцу (обращения в поддержку, уведомления о модерации);</li>
+      <li>CDN (Google, jsDelivr и др.) — загрузка библиотек и шрифтов; им доступен ваш IP-адрес.</li>
+    </ul>
+    <p>Часть этих сервисов находится за пределами России. Отправляя данные, вы соглашаетесь на такую передачу. Государственным органам данные раскрываются только по закону.</p>
+
+    <h2>4. Cookie и локальное хранилище</h2>
+    <p>Сайт не использует рекламные и аналитические cookie. В памяти браузера (localStorage, IndexedDB) хранятся тема оформления, черновики, локальные доски, настройки и сессия входа Firebase. Их можно удалить в настройках браузера — выход из аккаунта и локальные черновики при этом пропадут.</p>
+
+    <h2>5. Публичность форума</h2>
+    <p>Статьи и ответы на форуме видны всем вместе с вашим именем и фото. Не публикуйте там персональные данные — свои и чужие. Общие доски доступны всем, у кого есть ссылка и аккаунт.</p>
+
+    <h2>6. Сроки хранения</h2>
+    <p>Данные аккаунта хранятся, пока он существует. Обращения в поддержку — пока нужны для ответа. Журналы хостинга хранятся ограниченное время по правилам провайдера.</p>
+
+    <h2>7. Ваши права</h2>
+    <p>Вы можете запросить доступ к данным, исправление, удаление или отозвать согласие, написав на <a href="mailto:mathframe.ru@gmail.com">mathframe.ru@gmail.com</a>. Удалить аккаунт можно самостоятельно в настройках профиля (профиль и права удаляются); публикации на форуме удаляются по запросу или самим автором.</p>
+
+    <h2>8. Дети</h2>
+    <p>Сайт рассчитан в том числе на школьников. Если вам меньше 14 лет, регистрируйтесь и публикуйте материалы только с согласия родителей или законных представителей.</p>
+
+    <h2>9. Безопасность</h2>
+    <p>Мы используем защищённое соединение, разграничение прав доступа и проверки на сервере. Но ни один сервис не защищён на 100 %: не публикуйте то, что должно оставаться тайной.</p>
+
+    <h2>10. Изменения</h2>
+    <p>Мы можем обновлять политику; новая версия публикуется на этой странице с новой датой. См. также <a href="/terms/">Пользовательское соглашение</a> и <a href="/forum/#rules">Правила форума</a>.</p>
+
+  </article>
+</main>
+
+<div id="app-footer"></div>
+
+<script>var PAGE_ROOT = '/';</script>
+<script src="/assets/js/auth.js"></script>
+<script src="/assets/js/common.js"></script>
+</body>
+</html>

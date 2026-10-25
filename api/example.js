@@ -5,18 +5,10 @@
 // только перечисляет примеры (GET) — разные файлы, потому что у Vercel
 // имя файла и есть маршрут: /api/example (один) и /api/examples (список).
 //
-// ВАЖНО (безопасность): это НЕ проверяет права вызывающего — сейчас админ-
-// статус гейтится только на клиенте (isAdmin в spravochnik.html), а это не
-// защита: любой человек может открыть devtools и вызвать этот эндпоинт
-// напрямую, в обход кнопок. Прежде чем полагаться на эту функцию в проде,
-// сюда нужно добавить настоящую проверку: например, принимать Firebase
-// ID-token в заголовке Authorization и проверять его через firebase-admin,
-// сверяя email/uid с тем же критерием, что и checkAdmin() на клиенте (email
-// любой из адресов владельцев (см. SUPER_ADMIN_EMAILS в api/chat.js) или документ
-// в admins/{uid} с granted:true).
-// Ниже оставлен помеченный TODO-блок с местом для этой проверки.
+// Доступ: только владелец и администраторы (Firebase ID-токен в Authorization, api/_admin.js).
 
 const { OWNER, REPO, BRANCH, ghHeaders, requireToken } = require('./_github');
+const { requireAdmin } = require('./_admin');
 
 const GITHUB_API = 'https://api.github.com';
 
@@ -39,13 +31,8 @@ async function githubGetFile(path) {
 }
 
 module.exports = async function handler(req, res) {
+  if (!(await requireAdmin(req, res))) return;
   if (!requireToken(res)) return;
-
-  // TODO: проверка прав администратора (см. комментарий в шапке файла).
-  // if (!(await isRequestFromAdmin(req))) {
-  //   res.status(403).json({ ok: false, error: 'Требуются права администратора.' });
-  //   return;
-  // }
 
   try {
     if (req.method === 'POST') {

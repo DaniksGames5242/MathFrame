@@ -3,10 +3,12 @@
 // can offer a visual picker instead of a free-text path field.
 
 const { OWNER, REPO, BRANCH, ghHeaders, requireToken } = require('./_github');
+const { requireAdmin } = require('./_admin');
 
 const EXAMPLES_DIR = 'data/examples';
 
 module.exports = async (req, res) => {
+  if (!(await requireAdmin(req, res))) return;
   if (!requireToken(res)) return;
   if (req.method !== 'GET') {
     res.status(405).json({ error: 'Метод не поддерживается' });

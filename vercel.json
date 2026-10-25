@@ -47,6 +47,16 @@
       "permanent": true
     },
     {
+      "source": "/pages/privacy.html",
+      "destination": "/privacy/",
+      "permanent": true
+    },
+    {
+      "source": "/pages/terms.html",
+      "destination": "/terms/",
+      "permanent": true
+    },
+    {
       "source": "/pages/admin/admin.html",
       "destination": "/admin/",
       "permanent": true
@@ -99,6 +109,14 @@
     {
       "source": "/support/",
       "destination": "/pages/support.html"
+    },
+    {
+      "source": "/privacy/",
+      "destination": "/pages/privacy.html"
+    },
+    {
+      "source": "/terms/",
+      "destination": "/pages/terms.html"
     },
     {
       "source": "/admin/",

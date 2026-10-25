@@ -3,6 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <title>GMS IDE</title>
+<meta name="robots" content="noindex, nofollow" />
+<link rel="icon" href="/favicon.ico" sizes="any" />
 <script>
   // Theme follows the same rules as initTheme() in assets/js/common.js:
   // 'light' / 'dark' are explicit, anything else follows the OS. Runs before
@@ -976,7 +978,7 @@ async function openFileFromRepoPath(path){
   const cached = restoreStateFor(path);
   const toast = showToast('Загрузка примера из справочника: ' + displayName + '…', { spin: true, sticky: true });
   try {
-    const r = await fetch('/api/file?path=' + encodeURIComponent(path));
+    const r = await fetch('/api/file?path=' + encodeURIComponent(path), { headers: await window.Auth.authHeader() });
     if (!r.ok){
       const errBody = await r.json().catch(() => null);
       throw new Error((errBody && errBody.error) || ('HTTP ' + r.status));

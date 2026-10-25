@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <script>/* MathFrame: тема до первого кадра + маска перехода между страницами (см. common.js › PAGE TRANSITIONS) */(function(){var d=document.documentElement;try{var t=localStorage.getItem('theme');if(t==='light'||(t!=='dark'&&!matchMedia('(prefers-color-scheme: dark)').matches))d.classList.add('light');}catch(e){}try{var s=sessionStorage.getItem('mf-veil');if(!s)return;sessionStorage.removeItem('mf-veil');var v=JSON.parse(s),n=performance.getEntriesByType&&performance.getEntriesByType('navigation')[0];if(!v||!v.fill||Date.now()-v.t>8000||(n&&n.type&&n.type!=='navigate'))return;window.__mfVeil=v;d.style.setProperty('--mf-veil-fill',v.fill);d.classList.add('mf-veil-on');setTimeout(function(){d.classList.remove('mf-veil-on')},4000);}catch(e){}})();</script>
 <title>Админ‑панель — MathFrame</title>
+<link rel="icon" href="/favicon.ico" sizes="any" />
 <meta name="robots" content="noindex" />
 
 <link rel="stylesheet" href="/assets/css/common.css" />
@@ -611,13 +612,13 @@
         </div>
         <div class="actions-row"><button class="btn small" id="copyRulesBtn">Скопировать</button></div>
       </div>
-      <p class="adm-note">Проверки в панели — только интерфейс; данные защищают правила Firestore. Ниже — фрагмент, который нужен функциям панели. Сверьте с текущими правилами в консоли и перенесите недостающее (правила других коллекций, например <code>aiSync</code>, оставьте как есть).</p>
+      <p class="adm-note">Проверки в панели — только интерфейс; данные защищают правила Firestore. Ниже — полные правила, они же лежат в <code>firestore.rules</code> в репозитории. Опубликуйте их в консоли Firebase (Firestore → Правила) или командой <code>firebase deploy --only firestore:rules</code>.</p>
       <pre class="rules" id="rulesText">rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     function signedIn() { return request.auth != null; }
     function isSuper() {
-      return signedIn() && request.auth.token.email_verified == true
+      return signedIn() &amp;&amp; request.auth.token.email_verified == true
         &amp;&amp; request.auth.token.email.lower() in ['iagniukovd@gmail.com', 'daniksgames5242@gmail.com',
                                                'mathframe.ru@gmail.com', 'danil.iagniukov@gmail.com'];
     }
@@ -653,27 +654,35 @@ service cloud.firestore {
       allow write: if isSuper();
       allow update: if isAdmin() &amp;&amp; doc == 'site' &amp;&amp; !request.resource.data.diff(resource.data).affectedKeys().hasAny(['maintenance']);
     }
+    function banned() { return exists(/databases/$(database)/documents/bannedUsers/$(request.auth.uid)); }
+
+    // Статьи форума: создаёт и правит текст ТОЛЬКО сервер (api/forum-moderate.js, сервисный аккаунт обходит правила).
+    // Клиент: +1 к просмотрам, автор — выбор лучшего ответа, администратор — всё (закрепление, теги, скрытие).
     match /forumArticles/{id} {
       allow read: if true;
-      allow create: if signedIn() &amp;&amp; request.resource.data.authorUid == request.auth.uid;
-      // автор правит свою статью (но не отметки модерации), любой — только +1 к просмотрам
+      allow create: if false;
       allow update: if isAdmin()
-        || (signedIn() &amp;&amp; resource.data.authorUid == request.auth.uid
-            &amp;&amp; !request.resource.data.diff(resource.data).affectedKeys()
-                 .hasAny(['authorUid', 'views', 'pinned', 'featured', 'hidden', 'moderatedBy', 'moderatedAt']))
+        || (signedIn() &amp;&amp; resource.data.authorUid == request.auth.uid &amp;&amp; onlyChanged(['bestId']))
         || (onlyChanged(['views']) &amp;&amp; request.resource.data.views == resource.data.views + 1);
       allow delete: if isAdmin() || (signedIn() &amp;&amp; resource.data.authorUid == request.auth.uid);
 
       match /replies/{rid} {
         allow read: if true;
-        allow create: if signedIn() &amp;&amp; request.resource.data.authorUid == request.auth.uid;
+        allow create: if signedIn() &amp;&amp; !banned() &amp;&amp; request.resource.data.authorUid == request.auth.uid
+          &amp;&amp; request.resource.data.bodyHTML.size() &lt;= 20000;
         allow update: if isAdmin()
           || (signedIn() &amp;&amp; onlyChanged(['likes', 'dislikes', 'voters']))
           || (signedIn() &amp;&amp; onlyChanged(['deleted', 'bodyHTML']) &amp;&amp; request.resource.data.deleted == true
               &amp;&amp; (resource.data.authorUid == request.auth.uid
                   || get(/databases/$(database)/documents/forumArticles/$(id)).data.authorUid == request.auth.uid));
-        allow delete: if isAdmin();
+        // автор статьи удаляет её вместе с ответами (forum.html), администратор — любой ответ
+        allow delete: if isAdmin()
+          || (signedIn() &amp;&amp; get(/databases/$(database)/documents/forumArticles/$(id)).data.authorUid == request.auth.uid);
       }
+    }
+    // Черновики и апелляции (заблокированные ИИ статьи): только сервер, клиенту закрыто целиком.
+    match /forumDrafts/{id} {
+      allow read, write: if false;
     }
     // Электронная доска (/board/?b=&lt;id&gt;, assets/js/board.js): общие доски — только для вошедших.
     // Создаёт доску владелец (owner = uid); имя и noSolve (кнопка «Решить» у участников) меняет только он, фон — любой участник.

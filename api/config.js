@@ -6,6 +6,7 @@
 
 const zlib = require('zlib');
 const { OWNER, REPO, BRANCH, ghHeaders, requireToken } = require('./_github');
+const { requireAdmin } = require('./_admin');
 
 const CONFIG_PATH = 'data/topics/config.json';
 const CONTENTS_URL = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${CONFIG_PATH}`;
@@ -20,6 +21,7 @@ function readRawBody(req){
 }
 
 async function handler(req, res){
+  if (!(await requireAdmin(req, res))) return;
   if (!requireToken(res)) return;
 
   if (req.method === 'GET') {

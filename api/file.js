@@ -4,10 +4,12 @@
 // this can't be used as a general-purpose repo file reader.
 
 const { OWNER, REPO, BRANCH, ghHeaders, requireToken } = require('./_github');
+const { requireAdmin } = require('./_admin');
 
 const ALLOWED_PREFIX = 'data/';
 
 module.exports = async (req, res) => {
+  if (!(await requireAdmin(req, res))) return;
   if (!requireToken(res)) return;
   if (req.method !== 'GET') {
     res.status(405).json({ error: 'Метод не поддерживается' });

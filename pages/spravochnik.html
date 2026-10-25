@@ -5,6 +5,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <script>/* MathFrame: тема до первого кадра + маска перехода между страницами (см. common.js › PAGE TRANSITIONS) */(function(){var d=document.documentElement;try{var t=localStorage.getItem('theme');if(t==='light'||(t!=='dark'&&!matchMedia('(prefers-color-scheme: dark)').matches))d.classList.add('light');}catch(e){}try{var s=sessionStorage.getItem('mf-veil');if(!s)return;sessionStorage.removeItem('mf-veil');var v=JSON.parse(s),n=performance.getEntriesByType&&performance.getEntriesByType('navigation')[0];if(!v||!v.fill||Date.now()-v.t>8000||(n&&n.type&&n.type!=='navigate'))return;window.__mfVeil=v;d.style.setProperty('--mf-veil-fill',v.fill);d.classList.add('mf-veil-on');setTimeout(function(){d.classList.remove('mf-veil-on')},4000);}catch(e){}})();</script>
   <title>Справочник — MathFrame</title>
+<meta name="description" content="Справочник по математике с интерактивными примерами: темы, теоремы, доказательства для школы и вуза." />
+<link rel="canonical" href="https://math-frame.vercel.app/spravochnik/" />
+<link rel="icon" href="/favicon.ico" sizes="any" />
+<link rel="icon" type="image/png" sizes="32x32" href="/assets/img/favicon-32.png" />
+<link rel="apple-touch-icon" href="/assets/img/apple-touch-icon.png" />
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="MathFrame" />
+<meta property="og:locale" content="ru_RU" />
+<meta property="og:title" content="Справочник — MathFrame" />
+<meta property="og:description" content="Справочник по математике с интерактивными примерами: темы, теоремы, доказательства для школы и вуза." />
+<meta property="og:url" content="https://math-frame.vercel.app/spravochnik/" />
+<meta property="og:image" content="https://math-frame.vercel.app/assets/img/og-image.png" />
+<meta name="twitter:card" content="summary_large_image" />
 
   <link rel="stylesheet" href="/assets/css/common.css" />
 
@@ -7189,7 +7202,7 @@
       async function saveTopicsConfig() {
         const r = await fetch('/api/config', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: Object.assign({ 'Content-Type': 'application/json' }, await window.Auth.authHeader()),
           body: JSON.stringify({ content: topics }),
         });
         const data = await r.json().catch(() => null);
@@ -7205,7 +7218,7 @@
         try {
           const r = await fetch('/api/example', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: Object.assign({ 'Content-Type': 'application/json' }, await window.Auth.authHeader()),
             body: JSON.stringify({ path, content: EXAMPLE_TEMPLATE }),
           });
           const data = await r.json().catch(() => null);
@@ -7229,7 +7242,7 @@
         const path = topic.example;
         if (!window.confirm('Удалить файл примера «' + path + '» из репозитория без возможности восстановления?')) return;
         try {
-          const r = await fetch('/api/example?path=' + encodeURIComponent(path), { method: 'DELETE' });
+          const r = await fetch('/api/example?path=' + encodeURIComponent(path), { method: 'DELETE', headers: await window.Auth.authHeader() });
           const data = await r.json().catch(() => null);
           if (!r.ok || !data || !data.ok) throw new Error((data && data.error) || ('HTTP ' + r.status));
         } catch (e) {

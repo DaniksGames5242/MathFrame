@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /api/
+Disallow: /pages/admin/
+
+Sitemap: https://math-frame.vercel.app/sitemap.xml

@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>Редактор тем справочника</title>
+<meta name="robots" content="noindex, nofollow" />
+<link rel="icon" href="/favicon.ico" sizes="any" />
 <script>
   /* Тема и «анимации выкл.» — те же правила, что initTheme() в common.js
      (сам common.css здесь не подключён: сломал бы полноэкранную раскладку). */
@@ -3131,7 +3133,7 @@
   async function loadFromGitHub(){
     setStatus('Загрузка config.json из GitHub…');
     try {
-      const r = await fetch('/api/config');
+      const r = await fetch('/api/config', { headers: await window.Auth.authHeader() });
       const data = await r.json().catch(() => null);
       if (!r.ok || !data || !Array.isArray(data.content)) {
         throw new Error((data && data.error) || ('HTTP ' + r.status));
@@ -3185,7 +3187,7 @@
   }
   async function postConfig(obj){
     const { body, gzipped } = await gzipJsonBody(obj);
-    const headers = { 'Content-Type': 'application/json' };
+    const headers = Object.assign({ 'Content-Type': 'application/json' }, await window.Auth.authHeader());
     if (gzipped) headers['Content-Encoding'] = 'gzip';
     const r = await fetch('/api/config', { method: 'POST', headers, body });
     const data = await r.json().catch(() => null);
@@ -4171,7 +4173,7 @@
 
     let files = [];
     try {
-      const r = await fetch('/api/examples');
+      const r = await fetch('/api/examples', { headers: await window.Auth.authHeader() });
       const data = await r.json().catch(() => null);
       if (!r.ok || !data || !Array.isArray(data.files)) throw new Error((data && data.error) || ('HTTP ' + r.status));
       files = data.files.map(f => f.path);
@@ -4252,7 +4254,7 @@
 
     try {
       const [source, mod] = await Promise.all([
-        fetch('/api/file?path=' + encodeURIComponent(path)).then(r => {
+        window.Auth.authHeader().then(h => fetch('/api/file?path=' + encodeURIComponent(path), { headers: h })).then(r => {
           if (!r.ok) return r.json().catch(() => null).then(d => { throw new Error((d && d.error) || ('HTTP ' + r.status)); });
           return r.text();
         }),

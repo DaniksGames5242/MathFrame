@@ -98,6 +98,16 @@ const AuthAPI = {
     },
     onAuthChange: (callback) => auth.onAuthStateChanged(callback),
     getCurrentUser: () => auth.currentUser,
+    // Заголовок Authorization для админских вызовов /api/* (config, example, file, examples):
+    // ждёт, пока Firebase определит вход, и отдаёт свежий ID-токен ({} — если не вошли).
+    authHeader: () => new Promise((resolve) => {
+        const done = async (u) => {
+            try { resolve(u ? { Authorization: 'Bearer ' + await u.getIdToken() } : {}); } catch (e) { resolve({}); }
+        };
+        if (auth.currentUser) return done(auth.currentUser);
+        const off = auth.onAuthStateChanged((u) => { off(); done(u); });
+        setTimeout(() => { off(); done(auth.currentUser); }, 5000);
+    }),
 };
 
 window.Auth = AuthAPI;

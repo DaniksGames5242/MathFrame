@@ -923,6 +923,7 @@ function injectAuthModal() {
           </div>
         </label>
         <button type="submit" class="btn primary" id="register-submit">Зарегистрироваться</button>
+        <p class="auth-consent">Регистрируясь, вы принимаете <a href="/terms/" target="_blank" rel="noopener">пользовательское соглашение</a> и даёте согласие на обработку данных по <a href="/privacy/" target="_blank" rel="noopener">политике конфиденциальности</a>.</p>
       </form>
 
       <form id="phone-verify-section" novalidate>
@@ -1814,7 +1815,7 @@ function renderFooter() {
     const footer = document.getElementById('app-footer');
     if (!footer) return;
     footer.innerHTML = `<p>&copy; ${new Date().getFullYear()} MathFrame. Учись математике интерактивно.</p>` +
-        `<p class="mf-footer-links"><a href="/support/">Поддержка</a> · <a href="/forum/#rules">Правила форума</a></p>` +
+        `<p class="mf-footer-links"><a href="/support/">Поддержка</a> · <a href="/forum/#rules">Правила форума</a> · <a href="/privacy/">Конфиденциальность</a> · <a href="/terms/">Соглашение</a></p>` +
         mfContactHTML('mf-contact--footer');
     // Другие места с контактами (например, боковая панель AI-агента, где подвала нет)
     document.querySelectorAll('[data-mf-contact]').forEach(slot => {

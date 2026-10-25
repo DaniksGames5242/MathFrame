@@ -1,0 +1,115 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function isSuper() {
+      return signedIn() && request.auth.token.email_verified == true
+        && request.auth.token.email.lower() in ['iagniukovd@gmail.com', 'daniksgames5242@gmail.com',
+                                               'mathframe.ru@gmail.com', 'danil.iagniukov@gmail.com'];
+    }
+    function isAdmin() {
+      return isSuper() || (signedIn()
+        && exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+        && get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.granted == true);
+    }
+    function onlyChanged(keys) { return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys); }
+
+    // Профили: свой — сам пользователь (common.js › syncUserProfile), все — администраторы
+    match /users/{uid} {
+      allow read: if request.auth.uid == uid || isAdmin();
+      allow create, update: if request.auth.uid == uid;
+      allow delete: if request.auth.uid == uid || isSuper();
+    }
+    // Права: свой документ читает сам пользователь (так api/chat.js проверяет роль)
+    match /admins/{uid} {
+      allow read: if request.auth.uid == uid || isAdmin();
+      allow write: if isSuper();
+    }
+    match /bannedUsers/{uid} {
+      allow read: if request.auth.uid == uid || isAdmin();
+      allow write: if isSuper();
+    }
+    match /stats/visits {
+      allow read: if isAdmin();
+      allow write: if true;   // счётчик посещений пишет каждый посетитель (increment)
+    }
+    // Настройки: баннер и техработы читают все; баннер меняет любой админ, остальное — владелец
+    match /settings/{doc} {
+      allow read: if true;
+      allow write: if isSuper();
+      allow update: if isAdmin() && doc == 'site' && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['maintenance']);
+    }
+    function banned() { return exists(/databases/$(database)/documents/bannedUsers/$(request.auth.uid)); }
+
+    // Статьи форума: создаёт и правит текст ТОЛЬКО сервер (api/forum-moderate.js, сервисный аккаунт обходит правила).
+    // Клиент: +1 к просмотрам, автор — выбор лучшего ответа, администратор — всё (закрепление, теги, скрытие).
+    match /forumArticles/{id} {
+      allow read: if true;
+      allow create: if false;
+      allow update: if isAdmin()
+        || (signedIn() && resource.data.authorUid == request.auth.uid && onlyChanged(['bestId']))
+        || (onlyChanged(['views']) && request.resource.data.views == resource.data.views + 1);
+      allow delete: if isAdmin() || (signedIn() && resource.data.authorUid == request.auth.uid);
+
+      match /replies/{rid} {
+        allow read: if true;
+        allow create: if signedIn() && !banned() && request.resource.data.authorUid == request.auth.uid
+          && request.resource.data.bodyHTML.size() <= 20000;
+        allow update: if isAdmin()
+          || (signedIn() && onlyChanged(['likes', 'dislikes', 'voters']))
+          || (signedIn() && onlyChanged(['deleted', 'bodyHTML']) && request.resource.data.deleted == true
+              && (resource.data.authorUid == request.auth.uid
+                  || get(/databases/$(database)/documents/forumArticles/$(id)).data.authorUid == request.auth.uid));
+        // автор статьи удаляет её вместе с ответами (forum.html), администратор — любой ответ
+        allow delete: if isAdmin()
+          || (signedIn() && get(/databases/$(database)/documents/forumArticles/$(id)).data.authorUid == request.auth.uid);
+      }
+    }
+    // Черновики и апелляции (заблокированные ИИ статьи): только сервер, клиенту закрыто целиком.
+    match /forumDrafts/{id} {
+      allow read, write: if false;
+    }
+    // Электронная доска (/board/?b=<id>, assets/js/board.js): общие доски — только для вошедших.
+    // Создаёт доску владелец (owner = uid); имя и noSolve (кнопка «Решить» у участников) меняет только он, фон — любой участник.
+    // Лимиты (10 досок на пользователя, 5000 объектов / 5 МБ на доску, без лимитов у админов)
+    // проверяет клиент; здесь — вход, владелец и размер одного объекта (картинка до ~1 МБ).
+    match /boards/{bid} {
+      function board() { return get(/databases/$(database)/documents/boards/$(bid)).data; }
+      // рисовать можно, если владелец не включил «только просмотр» (mode == 'view'), либо это сам владелец
+      function canDraw() { return signedIn() && exists(/databases/$(database)/documents/boards/$(bid))
+        && (board().get('mode', 'edit') != 'view' || board().owner == request.auth.uid); }
+      allow read: if signedIn();
+      allow create: if signedIn() && bid.size() >= 16
+        && request.resource.data.owner == request.auth.uid
+        && request.resource.data.keys().hasOnly(['bg', 'name', 'createdAt', 'updatedAt', 'owner'])
+        && (!('name' in request.resource.data) || request.resource.data.name.size() <= 80);
+      // участники: фон, листы, ведущий урока; владелец — ещё название, «Решить» у участников и режим
+      allow update: if signedIn() && (
+        (onlyChanged(['bg', 'pages', 'updatedAt']) && (resource.data.get('mode', 'edit') != 'view' || resource.data.owner == request.auth.uid))
+        || onlyChanged(['lead', 'updatedAt'])
+        || (resource.data.owner == request.auth.uid && onlyChanged(['name', 'noSolve', 'mode', 'bg', 'pages', 'lead', 'updatedAt'])
+            && (!('name' in request.resource.data) || request.resource.data.name.size() <= 80)));
+      allow delete: if isSuper() || (signedIn() && resource.data.owner == request.auth.uid);
+      match /items/{iid} {
+        allow read: if signedIn();
+        allow write: if canDraw();
+      }
+      match /peers/{pid} {
+        allow read: if signedIn();
+        allow write: if signedIn() && exists(/databases/$(database)/documents/boards/$(bid));
+      }
+    }
+    // Редактор иерархии (/admin/hierarchy-editor/): настройки ИИ и задание автогенерации
+    // синхронизируются между устройствами через aiSync/{uid} — только сам владелец.
+    match /aiSync/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+    // AI-чаты: владелец — полностью; администраторы — только чтение (статистика в панели)
+    match /aiChats/{uid}/chats/{chatId} {
+      allow read, write: if request.auth.uid == uid;
+    }
+    match /{path=**}/chats/{chatId} {
+      allow read: if isAdmin();
+    }
+  }
+}
