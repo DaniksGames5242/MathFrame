@@ -697,7 +697,9 @@ service cloud.firestore {
       // рисовать можно, если владелец не включил «только просмотр» (mode == 'view'), либо это сам владелец
       function canDraw() { return signedIn() &amp;&amp; exists(/databases/$(database)/documents/boards/$(bid))
         &amp;&amp; (board().get('mode', 'edit') != 'view' || board().owner == request.auth.uid); }
-      allow read: if signedIn();
+      // открыть доску можно по ссылке (get); перечислить доски — только свои (запрос where owner == uid)
+      allow get: if signedIn();
+      allow list: if signedIn() &amp;&amp; resource.data.owner == request.auth.uid;
       allow create: if signedIn() &amp;&amp; bid.size() &gt;= 16
         &amp;&amp; request.resource.data.owner == request.auth.uid
         &amp;&amp; request.resource.data.keys().hasOnly(['bg', 'name', 'createdAt', 'updatedAt', 'owner'])

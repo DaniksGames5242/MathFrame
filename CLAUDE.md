@@ -41,3 +41,4 @@
 - Страницы тем для поисковиков: `/spravochnik/<id>/` (`api/topic.js`), карта сайта `/sitemap.xml` (`api/sitemap.js`). Домен — переменная Vercel `SITE_URL`; в статических страницах (`canonical`, `og`) домен прописан вручную.
 - Аналитика: номер счётчика Яндекс.Метрики — константа `METRIKA_ID` в `assets/js/analytics.js` (0 = выключено, баннер согласия не показывается).
 - Письма: чтобы они уходили не только владельцу аккаунта Resend, подтвердите свой домен в Resend и задайте `MAIL_FROM` (например `MathFrame <noreply@ваш-домен>`).
+- Правила Firestore проверяются в эмуляторе: `tools/firestore-rules-test` (`npm install && npm test`, нужна Java); тот же прогон — в CI. Меняя `firestore.rules`, добавляйте сценарии в `test.cjs`.

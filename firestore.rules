@@ -82,7 +82,9 @@ service cloud.firestore {
       // рисовать можно, если владелец не включил «только просмотр» (mode == 'view'), либо это сам владелец
       function canDraw() { return signedIn() && exists(/databases/$(database)/documents/boards/$(bid))
         && (board().get('mode', 'edit') != 'view' || board().owner == request.auth.uid); }
-      allow read: if signedIn();
+      // открыть доску можно по ссылке (get); перечислить доски — только свои (запрос where owner == uid)
+      allow get: if signedIn();
+      allow list: if signedIn() && resource.data.owner == request.auth.uid;
       allow create: if signedIn() && bid.size() >= 16
         && request.resource.data.owner == request.auth.uid
         && request.resource.data.keys().hasOnly(['bg', 'name', 'createdAt', 'updatedAt', 'owner'])
