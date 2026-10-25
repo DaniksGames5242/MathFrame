@@ -20,7 +20,8 @@
   const artRef = id => A.db.collection('forumArticles').doc(id);
 
   let view = 'articles';
-  let artFilter = 'all', repFilter = 'all';
+  let artFilter = 'all', repFilter = 'all', apFilter = 'appeals';
+  let appeals = [];
 
   A.registerTab('forum', {
     init() {
@@ -47,6 +48,12 @@
       document.getElementById('artTbody').addEventListener('click', onArticleClick);
       document.getElementById('repTbody').addEventListener('click', onReplyClick);
       document.getElementById('tagsList').addEventListener('click', onTagClick);
+      document.querySelectorAll('#apChips [data-apfilter]').forEach(b => b.addEventListener('click', () => {
+        apFilter = b.dataset.apfilter;
+        document.querySelectorAll('#apChips [data-apfilter]').forEach(x => { x.classList.toggle('active', x === b); x.setAttribute('aria-pressed', x === b); });
+        loadAppeals();
+      }));
+      document.getElementById('apTbody').addEventListener('click', onAppealClick);
       document.getElementById('exportForumCsv').onclick = exportArticlesCsv;
       document.getElementById('exportRepliesCsv').onclick = exportRepliesCsv;
       document.getElementById('exportForumJson').onclick = exportForumJson;
@@ -78,7 +85,79 @@
     document.getElementById('fvTags').textContent = f ? tagStats(f).length : '…';
     if (view === 'articles') renderArticles();
     else if (view === 'replies') renderReplies();
+    else if (view === 'appeals') loadAppeals();
     else renderTags();
+  }
+
+  /* ------------------------------------------------- заблокированные статьи и апелляции
+     Данные — через /api/forum-moderate (forumDrafts закрыта для клиента). */
+  const API_TEXT = { rejected: 'заблокирована', published: 'опубликована' };
+  async function loadAppeals() {
+    const tb = document.getElementById('apTbody');
+    tb.innerHTML = '<tr><td colspan="5" class="muted">Загрузка…</td></tr>';
+    const r = await A.api('/api/forum-moderate', { method: 'POST', body: JSON.stringify({ action: 'admin-list', filter: apFilter }) });
+    if (!r.ok) {
+      tb.innerHTML = '';
+      A.toast('Апелляции: ' + ((r.body && r.body.error) || 'ошибка ' + r.status), 'bad');
+      return;
+    }
+    appeals = r.body.drafts || [];
+    const pending = appeals.filter(d => d.appealStatus === 'pending').length;
+    document.getElementById('fvAppeals').textContent = apFilter === 'appeals' ? appeals.length : pending;
+    renderAppeals();
+  }
+  function appealStatusBadge(d) {
+    if (d.status === 'published') return '<span class="badge feat">опубликована</span>';
+    if (d.appealStatus === 'pending') return '<span class="badge pin">апелляция</span>';
+    if (d.appealStatus === 'declined') return '<span class="badge banned">апелляция отклонена</span>';
+    return '<span class="badge no neutral">' + API_TEXT.rejected + '</span>';
+  }
+  function renderAppeals() {
+    const tb = document.getElementById('apTbody');
+    document.getElementById('apEmpty').style.display = appeals.length ? 'none' : 'block';
+    tb.innerHTML = appeals.map(d => `
+      <tr data-id="${esc(d.id)}">
+        <td class="title-cell"><b>${esc(d.title || 'без названия')}</b>
+          <div class="flags">${d.articleId ? '<span class="topic-ref">правка опубликованной</span>' : ''}${(d.tags || []).map(t => `<span class="tag">#${esc(t)}</span>`).join(' ')}</div></td>
+        <td>${esc(d.authorName || 'Аноним')}<br><small class="muted">${esc(d.authorEmail || '')}</small></td>
+        <td>${esc((d.categories || []).join('; '))}<br><small>${esc(d.reason || '')}</small>${d.appealText ? `<br><small><b>Апелляция:</b> ${esc(d.appealText)}</small>` : ''}</td>
+        <td>${appealStatusBadge(d)}</td>
+        <td class="actions-cell">
+          <button class="btn small" data-act="view">Текст</button>
+          ${d.status !== 'published' ? '<button class="btn small primary" data-act="accept">Одобрить</button>' : ''}
+          ${d.appealStatus === 'pending' ? '<button class="btn small danger" data-act="decline">Отклонить</button>' : ''}
+        </td>
+      </tr>`).join('');
+  }
+  async function onAppealClick(e) {
+    const b = e.target.closest('button[data-act]');
+    if (!b) return;
+    const d = appeals.find(x => x.id === b.closest('tr').dataset.id);
+    if (!d) return;
+    if (b.dataset.act === 'view') {
+      await A.dialog({
+        title: d.title || 'Статья', wide: true,
+        html: `<p class="adm-dlg-text"><small>${esc(d.authorName || 'Аноним')} · ${esc(d.authorEmail || '')} · UID ${esc(d.authorUid || '')}</small></p>
+          <p class="adm-dlg-text"><b>Причина блокировки:</b> ${esc(d.reason || '')}</p>
+          <div class="adm-excerpt" style="max-height:50vh;overflow:auto">${d.bodyHTML ? esc(A.stripHtml(d.bodyHTML)) : ''}</div>`,
+      });
+      return;
+    }
+    const accept = b.dataset.act === 'accept';
+    const r = await A.dialog({
+      title: accept ? 'Одобрить и опубликовать' : 'Отклонить апелляцию',
+      html: `<p class="adm-dlg-text">«${esc(d.title)}» — ${esc(d.authorName || 'Аноним')}.${accept ? ' Статья будет опубликована на форуме как есть.' : ' Статья останется в черновиках автора.'}</p>
+        <label class="adm-field"><span>Комментарий для автора (необязательно)</span><textarea id="apNote" rows="3" maxlength="600"></textarea></label>`,
+      actions: [{ label: 'Отмена', value: null }, { label: accept ? 'Опубликовать' : 'Отклонить', value: 'ok', primary: accept, danger: !accept }],
+    });
+    if (r.value !== 'ok') return;
+    const note = r.root.querySelector('#apNote').value.trim();
+    const done = await A.run(b, async () => {
+      const res = await A.api('/api/forum-moderate', { method: 'POST', body: JSON.stringify({ action: 'resolve', draftId: d.id, decision: accept ? 'accept' : 'decline', note }) });
+      if (!res.ok) throw new Error((res.body && res.body.error) || 'ошибка ' + res.status);
+      return true;
+    }, accept ? 'Статья опубликована' : 'Апелляция отклонена');
+    if (done) { if (accept) A.invalidate('forum'); loadAppeals(); }
   }
 
   /* ------------------------------------------------------------ статьи */

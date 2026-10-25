@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<script>/* MathFrame: тема до первого кадра (см. common.js) */(function(){var d=document.documentElement;try{var t=localStorage.getItem('theme');if(t==='light'||(t!=='dark'&&!matchMedia('(prefers-color-scheme: dark)').matches))d.classList.add('light');}catch(e){}})();</script>
+<title>Поддержка — MathFrame</title>
+<meta name="description" content="Напишите в поддержку MathFrame: вопрос, ошибка на сайте, апелляция по форуму." />
+<link rel="stylesheet" href="/assets/css/common.css" />
+<style>
+main{max-width:640px;margin:0 auto;padding:1.6rem 1rem 4rem}
+.sup-card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r-lg);padding:1.5rem}
+.sup-card h1{margin:0 0 .4rem;font-size:1.8rem}
+.sup-lead{color:var(--text-secondary);margin:0 0 1.2rem}
+.sup-links{margin-top:1.2rem;font-size:.88rem;color:var(--text-secondary)}
+.sup-links a{color:var(--accent)}
+</style>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
+</head>
+<body data-page="support">
+
+<div id="app-header"></div>
+
+<main>
+  <section class="sup-card">
+    <h1>Поддержка</h1>
+    <p class="sup-lead">Вопрос по сайту, нашли ошибку или хотите что-то предложить? Напишите — сообщение придёт прямо разработчику.</p>
+    <div id="supportForm"></div>
+    <p class="sup-links">Ошибку в конкретной теме справочника проще отправить кнопкой «Сообщить об ошибке» под её текстом. Вопросы по заблокированной статье: <a href="/forum/#drafts">мои черновики</a> → «Подать апелляцию». <a href="/forum/#rules">Правила форума</a>.</p>
+  </section>
+</main>
+
+<div id="app-footer"></div>
+
+<script>var PAGE_ROOT = '/';</script>
+<script src="/assets/js/auth.js"></script>
+<script src="/assets/js/common.js"></script>
+<script src="/assets/js/support.js"></script>
+<script>MFSupport.mountForm(document.getElementById('supportForm'), { type: 'support' });</script>
+</body>
+</html>

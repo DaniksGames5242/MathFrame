@@ -287,6 +287,8 @@ function route(){
   const h = location.hash.slice(1);
   if(unsubDetail){ unsubDetail(); unsubDetail=null; }
   if(h.startsWith('article/')) renderDetail(h.split('/')[1]);
+  else if(h==='rules') renderRules();
+  else if(h==='drafts') renderDrafts();
   else renderList();
 }
 
@@ -346,6 +348,7 @@ function renderList(){
           <div class="fx-stat">${ic('user')}<b id="statAuthors">—</b><span>авторов</span></div>
         </div>
         <button class="btn primary" id="newArticleBtn">${ic('pencil','md')} Написать статью</button>
+        <div class="fx-hero-links"><a href="#rules">Правила форума</a><a href="#drafts">Мои черновики</a></div>
       </div>
     </section>
     <div class="fx-toolbar" role="search">
@@ -520,24 +523,27 @@ async function renderArticleCards(){
 }
 
 /* ===== РЕДАКТОР (создание/редактирование) ===== */
-function openEditor(article=null){
-  const draftKey = article ? 'forumDraftEdit_'+article.id : 'forumDraftNew';
-  const draft = JSON.parse(localStorage.getItem(draftKey)||'null');
+function openEditor(article=null, serverDraft=null){
+  /* serverDraft — отклонённый черновик из «Мои черновики» (forumDrafts): правим и отправляем на проверку заново.
+     article при этом — опубликованная статья, которую он исправляет (если это была правка), иначе null. */
+  const draftKey = serverDraft ? 'forumDraftEdit_d'+serverDraft.id : article ? 'forumDraftEdit_'+article.id : 'forumDraftNew';
+  const draft = serverDraft ? null : JSON.parse(localStorage.getItem(draftKey)||'null');
+  const base = article || serverDraft;
   const overlay = document.createElement('div'); overlay.className='overlay editor-overlay';
   const modal = document.createElement('div'); modal.className='modal editor-modal';
   modal.setAttribute('role','dialog'); modal.setAttribute('aria-modal','true'); modal.setAttribute('aria-labelledby','edTitleH');
-  let topicRef = article?.topicRef || draft?.topicRef || null;
-  let tags = article?.tags ? [...article.tags] : (draft?.tags || []);
+  let topicRef = base?.topicRef || draft?.topicRef || null;
+  let tags = base?.tags ? [...base.tags] : (draft?.tags || []);
   const hasDraft = !article && draft && (draft.title || draft.bodyHTML);
   modal.innerHTML = `
     <div class="em-head">
       <span class="em-icon">${ic('pencil')}</span>
-      <h2 id="edTitleH">${article ? 'Редактировать статью' : 'Новая статья'}<span class="em-sub">${article ? 'Изменения увидят все читатели' : 'Поделитесь разбором, конспектом или вопросом'}</span></h2>
+      <h2 id="edTitleH">${serverDraft ? 'Исправить черновик' : article ? 'Редактировать статью' : 'Новая статья'}<span class="em-sub">${serverDraft ? 'После исправления статья снова пройдёт проверку' : article ? 'Изменения увидят все читатели' : 'Поделитесь разбором, конспектом или вопросом'}</span></h2>
       <button class="modal-close" id="closeEditorBtn" aria-label="Закрыть">${ic('close')}</button>
     </div>
     <div class="em-body">
       <label class="field-label" for="artTitle">Заголовок</label>
-      <input class="plain title-input" id="artTitle" maxlength="160" value="${escapeHtml(article?.title || draft?.title || '')}" placeholder="О чём ваша статья?">
+      <input class="plain title-input" id="artTitle" maxlength="160" value="${escapeHtml(base?.title || draft?.title || '')}" placeholder="О чём ваша статья?">
       <span class="field-label">Содержание</span>
       <div class="ai-assist" id="aiAssist">
         <span class="ai-assist-lbl">✦ Нейросеть</span>
@@ -556,9 +562,10 @@ function openEditor(article=null){
       <div class="topic-pick-row"><button type="button" class="btn small" id="pickTopicBtn">${ic('book','md')} ${topicRef?'Сменить тему':'Выбрать тему'}</button> <span id="topicRefShow"></span></div>
     </div>
     <div class="em-foot">
-      <span class="draft-note" id="draftNote"><span class="dot"></span>${hasDraft ? 'Восстановлен черновик' : (article ? 'Редактирование' : 'Черновик сохраняется автоматически')}</span>
+      <span class="draft-note" id="draftNote"><span class="dot"></span>${hasDraft ? 'Восстановлен черновик' : (base ? 'Редактирование' : 'Черновик сохраняется автоматически')}</span>
+      <span class="mod-note">Перед публикацией статью проверяет нейросеть на соответствие <a href="#rules" id="edRulesLink">правилам форума</a>.</span>
       <button class="btn" id="cancelArtBtn">Отмена</button>
-      <button class="btn primary" id="saveArtBtn">${ic('send','md')} ${article ? 'Сохранить' : 'Опубликовать'}</button>
+      <button class="btn primary" id="saveArtBtn">${ic('send','md')} ${serverDraft ? 'Отправить на проверку' : article ? 'Сохранить' : 'Опубликовать'}</button>
     </div>`;
   document.body.append(overlay, modal);
   document.body.classList.add('no-scroll');
@@ -566,9 +573,9 @@ function openEditor(article=null){
   void modal.offsetWidth;
   overlay.classList.add('active'); modal.classList.add('active');
   const bodyEl = modal.querySelector('#artBody');
-  bodyEl.innerHTML = article?.bodyHTML || draft?.bodyHTML || '';
+  bodyEl.innerHTML = base?.bodyHTML || draft?.bodyHTML || '';
   bindToolbar(modal, bodyEl);
-  if(!matchMedia('(pointer:coarse)').matches) setTimeout(()=>modal.querySelector(article?'#artBody':'#artTitle').focus({preventScroll:true}), 120);
+  if(!matchMedia('(pointer:coarse)').matches) setTimeout(()=>modal.querySelector(base?'#artBody':'#artTitle').focus({preventScroll:true}), 120);
 
   function showTopicRef(){
     modal.querySelector('#topicRefShow').innerHTML = topicRef ? `<span class="topic-badge">${ic('book')} ${escapeHtml(topicRef.title)}</span>` : '';
@@ -592,6 +599,7 @@ function openEditor(article=null){
   }
   modal._close = close;
   modal.querySelector('#closeEditorBtn').onclick=close;
+  modal.querySelector('#edRulesLink').onclick=close; // текст сохранён как черновик в браузере; переход на #rules выполнит ссылка
   modal.querySelector('#cancelArtBtn').onclick=close;
   overlay.onclick=close;
 
@@ -644,33 +652,191 @@ function openEditor(article=null){
   });
 
   const saveBtn = modal.querySelector('#saveArtBtn');
+  const saveLabel = saveBtn.innerHTML;
   saveBtn.onclick = async ()=>{
     const title = modal.querySelector('#artTitle').value.trim();
     const bodyHTML = sanitizeHTML(bodyEl.innerHTML);
     if(!title || !bodyEl.textContent.trim()) return toast('Заполните заголовок и текст');
+    if(!requireAuth()) return;
     const tagsArr = modal.querySelector('#artTags').value.split(',').map(s=>s.trim()).filter(Boolean).slice(0,8);
-    saveBtn.disabled = true;
+    saveBtn.disabled = true; saveBtn.textContent = 'Проверяем статью…';
     try{
-      if(article){
-        await db.collection('forumArticles').doc(article.id).update({
-          title, bodyHTML, tags: tagsArr, topicRef: topicRef||null, updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-        });
-        toast('Статья обновлена');
-        if(location.hash==='#article/'+article.id) route(); else location.hash='article/'+article.id;
+      // Публикация только через сервер: он проверяет текст нейросетью и сам пишет в базу
+      const r = await modApi('submit', {
+        title, bodyHTML, tags: tagsArr, topicRef: topicRef||null,
+        authorName: fUser.displayName||fUser.email||'Аноним', authorPhoto: fUser.photoURL||null,
+        articleId: article ? article.id : (serverDraft && serverDraft.articleId) || null,
+        draftId: serverDraft ? serverDraft.id : null,
+      });
+      localStorage.removeItem(draftKey);
+      if(r.status === 'published'){
+        toast(article || (serverDraft && serverDraft.articleId) ? 'Статья обновлена' : 'Статья опубликована');
+        if(window.MathFrameUI) window.MathFrameUI.burst(saveBtn, {count:14, spread:38});
+        close();
+        if(location.hash==='#article/'+r.id) route(); else location.hash='article/'+r.id;
       } else {
-        const ref = await db.collection('forumArticles').add({
-          title, bodyHTML, tags: tagsArr, topicRef: topicRef||null,
-          authorUid: fUser.uid, authorName: fUser.displayName||fUser.email||'Аноним',
-          authorPhoto: fUser.photoURL||null, createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-          updatedAt: firebase.firestore.FieldValue.serverTimestamp(), views:0
-        });
-        toast('Статья опубликована'); localStorage.removeItem(draftKey); location.hash='article/'+ref.id;
+        close();
+        showRejection(r);
+        if(location.hash==='#drafts') route();
       }
-      // Частицы — только на успешную публикацию/сохранение, не на каждый клик
-      // по редактору (тулбар форматирования их не получает).
-      if(window.MathFrameUI) window.MathFrameUI.burst(saveBtn, {count:14, spread:38});
-      close();
-    }catch(e){ toast('Ошибка: '+e.message); saveBtn.disabled = false; }
+    }catch(e){ toast(e.message); saveBtn.disabled = false; saveBtn.innerHTML = saveLabel; }
+  };
+}
+
+/* ===== МОДЕРАЦИЯ: запросы к серверу, окно «статья отклонена», правила, черновики ===== */
+async function modApi(action, payload){
+  if(!fUser) throw new Error('Войдите, чтобы продолжить');
+  const token = await fUser.getIdToken();
+  let r, d;
+  try{
+    r = await fetch('/api/forum-moderate', { method:'POST', headers:{'content-type':'application/json', authorization:'Bearer '+token}, body: JSON.stringify(Object.assign({action}, payload||{})) });
+    d = await r.json().catch(()=>null);
+  }catch(e){ throw new Error('Нет связи с сервером. Проверьте интернет и повторите.'); }
+  if(!r.ok) throw new Error((d && d.error) || ('Ошибка '+r.status));
+  return d;
+}
+
+// Небольшое окно поверх страницы (те же .overlay/.modal, что и у редактора)
+function openInfoModal(html){
+  const overlay = document.createElement('div'); overlay.className='overlay editor-overlay';
+  const modal = document.createElement('div'); modal.className='modal mod-modal';
+  modal.setAttribute('role','dialog'); modal.setAttribute('aria-modal','true');
+  modal.innerHTML = html;
+  document.body.append(overlay, modal); document.body.classList.add('no-scroll');
+  void modal.offsetWidth; overlay.classList.add('active'); modal.classList.add('active');
+  let closed = false;
+  function close(){
+    if(closed) return; closed = true;
+    overlay.classList.remove('active'); modal.classList.remove('active');
+    setTimeout(()=>{ overlay.remove(); modal.remove(); if(!document.querySelector('.modal.active')) document.body.classList.remove('no-scroll'); }, 420);
+  }
+  overlay.onclick = close;
+  modal.querySelectorAll('[data-close]').forEach(b=>b.onclick=close);
+  return { modal, close };
+}
+
+// Статья не прошла проверку: причина + что дальше
+function showRejection(r){
+  const { modal, close } = openInfoModal(`
+    <div class="modal-header"><h2>Статья не опубликована</h2></div>
+    <div class="mod-body">
+      <p>Автоматическая проверка нашла в статье то, что нарушает <a href="#rules" data-close>правила форума</a>${(r.categories&&r.categories.length)?': <b>'+r.categories.map(escapeHtml).join('; ')+'</b>':''}.</p>
+      <p class="mod-reason">${escapeHtml(r.reason||'')}</p>
+      <p>Текст <b>не удалён</b> — он сохранён в ваших черновиках. Вы можете исправить статью и отправить её заново или подать апелляцию, если считаете, что проверка ошиблась.</p>
+    </div>
+    <div class="mod-actions"><button class="btn" data-close>Закрыть</button><a class="btn primary" href="#drafts" data-close>Открыть черновики</a></div>`);
+  modal.querySelector('.mod-actions a').addEventListener('click', ()=>{ close(); });
+}
+
+function statusLabel(d){
+  if(d.status==='published') return ['ok','Опубликована'];
+  if(d.appealStatus==='pending') return ['wait','Апелляция на рассмотрении'];
+  if(d.appealStatus==='declined') return ['bad','Апелляция отклонена'];
+  return ['bad','Не прошла проверку'];
+}
+
+function renderRules(){
+  const app = document.getElementById('app');
+  window.scrollTo({top:0});
+  app.innerHTML = `
+    <a class="back-link" href="#"><span class="arr">←</span> Ко всем статьям</a>
+    <article class="fx-article rules-page">
+      <header class="article-head"><span class="mf-label">Сообщество</span><h1>Правила форума</h1>
+        <p class="rules-lead">Форум MathFrame — место, где школьники и студенты делятся разборами, конспектами и вопросами по математике. Чтобы здесь было безопасно и полезно, соблюдайте простые правила.</p></header>
+      <div class="content-body">
+        <h3>1. О чём пишем</h3>
+        <p>Основная тема форума — математика и её изучение: разборы задач, конспекты, вопросы, ссылки на темы справочника. Статьи не по теме допустимы, пока они безобидны, но модераторы вправе их скрыть.</p>
+        <h3>2. Что публиковать нельзя</h3>
+        <p>Статья не будет опубликована, если в ней есть:</p>
+        <ul>
+          <li>инструкции и призывы к незаконной деятельности, мошенничество, взлом, вредоносное ПО;</li>
+          <li>насилие, терроризм, экстремизм, изготовление оружия, взрывчатки, ядов;</li>
+          <li>оскорбления и травля, дискриминация по национальности, расе, религии, полу, здоровью;</li>
+          <li>порнография и сексуальный контент; <b>любой</b> сексуальный контент с участием несовершеннолетних;</li>
+          <li>наркотики — изготовление, продажа, реклама;</li>
+          <li>самоповреждение и суицид — способы и подталкивание;</li>
+          <li>чужие персональные данные: телефоны, адреса, документы, личная переписка;</li>
+          <li>политическая и религиозная агитация, иные чувствительные темы, не связанные с учёбой;</li>
+          <li>спам и реклама.</li>
+        </ul>
+        <h3>3. Уважение и авторство</h3>
+        <p>Будьте вежливы в статьях и ответах. Не выдавайте чужие тексты за свои — указывайте источник. Не публикуйте материалы, на которые у вас нет прав.</p>
+        <h3>4. Как работает проверка</h3>
+        <ul>
+          <li>Перед публикацией (и после правки) каждую статью проверяет нейросеть. Если нарушений нет, статья появляется сразу.</li>
+          <li>Если нейросеть нашла нарушение, статья <b>не удаляется</b>, а сохраняется в ваших <a href="#drafts">черновиках</a> с указанием причины. Её можно исправить и отправить заново.</li>
+          <li>Нейросеть может ошибаться. Если вы не согласны с решением, подайте <b>апелляцию</b> в черновиках — её рассмотрит администратор.</li>
+          <li>Каждая заблокированная статья попадает к владельцу сайта вместе с именем автора.</li>
+          <li>Администраторы могут скрыть или удалить любую статью и ответ, нарушающие правила. За повторные и грубые нарушения аккаунт блокируется.</li>
+        </ul>
+        <h3>5. Если что-то пошло не так</h3>
+        <p>Заметили нарушение или ошибку, или хотите задать вопрос — напишите в <a href="/support/">поддержку</a>.</p>
+      </div>
+    </article>`;
+}
+
+async function renderDrafts(){
+  const app = document.getElementById('app');
+  const seq = ++detailSeq;
+  window.scrollTo({top:0});
+  const head = `<a class="back-link" href="#"><span class="arr">←</span> Ко всем статьям</a>
+    <section class="fx-hero"><div class="fx-hero-text"><span class="mf-label">Модерация</span><h1 class="fx-title">Мои черновики</h1>
+    <p class="fx-sub">Статьи, которые не прошли автоматическую проверку, не удаляются: их можно исправить и отправить заново или оспорить решение. <a href="#rules">Правила форума</a></p></div></section>`;
+  const showEmpty = o => { app.innerHTML = head + emptyState(o); const b = app.querySelector('[data-empty-act]');
+    if(b) b.onclick = ()=> b.dataset.emptyAct==='login' ? window.openAuthModal() : renderDrafts(); };
+  if(!fUser){ showEmpty({title:'Войдите в аккаунт', text:'Черновики привязаны к вашему аккаунту.', action:'login', label:'Войти'}); return; }
+  app.innerHTML = head + `<div class="grid">${skeletonCards(2)}</div>`;
+  let list;
+  try{ list = (await modApi('drafts')).drafts; }
+  catch(e){ if(seq!==detailSeq) return; showEmpty({title:'Не удалось загрузить черновики', text:escapeHtml(e.message), action:'retry', label:'Повторить'}); return; }
+  if(seq!==detailSeq || location.hash!=='#drafts') return;
+  if(!list.length){ showEmpty({title:'Черновиков нет', text:'Здесь появятся статьи, не прошедшие проверку.'}); return; }
+  const fmt = v => v ? new Date(v).toLocaleString('ru-RU',{day:'numeric',month:'long',hour:'2-digit',minute:'2-digit'}) : '';
+  app.innerHTML = head + `<div class="drafts-list">${list.map(d=>{
+    const [cls,label] = statusLabel(d);
+    const excerpt = (new DOMParser().parseFromString(d.bodyHTML||'','text/html').body.textContent||'').trim().slice(0,220);
+    return `<div class="card draft-card" data-id="${escapeHtml(d.id)}">
+      <div class="card-flags"><span class="draft-status ${cls}">${label}</span>${d.articleId?'<span class="card-flag">Правка опубликованной статьи</span>':''}</div>
+      <h3>${escapeHtml(d.title)}</h3>
+      <p class="draft-excerpt">${escapeHtml(excerpt)}${excerpt.length>=220?'…':''}</p>
+      ${d.status==='published' ? `<p class="draft-reason ok">Администратор одобрил апелляцию — статья опубликована.${d.adminNote?' '+escapeHtml(d.adminNote):''}</p>`
+        : `<p class="draft-reason"><b>Причина${d.categories.length?' ('+d.categories.map(escapeHtml).join('; ')+')':''}:</b> ${escapeHtml(d.reason)}</p>`}
+      ${d.appealText?`<p class="draft-appeal"><b>Ваша апелляция:</b> ${escapeHtml(d.appealText)}</p>`:''}
+      ${d.appealStatus==='declined'?`<p class="draft-reason"><b>Ответ администратора:</b> ${escapeHtml(d.adminNote||'апелляция отклонена')}</p>`:''}
+      <div class="foot"><span class="meta">${ic('clock')} ${fmt(d.createdAt)}</span><span class="spacer"></span>
+        ${d.status==='published' ? `<a class="btn small primary" href="#article/${escapeHtml(d.publishedId||'')}">Открыть статью</a>`
+          : `<button class="btn small" data-act="edit">${ic('pencil')} Исправить и отправить</button>${d.appealStatus==='none'?`<button class="btn small" data-act="appeal">Подать апелляцию</button>`:''}`}
+        <button class="btn small danger" data-act="del">${ic('trash')} Удалить</button></div>
+    </div>`; }).join('')}</div>`;
+  app.querySelector('.drafts-list').onclick = async e=>{
+    const b = e.target.closest('[data-act]'); if(!b) return;
+    const d = list.find(x=>x.id===b.closest('.draft-card').dataset.id); if(!d) return;
+    if(b.dataset.act==='edit') openEditor(null, d);
+    else if(b.dataset.act==='del'){
+      if(!confirm('Удалить черновик безвозвратно?')) return;
+      b.disabled = true;
+      try{ await modApi('delete-draft',{draftId:d.id}); toast('Черновик удалён'); renderDrafts(); }catch(er){ toast(er.message); b.disabled=false; }
+    } else if(b.dataset.act==='appeal') openAppeal(d);
+  };
+}
+
+function openAppeal(d){
+  const { modal, close } = openInfoModal(`
+    <div class="modal-header"><h2>Апелляция</h2></div>
+    <div class="mod-body">
+      <p>Статья «${escapeHtml(d.title)}» была заблокирована: <i>${escapeHtml(d.reason)}</i></p>
+      <label class="field-label" for="appealText">Почему статью стоит одобрить?</label>
+      <textarea class="plain" id="appealText" rows="5" maxlength="2000" placeholder="Например: это учебная задача по теории вероятностей, слова употреблены в нейтральном смысле…"></textarea>
+      <p class="mod-hint">Апелляцию рассмотрит администратор. Подать её можно один раз; если решение не изменится, исправьте статью и отправьте заново.</p>
+    </div>
+    <div class="mod-actions"><button class="btn" data-close>Отмена</button><button class="btn primary" id="appealSend">Отправить апелляцию</button></div>`);
+  const send = modal.querySelector('#appealSend');
+  send.onclick = async ()=>{
+    const text = modal.querySelector('#appealText').value.trim();
+    if(text.length<10) return toast('Опишите подробнее (минимум 10 символов)');
+    send.disabled = true;
+    try{ await modApi('appeal',{draftId:d.id, text}); toast('Апелляция отправлена'); close(); if(location.hash==='#drafts') renderDrafts(); }
+    catch(e){ toast(e.message); send.disabled = false; }
   };
 }
 
@@ -730,6 +896,7 @@ async function renderDetail(id){
         <button class="btn small" id="bmBtn" aria-pressed="${bm}">${bm?ic('bookmarkFilled'):ic('bookmark')} ${bm?'В закладках':'В закладки'}</button>
         <button class="btn small" id="shareBtn">${ic('link')} Скопировать ссылку</button>
         ${isOwner ? `<span class="spacer"></span><button class="btn small" id="editArtBtn">${ic('pencil')} Редактировать</button><button class="btn small danger" id="delArtBtn">${ic('trash')} Удалить</button>` : ''}
+        <span id="adminDelSlot"></span>
       </div>
     </article>
     <section class="fx-replies" aria-label="Ответы">
@@ -754,6 +921,25 @@ async function renderDetail(id){
       await db.collection('forumArticles').doc(id).delete();
       toast('Статья удалена'); location.hash='';
     };
+  }
+
+  // Администратор может удалить любую статью (вместе с ответами) прямо здесь
+  if(!isOwner){
+    (fIsAdmin ? Promise.resolve(true) : forumAdminCheck(fUser)).then(ok=>{
+      const slot = document.getElementById('adminDelSlot');
+      if(!ok || seq!==detailSeq || !slot) return;
+      slot.outerHTML = `<span class="spacer"></span><button class="btn small danger" id="adminDelBtn" title="Удаление администратором">${ic('trash')} Удалить (админ)</button>`;
+      document.getElementById('adminDelBtn').onclick = async ()=>{
+        if(!confirm('Удалить статью «'+a.title+'» и все ответы к ней безвозвратно?')) return;
+        try{
+          const ref = db.collection('forumArticles').doc(id);
+          const rs = await ref.collection('replies').get();
+          for(let i=0;i<rs.docs.length;i+=400){ const batch = db.batch(); rs.docs.slice(i,i+400).forEach(d=>batch.delete(d.ref)); await batch.commit(); }
+          await ref.delete();
+          toast('Статья удалена'); location.hash='';
+        }catch(e){ toast('Не удалось удалить: '+e.message); }
+      };
+    });
   }
 
   renderReplyForm(document.getElementById('replyFormRoot'), id, null, a);

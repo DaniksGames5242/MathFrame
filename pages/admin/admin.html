@@ -325,6 +325,7 @@
         <button type="button" class="chip active" data-fview="articles" aria-pressed="true">Статьи <b id="fvArticles">…</b></button>
         <button type="button" class="chip" data-fview="replies" aria-pressed="false">Ответы <b id="fvReplies">…</b></button>
         <button type="button" class="chip" data-fview="tags" aria-pressed="false">Теги <b id="fvTags">…</b></button>
+        <button type="button" class="chip" data-fview="appeals" aria-pressed="false">Заблокированные и апелляции <b id="fvAppeals">…</b></button>
       </div>
 
       <div data-fpanel="articles">
@@ -376,6 +377,23 @@
           </table>
         </div>
         <div class="empty-hint" id="repEmpty" style="display:none;">Ответов не найдено</div>
+      </div>
+
+      <div data-fpanel="appeals" hidden>
+        <p class="adm-note">Статьи, которые ИИ не пропустил на форум. Они лежат в черновиках авторов (коллекция <code>forumDrafts</code>); о каждой блокировке уходит письмо на почту владельца. Здесь — разбор апелляций: «Одобрить» публикует статью, «Отклонить» оставляет её в черновиках с вашим ответом.</p>
+        <div class="toolbar">
+          <div class="chip-row" id="apChips" role="group" aria-label="Фильтр">
+            <button type="button" class="chip active" data-apfilter="appeals" aria-pressed="true">Апелляции на рассмотрении</button>
+            <button type="button" class="chip" data-apfilter="all" aria-pressed="false">Все заблокированные</button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table class="admin-table forum-table">
+            <thead><tr><th>Статья</th><th>Автор</th><th>Причина блокировки</th><th>Статус</th><th>Действия</th></tr></thead>
+            <tbody id="apTbody"></tbody>
+          </table>
+        </div>
+        <div class="empty-hint" id="apEmpty" style="display:none;">Ничего нет</div>
       </div>
 
       <div data-fpanel="tags" hidden>

@@ -1859,3 +1859,8 @@ a.mmb-inner:focus-visible { outline: 2px solid var(--accent-3); outline-offset: 
    перезагрузки (полоса иначе навсегда отнимала бы высоту у чата) */
 .mf-site-banner .msb-close.is-temp { display: none; }
 html.agent-page .mf-site-banner .msb-close.is-temp { display: flex; }
+
+/* Ссылки подвала: поддержка, правила форума */
+.mf-footer-links { margin: .35rem 0 0; font-size: .85rem; }
+.mf-footer-links a { color: var(--text-secondary); text-decoration: underline; text-underline-offset: 3px; }
+.mf-footer-links a:hover { color: var(--accent); }

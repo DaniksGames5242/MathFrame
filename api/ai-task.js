@@ -384,4 +384,4 @@ async function handler(req, res) {
 }
 
 module.exports = handler;
-module.exports._internal = { extractJson, GEOMETRY_PROMPT, OCR_PROMPTS };
+module.exports._internal = { extractJson, GEOMETRY_PROMPT, OCR_PROMPTS, run, chain };

@@ -42,6 +42,11 @@
       "permanent": true
     },
     {
+      "source": "/pages/support.html",
+      "destination": "/support/",
+      "permanent": true
+    },
+    {
       "source": "/pages/admin/admin.html",
       "destination": "/admin/",
       "permanent": true
@@ -90,6 +95,10 @@
     {
       "source": "/board/",
       "destination": "/pages/board.html"
+    },
+    {
+      "source": "/support/",
+      "destination": "/pages/support.html"
     },
     {
       "source": "/admin/",
@@ -183,6 +192,9 @@
       "maxDuration": 60
     },
     "api/ai-task.js": {
+      "maxDuration": 60
+    },
+    "api/forum-moderate.js": {
       "maxDuration": 60
     }
   }

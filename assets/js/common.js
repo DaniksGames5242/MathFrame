@@ -1814,6 +1814,7 @@ function renderFooter() {
     const footer = document.getElementById('app-footer');
     if (!footer) return;
     footer.innerHTML = `<p>&copy; ${new Date().getFullYear()} MathFrame. Учись математике интерактивно.</p>` +
+        `<p class="mf-footer-links"><a href="/support/">Поддержка</a> · <a href="/forum/#rules">Правила форума</a></p>` +
         mfContactHTML('mf-contact--footer');
     // Другие места с контактами (например, боковая панель AI-агента, где подвала нет)
     document.querySelectorAll('[data-mf-contact]').forEach(slot => {

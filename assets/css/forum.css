@@ -617,3 +617,37 @@ html.mf-no-motion .fx-empty-art circle { opacity: .35; }
 .ai-assist-status.busy{color:var(--accent)}
 .ai-assist-status.err{color:#f87171}
 .ai-assist-status .link-btn{background:none;border:none;color:var(--accent);cursor:pointer;font:inherit;padding:0;text-decoration:underline}
+
+/* ---------- модерация: правила, черновики, окна ---------- */
+.fx-hero-links { display: flex; gap: .9rem; flex-wrap: wrap; width: 100%; font-size: .84rem; }
+.fx-hero-links a { color: var(--text-secondary); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: color-mix(in srgb, var(--fx) 45%, transparent); }
+.fx-hero-links a:hover { color: var(--fx); }
+.em-foot .mod-note { flex: 1 1 100%; order: -1; font-size: .78rem; color: var(--text-tertiary); }
+.em-foot .mod-note a { color: var(--fx); }
+
+.rules-page .rules-lead { color: var(--text-secondary); margin-top: .6rem; max-width: 62ch; }
+.rules-page .content-body h3 { margin-top: 1.5rem; }
+.rules-page .content-body ul { padding-left: 1.2rem; display: grid; gap: .35rem; }
+
+.drafts-list { display: grid; gap: 1rem; margin-top: 1.2rem; }
+.draft-card { cursor: default; }
+.draft-card h3 { margin: .1rem 0 .4rem; }
+.draft-excerpt { color: var(--text-secondary); font-size: .9rem; margin-bottom: .6rem; }
+.draft-reason, .draft-appeal { font-size: .88rem; margin: .4rem 0; padding: .55rem .75rem; border-radius: var(--r-sm); border-left: 3px solid var(--danger); background: color-mix(in srgb, var(--danger) 8%, transparent); }
+.draft-reason.ok { border-left-color: var(--ok); background: color-mix(in srgb, var(--ok) 9%, transparent); }
+.draft-appeal { border-left-color: var(--fx); background: color-mix(in srgb, var(--fx) 8%, transparent); }
+.draft-card .foot { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; margin-top: .8rem; }
+.draft-card .foot .spacer { flex: 1 1 auto; }
+.draft-card .foot .meta { font-size: .78rem; color: var(--text-tertiary); }
+.draft-status { display: inline-flex; align-items: center; padding: .15rem .6rem; border-radius: 999px; font-size: .72rem; font-weight: 600; border: 1px solid currentColor; }
+.draft-status.bad { color: var(--danger); }
+.draft-status.wait { color: var(--gold); }
+.draft-status.ok { color: var(--ok); }
+
+.mod-modal { max-width: 520px; z-index: 252 !important; }
+.mod-modal .mod-body { padding: .2rem 0 .4rem; display: grid; gap: .7rem; font-size: .93rem; }
+.mod-modal .mod-body p { margin: 0; }
+.mod-modal .mod-reason { padding: .6rem .8rem; border-left: 3px solid var(--danger); background: color-mix(in srgb, var(--danger) 8%, transparent); border-radius: var(--r-sm); }
+.mod-modal .mod-hint { font-size: .8rem; color: var(--text-tertiary); }
+.mod-modal textarea { width: 100%; resize: vertical; }
+.mod-modal .mod-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: .6rem; margin-top: 1rem; }

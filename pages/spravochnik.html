@@ -1299,6 +1299,7 @@
       border-top: 1px solid var(--border);
     }
     .spr-simplify-bar[hidden] { display: none; }
+    .spr-report-bar { margin-top: 0.9rem; }
     .spr-simplify-btn {
       display: inline-flex;
       align-items: center;
@@ -1434,6 +1435,8 @@
       .spr-simplified-body { padding-left: 0.75rem; }
     }
   </style>
+
+  <script defer src="/assets/js/support.js"></script>
 
   <!-- KaTeX -->
   <link rel="stylesheet" href="/assets/lib/katex/katex.min.css" />
@@ -5494,6 +5497,13 @@
                         <span class="spr-simplify-error-text" id="sprSimplifyErrorText"></span>
                         <button type="button" id="sprSimplifyRetry">Повторить</button>
                       </div>
+                      <!-- «Сообщить об ошибке»: письмо владельцу с названием темы (assets/js/support.js) -->
+                      <div class="spr-report-bar">
+                        <button type="button" class="spr-simplify-btn spr-report-btn" id="sprReportBtn">
+                          <span class="spr-simplify-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 22V4"/><path d="M4 4h13l-2 4 2 4H4"/></svg></span>
+                          <span>Сообщить об ошибке</span>
+                        </button>
+                      </div>
                     </div>
                     <div class="spr-example" id="sprExample"></div>
                     <div class="spr-task" id="sprTask" hidden></div>
@@ -7003,6 +7013,16 @@
         });
       }
 
+      // «Сообщить об ошибке» — окно с формой (assets/js/support.js), тема подставляется сама
+      function setupReportHandler() {
+        const btn = document.getElementById('sprReportBtn');
+        if (!btn) return;
+        btn.addEventListener('click', () => {
+          const t = currentId && topicsById.get(currentId);
+          if (window.MFSupport) window.MFSupport.openError({ topicId: currentId || '', topicTitle: t ? t.title : '' });
+        });
+      }
+
       function setupSimplifyHandlers() {
         els.simplifyBtn.addEventListener('click', simplifyCurrent);
         els.simplifyRetry.addEventListener('click', simplifyCurrent);
@@ -8242,6 +8262,7 @@ ${bodyXml}
         });
 
         setupSimplifyHandlers();
+        setupReportHandler();
 
         try {
           const data = await loadConfig();
