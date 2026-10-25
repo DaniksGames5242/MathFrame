@@ -17,6 +17,8 @@ jobs:
         run: for f in api/*.js; do node --check "$f"; done
       - name: Конфигурация Vercel (JSON)
         run: node -e "JSON.parse(require('fs').readFileSync('vercel.json','utf8'))"
+      - name: Лимит функций Vercel (Hobby — 12) и маршруты
+        run: node tools/check-vercel.mjs
       - name: Данные справочника
         run: node tools/check-data.mjs
       - name: Все интерактивные примеры собираются

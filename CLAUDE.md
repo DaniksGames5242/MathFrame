@@ -38,7 +38,8 @@
 - `api/config.js`, `example.js`, `file.js`, `examples.js` — только владелец/админ (`api/_admin.js`, токен Firebase). Клиенту токен даёт `Auth.authHeader()` (`assets/js/auth.js`).
 - Правила Firestore лежат в `firestore.rules` (тот же текст — в админ-панели → Безопасность). Менять в обоих местах и публиковать в консоли Firebase / `firebase deploy --only firestore:rules`.
 - Лимиты запросов: локальный счётчик + общий в Firestore (`api/_ratelimit.js`, коллекция `rateLimits`, клиенту закрыта) — `checkRateLimitShared` в `api/chat.js`.
-- Страницы тем для поисковиков: `/spravochnik/<id>/` (`api/topic.js`), карта сайта `/sitemap.xml` (`api/sitemap.js`). Домен — переменная Vercel `SITE_URL`; в статических страницах (`canonical`, `og`) домен прописан вручную.
+- Страницы тем для поисковиков: `/spravochnik/<id>/` (`api/_seo_topic.js`), карта сайта `/sitemap.xml` (`api/_seo_sitemap.js`). Домен — переменная Vercel `SITE_URL`; в статических страницах (`canonical`, `og`) домен прописан вручную.
 - Аналитика: номер счётчика Яндекс.Метрики — константа `METRIKA_ID` в `assets/js/analytics.js` (0 = выключено, баннер согласия не показывается).
 - Письма: чтобы они уходили не только владельцу аккаунта Resend, подтвердите свой домен в Resend и задайте `MAIL_FROM` (например `MathFrame <noreply@ваш-домен>`).
 - Правила Firestore проверяются в эмуляторе: `tools/firestore-rules-test` (`npm install && npm test`, нужна Java); тот же прогон — в CI. Меняя `firestore.rules`, добавляйте сценарии в `test.cjs`.
+- **Лимит Vercel Hobby — 12 серверных функций.** Каждый файл `api/*.js` без `_` в начале — функция. Новые обработчики добавляйте как `api/_что-то.js` и подключайте через диспетчер (`seo.js`, `repo.js`, `relay.js`; маршруты `/api/example|examples|file|gemini|llm|topics`, `/sitemap.xml`, `/spravochnik/:id/` переписаны в `vercel.json`). Проверка — `node tools/check-vercel.mjs` (есть в CI).

@@ -1,34 +1,34 @@
- { 
+{
   "trailingSlash": true,
   "redirects": [
-    { 
+    {
       "source": "/index.html",
       "destination": "/",
       "permanent": true
     },
-    {  
+    {
       "source": "/pages/home.html",
-      "destination": "/", 
+      "destination": "/",
       "permanent": true
-    },  
+    },
     {
       "source": "/pages/spravochnik.html",
       "destination": "/spravochnik/",
       "permanent": true
-    },  
+    },
     {
       "source": "/pages/forum.html",
       "destination": "/forum/",
-      "permanent": true 
+      "permanent": true
     },
     {
       "source": "/pages/ai-agent.html",
-      "destination": "/ai-agent/", 
+      "destination": "/ai-agent/",
       "permanent": true
     },
     {
       "source": "/pages/mini-services.html",
-      "destination": "/mini-services/", 
+      "destination": "/mini-services/",
       "permanent": true
     },
     {
@@ -79,6 +79,30 @@
   ],
   "rewrites": [
     {
+      "source": "/api/topics",
+      "destination": "/api/seo?kind=topics"
+    },
+    {
+      "source": "/api/example",
+      "destination": "/api/repo?op=example"
+    },
+    {
+      "source": "/api/examples",
+      "destination": "/api/repo?op=examples"
+    },
+    {
+      "source": "/api/file",
+      "destination": "/api/repo?op=file"
+    },
+    {
+      "source": "/api/gemini",
+      "destination": "/api/relay?op=gemini"
+    },
+    {
+      "source": "/api/llm",
+      "destination": "/api/relay?op=llm"
+    },
+    {
       "source": "/",
       "destination": "/pages/home.html"
     },
@@ -88,11 +112,11 @@
     },
     {
       "source": "/spravochnik/:id/",
-      "destination": "/api/topic?id=:id"
+      "destination": "/api/seo?kind=topic&id=:id"
     },
     {
       "source": "/sitemap.xml",
-      "destination": "/api/sitemap"
+      "destination": "/api/seo?kind=sitemap"
     },
     {
       "source": "/forum/",
@@ -147,12 +171,30 @@
     {
       "source": "/(.*)",
       "headers": [
-        { "key": "Strict-Transport-Security", "value": "max-age=63072000; includeSubDomains" },
-        { "key": "X-Content-Type-Options", "value": "nosniff" },
-        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
-        { "key": "X-Frame-Options", "value": "SAMEORIGIN" },
-        { "key": "Content-Security-Policy", "value": "frame-ancestors 'self'; object-src 'none'; base-uri 'self'" },
-        { "key": "Permissions-Policy", "value": "camera=(self), microphone=(self), geolocation=(), payment=(), usb=()" }
+        {
+          "key": "Strict-Transport-Security",
+          "value": "max-age=63072000; includeSubDomains"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "SAMEORIGIN"
+        },
+        {
+          "key": "Content-Security-Policy",
+          "value": "frame-ancestors 'self'; object-src 'none'; base-uri 'self'"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(self), microphone=(self), geolocation=(), payment=(), usb=()"
+        }
       ]
     },
     {
@@ -211,12 +253,6 @@
     }
   ],
   "functions": {
-    "api/gemini.js": {
-      "maxDuration": 60
-    },
-    "api/llm.js": {
-      "maxDuration": 60
-    },
     "api/review-notes.js": {
       "maxDuration": 60,
       "includeFiles": "data/topics/config.json"
@@ -231,19 +267,14 @@
     "api/ai-task.js": {
       "maxDuration": 60
     },
-    "api/topics.js": {
-      "maxDuration": 30,
-      "includeFiles": "data/topics/config.json"
-    },
-    "api/topic.js": {
-      "maxDuration": 30,
-      "includeFiles": "data/topics/config.json"
-    },
-    "api/sitemap.js": {
-      "maxDuration": 30,
-      "includeFiles": "data/topics/config.json"
-    },
     "api/forum-moderate.js": {
+      "maxDuration": 60
+    },
+    "api/seo.js": {
+      "maxDuration": 30,
+      "includeFiles": "data/topics/config.json"
+    },
+    "api/relay.js": {
       "maxDuration": 60
     }
   }
