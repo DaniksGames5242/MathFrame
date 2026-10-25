@@ -4724,7 +4724,10 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '                ctx.stroke();\n',
             '            }\n',
             '            if (d.labels) {\n',
-            '                ctx.fillStyle = d.labelColor || __gcDefaultColor();\n',
+            // Узел без своего цвета закрашен цветом по умолчанию — тем же, что и подпись, и
+            // число внутри кружка пропадало. Тогда подпись берёт цвет фона поля (как у
+            // «ореола»), контрастный к кружку в обеих темах (у узлов нулевого радиуса кружка нет — цвет прежний).
+            '                ctx.fillStyle = d.labelColor || ((R > 0 && !n.color && !d.__liveNodeColor && !d.__liveColor) ? __gcTheme().halo : __gcDefaultColor());\n',
             // длинная подпись уменьшается, чтобы уместиться в кружок узла
             '                let fs = Math.max(9, R * 1.1);\n',
             '                ctx.font = fs + \'px \' + GC_FONT;\n',

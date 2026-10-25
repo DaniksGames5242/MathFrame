@@ -661,7 +661,9 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '  function updateVectorMesh(vo) {\n',
             '    const a = vo.line.a.mesh.position, b = vo.line.b.mesh.position;\n',
             '    const dir = new THREE.Vector3().subVectors(b, a);\n',
-            '    if (dir.lengthSq() < 1e-10) { vo.mesh.visible = false; return; }\n',
+            // Наконечник живёт на своём отрезке: скрыли отрезок (active = tab == 2 и т. п.) —
+            // конус не должен оставаться висеть в пустоте.
+            '    if (vo.line.active === false || dir.lengthSq() < 1e-10) { vo.mesh.visible = false; return; }\n',
             '    vo.mesh.visible = true;\n',
             '    const base = new THREE.Vector3().lerpVectors(a, b, vo.t);\n',
             '    dir.normalize().multiplyScalar(vo.direct);\n',
