@@ -5679,6 +5679,10 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '\n',
             '    function draw() {\n',
             '      if (window.__gcStepTransitionActive) return;\n',
+            // Пока точку тянут, а в сценарии есть Update (ограничения, привязки), кадр рисует
+            // только цикл runUpdate — после Update. Иначе событие мыши успевало нарисовать точку
+            // в «свободном» положении, и она казалась двигающейся мимо своей прямой/кривой.
+            '      if (window.__gcDeferDraw && isDragging && hasUpdateBlock && window.autoRedraw !== false && !(draggedPointIndex !== -1 && points[draggedPointIndex] && points[draggedPointIndex].pauseOnDrag !== false)) { sceneChangedThisFrame = true; return; }\n',
               '    try {\n',
             '      syncUIVisibility();\n',
             '      const stale = !sceneSnapshot || sceneSnapshot.width !== canvas.width || sceneSnapshot.height !== canvas.height;\n',
@@ -6721,7 +6725,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '    // столкновения, привязка) не меняется. Перед отпусканием — точная позиция.\n',
             '    let gcDragTarget = null, gcDragSmooth = null, gcDragRaf = 0, gcDragLast = 0;\n',
             '    function gcClientXY(e) { const t = e.touches && e.touches[0]; return t ? { x: t.clientX, y: t.clientY } : { x: e.clientX, y: e.clientY }; }\n',
-            '    function gcFeedMove(x, y) { onPointerMove({ clientX: x, clientY: y }); }\n',
+            '    function gcFeedMove(x, y) { window.__gcDeferDraw = true; try { onPointerMove({ clientX: x, clientY: y }); } finally { window.__gcDeferDraw = false; } }\n',
             '    function gcDragStep(ts) {\n',
             '        gcDragRaf = 0;\n',
             '        if (dragMode === null || !gcDragTarget) { gcDragSmooth = null; return; }\n',
@@ -6736,7 +6740,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '        if (far) { gcDragRaf = requestAnimationFrame(gcDragStep); }\n',
             '    }\n',
             '    function onPointerMoveSmooth(e) {\n',
-            '        if (dragMode === null || !(DRAG_SMOOTHING > 0)) { gcDragTarget = null; gcDragSmooth = null; onPointerMove(e); return; }\n',
+            '        if (dragMode === null || !(DRAG_SMOOTHING > 0)) { gcDragTarget = null; gcDragSmooth = null; if (dragMode !== null) { window.__gcDeferDraw = true; try { onPointerMove(e); } finally { window.__gcDeferDraw = false; } } else { onPointerMove(e); } return; }\n',
             '        if (e.touches && e.cancelable) e.preventDefault();\n',
             '        const p = gcClientXY(e);\n',
             '        gcDragTarget = p;\n',
