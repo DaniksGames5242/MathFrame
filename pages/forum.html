@@ -753,7 +753,7 @@ function renderRules(){
   window.scrollTo({top:0});
   app.innerHTML = `
     <a class="back-link" href="#"><span class="arr">←</span> Ко всем статьям</a>
-    <article class="fx-article rules-page">
+    <article class="fx-article rules-page fx-in">
       <header class="article-head"><span class="mf-label">Сообщество</span><h1>Правила форума</h1>
         <p class="rules-lead">Форум MathFrame — место, где школьники и студенты делятся разборами, конспектами и вопросами по математике. Чтобы здесь было безопасно и полезно, соблюдайте простые правила.</p></header>
       <div class="content-body">
@@ -793,7 +793,7 @@ async function renderDrafts(){
   const seq = ++detailSeq;
   window.scrollTo({top:0});
   const head = `<a class="back-link" href="#"><span class="arr">←</span> Ко всем статьям</a>
-    <section class="fx-hero"><div class="fx-hero-text"><span class="mf-label">Модерация</span><h1 class="fx-title">Мои черновики</h1>
+    <section class="fx-hero fx-in"><div class="fx-hero-text"><span class="mf-label">Модерация</span><h1 class="fx-title">Мои черновики</h1>
     <p class="fx-sub">Статьи, которые не прошли автоматическую проверку, не удаляются: их можно исправить и отправить заново или оспорить решение. <a href="#rules">Правила форума</a></p></div></section>`;
   const showEmpty = o => { app.innerHTML = head + emptyState(o); const b = app.querySelector('[data-empty-act]');
     if(b) b.onclick = ()=> b.dataset.emptyAct==='login' ? window.openAuthModal() : renderDrafts(); };
@@ -805,10 +805,10 @@ async function renderDrafts(){
   if(seq!==detailSeq || location.hash!=='#drafts') return;
   if(!list.length){ showEmpty({title:'Черновиков нет', text:'Здесь появятся статьи, не прошедшие проверку.'}); return; }
   const fmt = v => v ? new Date(v).toLocaleString('ru-RU',{day:'numeric',month:'long',hour:'2-digit',minute:'2-digit'}) : '';
-  app.innerHTML = head + `<div class="drafts-list">${list.map(d=>{
+  app.innerHTML = head + `<div class="drafts-list">${list.map((d,i)=>{
     const [cls,label] = statusLabel(d);
     const excerpt = (new DOMParser().parseFromString(d.bodyHTML||'','text/html').body.textContent||'').trim().slice(0,220);
-    return `<div class="card draft-card" data-id="${escapeHtml(d.id)}">
+    return `<div class="card draft-card fx-in" style="--i:${i}" data-id="${escapeHtml(d.id)}">
       <div class="card-flags"><span class="draft-status ${cls}">${label}</span>${d.articleId?'<span class="card-flag">Правка опубликованной статьи</span>':''}</div>
       <h3>${escapeHtml(d.title)}</h3>
       <p class="draft-excerpt">${escapeHtml(excerpt)}${excerpt.length>=220?'…':''}</p>

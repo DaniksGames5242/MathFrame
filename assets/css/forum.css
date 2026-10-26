@@ -651,3 +651,16 @@ html.mf-no-motion .fx-empty-art circle { opacity: .35; }
 .mod-modal .mod-hint { font-size: .8rem; color: var(--text-tertiary); }
 .mod-modal textarea { width: 100%; resize: vertical; }
 .mod-modal .mod-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: .6rem; margin-top: 1rem; }
+
+/* анимации новых страниц: правила, черновики, окно «статья отклонена» */
+.rules-page .content-body > * { animation: fxRise .55s var(--e-out) backwards; }
+.rules-page .content-body > :nth-child(1) { animation-delay: .10s; } .rules-page .content-body > :nth-child(2) { animation-delay: .14s; }
+.rules-page .content-body > :nth-child(3) { animation-delay: .18s; } .rules-page .content-body > :nth-child(4) { animation-delay: .22s; }
+.rules-page .content-body > :nth-child(5) { animation-delay: .26s; } .rules-page .content-body > :nth-child(6) { animation-delay: .30s; }
+.rules-page .content-body > :nth-child(n+7) { animation-delay: .34s; }
+.mod-modal .mod-body > *, .mod-modal .mod-actions { animation: fxRise .45s var(--e-out) backwards; }
+.mod-modal .mod-body > :nth-child(2) { animation-delay: .08s; } .mod-modal .mod-body > :nth-child(3) { animation-delay: .16s; }
+.mod-modal .mod-actions { animation-delay: .24s; }
+.draft-status.wait { animation: fxPulse 2.4s ease-in-out infinite; }
+@keyframes fxPulse { 50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--gold) 22%, transparent); } }
+@media (prefers-reduced-motion: reduce) { .rules-page .content-body > *, .mod-modal .mod-body > *, .mod-modal .mod-actions, .draft-status.wait { animation: none; } }

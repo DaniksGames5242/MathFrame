@@ -20,6 +20,14 @@
     '.mfs-overlay{position:fixed;inset:0;z-index:10050;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:1rem;overflow:auto}' +
     '.mfs-modal{position:relative;width:100%;max-width:520px;max-height:100%;overflow:auto;background:var(--bg-card,#111);color:var(--text-primary);border:1px solid var(--border);border-radius:var(--r-lg,14px);padding:1.3rem 1.4rem}' +
     '.mfs-modal h2{margin:0 0 .9rem;font-size:1.25rem}' +
+    '.mfs-form>*{animation:mfsRise .45s var(--e-out,ease-out) backwards}' +
+    '.mfs-form>:nth-child(2){animation-delay:.05s}.mfs-form>:nth-child(3){animation-delay:.1s}.mfs-form>:nth-child(4){animation-delay:.15s}.mfs-form>:nth-child(6){animation-delay:.2s}' +
+    '.mfs-status.ok{animation:mfsRise .5s var(--e-out,ease-out)}' +
+    '.mfs-overlay{animation:mfsFade .25s ease-out}.mfs-modal{animation:mfsPop .4s var(--e-spring,cubic-bezier(.2,.9,.3,1.2))}' +
+    '@keyframes mfsRise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}' +
+    '@keyframes mfsFade{from{opacity:0}to{opacity:1}}' +
+    '@keyframes mfsPop{from{opacity:0;transform:translateY(16px) scale(.96)}to{opacity:1;transform:none}}' +
+    '@media (prefers-reduced-motion:reduce){.mfs-form>*,.mfs-overlay,.mfs-modal,.mfs-status.ok{animation:none}}' +
     '.mfs-x{position:absolute;top:.6rem;right:.7rem;width:34px;height:34px;border:0;background:transparent;color:var(--text-secondary);font-size:1.5rem;line-height:1;cursor:pointer;border-radius:8px}' +
     '.mfs-x:hover{color:var(--text-primary)}';
 
