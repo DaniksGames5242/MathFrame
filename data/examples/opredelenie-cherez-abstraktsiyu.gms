@@ -31,12 +31,19 @@ draw Vector { name = "vV"; edge = "vAB"; color = #f59e0b }
 
 string info = "";
 
-Function clampTo(v, m) { if (v > m) { return m; } if (v < -m) { return -m; } return v; }
+// Начало представителя: берём «любимое» положение (px, py), но сдвигаем его так, чтобы и начало,
+// и конец (начало + вектор) остались в поле. Тогда представитель всегда равен u по длине и
+// направлению — край поля его не обрезает.
+Function clampTo(v, lo, hi) { if (v > hi) { return hi; } if (v < lo) { return lo; } return v; }
 
 Update {
   float dx = A2.pos.x - A1.pos.x; float dy = A2.pos.y - A1.pos.y;
-  R1e.pos.x = clampTo(R1.pos.x + dx, fieldMaxX); R1e.pos.y = clampTo(R1.pos.y + dy, fieldMaxY);
-  R2e.pos.x = clampTo(R2.pos.x + dx, fieldMaxX); R2e.pos.y = clampTo(R2.pos.y + dy, fieldMaxY);
+  R1.pos.x = clampTo(-1, max(-fieldMaxX, -fieldMaxX - dx), min(fieldMaxX, fieldMaxX - dx));
+  R1.pos.y = clampTo(-4, max(-fieldMaxY, -fieldMaxY - dy), min(fieldMaxY, fieldMaxY - dy));
+  R2.pos.x = clampTo(4, max(-fieldMaxX, -fieldMaxX - dx), min(fieldMaxX, fieldMaxX - dx));
+  R2.pos.y = clampTo(-3, max(-fieldMaxY, -fieldMaxY - dy), min(fieldMaxY, fieldMaxY - dy));
+  R1e.pos.x = R1.pos.x + dx; R1e.pos.y = R1.pos.y + dy;
+  R2e.pos.x = R2.pos.x + dx; R2e.pos.y = R2.pos.y + dy;
 
   float bdx = B2.pos.x - B1.pos.x; float bdy = B2.pos.y - B1.pos.y;
   float same = 0; if (abs(dx - bdx) < 0.25 && abs(dy - bdy) < 0.25) { same = 1; }
