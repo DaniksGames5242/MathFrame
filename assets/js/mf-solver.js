@@ -59,8 +59,12 @@
   function recoverQ(x, maxDen) {
     if (!isFinite(x)) return null;
     var r = Math.round(x);
-    if (Math.abs(x - r) < 1e-10 * Math.max(1, Math.abs(x))) return Q(r, 1);
-    var fr = MF.toFraction(x, maxDen || 10000, 1e-11 * Math.max(1, Math.abs(x)));
+    if (Math.abs(x - r) < Math.max(1e-10, 4e-15 * Math.abs(x))) return Q(r, 1);
+    // знаменатель ограничен и допуском: у большого числа погрешность больше,
+    // и «случайная» дробь нашлась бы почти всегда (2·10⁶ ≈ 10782521197/4919)
+    var tol = 1e-11 * Math.max(1, Math.abs(x)), md = Math.min(maxDen || 10000, Math.floor(Math.sqrt(1e-4 / tol)));
+    if (md < 2) return null;
+    var fr = MF.toFraction(x, md, tol);
     return fr ? Q(fr.n, fr.d) : null;
   }
   function qAdd(a, b) { return (isF(a) || isF(b)) ? F(qv(a) + qv(b)) : Q(a.n * b.d + b.n * a.d, a.d * b.d); }
@@ -128,8 +132,6 @@
     if (x > 0) { var ke = recoverQ(Math.log(x), 12); if (ke && !qZero(ke)) return { tex: qOne(ke) ? 'e' : 'e^{' + qTex(ke) + '}', exact: true }; }
     var rv = recoverVal(x);
     if (rv && rv.s) return { tex: AL.surdToTex(rv.s), exact: true };
-    var e = AL.exactAnswerTex(x);
-    if (e && e.approx) return { tex: e.exact, exact: true };
     return { tex: fTex(x, 8), exact: false };
   }
   function piTex(q) {   // q·π
@@ -175,6 +177,7 @@
   function rootIndex(e) {   // показатель 1/k -> k (для записи корнем)
     if (e.t === '/' && e.a.t === 'num' && e.a.v === 1 && e.b.t === 'num' && Number.isInteger(e.b.v) && e.b.v >= 2) return e.b.v;
     if (e.t === 'num' && Math.abs(e.v - 0.5) < 1e-15) return 2;
+    if (e.t === 'num' && e.val && e.val.s && e.val.s.length === 1 && e.val.s[0].rad === 1 && e.val.s[0].coef.n === 1 && e.val.s[0].coef.d >= 2 && e.val.s[0].coef.d <= 20) return e.val.s[0].coef.d;
     return 0;
   }
   function T(n, pp) {
@@ -339,8 +342,8 @@
   }
   function monoTex(m) {
     return Object.keys(m).sort().map(function (k) {
-      var nm = k.length > 1 && k !== 'π' ? '\\mathrm{' + k + '}' : k;
-      return m[k] === 1 ? nm : nm + '^{' + m[k] + '}';
+      var nm = k.charAt(0) === '√' ? '\\sqrt{' + k.slice(1) + '}' : k.length > 1 && k !== 'π' ? '\\mathrm{' + k + '}' : k;
+      return m[k] === 1 ? nm : (k.charAt(0) === '√' ? '\\left(' + nm + '\\right)' : nm) + '^{' + m[k] + '}';
     }).join(' ');
   }
   // Список слагаемых [{c, m}] -> «3x^{2} - 2x + 5» (НЕ сливая подобные).
@@ -404,6 +407,153 @@
       else out = qSign(t.c) < 0 ? sub(out, node) : add(out, node);
     });
     return out;
+  }
+
+  /* ------------- многочлены от нескольких переменных: точное деление и НОД
+     (сокращение дробей вроде (a² − 2ab + b²)/(a − b) = a − b). */
+  function PolyAbort() {}
+  function pChk(p) { pList(p).forEach(function (t) { if (isF(t.c)) throw new PolyAbort(); }); if (pList(p).length > 300) throw new PolyAbort(); return p; }
+  function lexCmp(a, b, vs) { for (var i = 0; i < vs.length; i++) { var d = (a[vs[i]] || 0) - (b[vs[i]] || 0); if (d) return d; } return 0; }
+  function pLT(p, vs) { var best = null; pList(p).forEach(function (t) { if (!best || lexCmp(t.m, best.m, vs) > 0) best = t; }); return best; }
+  function pDivExact(a, b) {
+    if (pIsZero(b)) return null;
+    var vs = pVars(pAdd(a, b)), q = pNew(), r = a, lb = pLT(b, vs);
+    for (var g = 0; g < 600 && !pIsZero(r); g++) {
+      var lr = pLT(r, vs), m = {};
+      for (var k in lr.m) m[k] = lr.m[k];
+      for (var k2 in lb.m) { m[k2] = (m[k2] || 0) - lb.m[k2]; if (m[k2] < 0) return null; }
+      var t = pAddTerm(pNew(), qDiv(lr.c, lb.c), cleanM(m));
+      q = pAdd(q, t); r = pChk(pSub(r, pMul(t, b)));
+    }
+    return pIsZero(r) ? q : null;
+  }
+  function pLc(p, v) { var cs = pCoeffs(p, v); return cs[cs.length - 1]; }
+  function pContent(p, v) { var g = null; pCoeffs(p, v).forEach(function (c) { if (!pIsZero(c)) g = g ? pGcd(g, c) : c; }); return g || pConst(Q1); }
+  function pPrem(a, b, v) {
+    var r = a, db = pDeg(b, v), lcb = pLc(b, v);
+    for (var g = 0; g < 60 && !pIsZero(r) && pDeg(r, v) >= db; g++) {
+      var dr = pDeg(r, v), m = {}; if (dr - db) m[v] = dr - db;
+      r = pChk(pSub(pMul(lcb, r), pMul(pMul(pLc(r, v), pAddTerm(pNew(), Q1, m)), b)));
+    }
+    return r;
+  }
+  function pPrim(p, v) { var c = pContent(p, v); return pDivExact(p, c) || p; }
+  function pGcd(a, b) {
+    if (pIsZero(a)) return b; if (pIsZero(b)) return a;
+    if (pIsConst(a) || pIsConst(b)) return pConst(Q1);
+    var vs = pVars(pAdd(a, b)), v = vs[0];
+    for (var i = 0; i < vs.length; i++) if (pDeg(a, vs[i]) > 0 && pDeg(b, vs[i]) > 0) { v = vs[i]; break; }
+    var ca = pContent(a, v), cb = pContent(b, v), c = pGcd(ca, cb);
+    var pa = pDivExact(a, ca), pb = pDivExact(b, cb);
+    if (!pa || !pb) throw new PolyAbort();
+    var g;
+    if (pDeg(pa, v) <= 0 || pDeg(pb, v) <= 0) g = pConst(Q1);
+    else {
+      if (pDeg(pa, v) < pDeg(pb, v)) { var t = pa; pa = pb; pb = t; }
+      for (var k = 0; k < 40 && !pIsZero(pb) && pDeg(pb, v) > 0; k++) {
+        var r = pPrem(pa, pb, v);
+        pa = pb; pb = pIsZero(r) ? r : pPrim(r, v);
+      }
+      g = pIsZero(pb) ? pPrim(pa, v) : pConst(Q1);
+    }
+    return pMul(c, g);
+  }
+  // общий числовой множитель: целые взаимно простые коэффициенты
+  function pIntNorm(N, D) {
+    var L = 1, G = 0;
+    pList(N).concat(pList(D)).forEach(function (t) { L = lcm(L, t.c.d); });
+    N = pScale(N, qi(L)); D = pScale(D, qi(L));
+    pList(N).concat(pList(D)).forEach(function (t) { G = gcd(G, t.c.n); });
+    if (G > 1) { N = pScale(N, Q(1, G)); D = pScale(D, Q(1, G)); }
+    var ld = pLT(D, pVars(D));
+    if (ld && qSign(ld.c) < 0) { N = pNeg(N); D = pNeg(D); }
+    return { n: N, d: D };
+  }
+  // дробь из многочленов от нескольких переменных: { n, d } (без сокращения)
+  function rmFromAst(n) {
+    switch (n.t) {
+      case '+': case '-': {
+        var a = rmFromAst(n.a), b = a && rmFromAst(n.b); if (!b) return null;
+        if (pIsConst(a.d) && pIsConst(b.d) || pTex(a.d) === pTex(b.d)) { var nn = n.t === '+' ? pAdd(pMul(a.n, b.d), pMul(b.n, a.d)) : pSub(pMul(a.n, b.d), pMul(b.n, a.d)); return pTex(a.d) === pTex(b.d) && !pIsConst(a.d) ? { n: n.t === '+' ? pAdd(a.n, b.n) : pSub(a.n, b.n), d: a.d } : { n: nn, d: pMul(a.d, b.d) }; }
+        // общий знаменатель — НОК знаменателей
+        var g = pGcd(a.d, b.d), ka = pDivExact(b.d, g), kb = pDivExact(a.d, g);
+        if (!ka || !kb) return null;
+        var num = n.t === '+' ? pAdd(pMul(a.n, ka), pMul(b.n, kb)) : pSub(pMul(a.n, ka), pMul(b.n, kb));
+        return { n: pChk(num), d: pChk(pMul(a.d, ka)) };
+      }
+      case 'neg': { var a2 = rmFromAst(n.a); return a2 && { n: pNeg(a2.n), d: a2.d }; }
+      case '*': { var a3 = rmFromAst(n.a), b3 = a3 && rmFromAst(n.b); return b3 && { n: pChk(pMul(a3.n, b3.n)), d: pChk(pMul(a3.d, b3.d)) }; }
+      case '/': { var a4 = rmFromAst(n.a), b4 = a4 && rmFromAst(n.b); if (!b4 || pIsZero(b4.n)) return null; return { n: pChk(pMul(a4.n, b4.d)), d: pChk(pMul(a4.d, b4.n)) }; }
+      case '^': {
+        var e = freeVars(n.b).length ? null : constQ(n.b);
+        if (freeVars(n.a).length && e && qIsInt(e) && Math.abs(e.n) <= 12) {
+          var b5 = rmFromAst(n.a); if (!b5) return null;
+          var pn = pPow(b5.n, Math.abs(e.n)), pd = pPow(b5.d, Math.abs(e.n));
+          return e.n >= 0 ? { n: pChk(pn), d: pChk(pd) } : { n: pChk(pd), d: pChk(pn) };
+        }
+        var p5 = pFromAst(n); return p5 && { n: p5, d: pConst(Q1) };
+      }
+      default: { var p6 = pFromAst(n); return p6 && { n: p6, d: pConst(Q1) }; }
+    }
+  }
+  // √a → переменная «√a», а сама a → (√a)²: корни из переменных упрощаются как многочлены
+  function sqrtAtoms(ast) {
+    var names = {};
+    anyNode(ast, function (x) { if (x.t === 'fn' && x.name === 'sqrt' && x.a.t === 'var' && MF.CONSTS[x.a.name] === undefined) names[x.a.name] = 1; return false; });
+    var list = Object.keys(names);
+    if (!list.length) return null;
+    function rw(x) {
+      if (!x) return x;
+      if (x.t === 'fn' && x.name === 'sqrt' && x.a.t === 'var' && names[x.a.name]) return Vr('√' + x.a.name);
+      if (x.t === 'var' && names[x.name]) return pw(Vr('√' + x.name), Nn(2));
+      var c = {}; for (var k in x) c[k] = x[k];
+      if (x.a) c.a = rw(x.a); if (x.b) c.b = rw(x.b);
+      return c;
+    }
+    var out = rw(ast);
+    return anyNode(out, function (x) { return x.t === 'fn' && x.name === 'sqrt'; }) ? null : { ast: out, names: list };
+  }
+  // обратно: (√a)^{2k+1} → a^k·√a
+  function sqrtBack(p) {
+    var r = pNew();
+    pList(p).forEach(function (t) {
+      var m = {};
+      for (var k in t.m) {
+        if (k.charAt(0) === '√') { var base = k.slice(1), e = t.m[k]; if (e >= 2) m[base] = (m[base] || 0) + Math.floor(e / 2); if (e % 2) m[k] = 1; }
+        else m[k] = (m[k] || 0) + t.m[k];
+      }
+      pAddTerm(r, t.c, m);
+    });
+    return r;
+  }
+  function simplifyMulti(ast, vars, S) {
+    var sa = sqrtAtoms(ast), work = sa ? sa.ast : ast;
+    var rm;
+    try { rm = rmFromAst(work); } catch (e) { if (e instanceof PolyAbort) return null; throw e; }
+    if (!rm) return null;
+    var N0 = rm.n, D0 = rm.d, g, N, D;
+    try { g = pGcd(N0, D0); N = pDivExact(N0, g); D = pDivExact(D0, g); } catch (e2) { if (e2 instanceof PolyAbort) return null; throw e2; }
+    if (!N || !D) return null;
+    var nz = pIntNorm(N, D); N = nz.n; D = nz.d;
+    var back = sa ? sqrtBack : function (x) { return x; };
+    var texOf = function (n, d) { return pIsConst(d) ? pTex(back(pScale(n, qDiv(Q1, pConstVal(d))))) : '\\frac{' + pTex(back(n)) + '}{' + pTex(back(d)) + '}'; };
+    if (sa) S.add(null, 'Считаем все переменные под корнем неотрицательными: тогда $' + sa.names.map(function (v) { return v + ' = \\left(\\sqrt{' + v + '}\\right)^{2}'; }).join(',\\ ') + '$ — так корни упрощаются по формулам сокращённого умножения.', 1);
+    var t0 = texOf(N0, D0), t1 = texOf(N, D), gc = !pIsConst(g);
+    if (!pIsConst(D0) && t0 !== T(ast)) S.add(t0, 'Приводим к общему знаменателю.', 1);
+    var fac = function (P) {
+      var a = pTex(back(P)), gg = pTex(back(g));
+      var one = pIsConst(P) && qOne(pConstVal(P)), wrapG = pList(g).length > 1 ? '\\left(' + gg + '\\right)' : gg;
+      if (one) return gg;
+      if (a === gg) return wrapG + '^{2}';
+      return (pList(P).length > 1 ? '\\left(' + a + '\\right)' : a) + ' \\cdot ' + wrapG;
+    };
+    if (gc) S.add('\\frac{' + fac(N) + '}{' + fac(D) + '} = ' + t1, 'Раскладываем числитель и знаменатель на множители и сокращаем общий множитель $' + pTex(back(g)) + '$.', 1);
+    else if (pIsConst(D0) && !pIsConst(N0) && t1 !== T(ast)) S.add(t1, 'Раскрываем скобки и приводим подобные слагаемые.', 1);
+    S.add(T(ast) + ' = ' + t1, 'Итог упрощения.', 0);
+    var extra = [];
+    var cond = []; if (!pIsConst(D)) cond.push(pTex(back(D)) + ' \\ne 0'); if (gc) cond.push(pTex(back(g)) + ' \\ne 0');
+    if (cond.length) extra.push('при $' + cond.join(',\\ ') + '$ (там, где исходное выражение определено)');
+    return { label: 'Упрощённый вид', items: [{ tex: t1 }], extra: extra };
   }
 
   /* ---------------- раскрытие скобок «как в тетради» (без слияния подобных)
@@ -795,6 +945,7 @@
     return (neg ? '-' : '') + out;
   }
   function valTex(v) {
+    if (v.tx) return v.tx;
     if (v.big) return bigTex(v.big);
     var q = valRat(v);
     if (q) return qTex(q, v.dec);
@@ -823,7 +974,7 @@
     var q = recoverQ(x, 1000);
     if (q) return valQ(q);
     var q2 = recoverQ(x * x, 1000);
-    if (q2 && !isF(q2) && q2.n > 0) {
+    if (q2 && !isF(q2) && q2.n > 0 && Math.abs(Math.sqrt(qv(q2)) - Math.abs(x)) < 1e-13 * Math.max(1, Math.abs(x))) {
       var s = AL.surdSqrtInt(q2.n * q2.d);
       if (s) { s = AL.surdMulRat(s, { n: x < 0 ? -1 : 1, d: q2.d }); return { s: s, x: x, dec: false }; }
     }
@@ -874,6 +1025,31 @@
     }
     return '';
   }
+  // объяснение избавления от иррациональности в знаменателе
+  function rationalizeText(A, B, res) {
+    var a = valTex(A), b = valTex(B), r = valTex(res);
+    var sq = B.s.every(function (t) { return t.rad === 1 || (t.ex.length && t.ex.every(function (e) { return e[2] === 2; })); });
+    var aP = A.s && A.s.length > 1 ? '\\left(' + a + '\\right)' : a;
+    if (B.s.length === 1) {
+      var t = B.s[0], L = 1; t.ex.forEach(function (e) { L = lcm(L, e[2]); });
+      var R = 1; t.ex.forEach(function (e) { R *= Math.pow(e[0], e[1] * L / e[2]); });
+      var mulTex = L === 2 ? '\\sqrt{' + R + '}' : '\\sqrt[' + L + ']{' + R + '^{' + (L - 1) + '}}';
+      var txt = 'Деление на корень: чтобы в знаменателе не было корня, домножаем числитель и знаменатель на $' + mulTex + '$: $\\frac{' + a + '}{' + b + '} = ' + r + '$';
+      return { text: txt };
+    }
+    if (sq && B.s.length === 2) {
+      var t1 = B.s[0], t2 = B.s[1];
+      var pos = function (t) { return B.tx ? B.tx.indexOf(AL.surdToTex([{ coef: { n: 1, d: 1 }, rad: t.rad, ex: t.ex }]).replace(/^1$/, String(Math.abs(t.coef.n)))) : 0; };
+      if (B.tx ? pos(t1) > pos(t2) : (t1.coef.n < 0 && t2.coef.n > 0)) { var tt = t1; t1 = t2; t2 = tt; }   // как в записи: «√3 − 1»
+      var conj = [t1, { coef: { n: -t2.coef.n, d: t2.coef.d }, rad: t2.rad, ex: t2.ex }];
+      var cTex = AL.surdToTex(conj), den = AL.surdMul(B.s, conj), num = AL.surdMul(A.s, conj);
+      if (!den || !num) return null;
+      var txt2 = 'Избавляемся от иррациональности в знаменателе: домножаем числитель и знаменатель на сопряжённое выражение $' + cTex + '$ и пользуемся формулой $(a+b)(a-b) = a^{2} - b^{2}$: ' +
+        '$\\frac{' + (a === '1' ? cTex : aP + ' \\cdot \\left(' + cTex + '\\right)') + '}{\\left(' + b + '\\right)\\left(' + cTex + '\\right)} = ' + (function () { var f = AL.surdIsRational(den) && den.length && den[0].coef.n === 1 && den[0].coef.d === 1 ? AL.surdToTex(num) : '\\frac{' + AL.surdToTex(num) + '}{' + AL.surdToTex(den) + '}'; return f === r ? r : f + ' = ' + r; })() + '$';
+      return { text: txt2 };
+    }
+    return { text: 'Избавляемся от иррациональности в знаменателе ' + (sq ? '(домножаем на сопряжённые выражения, пока корни в знаменателе не исчезнут)' : '(домножаем на неполный квадрат суммы или разности, чтобы получить сумму или разность кубов: $a^{3} \\pm b^{3} = (a \\pm b)(a^{2} \\mp ab + b^{2})$)') + ': $\\frac{' + a + '}{' + b + '} = ' + r + '$' };
+  }
   var OP_NAME = { '+': 'Сложение', '-': 'Вычитание', '*': 'Умножение', '/': 'Деление' };
   var OP_SIGN = { '+': ' + ', '-': ' - ', '*': ' \\cdot ', '/': ' : ' };
   // Выполнить одно действие над узлом, у которого все дети — готовые числа.
@@ -892,6 +1068,21 @@
         if (res.s && res.dec && valRat(res) && !terminates(valRat(res))) res.dec = false;
         var qa = valRat(A), qb = valRat(B), qr = valRat(res);
         text = OP_NAME[n.t] + ': $' + opTex(res) + '$';
+        // «√5 + √2» — несоизмеримые корни не складываются: это не действие, оставляем запись как есть
+        if ((n.t === '+' || n.t === '-') && res.s && A.s && B.s && A.s.length && B.s.length && res.s.length === A.s.length + B.s.length && !valRat(res)) {
+          res.tx = T(n); return { val: res, silent: true };
+        }
+        // 3/4 — уже несократимая дробь, а не «действие деления»
+        if (n.t === '/' && qa && qb && qIsInt(qa) && qIsInt(qb) && qb.n > 0 && !A.dec && !B.dec && qr && !qIsInt(qr) && gcd(qa.n, qb.n) === 1) return { val: res, silent: true };
+        if (n.t === '/' && qa && qb && qIsInt(qa) && qIsInt(qb) && qr && !qIsInt(qr) && !A.dec && !B.dec) {
+          var g0 = gcd(qa.n, qb.n);
+          text = 'Сокращаем дробь на $' + g0 + '$: $' + opTex(res) + '$';
+          return { val: res, text: text, full: text + ' — числитель и знаменатель делятся на $' + g0 + '$' };
+        }
+        if (n.t === '/' && B.s && !valRat(B) && res.s) {
+          var ir = rationalizeText(A, B, res);
+          if (ir) { text = ir.text; full = ir.full || ''; break; }
+        }
         if (qa && qb && qr) {
           var extra = [fracOpText(n.t, qa, qb, qr), (qa.d === 1 && qb.d === 1) || A.dec || B.dec ? signRuleText(n.t, qa, qb) : ''].filter(Boolean);
           if (extra.length) full = text + ' — ' + extra.join('; ');
@@ -911,31 +1102,33 @@
           var bs = Math.abs(qA.n) > 1 && k.n * Math.log10(Math.abs(qA.n)) < 400 ? bigPow(qA.n, k.n) : null;
           res = bs ? { s: null, x: Math.pow(qA.n, k.n), big: bs } : { s: null, x: Math.pow(qA.n, k.n) };
           text = 'Возведение в степень: $' + opTex(res) + '$';
-        } else if (k && qIsInt(k) && Math.abs(k.n) <= 64 && A.s) {
-          var r = AL.surdRat({ n: 1, d: 1 });
-          for (var i = 0; i < Math.abs(k.n); i++) { r = AL.surdMul(r, A.s); if (!r || Math.abs(AL.surdToNumber(r)) > 1e15) { r = null; break; } }
-          if (r && k.n < 0) r = AL.surdDiv(AL.surdRat({ n: 1, d: 1 }), r);
-          if (r) res = { s: r, x: AL.surdToNumber(r), dec: A.dec };
-          text = 'Возведение в степень: $' + opTex(res || { s: null, x: Math.pow(A.x, B.x) }) + '$';
-          if (res && k.n === 0) full = text + ' — любое ненулевое число в нулевой степени равно $1$';
-          else if (res && k.n < 0) full = text + ' — отрицательная степень: $a^{-n} = \\frac{1}{a^{n}}$';
-          else if (res && k.n >= 2 && k.n <= 5 && valRat(A) && !res.big) {
-            var f = []; for (var j = 0; j < k.n; j++) f.push(wrapNeg(valTex(A)));
-            full = 'Возведение в степень: $' + T(n) + ' = ' + f.join(' \\cdot ') + ' = ' + valTex(res) + '$';
-            if (qSign(valRat(A)) < 0) full += ' — отрицательное число в ' + (k.n % 2 ? 'нечётной степени остаётся отрицательным' : 'чётной степени становится положительным');
+        } else if (k && A.s && !isF(k)) {
+          if (A.x < 0 && k.d % 2 === 0) fail('корень чётной степени из отрицательного числа не существует среди действительных чисел: $' + T(n) + '$ (для комплексных ответов добавьте в пример $i$)');
+          var sp = AL.surdPowQ(A.s, { n: k.n, d: k.d });
+          if (sp) res = { s: sp, x: AL.surdToNumber(sp), dec: A.dec && !!valRat({ s: sp }) };
+          var resTex = res ? valTex(res) : null;
+          if (k.d > 1 && k.n === 1 && rootIndex(n.b) && res) {
+            var qAb = valRat(A), rr = res.s;
+            if (qAb && qIsInt(qAb) && qAb.n > 0 && rr.length === 1 && rr[0].rad !== 1 && qIsInt(Q(rr[0].coef.n, rr[0].coef.d)) && rr[0].coef.n > 1) {
+              var cc = rr[0].coef.n, ck = Math.pow(cc, k.d);
+              text = 'Выносим множитель из-под корня: $' + T(n) + ' = ' + (k.d === 2 ? '\\sqrt{' : '\\sqrt[' + k.d + ']{') + ck + ' \\cdot ' + (qAb.n / ck) + '} = ' + valTex(res) + '$' + ' (так как $' + ck + ' = ' + cc + '^{' + k.d + '}$)';
+            } else if (valRat(res) && qIsInt(valRat(res)) && qAb) {
+              text = 'Извлекаем корень: $' + T(n) + ' = ' + valTex(res) + '$, так как $' + wrapNeg(valTex(res)) + '^{' + k.d + '} = ' + valTex(A) + '$';
+            } else text = 'Извлекаем корень: $' + opTex(res) + '$';
+          } else if (k.d > 1) {
+            var rootT = (k.d === 2 ? '\\sqrt{' : '\\sqrt[' + k.d + ']{') + (Math.abs(k.n) === 1 ? valTex(A) : wrapNeg(valTex(A)) + '^{' + Math.abs(k.n) + '}') + '}';
+            text = 'Степень с дробным показателем — это корень: $a^{\\frac{p}{q}} = \\sqrt[q]{a^{p}}$, $' + T(n) + ' = ' + (k.n < 0 ? '\\frac{1}{' + rootT + '}' : rootT) + ' = ' + (resTex || fTex(Math.pow(A.x, B.x), 10)) + '$';
+            if (!res) res = { s: null, x: Math.pow(Math.abs(A.x), qv(k)) * (A.x < 0 && Math.abs(k.n) % 2 ? -1 : 1) };
+          } else {
+            text = 'Возведение в степень: $' + opTex(res || { s: null, x: Math.pow(A.x, B.x) }) + '$';
+            if (res && k.n === 0) full = text + ' — любое ненулевое число в нулевой степени равно $1$';
+            else if (res && k.n < 0) full = 'Возведение в степень: $' + T(n) + ' = \\frac{1}{' + wrapNeg(valTex(A)) + '^{' + (-k.n) + '}} = ' + valTex(res) + '$ — отрицательная степень: $a^{-n} = \\frac{1}{a^{n}}$';
+            else if (res && k.n >= 2 && k.n <= 5) {
+              var f = []; for (var j = 0; j < k.n; j++) f.push(wrapNeg(valTex(A)));
+              full = 'Возведение в степень: $' + T(n) + ' = ' + f.join(' \\cdot ') + ' = ' + valTex(res) + '$';
+              if (valRat(A) && qSign(valRat(A)) < 0) full += ' — отрицательное число в ' + (k.n % 2 ? 'нечётной степени остаётся отрицательным' : 'чётной степени становится положительным');
+            }
           }
-        } else if (k && !isF(k) && k.d > 1 && valRat(A)) {
-          var base = valRat(A);
-          if (qSign(base) < 0 && k.d % 2 === 0) fail('корень чётной степени из отрицательного числа не существует среди действительных чисел: $' + T(n) + '$ (для комплексных ответов добавьте в пример $i$)');
-          var mag = Math.pow(Math.abs(qv(base)), qv(k));
-          var val = qSign(base) < 0 ? (Math.abs(k.n) % 2 ? -mag : mag) : mag;
-          var exact = recoverVal(val);
-          if (exact && valRat(exact)) {
-            var chk = qPow(valRat(exact), k.d), want = qPow(base, k.n);
-            if (!chk || !want || !qEq(chk, want)) exact = null;
-          }
-          res = exact || { s: null, x: val };
-          text = 'Степень с дробным показателем: $a^{\\frac{p}{q}} = \\sqrt[q]{a^{p}}$, $' + opTex(res) + '$';
         } else {
           var xv = Math.pow(A.x, B.x);
           if (!isFinite(xv) || isNaN(xv)) fail('не удаётся вычислить $' + T(n) + '$ среди действительных чисел');
@@ -971,6 +1164,15 @@
           }
           if (arg.x < 0) fail('квадратный корень из отрицательного числа $' + valTex(arg) + '$ среди действительных чисел не существует (для комплексного ответа добавьте в пример $i$)');
           var qs = valRat(arg);
+          if (!qs && arg.s) {
+            var srs = AL.surdRoot(arg.s, 2);
+            if (srs) {
+              res = { s: srs, x: AL.surdToNumber(srs) };
+              text = 'Извлекаем корень: $' + opTex(res) + '$';
+              full = text + ' — подкоренное выражение — полный квадрат: $' + valTex(arg) + ' = \\left(' + valTex(res) + '\\right)^{2}$';
+              break;
+            }
+          }
           if (qs && !isF(qs)) {
             var sr = AL.surdSqrtInt(qs.n * qs.d);
             if (sr) {
@@ -1048,7 +1250,7 @@
       if (!target) fail('не удаётся вычислить выражение');
       var r = doOp(target);
       replaceNode(target, r.val);
-      S.add(T(cur), r.text, 1, { textFull: r.full || undefined, cols: r.cols ? [r.cols] : undefined });
+      if (!r.silent) S.add(T(cur), r.text, 1, { textFull: r.full || undefined, cols: r.cols ? [r.cols] : undefined });
     }
     var v = cur.val;
     if (!v || !isFinite(v.x)) fail('результат не является конечным числом');
@@ -2047,7 +2249,7 @@
     for (var i = 0; i < tab.length; i++) {
       if (Math.abs(Math.abs(t) - tab[i][0]) < 1e-10) {
         var a = tab[i][1];
-        if (t < 0) a = fn === 'cos' ? qSub(Q1, a) : qNeg(a);
+        if (t < 0) a = fn === 'cos' ? qAdd(Q(1, 2), a) : qNeg(a);
         else if (fn === 'cos') a = qSub(Q(1, 2), a);
         return a;
       }
@@ -2633,9 +2835,11 @@
         return { label: 'Упрощённый вид', items: [{ tex: tex }], extra: ex2 };
       }
     }
-    // тождественная константа? проверяем в случайных точках
+    var sm = simplifyMulti(ast, vars, S);
+    if (sm) return sm;
+    // тождественная константа? проверяем в случайных (независимых по переменным) точках
     var vals = [], okc = true;
-    for (var i = 0; i < 6; i++) { var env = {}; vars.forEach(function (x, k) { env[x] = 0.37 + i * 0.91 + k * 0.53; }); vals.push(evalN(ast, env)); }
+    for (var i = 0; i < 6; i++) { var env = {}; vars.forEach(function (x, k) { env[x] = 0.37 + ((i + 1) * (k + 2) * 0.6180339887 + k * 0.414) % 2.7; }); vals.push(evalN(ast, env)); }
     if (vals.every(function (y) { return isFinite(y) && Math.abs(y - vals[0]) < 1e-9 * Math.max(1, Math.abs(y)); })) {
       var nt = numTex(vals[0]);
       S.add(T(ast) + ' = ' + nt.tex, 'Выражение при любых значениях переменных равно одному и тому же числу — оно тождественно постоянно (например, $\\sin^2 x + \\cos^2 x = 1$).', 0);

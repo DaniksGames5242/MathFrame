@@ -165,8 +165,8 @@
     ['/',            'дробь; то, что слева, уходит в числитель'],
     ['^',            'степень'],
     ['_',            'нижний индекс'],
-    ['(',            'скобки'],
-    [')',            'выйти из скобок'],
+    ['(',            'открыть скобку (над выделением — взять его в скобки)'],
+    [')',            'закрыть скобку; незакрытую калькулятор подсветит'],
     ['\\sqrt  или  Ctrl+R', 'квадратный корень'],
     ['Ctrl+Shift+R', 'корень n-й степени (появится поле показателя)'],
     ['Ctrl+8',       'сумма ∑'],
@@ -523,11 +523,10 @@
       if (f.sel) f._deleteSelection();
       f.insertChars(c);
     } else if (kind === 'fn') {
-      if (f.sel) f._deleteSelection();
-      f.insertFunc(arg);
+      f.insertFunc(arg);                 // выделение (если есть) станет аргументом
     } else if (kind === 'cmd') {
-      if (f.sel) f._deleteSelection();
-      if (arg === 'sq') { f.cmd('sup'); f.insertChars('2'); }   // готовый квадрат
+      // выделение уходит внутрь конструкции: в знаменатель, под корень, в |…|, в основание степени
+      if (arg === 'sq') { f.cmd('sup'); f.insertChars('2'); f._exitScript(); f.render(); }   // готовый квадрат
       else f.cmd(arg);
     } else if (kind === 'act') {
       switch (arg) {
@@ -535,15 +534,7 @@
         case 'clear': f.clear(); break;                          // 🗑 очистить всё поле
         case 'left':  f.left();  f.render(); break;
         case 'right': f.right(); f.render(); break;
-        case 'out': {                       // «)» — выйти наружу из скобок
-          var owner = f.cur.row.p;
-          if (owner && (owner.t === 'paren' || owner.t === 'abs' || owner.t === 'norm')) {
-            var pr = owner.p;
-            f.cur = { row: pr, i: pr.k.indexOf(owner) + 1 };
-            f.render();
-          } else { f.right(); f.render(); }
-          break;
-        }
+        case 'out': f.closeParen(); break;   // «)» — закрыть скобку (закрывать не обязательно)
         case 'shift': this.shift = !this.shift; this._build(); break;
         case 'enter': this.onEnter(f); break;
       }

@@ -31,3 +31,13 @@ for (const [input, exp] of corpus) {
   if (good) ok++; else { wrong++; if (v) console.log('WRONG ' + input + '  →  ' + JSON.stringify((r.answer.items || []).map(i => i.tex + (i.approx ? ' ≈' + i.approx : ''))) + '  ожидалось ' + exp); }
 }
 console.log(`решено верно: ${ok}/${corpus.length} (${(100 * ok / corpus.length).toFixed(1)}%), ошибок решателя: ${err}, неверно/не распознан ответ: ${wrong}`);
+
+// точная запись ответов
+let exOk = 0; const exact = require('./exact.cjs');
+for (const [input, want] of exact) {
+  const r = c.MFSolver.solve({ linear: input });
+  const got = r.error ? 'ERR ' + r.error : (r.answer.items || []).map(i => i.tex).join(' | ');
+  if (got === want) exOk++; else console.log('EXACT ' + input + '  →  ' + got + '  ожидалось ' + want);
+}
+console.log(`точная запись: ${exOk}/${exact.length}`);
+if (ok < corpus.length || exOk < exact.length) process.exitCode = 1;

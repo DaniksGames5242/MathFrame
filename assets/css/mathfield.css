@@ -413,3 +413,7 @@ kbd {
   color: var(--text-primary);
   white-space: nowrap;
 }
+/* Скобки — обычные символы строки: их можно ставить и закрывать где угодно.
+   Непарная скобка подсвечена — калькулятор сообщит, что её нужно закрыть. */
+.mfld-pch { padding: 0 .03em; }
+.mfld-unmatched { color: var(--danger, #e5484d); text-decoration: underline wavy color-mix(in srgb, currentColor 55%, transparent); text-underline-offset: .18em; }

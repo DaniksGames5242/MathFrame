@@ -997,6 +997,12 @@
 
       function renderSolverResult(res) {
         checkWrap.hidden = true; checkWrap.innerHTML = '';
+        if (res.error && /скобк|пуст|оборван|не хватает|нет аргумента|начинается со знака|запятая вне|не удалось распознать|не удалось разобрать|нижний индекс/.test(res.error)) {
+          // ошибка записи (незакрытая скобка, пустая часть после «=» …) — сообщаем, нейросеть тут не нужна
+          setBadge('Запись не закончена'); showError(res.error.replace(/\$([^$]+)\$/g, function (_, t) { return latexToPlainText(t); }));
+          errWrap.innerHTML = richText('Проверьте запись: ' + res.error);
+          return;
+        }
         if (res.error) {
           setBadge(res.internal ? 'Ошибка' : 'Не получилось решить'); showError(res.error.replace(/\$([^$]+)\$/g, function (_, t) { return latexToPlainText(t).replace(/\\[a-z]+\s?/g, ''); })); errWrap.innerHTML = richText('Не получилось: ' + res.error);
           // Запись калькулятор не понял — предлагаем решить нейросетью (редкий случай).

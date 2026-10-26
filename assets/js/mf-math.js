@@ -1331,125 +1331,280 @@
      из готового double — поэтому и работает именно там, где угадывание
      по значению не может: составные выражения с несколькими корнями.
      ========================================================================== */
+  /* SurdNum — сумма Σ cᵢ·ⁿ√(…): рациональный коэффициент на произведение
+     простых в дробных степенях (0 < a/b < 1). Так точно считаются корни ЛЮБОЙ
+     степени (∛16 = 2∛2, ∜4 = √2, ∛2·∛4 = 2), а деление на сумму корней
+     (1/(√5+√2), 1/(∛2+1), 1/(√2+√3+√5)) — избавлением от иррациональности:
+     знаменатель — многочлен от t = ᵏ√p над полем без p, обратный элемент
+     ищется алгоритмом Евклида по модулю tᵏ − p. null — «вне системы»
+     (переменная, sin, π, корень чётной степени из отрицательного,
+     переполнение), тогда вызывающий код считает приближённо.
+     Термин: { coef: {n,d}, rad: 1 | 'ключ', ex: [[p, a, b], …] }. */
+  function SurdOverflow() {}
+  function safeN(x) { if (!Number.isSafeInteger(x)) throw new SurdOverflow(); return x; }
+  function fr(n, d) { safeN(n); safeN(d); var f = Frac(n, d); if (!f) throw new SurdOverflow(); return f; }
+  function frMul(a, b) { return fr(a.n * b.n, a.d * b.d); }
+  function frAdd(a, b) { return fr(a.n * b.d + b.n * a.d, a.d * b.d); }
+  function lcmN(a, b) { return a / gcd(a, b) * b; }
+  function factorInt(n) {   // n ≥ 1 → { p: степень }; хвост > 10¹² считаем простым
+    var f = {};
+    for (var p = 2; p * p <= n && p < 1000000; p += (p === 2 ? 1 : 2)) {
+      while (n % p === 0) { f[p] = (f[p] || 0) + 1; n /= p; }
+    }
+    if (n > 1) f[n] = (f[n] || 0) + 1;
+    return f;
+  }
+  function powN(p, k) { var r = 1; for (var i = 0; i < k; i++) r = safeN(r * p); return r; }
+  // coef · Π p^(a/b) → нормальная форма (целые части степеней — в коэффициент)
+  function mkTerm(coef, exps) {
+    var ex = [], c = coef;
+    Object.keys(exps).map(Number).sort(function (x, y) { return x - y; }).forEach(function (p) {
+      var a = exps[p][0], b = exps[p][1], g = gcd(a, b) || 1; a /= g; b /= g;
+      if (b < 0) { a = -a; b = -b; }
+      var fl = Math.floor(a / b), rem = a - fl * b;
+      if (fl > 0) c = frMul(c, fr(powN(p, fl), 1));
+      else if (fl < 0) c = frMul(c, fr(1, powN(p, -fl)));
+      if (rem) ex.push([p, rem, b]);
+    });
+    return { coef: c, rad: ex.length ? ex.map(function (e) { return e[0] + '^' + e[1] + '/' + e[2]; }).join('*') : 1, ex: ex };
+  }
+  function exMap(t) { var m = {}; (t.ex || []).forEach(function (e) { m[e[0]] = [e[1], e[2]]; }); return m; }
+  function addExp(m, p, a, b) {
+    if (!m[p]) { m[p] = [a, b]; return; }
+    var o = m[p]; m[p] = [o[0] * b + a * o[1], o[1] * b];
+  }
+  function termMul(s, t) {
+    var m = exMap(s);
+    (t.ex || []).forEach(function (e) { addExp(m, e[0], e[1], e[2]); });
+    return mkTerm(frMul(s.coef, t.coef), m);
+  }
+  // term^(num/den); null — чётный корень из отрицательного
+  function termPow(t, num, den) {
+    if (t.coef.n === 0) return num > 0 ? { coef: Frac(0, 1), rad: 1, ex: [] } : null;
+    var sign = t.coef.n < 0 ? -1 : 1;
+    if (sign < 0 && den % 2 === 0) return null;
+    if (Math.abs(num) > 400) throw new SurdOverflow();
+    var m = {}, k;
+    var fn = factorInt(Math.abs(t.coef.n)), fd = factorInt(t.coef.d);
+    for (k in fn) addExp(m, +k, fn[k], 1);
+    for (k in fd) addExp(m, +k, -fd[k], 1);
+    (t.ex || []).forEach(function (e) { addExp(m, e[0], e[1], e[2]); });
+    for (k in m) m[k] = [m[k][0] * num, m[k][1] * den];
+    var s = sign < 0 && Math.abs(num) % 2 ? -1 : 1;
+    return mkTerm(Frac(s, 1), m);
+  }
   function surdTrim(terms) {
-    var byRad = {};
+    var by = {}, order = [];
     terms.forEach(function (t) {
       if (t.coef.n === 0) return;
       var key = String(t.rad);
-      byRad[key] = byRad[key] ? R.add(byRad[key], t.coef) : t.coef;
+      if (by[key]) by[key] = { coef: frAdd(by[key].coef, t.coef), rad: t.rad, ex: t.ex };
+      else { by[key] = { coef: t.coef, rad: t.rad, ex: t.ex || [] }; order.push(key); }
     });
-    var out = [];
-    Object.keys(byRad).forEach(function (k) {
-      if (byRad[k].n !== 0) out.push({ coef: byRad[k], rad: Number(k) });
+    var out = order.map(function (k) { return by[k]; }).filter(function (t) { return t.coef.n !== 0; });
+    out.sort(function (a, b) {
+      if (a.rad === 1) return -1; if (b.rad === 1) return 1;
+      var ia = radIndex(a), ib = radIndex(b);
+      return ia.L - ib.L || ia.R - ib.R;
     });
-    out.sort(function (a, b) { return a.rad - b.rad; });
     return out;
   }
-  function surdRat(fr) { return fr.n === 0 ? [] : [{ coef: fr, rad: 1 }]; }
+  function radIndex(t) {
+    var L = 1; t.ex.forEach(function (e) { L = lcmN(L, e[2]); });
+    var R = 1; t.ex.forEach(function (e) { R = R * Math.pow(e[0], e[1] * L / e[2]); });
+    return { L: L, R: R };
+  }
+  function guard(fn) { return function () { try { return fn.apply(null, arguments); } catch (e) { if (e instanceof SurdOverflow) return null; throw e; } }; }
+  function ratTerm(f) { return { coef: f, rad: 1, ex: [] }; }
+  function surdRat(f) { return f.n === 0 ? [] : [ratTerm(f)]; }
   function surdInt(n) { return surdRat(Frac(n, 1)); }
-  function surdSqrtInt(n) {
-    if (n < 0) return null;   // мнимость — вне этой системы
-    var rad = simplifyRadical(n);
-    if (!rad) return null;
-    if (rad.inner === 1) return surdRat(Frac(rad.coef, 1));   // точный квадрат — рационально
-    return [{ coef: Frac(rad.coef, 1), rad: rad.inner }];
-  }
-  function surdAdd(a, b) { return surdTrim(a.concat(b)); }
-  function surdNeg(a) { return a.map(function (t) { return { coef: Frac(-t.coef.n, t.coef.d), rad: t.rad }; }); }
+  var surdSqrtInt = guard(function (n) {
+    if (n < 0) return null;
+    if (n === 0) return [];
+    return [termPow(ratTerm(Frac(n, 1)), 1, 2)];
+  });
+  var surdAdd = guard(function (a, b) { return surdTrim(a.concat(b)); });
+  function surdNeg(a) { return a.map(function (t) { return { coef: Frac(-t.coef.n, t.coef.d), rad: t.rad, ex: t.ex || [] }; }); }
   function surdSub(a, b) { return surdAdd(a, surdNeg(b)); }
-  function surdMulRat(a, fr) {
-    if (fr.n === 0) return [];
-    return surdTrim(a.map(function (t) { return { coef: R.mul(t.coef, fr), rad: t.rad }; }));
-  }
-  function surdMul(a, b) {
+  var surdMulRat = guard(function (a, f) {
+    if (f.n === 0) return [];
+    return surdTrim(a.map(function (t) { return { coef: frMul(t.coef, f), rad: t.rad, ex: t.ex || [] }; }));
+  });
+  function mulRaw(a, b) {
+    if (a.length * b.length > 400) throw new SurdOverflow();
     var out = [];
-    for (var i = 0; i < a.length; i++) {
-      for (var j = 0; j < b.length; j++) {
-        var radProd = a[i].rad * b[j].rad;
-        var simp = simplifyRadical(radProd);
-        if (!simp) return null;
-        var coef = R.mul(a[i].coef, R.mul(b[j].coef, Frac(simp.coef, 1)));
-        out.push({ coef: coef, rad: simp.inner });
-      }
-    }
+    for (var i = 0; i < a.length; i++) for (var j = 0; j < b.length; j++) out.push(termMul(a[i], b[j]));
     return surdTrim(out);
   }
+  var surdMul = guard(mulRaw);
   function surdIsRational(a) { return a.length === 0 || (a.length === 1 && a[0].rad === 1); }
-  function surdDiv(a, b) {
-    if (surdIsRational(b)) {
-      if (!b.length) return null;   // деление на 0
-      return surdMulRat(a, R.div(Frac(1, 1), b[0].coef));
-    }
-    // ровно один иррациональный член (плюс, может быть, рациональный) —
-    // домножаем на сопряжённое, чтобы вынести корень из знаменателя
-    var irr = b.filter(function (t) { return t.rad !== 1; });
-    if (irr.length !== 1) return null;   // несколько разных корней — не тривиальная рационализация
-    var conj = b.map(function (t) { return t.rad === irr[0].rad ? { coef: Frac(-t.coef.n, t.coef.d), rad: t.rad } : t; });
-    var num2 = surdMul(a, conj);
-    var den2 = surdMul(b, conj);
-    if (!num2 || !den2 || !surdIsRational(den2)) return null;
-    return surdDiv(num2, den2);
-  }
   function surdToNumber(a) {
     var s = 0;
-    a.forEach(function (t) { s += R.num(t.coef) * Math.sqrt(t.rad); });
+    a.forEach(function (t) {
+      var v = t.coef.n / t.coef.d;
+      (t.ex || []).forEach(function (e) { v *= Math.pow(e[0], e[1] / e[2]); });
+      s += v;
+    });
     return s;
+  }
+  // обратный элемент: один член — степень −1, сумма — Евклид по модулю tᵏ − p
+  function invRaw(b, depth) {
+    if (!b.length) return null;
+    if (b.length === 1) return [termPow(b[0], -1, 1)];
+    if ((depth || 0) > 6) throw new SurdOverflow();
+    var best = null, dens = {};
+    b.forEach(function (t) { t.ex.forEach(function (e) { dens[e[0]] = lcmN(dens[e[0]] || 1, e[2]); }); });
+    Object.keys(dens).forEach(function (p) { if (!best || dens[p] > dens[best]) best = p; });
+    if (!best) return [termPow(b[0], -1, 1)];
+    var p = +best, k = dens[best];
+    // b = Σ C_j · t^j
+    var C = []; for (var j = 0; j < k; j++) C.push([]);
+    b.forEach(function (t) {
+      var jj = 0, rest = [];
+      t.ex.forEach(function (e) { if (e[0] === p) jj = e[1] * k / e[2]; else rest.push(e); });
+      var m = {}; rest.forEach(function (e) { m[e[0]] = [e[1], e[2]]; });
+      C[jj] = surdTrim(C[jj].concat([mkTerm(t.coef, m)]));
+    });
+    var inv = function (x) { var r = invRaw(x, (depth || 0) + 1); if (!r) throw new SurdOverflow(); return r; };
+    function ptrim(P) { P = P.slice(); while (P.length && !P[P.length - 1].length) P.pop(); return P; }
+    function psub(A, B) { var r = []; for (var i = 0; i < Math.max(A.length, B.length); i++) r.push(surdTrim((A[i] || []).concat(surdNeg(B[i] || [])))); return ptrim(r); }
+    function pmul(A, B) {
+      var r = []; for (var i = 0; i < A.length + B.length - 1; i++) r.push([]);
+      for (var i2 = 0; i2 < A.length; i2++) for (var j2 = 0; j2 < B.length; j2++) if (A[i2].length && B[j2].length) r[i2 + j2] = surdTrim(r[i2 + j2].concat(mulRaw(A[i2], B[j2])));
+      return ptrim(r);
+    }
+    function pdivmod(A, B) {
+      A = ptrim(A); B = ptrim(B);
+      var q = [], li = inv(B[B.length - 1]);
+      for (var i = 0; i <= A.length - B.length; i++) q.push([]);
+      var guardN = 0;
+      while (A.length >= B.length && A.length && guardN++ < 50) {
+        var sh = A.length - B.length, c = mulRaw(A[A.length - 1], li);
+        q[sh] = surdTrim(q[sh].concat(c));
+        var mono = []; for (var s = 0; s < sh; s++) mono.push([]); mono.push(c);
+        A = psub(A, pmul(mono, B));
+      }
+      return { q: ptrim(q), r: A };
+    }
+    var M = [surdInt(-p)]; for (var z = 1; z < k; z++) M.push([]); M.push(surdInt(1));
+    var r0 = M, r1 = ptrim(C), t0 = [], t1 = [surdInt(1)], steps = 0;
+    while (r1.length && steps++ < 40) {
+      var dm = pdivmod(r0, r1);
+      var nt = psub(t0, pmul(dm.q, t1));
+      r0 = r1; r1 = dm.r; t0 = t1; t1 = nt;
+    }
+    if (r0.length !== 1) return null;   // общий делитель — tᵏ − p приводим над полем
+    var ci = inv(r0[0]);
+    var out = [];
+    t0.forEach(function (cj, jx) {
+      if (!cj.length) return;
+      var tm = {}; tm[p] = [jx, k];
+      var tj = [mkTerm(Frac(1, 1), tm)];
+      out = surdTrim(out.concat(mulRaw(mulRaw(cj, ci), tj)));
+    });
+    var chk = surdToNumber(out) * surdToNumber(b);
+    if (!(Math.abs(chk - 1) < 1e-8)) return null;
+    return out;
+  }
+  var surdDiv = guard(function (a, b) {
+    var ib = invRaw(b, 0);
+    return ib ? mulRaw(a, ib) : null;
+  });
+  // целая степень (k может быть отрицательным)
+  var surdPowInt = guard(function (a, k) {
+    if (k === 0) { if (!a.length) return null; return surdInt(1); }
+    if (a.length === 1) return [termPow(a[0], k, 1)];
+    if (Math.abs(k) > 24) return null;
+    var r = surdInt(1);
+    for (var i = 0; i < Math.abs(k); i++) { r = mulRaw(r, a); if (r.length > 64) return null; }
+    return k < 0 ? invRaw(r, 0) : r;
+  });
+  // корень k-й степени; сумма — только «вложенный» квадратный корень √(q ± m),
+  // который сворачивается: √(7+4√3) = 2+√3
+  var surdRoot = guard(function (a, k) {
+    if (!a.length) return [];
+    if (a.length === 1) { var t = termPow(a[0], 1, k); return t ? [t] : null; }
+    var v = surdToNumber(a);
+    if (v < 0) { if (k % 2 === 0) return null; var r0 = surdRoot(surdNeg(a), k); return r0 ? surdNeg(r0) : null; }
+    if (k !== 2 || a.length !== 2 || a[0].rad !== 1) return null;
+    var q = a[0].coef, m = a[1], m2 = termPow(m, 2, 1);
+    if (!m2 || m2.rad !== 1) return null;
+    var d2 = frAdd(frMul(q, q), Frac(-m2.coef.n, m2.coef.d));
+    if (d2.n < 0) return null;
+    var d = termPow(ratTerm(d2), 1, 2);
+    if (d.rad !== 1) return null;
+    var x = frMul(frAdd(q, d.coef), Frac(1, 2)), y = frMul(frAdd(q, Frac(-d.coef.n, d.coef.d)), Frac(1, 2));
+    if (x.n < 0 || y.n < 0) return null;
+    var sx = x.n ? [termPow(ratTerm(x), 1, 2)] : [], sy = y.n ? [termPow(ratTerm(y), 1, 2)] : [];
+    var res = surdTrim(sx.concat(m.coef.n < 0 ? surdNeg(sy) : sy));
+    return Math.abs(surdToNumber(res) - Math.sqrt(v)) < 1e-9 * Math.max(1, v) ? res : null;
+  });
+  // рациональная степень p/q
+  var surdPowQ = guard(function (a, f) {
+    if (f.d === 1) return surdPowInt(a, f.n);
+    if (a.length === 1) { var t = termPow(a[0], f.n, f.d); return t ? [t] : null; }
+    var p = surdPowInt(a, f.n);
+    return p ? surdRoot(p, f.d) : null;
+  });
+  function radTex(t) {
+    var L = 1; t.ex.forEach(function (e) { L = lcmN(L, e[2]); });
+    var parts = [], big = false, R = 1;
+    t.ex.forEach(function (e) { var k = e[1] * L / e[2], pk = Math.pow(e[0], k); parts.push(k > 1 ? e[0] + '^{' + k + '}' : String(e[0])); R *= pk; if (!Number.isSafeInteger(R)) big = true; });
+    var inner = big ? parts.join(' \\cdot ') : String(R);
+    return L === 2 ? '\\sqrt{' + inner + '}' : '\\sqrt[' + L + ']{' + inner + '}';
   }
   function surdToTex(a) {
     if (!a.length) return '0';
-    var parts = a.map(function (t, i) {
-      var neg = t.coef.n < 0;
-      var mag = { n: Math.abs(t.coef.n), d: t.coef.d };
-      var magTex = mag.d === 1 ? String(mag.n) : '\\frac{' + mag.n + '}{' + mag.d + '}';
-      var body;
-      if (t.rad === 1) body = magTex;
+    // первым — положительный член: «√5 − √2», а не «−√2 + √5»
+    if (a[0].coef.n < 0) { var pi = -1; a.forEach(function (t, i) { if (pi < 0 && t.coef.n > 0) pi = i; }); if (pi > 0) a = [a[pi]].concat(a.slice(0, pi), a.slice(pi + 1)); }
+    // общий знаменатель у всех членов — одной дробью: (1 − ∛2 + ∛4)/3
+    if (a.length > 1 && a[0].coef.d > 1 && a.every(function (t) { return t.coef.d === a[0].coef.d; })) {
+      var D = a[0].coef.d;
+      return '\\frac{' + surdToTex(a.map(function (t) { return { coef: Frac(t.coef.n, 1), rad: t.rad, ex: t.ex }; })) + '}{' + D + '}';
+    }
+    return a.map(function (t, i) {
+      var neg = t.coef.n < 0, n = Math.abs(t.coef.n), d = t.coef.d, body;
+      if (t.rad === 1) body = d === 1 ? String(n) : '\\frac{' + n + '}{' + d + '}';
       else {
-        var coefTex = (mag.n === 1 && mag.d === 1) ? '' : magTex + '\\cdot ';
-        body = coefTex + '\\sqrt{' + t.rad + '}';
+        var num = (n === 1 ? '' : n) + radTex(t);
+        body = d === 1 ? num : '\\frac{' + num + '}{' + d + '}';
       }
-      // Первый член: минус лепится вплотную к числу ("-1", не "- 1"); каждый
-      // следующий член — обычное "a + b" / "a - b" с пробелами вокруг знака.
       return i === 0 ? (neg ? '-' : '') + body : (neg ? ' - ' : ' + ') + body;
-    });
-    return parts.join('');
+    }).join('');
   }
-  // Рекурсивно вычисляет узел AST в системе SurdNum; null — если где-то в
-  // выражении встретилось что-то за пределами системы (переменная, sin/log,
-  // π/e, отрицательное подкоренное, несколько разных корней в знаменателе
-  // дроби и т.п.) — тогда вызывающий код просто использует обычное double.
+  function surdConstExp(node) {   // показатель степени как точная дробь
+    var s = evalSurd(node);
+    if (s && surdIsRational(s)) return s.length ? s[0].coef : Frac(0, 1);
+    return null;
+  }
   function evalSurd(node) {
+    if (!node) return null;
     switch (node.t) {
       case 'num': {
         if (node.sym) return null;
-        if (Number.isInteger(node.v)) return surdInt(node.v);
-        var fr = toFraction(node.v, 1000000, 1e-13);
-        return fr ? surdRat(fr) : null;
+        if (Number.isInteger(node.v)) return Number.isSafeInteger(node.v) ? surdInt(node.v) : null;
+        var f = toFraction(node.v, 1000000, 1e-13 * Math.max(1, Math.abs(node.v)));
+        return f ? surdRat(f) : null;
       }
-      case '+': { var A = evalSurd(node.a), B = evalSurd(node.b); return (A && B) ? surdAdd(A, B) : null; }
-      case '-': { var A2 = evalSurd(node.a), B2 = evalSurd(node.b); return (A2 && B2) ? surdSub(A2, B2) : null; }
+      case '+': { var A = evalSurd(node.a), B = A && evalSurd(node.b); return (A && B) ? surdAdd(A, B) : null; }
+      case '-': { var A2 = evalSurd(node.a), B2 = A2 && evalSurd(node.b); return (A2 && B2) ? surdSub(A2, B2) : null; }
       case 'neg': { var A3 = evalSurd(node.a); return A3 ? surdNeg(A3) : null; }
-      case '*': { var A4 = evalSurd(node.a), B4 = evalSurd(node.b); return (A4 && B4) ? surdMul(A4, B4) : null; }
-      case '/': { var A5 = evalSurd(node.a), B5 = evalSurd(node.b); return (A5 && B5) ? surdDiv(A5, B5) : null; }
+      case '*': { var A4 = evalSurd(node.a), B4 = A4 && evalSurd(node.b); return (A4 && B4) ? surdMul(A4, B4) : null; }
+      case '/': { var A5 = evalSurd(node.a), B5 = A5 && evalSurd(node.b); return (A5 && B5 && B5.length) ? surdDiv(A5, B5) : null; }
       case '^': {
         var base = evalSurd(node.a);
         if (!base) return null;
-        var expVal;
-        try { expVal = evalAst(node.b, {}); } catch (e) { return null; }
-        if (!Number.isInteger(expVal) || expVal < 0 || expVal > 8) return null;
-        var res = surdInt(1);
-        for (var i = 0; i < expVal; i++) { res = surdMul(res, base); if (!res) return null; }
-        return res;
+        var e = surdConstExp(node.b);
+        if (!e) return null;
+        if (!base.length && e.n <= 0) return null;
+        return surdPowQ(base, e);
       }
       case 'fn': {
-        if (node.name !== 'sqrt') return null;
         var inner = evalSurd(node.a);
-        if (!inner || !surdIsRational(inner)) return null;   // корень из уже иррационального — вне системы
-        if (!inner.length) return [];   // sqrt(0)
-        var fr2 = inner[0].coef;
-        if (fr2.n < 0) return null;
-        if (fr2.d === 1) return surdSqrtInt(fr2.n);
-        var scaled = surdSqrtInt(fr2.n * fr2.d);   // sqrt(p/q) = sqrt(pq)/q
-        return scaled ? surdMulRat(scaled, Frac(1, fr2.d)) : null;
+        if (!inner) return null;
+        if (node.name === 'sqrt') return surdRoot(inner, 2);
+        if (node.name === 'abs') return surdToNumber(inner) < 0 ? surdNeg(inner) : inner;
+        return null;
       }
       default: return null;
     }
@@ -1866,6 +2021,7 @@
     evalSurd: evalSurd, surdToTex: surdToTex, surdToNumber: surdToNumber, surdIsRational: surdIsRational,
     surdRat: surdRat, surdAdd: surdAdd, surdSub: surdSub, surdNeg: surdNeg, surdMul: surdMul,
     surdDiv: surdDiv, surdMulRat: surdMulRat, surdSqrtInt: surdSqrtInt,
+    surdPowInt: surdPowInt, surdPowQ: surdPowQ, surdRoot: surdRoot,
     hasVar: hasVar
   };
 
@@ -1890,7 +2046,6 @@
     s = s.replace(/[⁰¹²³⁴⁵⁶⁷⁸⁹⁻]+/g, function (m) { var t = ''; for (var i = 0; i < m.length; i++) t += SUP[m[i]]; return '^' + (t.length > 1 ? '(' + t + ')' : t); });
     var VULG = { '½': '1/2', '⅓': '1/3', '⅔': '2/3', '¼': '1/4', '¾': '3/4', '⅕': '1/5', '⅛': '1/8' };
     s = s.replace(/(\d)\s*([½⅓⅔¼¾⅕⅛])/g, function (m, d, f) { return '(' + d + '+' + VULG[f] + ')'; }).replace(/[½⅓⅔¼¾⅕⅛]/g, function (f) { return '(' + VULG[f] + ')'; });
-    s = s.replace(/(\d),(\d)/g, '$1.$2');
     if (s.indexOf('|') >= 0) {
       var out = '', open = false;
       for (var k = 0; k < s.length; k++) {
@@ -1930,6 +2085,8 @@
       if (r === null) continue;
       s = s.slice(0, m.index) + r + s.slice(a.end); re.lastIndex = m.index;
     }
+    // десятичная запятая — после разбора root(3,16)/log(2,8), иначе «root(4,81)» стал бы √4.81
+    s = s.replace(/(\d),(\d)/g, '$1.$2');
     s = s.replace(/\barc(sin|cos|tg|ctg|tan|cot)\b/g, 'a$1').replace(/\btan\b/g, 'tg').replace(/\bcot\b/g, 'ctg');
     return s;
   }

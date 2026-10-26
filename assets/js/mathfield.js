@@ -331,10 +331,27 @@
       }
     }
   };
+  // Незакрытых «(» в строке до позиции i (скобки — обычные символы строки).
+  function openParens(r, i) {
+    var d = 0;
+    for (var j = 0; j < i; j++) { var n = r.k[j]; if (n.t === 'ch') { if (n.v === '(') d++; else if (n.v === ')' && d > 0) d--; } }
+    return d;
+  }
+  // Остаётся ли символ в показателе/индексе: буквы и цифры — всегда; минус/плюс
+  // и «(» — в начале пустого показателя (x^{−2}, x^{(…)}); всё остальное — пока
+  // внутри показателя есть незакрытая скобка (x^{(n−1)}).
+  MathField.prototype._staysHere = function (v) {
+    if (staysInScript(v)) return true;
+    var c = this.cur, owner = c.row.p;
+    if (!owner || (owner.t !== 'sup' && owner.t !== 'sub')) return true;
+    if (c.i === 0 && /^[-+−(]$/.test(v)) return true;
+    if (v === '(' && c.i > 0) { var pv = c.row.k[c.i - 1]; if (pv.t === 'ch' && /[-+−*\/(]/.test(pv.v)) return true; }
+    return openParens(c.row, c.i) > 0;
+  };
   MathField.prototype.insertChars = function (str) {
     var self = this;
     var chars = String(str).split('');
-    if (chars.length && !staysInScript(chars[0])) this._exitScript();
+    if (chars.length && !this._staysHere(chars[0])) this._exitScript();
     chars.forEach(function (v) {
       var c = self.cur;
       var node = link(ch(v), c.row, 'k');
@@ -444,7 +461,15 @@
     while (start > 0 && (r.k[start - 1].t === 'sup' || r.k[start - 1].t === 'sub')) start--;
     if (start === 0) return null;
     n = r.k[start - 1];
-    if (n.t === 'paren' || n.t === 'abs' || n.t === 'frac' || n.t === 'sqrt') {
+    if (n.t === 'ch' && n.v === ')') {
+      // символ «)» — забираем всю группу до парной «(» и имя функции перед ней
+      var d = 0, j = start - 1;
+      for (; j >= 0; j--) { var x = r.k[j]; if (x.t === 'ch' && x.v === ')') d++; else if (x.t === 'ch' && x.v === '(') { d--; if (d === 0) break; } }
+      if (j < 0) return null;
+      start = j;
+      if (start > 0 && r.k[start - 1].t === 'fnname') start--;
+    }
+    else if (n.t === 'paren' || n.t === 'abs' || n.t === 'frac' || n.t === 'sqrt') {
       start--;
       // «sin(x)/» должно забрать sin(x) целиком в числитель, а не только (x) —
       // имя функции перед скобкой такая же неотъемлемая часть операнда.
@@ -458,12 +483,98 @@
     return taken;
   }
 
+  // Выделенные узлы — вынуть из строки (для обёртки конструкцией).
+  MathField.prototype._takeSelection = function () {
+    var s = this._selNorm();
+    this.sel = null;
+    if (!s || s.a === s.b) return null;
+    var taken = s.row.k.splice(s.a, s.b - s.a);
+    this.cur = { row: s.row, i: s.a };
+    return taken;
+  };
+  function putInto(r, nodes) { r.k = nodes; nodes.forEach(function (n) { link(n, r, 'k'); }); return r; }
+  // «(»: обычный символ; при выделении — оборачивает его в скобки.
+  MathField.prototype.openParen = function () {
+    var taken = this._takeSelection();
+    if (taken) {
+      var c = this.cur, nodes = [ch('(')].concat(taken, [ch(')')]);
+      nodes.forEach(function (n) { link(n, c.row, 'k'); });
+      Array.prototype.splice.apply(c.row.k, [c.i, 0].concat(nodes));
+      c.i += nodes.length;
+      this._changed();
+      return;
+    }
+    this.insertChars('(');
+  };
+  // «)»: закрывает ближайшую незакрытую скобку; если её нет, а курсор внутри
+  // |…| или старого узла-скобки — выходит из него.
+  MathField.prototype.closeParen = function () {
+    this.sel = null;
+    var c = this.cur, owner = c.row.p;
+    if (openParens(c.row, c.i) > 0 || !owner || !owner.p) { this.insertChars(')'); return; }
+    // поднимаемся, пока не найдём строку с незакрытой «(» или конструкцию-скобку
+    var r = c.row, o = owner;
+    while (o && o.p) {
+      var pr = o.p, pos = pr.k.indexOf(o);
+      if (o.t === 'paren' || o.t === 'abs' || o.t === 'norm' || openParens(pr, pos + 1) > 0) {
+        this.cur = { row: pr, i: pos + 1 };
+        if (o.t !== 'paren' && o.t !== 'abs' && o.t !== 'norm') { this.insertChars(')'); return; }
+        this._changed();
+        return;
+      }
+      r = pr; o = pr.p;
+    }
+    this.insertChars(')');
+  };
   MathField.prototype.cmd = function (name) {
     var c = this.cur, node;
+    if (name === 'paren') { this.openParen(); return; }
+    var sel = this._takeSelection();
+    c = this.cur;
+    if (sel) {
+      // выделение уходит в основную часть конструкции
+      var R0 = function (x) { return row(x || []); };
+      var wrapBase = function (nodes) { return nodes.length === 1 && (nodes[0].t !== 'ch' || nodes[0].c !== 'op') ? nodes : [ch('(')].concat(nodes, [ch(')')]); };
+      var into = null, focus = null;
+      switch (name) {
+        case 'frac':  node = { t: 'frac', num: R0(), den: R0() }; putInto(node.den, sel); focus = 'num'; break;
+        case 'sqrt':  node = { t: 'sqrt', rad: R0(), idx: null }; putInto(node.rad, sel); break;
+        case 'nroot': node = { t: 'sqrt', rad: R0(), idx: R0() }; putInto(node.rad, sel); focus = 'idx'; break;
+        case 'abs':   node = { t: 'abs', body: R0() }; into = 'body'; break;
+        case 'norm':  node = { t: 'norm', body: R0() }; into = 'body'; break;
+        case 'bar': case 'vec': case 'hat': node = { t: 'accent', kind: name, body: R0() }; into = 'body'; break;
+        case 'lim':   node = { t: 'lim', to: R0(), body: R0() }; into = 'body'; focus = 'to'; break;
+        case 'int':   node = { t: 'bigop', op: 'int', lo: R0(), hi: R0(), body: R0(), dv: row([ch('x')]) }; into = 'body'; focus = 'lo'; break;
+        case 'sum': case 'prod': node = { t: 'bigop', op: name, lo: R0(), hi: R0(), body: R0(), dv: null }; into = 'body'; focus = 'lo'; break;
+        case 'sup': case 'sub': {
+          var base = wrapBase(sel);
+          base.forEach(function (n) { link(n, c.row, 'k'); });
+          Array.prototype.splice.apply(c.row.k, [c.i, 0].concat(base));
+          c.i += base.length;
+          this.insert(name === 'sup' ? { t: 'sup', exp: row([]) } : { t: 'sub', sub: row([]) });
+          return;
+        }
+        default: node = null;
+      }
+      if (node) {
+        if (into) putInto(node[into], sel);
+        link(node, c.row, 'k');
+        c.row.k.splice(c.i, 0, node); c.i++;
+        this.cur = focus ? { row: node[focus], i: 0 } : { row: c.row, i: c.i };
+        this._changed();
+        return;
+      }
+      // конструкцию нельзя применить к выделению — возвращаем как было
+      sel.forEach(function (n) { link(n, c.row, 'k'); });
+      Array.prototype.splice.apply(c.row.k, [c.i, 0].concat(sel));
+      c.i += sel.length;
+    }
     switch (name) {
       case 'frac': {
         var left = takeLeftOperand(c.row, c.i);
         if (left) c.i -= left.length;
+        // «(a+b)/» — внешние скобки в числителе не нужны: черта дроби и так группирует
+        if (left && left.length > 2 && left[0].t === 'ch' && left[0].v === '(' && left[left.length - 1].t === 'ch' && left[left.length - 1].v === ')' && openParens({ k: left.slice(0, -1) }, left.length - 1) === 1 && (function () { var d = 0; for (var q = 0; q < left.length - 1; q++) { var x = left[q]; if (x.t === 'ch' && x.v === '(') d++; else if (x.t === 'ch' && x.v === ')') d--; if (d === 0) return false; } return true; })()) left = left.slice(1, -1);
         node = { t: 'frac', num: row(left || []), den: row([]) };
         link(node, c.row, 'k');
         c.row.k.splice(c.i, 0, node); c.i++;
@@ -505,9 +616,19 @@
     // стирал их по одной букве. Теперь это ОДИН атомарный узел fnname —
     // ровно как обычный символ, только текст длиннее; удаляется целиком за
     // одно нажатие, как и любая другая структура.
+    var sel = this._takeSelection();
+    c = this.cur;
     var n = link({ t: 'fnname', name: fname, c: 'fn' }, c.row, 'k');
     c.row.k.splice(c.i, 0, n); c.i++;
-    this.insert({ t: 'paren', body: row([]), l: '(', r: ')' });
+    if (sel) {
+      var nodes = [ch('(')].concat(sel, [ch(')')]);
+      nodes.forEach(function (x) { link(x, c.row, 'k'); });
+      Array.prototype.splice.apply(c.row.k, [c.i, 0].concat(nodes));
+      c.i += nodes.length;
+      this._changed();
+      return;
+    }
+    this.insertChars('(');
   };
 
   // Внутри системы: добавить новую строку под текущей и перейти в неё.
@@ -651,19 +772,13 @@
     // Ввод символа/шаблона поверх выделения сначала стирает выделенное.
     function eatSel(self) { if (self.sel) { self._deleteSelection(); } }
 
-    if (k === '/') { eatSel(this); this.cmd('frac');  e.preventDefault(); return; }
-    if (k === '^') { eatSel(this); this.cmd('sup');   e.preventDefault(); return; }
-    if (k === '_') { eatSel(this); this.cmd('sub');   e.preventDefault(); return; }
-    if (k === '(') { eatSel(this); this.cmd('paren'); e.preventDefault(); return; }
-    if (k === ')') {
-      var owner = this.cur.row.p;
-      if (owner && owner.t === 'paren') {
-        var pr = owner.p;
-        this.cur = { row: pr, i: pr.k.indexOf(owner) + 1 };
-        this._clearSel(); this.render(); e.preventDefault();
-      }
-      return;
-    }
+    // «/», «^», «_», «(» над выделением — оборачивают его, а не стирают
+    if (k === '/') { this.cmd('frac');  e.preventDefault(); return; }
+    if (k === '^') { this.cmd('sup');   e.preventDefault(); return; }
+    if (k === '_') { this.cmd('sub');   e.preventDefault(); return; }
+    if (k === '(') { this.openParen(); e.preventDefault(); return; }
+    if (k === ')') { this.closeParen(); e.preventDefault(); return; }
+    if (k === '|') { this.cmd('abs'); e.preventDefault(); return; }
     if (k.length === 1 && /[0-9a-zA-Zа-яА-Я.,+\-*=<>!πθ]/.test(k)) {
       eatSel(this);
       this.insertChars(k === ',' ? '.' : k);
@@ -753,9 +868,19 @@
       selRange = { a: Math.min(this.sel.a, this.sel.b), b: Math.max(this.sel.a, this.sel.b) };
     }
 
+    // непарные скобки подсвечиваем (калькулятор сообщит, что скобка не закрыта)
+    var unmatched = {}, stack = [];
+    r.k.forEach(function (node, i) {
+      if (node.t !== 'ch') return;
+      if (node.v === '(') stack.push(i);
+      else if (node.v === ')') { if (stack.length) stack.pop(); else unmatched[i] = 1; }
+    });
+    stack.forEach(function (i) { unmatched[i] = 1; });
     box.appendChild(gap(0));
     r.k.forEach(function (node, i) {
       var el = self._renderNode(node);
+      if (node.t === 'ch' && (node.v === '(' || node.v === ')')) el.classList.add('mfld-pch');
+      if (unmatched[i]) el.classList.add('mfld-unmatched');
       if (self._seenNext) {
         if (self._seenPrev && !self._seenPrev.has(node)) {
           el.classList.add('mfld-new');
@@ -1127,20 +1252,108 @@
     this._changed();
   };
 
-  // Небольшой разборщик: понимает ^, /, sqrt(), скобки и обычные символы.
+  /* Линейная запись → дерево через настоящий разбор выражения (MFMath.parse):
+     так «1+x/2» даёт 1 + дробь x/2 (а не дробь (1+x)/2), «(x)^(1/3)» — корень
+     третьей степени, sin, log_2, |x| — свои конструкции. Отношения (=, <, ≤ …)
+     и строки системы («;») разбираются по частям. */
+  var REL_RE = /(<=|>=|!=|≤|≥|≠|=|<|>)/;
+  var PREC_T = { '+': 1, '-': 1, '*': 2, '/': 2, neg: 3, '^': 4, fact: 5, fn: 5 };
+  function precOf(n) { return PREC_T[n.t] !== undefined ? PREC_T[n.t] : 9; }
+  function chars(str) { return String(str).split('').map(function (c) { return ch(c); }); }
+  function numStr(v) {
+    if (!isFinite(v)) return String(v);
+    var s = String(v);
+    if (/e/i.test(s)) s = Math.abs(v) < 1 ? v.toFixed(20).replace(/0+$/, '') : v.toLocaleString('fullwide', { useGrouping: false });
+    return s;
+  }
+  function wrapP(nodes) { return [ch('(')].concat(nodes, [ch(')')]); }
+  function rootK(e) {
+    if (e.t === '/' && e.a.t === 'num' && e.a.v === 1 && e.b.t === 'num' && Number.isInteger(e.b.v) && e.b.v >= 2) return e.b.v;
+    if (e.t === 'num' && e.v === 0.5) return 2;
+    return 0;
+  }
+  function astNodes(n) {
+    switch (n.t) {
+      case 'num':
+        if (n.sym) return [ch(n.sym === 'pi' ? 'π' : n.sym)];
+        return chars(numStr(n.v));
+      case 'var': return n.name === 'pi' ? [ch('π')] : chars(n.name);
+      case '+': {
+        if (n.b.t === 'neg') return astNodes(n.a).concat([ch('-')], side(n.b.a, 2));
+        return astNodes(n.a).concat([ch('+')], astNodes(n.b));
+      }
+      case '-': return astNodes(n.a).concat([ch('-')], side(n.b, 2));
+      case '*': {
+        var A = side(n.a, 2), B = n.b.t === 'neg' ? wrapP(astNodes(n.b)) : side(n.b, 2);
+        var last = A[A.length - 1], first = B[0];
+        var implicit = first && last && !(first.t === 'ch' && /[0-9.]/.test(first.v)) && first.t !== 'fnname' &&
+          !(first.t === 'ch' && first.c === 'op') && !(last.t === 'ch' && last.c === 'op') && !(last.t === 'fnname');
+        return implicit ? A.concat(B) : A.concat([ch('*')], B);
+      }
+      case '/': return [{ t: 'frac', num: row(astNodes(n.a)), den: row(astNodes(n.b)) }];
+      case 'neg': return [ch('-')].concat(side(n.a, 3));
+      case '^': {
+        var k = rootK(n.b);
+        if (k) return [{ t: 'sqrt', rad: row(astNodes(n.a)), idx: k === 2 ? null : row(chars(String(k))) }];
+        var base = n.a.t === 'fn' && n.a.name !== 'sqrt' && n.a.name !== 'abs' ? wrapP(astNodes(n.a)) : side(n.a, 5);
+        return base.concat([{ t: 'sup', exp: row(astNodes(n.b)) }]);
+      }
+      case 'fact': return side(n.a, 6).concat([ch('!')]);
+      case 'fn': {
+        if (n.name === 'sqrt') return [{ t: 'sqrt', rad: row(astNodes(n.a)), idx: null }];
+        if (n.name === 'abs') return [{ t: 'abs', body: row(astNodes(n.a)) }];
+        if (n.name === 'vec') return [{ t: 'accent', kind: 'vec', body: row(astNodes(n.a)) }];
+        var head = [{ t: 'fnname', name: n.base ? 'log' : n.name, c: 'fn' }];
+        if (n.base) head.push({ t: 'sub', sub: row(astNodes(n.base)) });
+        return head.concat(wrapP(astNodes(n.a)));
+      }
+      case 'tuple': {
+        var out = [];
+        n.items.forEach(function (it, i) { if (i) out.push(ch(',')); out = out.concat(astNodes(it)); });
+        return wrapP(out);
+      }
+    }
+    throw new Error('unknown node');
+  }
+  function side(n, p) { var a = astNodes(n); return precOf(n) < p ? wrapP(a) : a; }
+  function parseViaAst(src) {
+    var M = global.MFMath;
+    if (!M || !M.parse) return null;
+    try {
+      var norm = M.normalizeLinear ? M.normalizeLinear(src) : src;
+      var rowsSrc = norm.split(';').map(function (x) { return x.trim(); }).filter(Boolean);
+      if (!rowsSrc.length) return null;
+      var rowsOut = rowsSrc.map(function (one) {
+        var parts = one.split(REL_RE), out = [];
+        parts.forEach(function (part, i) {
+          if (i % 2) { var op = { '<=': '≤', '>=': '≥', '!=': '≠' }[part] || part; out.push(ch(op)); return; }
+          if (!part.trim()) return;
+          out = out.concat(astNodes(M.parse(part)));
+        });
+        return row(out);
+      });
+      if (rowsOut.length === 1) return rowsOut[0];
+      return row([{ t: 'cases', rows: rowsOut }]);
+    } catch (e) { return null; }
+  }
   function parseToTree(s) {
+    return parseViaAst(s) || parseToTreeLegacy(s);
+  }
+  // Запасной разборщик (если запись не разбирается): символы и скобки как есть.
+  function parseToTreeLegacy(s) {
     var i = 0;
     function parseRow(stopAt) {
       var r = row([]);
       while (i < s.length) {
         var c = s[i];
         if (stopAt && c === stopAt) break;
-        if (c === ')') break;
+        if (c === ')' && stopAt !== 'none') break;
         if (c === '(') {
           i++;
           var body = parseRow();
-          if (s[i] === ')') i++;
-          r.k.push({ t: 'paren', body: body, l: '(', r: ')' });
+          r.k.push(ch('('));
+          body.k.forEach(function (x) { r.k.push(x); });
+          if (s[i] === ')') { i++; r.k.push(ch(')')); }
           continue;
         }
         if (c === '^') {
@@ -1159,7 +1372,7 @@
             den = row([]);
             while (i < s.length && /[0-9a-zA-Z.]/.test(s[i])) { den.k.push(ch(s[i])); i++; }
           }
-          var num = row(r.k.splice(0));       // всё, что было слева — числитель
+          var num = row(takeLeftOperand(r, r.k.length) || []);   // числитель — операнд слева
           r.k.push({ t: 'frac', num: num, den: den });
           continue;
         }
