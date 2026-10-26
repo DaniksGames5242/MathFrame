@@ -302,7 +302,14 @@
       case '-': return evalAst(node.a, vars) - evalAst(node.b, vars);
       case '*': return evalAst(node.a, vars) * evalAst(node.b, vars);
       case '/': return evalAst(node.a, vars) / evalAst(node.b, vars);
-      case '^': return Math.pow(evalAst(node.a, vars), evalAst(node.b, vars));
+      case '^': {
+        var B0 = evalAst(node.a, vars), E0 = evalAst(node.b, vars);
+        // корень нечётной степени из отрицательного: (−8)^(1/3) = −2, x^(2/3) при x < 0
+        if (B0 < 0 && !Number.isInteger(E0) && isFinite(E0)) {
+          for (var qd = 3; qd <= 15; qd += 2) { var pn = Math.round(E0 * qd); if (Math.abs(E0 * qd - pn) < 1e-9) { var mg = Math.pow(-B0, E0); return pn % 2 ? -mg : mg; } }
+        }
+        return Math.pow(B0, E0);
+      }
       case 'neg': return -evalAst(node.a, vars);
       case 'fact': return factorial(evalAst(node.a, vars));
       case 'fn': {
@@ -326,8 +333,12 @@
   function num(v) { return { t: 'num', v: v }; }
   function isNum(n, v) { return n.t === 'num' && (v === undefined || n.v === v); }
 
-  function d(node, x) {
+  function hasNull(n) { if (!n) return true; if (n.t === 'num' || n.t === 'var') return false; return ['a', 'b'].some(function (k) { return k in n && hasNull(n[k]); }); }
+  function d(node, x) { var r = d0(node, x); return r && !hasNull(r) ? r : null; }
+  function d0(node, x) {
+    if (!node) return null;
     switch (node.t) {
+      case 'fact': return null;
       case 'num': return num(0);
       case 'var': return num(node.name === x ? 1 : 0);
       case '+': return { t: '+', a: d(node.a, x), b: d(node.b, x) };
@@ -362,7 +373,17 @@
         switch (node.name) {
           case 'sin': inner = { t: 'fn', name: 'cos', a: u }; break;
           case 'cos': inner = { t: 'neg', a: { t: 'fn', name: 'sin', a: u } }; break;
-          case 'tan': inner = { t: '/', a: num(1), b: { t: '^', a: { t: 'fn', name: 'cos', a: u }, b: num(2) } }; break;
+          case 'tan': case 'tg': inner = { t: '/', a: num(1), b: { t: '^', a: { t: 'fn', name: 'cos', a: u }, b: num(2) } }; break;
+          case 'cot': case 'ctg': inner = { t: 'neg', a: { t: '/', a: num(1), b: { t: '^', a: { t: 'fn', name: 'sin', a: u }, b: num(2) } } }; break;
+          case 'lg': case 'log': inner = { t: '/', a: num(1), b: { t: '*', a: u, b: num(Math.LN10) } }; break;
+          case 'abs': inner = { t: 'fn', name: 'sign', a: u }; break;
+          case 'arcsin': inner = { t: '/', a: num(1), b: { t: 'fn', name: 'sqrt', a: { t: '-', a: num(1), b: { t: '^', a: u, b: num(2) } } } }; break;
+          case 'arccos': inner = { t: 'neg', a: { t: '/', a: num(1), b: { t: 'fn', name: 'sqrt', a: { t: '-', a: num(1), b: { t: '^', a: u, b: num(2) } } } } }; break;
+          case 'arctg': case 'arctan': inner = { t: '/', a: num(1), b: { t: '+', a: num(1), b: { t: '^', a: u, b: num(2) } } }; break;
+          case 'arcctg': inner = { t: 'neg', a: { t: '/', a: num(1), b: { t: '+', a: num(1), b: { t: '^', a: u, b: num(2) } } } }; break;
+          case 'sinh': inner = { t: 'fn', name: 'cosh', a: u }; break;
+          case 'cosh': inner = { t: 'fn', name: 'sinh', a: u }; break;
+          case 'sign': case 'floor': case 'ceil': case 'round': inner = num(0); break;
           case 'ln':  inner = { t: '/', a: num(1), b: u }; break;
           case 'exp': inner = node; break;
           case 'sqrt': inner = { t: '/', a: num(1), b: { t: '*', a: num(2), b: { t: 'fn', name: 'sqrt', a: u } } }; break;
@@ -490,7 +511,7 @@
   // Отдельно ловим ТОЧНОЕ попадание в узел сетки: там prev*cur == 0, а не < 0,
   // и обычная проверка на смену знака такой корень пропускает (например,
   // x² − 4 на [−5, 5] при шаге 0.005 даёт ровно 0 в точках ±2).
-  function roots(f, a, b, steps) {
+  function roots(f, a, b, steps, signOnly) {
     steps = steps || 2000;
     var out = [], h = (b - a) / steps, prev = f(a), px = a;
     function push(r) {
@@ -500,18 +521,37 @@
       }
       out.push(r);
     }
-    if (prev === 0) push(a);
+    if (prev === 0 && f(a + h) !== 0 && !signOnly) push(a);
     for (var i = 1; i <= steps; i++) {
       var x = a + i * h, cur = f(x);
       if (cur === 0) {
-        push(x);
+        var nxt0 = f(x + h);
+        // ноль на целом участке (e^x на −1000 — исчезновение порядка, floor x) — не корень
+        if (prev === 0 || nxt0 === 0) { prev = cur; px = x; continue; }
+        if (!signOnly || prev * nxt0 < 0) push(x);
+        else { px = x; continue; }   // касание нуля без смены знака — запоминаем прежний знак
       } else if (isFinite(prev) && isFinite(cur) && prev * cur < 0) {
         var lo = px, hi = x;
         for (var k = 0; k < 80; k++) {
           var m = (lo + hi) / 2;
           if (f(lo) * f(m) <= 0) hi = m; else lo = m;
         }
-        push((lo + hi) / 2);
+        var rr = (lo + hi) / 2, fr = f(rr);
+        // смена знака через разрыв (tg x, 1/x) — не корень
+        // signOnly === 'jump' — нужна любая смена знака (производная в «углу» |x|)
+        if (signOnly === 'jump' || (isFinite(fr) && Math.abs(fr) <= 1e-6 * Math.max(1, Math.abs(prev), Math.abs(cur)))) push(rr);
+      } else if (!signOnly && isFinite(prev) && isFinite(cur) && i < steps && prev * cur > 0) {
+        // корень чётной кратности ((x − 0,3)²): касание оси без смены знака
+        var nx = x + h, nf = f(nx);
+        if (isFinite(nf) && nf * cur > 0 && Math.abs(cur) < Math.abs(prev) && Math.abs(cur) <= Math.abs(nf)) {
+          var L = px, Rr = nx;
+          for (var q = 0; q < 120; q++) {
+            var m1 = L + (Rr - L) / 3, m2 = Rr - (Rr - L) / 3;
+            if (Math.abs(f(m1)) < Math.abs(f(m2))) Rr = m2; else L = m1;
+          }
+          var tr = (L + Rr) / 2, tf = f(tr);
+          if (isFinite(tf) && Math.abs(tf) < 1e-9 * Math.max(1, Math.abs(prev), Math.abs(nf))) push(Math.abs(tr - Math.round(tr * 1e6) / 1e6) < 1e-7 ? Math.round(tr * 1e6) / 1e6 : tr);
+        }
       }
       prev = cur; px = x;
     }

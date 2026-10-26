@@ -1622,9 +1622,26 @@
         if (!linear.trim()) return null;
         var rel;
         try { rel = MFAlgebra.splitRelation(linear); } catch (e) { rel = null; }
-        if (!rel) return { mode: 'function', expr: linear };
+        // ошибки записи (незакрытая скобка, пустая часть после «=») — сообщением, а не пустым графиком
+        try {
+          if (rel) { if (!String(rel.rhs).trim()) return { mode: 'error', msg: 'правая часть пустая' }; MFMath.parse(rel.lhs, true); MFMath.parse(rel.rhs, true); }
+          else MFMath.parse(linear, true);
+        } catch (e) { return { mode: 'error', msg: (e && e.message) || 'не удалось разобрать запись' }; }
+        // «y = 2x + 1», «f(x) = …» — это функция
+        if (rel && rel.op === '=' && /^\s*(y|f\(x\))\s*$/.test(rel.lhs) && !/\by\b/.test(rel.rhs)) return checkVars({ mode: 'function', expr: rel.rhs });
+        if (!rel) return checkVars({ mode: 'function', expr: linear });
         if (rel.op !== '=') return { mode: 'error', msg: 'графически решаются уравнения (=) и их системы; неравенства — в алгебраическом калькуляторе' };
         return buildEquationSpec(rel.lhs, rel.rhs);
+      }
+      function checkVars(sp) {
+        var vs = collectVars([MFMath.parse(sp.expr)]).filter(function (v) { return v !== 'x'; });
+        if (vs.length) return { mode: 'error', msg: 'неизвестн' + (vs.length > 1 ? 'ые переменные ' : 'ая переменная ') + vs.join(', ') + ' — график строится по x (числовые параметры подставьте числом)' };
+        return sp;
+      }
+      // корни/точки для подписи: ближайшие к нулю, по возрастанию
+      function nearest(list, n) {
+        var sel = list.slice().sort(function (a, b) { return Math.abs(a) - Math.abs(b); }).slice(0, n);
+        return sel.sort(function (a, b) { return a - b; });
       }
       function collectVars(asts) {
         var set = {};
@@ -1696,13 +1713,14 @@
           var rs = MFMath.roots(function (x) { return c.at(x); }, -INFO_RANGE, INFO_RANGE, 20000);
           var dl = el('dl', 'kv', info);
           el('dt', null, dl, 'корни');
-          el('dd', null, dl, rs.length ? rs.slice(0, 8).map(function (r) { return fmt(r, 6); }).join(',  ') + (rs.length > 8 ? ' …' : '') : 'не найдены на [−' + INFO_RANGE + '; ' + INFO_RANGE + ']');
+          el('dd', null, dl, rs.length ? nearest(rs, 8).map(function (r) { return fmt(r, 6); }).join(',  ') + (rs.length > 8 ? ' … (всего ' + rs.length + ' на [−' + INFO_RANGE + '; ' + INFO_RANGE + '], показаны ближайшие к нулю)' : '') : 'не найдены на [−' + INFO_RANGE + '; ' + INFO_RANGE + ']');
           var dd = MFMath.d(c.ast, 'x'), ex = [];
           if (dd) {
-            var dfn = { at: function (x) { return MFMath.evalAst(dd, { x: x }); } };
-            ex = MFMath.roots(function (x) { return dfn.at(x); }, -INFO_RANGE, INFO_RANGE, 20000);
+            var dfn = { at: function (x) { try { return MFMath.evalAst(dd, { x: x }); } catch (e) { return NaN; } } };
+            // экстремум — только где производная меняет знак (у x³ в нуле его нет) и сама функция определена
+            ex = MFMath.roots(function (x) { return dfn.at(x); }, -INFO_RANGE, INFO_RANGE, 20000, 'jump').filter(function (r) { var y = c.at(r); return isFinite(y) && Math.abs(y) < 1e12; });
             el('dt', null, dl, 'экстремумы');
-            el('dd', null, dl, ex.length ? ex.slice(0, 6).map(function (r) { return '(' + fmt(r, 5) + '; ' + fmt(c.at(r), 5) + ')'; }).join('  ') + (ex.length > 6 ? ' …' : '') : 'не найдены на [−' + INFO_RANGE + '; ' + INFO_RANGE + ']');
+            el('dd', null, dl, ex.length ? nearest(ex, 6).map(function (r) { return '(' + fmt(r, 5) + '; ' + fmt(c.at(r), 5) + ')'; }).join('  ') + (ex.length > 6 ? ' …' : '') : 'не найдены на [−' + INFO_RANGE + '; ' + INFO_RANGE + ']');
           }
           scene = { curves: [{ ast: c.ast, kind: 'function', rename: {}, color: PLOT_C1 }],
             marks: near(rs).map(function (r) { return { x: r, y: 0, color: PLOT_MARK }; })
@@ -1725,13 +1743,14 @@
           // Сам ответ — крупно, как в алгебраическом калькуляторе (x = ...),
           // а не только координаты точек пересечения ниже.
           el('div', 'alg-answer-label', info, 'Ответ');
-          roots1.slice(0, 8).forEach(function (r) {
+          nearest(roots1, 8).forEach(function (r) {
             el('div', 'alg-answer-big', info, spec.v + ' = ' + fmt(r, 8));
           });
+          if (roots1.length > 8) el('div', 'sub', info, 'Корней много (' + roots1.length + ' на [−' + INFO_RANGE + '; ' + INFO_RANGE + ']) — показаны ближайшие к нулю.');
           var dl2 = el('dl', 'kv', info);
           el('dt', null, dl2, 'точки пересечения');
           var few = roots1.length <= 4;
-          roots1.slice(0, 8).forEach(function (r) {
+          nearest(roots1, 8).forEach(function (r) {
             vars1[spec.v] = r;
             var yv; try { yv = MFMath.evalAst(spec.lhsAst, vars1); } catch (e) { yv = NaN; }
             el('dd', null, dl2, '(' + fmt(r, 6) + '; ' + fmt(yv, 6) + ')');
@@ -1791,7 +1810,9 @@
             curves = scene.curves.map(function (c) { return { kind: c.kind, expr: G.exprToGms(c.ast, c.rename), color: c.color }; });
           } catch (e) { stage.clear(); return; }
           var span = 5;
-          scene.marks.forEach(function (m) { span = Math.max(span, Math.min(40, Math.max(Math.abs(m.x) * 0.75, Math.abs(m.y) * 1.15))); });
+          // по ближайшим к началу координат точкам: у tg x их десятки — кадр не должен из-за них отъезжать
+          scene.marks.slice().sort(function (a, b) { return Math.hypot(a.x, a.y) - Math.hypot(b.x, b.y); }).slice(0, 6)
+            .forEach(function (m) { span = Math.max(span, Math.min(40, Math.max(Math.abs(m.x) * 0.75, Math.abs(m.y) * 1.15))); });
           stage.show(G.plotScene({ curves: curves, marks: scene.marks, view: { width: span * 3.2, height: span * 2 } }), null, delay);
         });
       }

@@ -179,7 +179,23 @@ export function exprToGms(node, rename = {}, consts) {
       if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(node.name)) throw new Error('имя ' + node.name);
       return node.name;
     }
-    case '+': case '-': case '*': case '/': case '^':
+    case '^': {
+      // x^(1/3), x^(2/3): корень нечётной степени определён и при x < 0
+      const M = window.MFMath;
+      let E = NaN;
+      try { if (M && !M.varsIn(node.b).length) E = M.evalAst(node.b, {}); } catch (e) { E = NaN; }
+      if (isFinite(E) && !Number.isInteger(E)) {
+        for (let q = 3; q <= 15; q += 2) {
+          const p = Math.round(E * q);
+          if (Math.abs(E * q - p) < 1e-9) {
+            const B = r(node.a);
+            return '((abs(' + B + '))^(' + numGms(E) + ')' + (p % 2 ? '*((' + B + ')/abs(' + B + '))' : '') + ')';
+          }
+        }
+      }
+      return '(' + r(node.a) + ')^(' + r(node.b) + ')';
+    }
+    case '+': case '-': case '*': case '/':
       return '(' + r(node.a) + ')' + node.t + '(' + r(node.b) + ')';
     case 'neg': return '(-(' + r(node.a) + '))';
     case 'fact': return 'factorial(' + r(node.a) + ')';
