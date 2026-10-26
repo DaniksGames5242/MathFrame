@@ -25,6 +25,8 @@ jobs:
         run: node tools/check-data.mjs
       - name: Все интерактивные примеры собираются
         run: node tools/check-examples.mjs
+      - name: Примеры в документации песочницы
+        run: node tools/check-gms-docs.mjs
       - name: Решатель алгебры
         run: node tools/alg-solver/test.cjs
       - name: Решатель геометрии

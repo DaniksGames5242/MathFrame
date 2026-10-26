@@ -100,8 +100,45 @@ main .btn kbd{font-family:var(--pg-mono);font-size:.68rem;padding:.08rem .35rem;
 .chip{font-family:var(--pg-mono);font-size:.76rem;color:var(--text-secondary);background:var(--bg-sunken);border:1px solid var(--border);padding:.12rem .5rem;border-radius:999px;max-width:50%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 /* ---- рабочая область ---- */
-.ws{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:.75rem;height:calc(100vh - 300px);min-height:520px}
-.ws.wide-ed{grid-template-columns:minmax(0,1.4fr) minmax(0,1fr)}
+.ws{display:grid;grid-template-columns:minmax(0,1fr) 12px minmax(0,1fr);gap:0;height:calc(100vh - 300px);min-height:520px}
+.ws.wide-ed{grid-template-columns:minmax(0,var(--ed-fr,1.4fr)) 12px minmax(0,1fr)}
+/* разделитель панелей: тянуть мышью / стрелками, двойной щелчок — сброс */
+.split{cursor:col-resize;position:relative;touch-action:none;outline:none}
+.split::after{content:'';position:absolute;top:30%;bottom:30%;left:5px;width:2px;border-radius:2px;background:var(--border);transition:background var(--t)}
+.split:hover::after,.split:focus-visible::after,.split.drag::after{background:var(--accent)}
+body.pg-resizing{cursor:col-resize;user-select:none}
+/* поиск и замена */
+.findbar{display:flex;flex-wrap:wrap;align-items:center;gap:.35rem;padding:.4rem .6rem;border-bottom:1px solid var(--border);background:var(--bg-sunken)}
+.findbar[hidden]{display:none}
+.code-wrap pre.fm{color:transparent;pointer-events:none}
+.fm mark{background:rgba(242,180,92,.35);color:transparent;border-radius:2px}
+.fm mark.cur{background:rgba(242,180,92,.8);outline:1px solid #f59e0b}
+.findbar input[type=search]{flex:1 1 120px;min-width:0;padding:.3rem .5rem;border-radius:6px;border:1px solid var(--border-strong);background:var(--bg-card);color:var(--text-primary);font-family:var(--pg-mono);font-size:13px}
+.findbar input.bad{border-color:var(--pg-err)}
+.f-case{display:inline-flex;align-items:center;gap:.2rem;font-size:.75rem;color:var(--text-secondary);cursor:pointer}
+/* мои сцены */
+.scenes-menu{min-width:280px;max-height:60vh;overflow:auto}
+.scenes-menu .sc-row{display:flex;align-items:center;gap:.25rem}
+.scenes-menu .sc-row button[data-open]{flex:1;min-width:0}
+.scenes-menu .sc-row button[data-open] span{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.scenes-menu .sc-row button[data-del]{width:auto;flex:0 0 auto;color:var(--text-tertiary);padding:.4rem .5rem}
+.scenes-menu .sc-empty{padding:.5rem .65rem;color:var(--text-tertiary);font-size:.82rem}
+.scenes-menu hr{border:0;border-top:1px solid var(--border);margin:.3rem 0}
+/* горячие клавиши */
+.keys-box{width:min(560px,100%)}
+.keys-list{overflow:auto;padding:.4rem .9rem .9rem}
+.keys-list h4{margin:.8rem 0 .3rem;font-size:.8rem;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em}
+.keys-list div{display:flex;justify-content:space-between;gap:1rem;padding:.3rem 0;border-bottom:1px solid var(--border);font-size:.86rem;color:var(--text-secondary)}
+.keys-list kbd{font-family:var(--pg-mono);font-size:.75rem;padding:.1rem .4rem;border:1px solid var(--border-strong);border-bottom-width:2px;border-radius:5px;background:var(--bg-sunken);color:var(--text-primary);white-space:nowrap}
+/* документация: учебник / справочник, врезки */
+.doc-switch{display:flex;gap:.3rem;margin-bottom:.45rem}
+.doc-switch .mini{flex:1;font-size:.8rem;padding:.35rem .5rem}
+.toc-toggle{display:none;width:100%;margin-bottom:.3rem}
+.doc blockquote{margin:.8rem 0;padding:.6rem .9rem;border-left:3px solid var(--accent);background:var(--accent-soft);border-radius:0 var(--r-sm) var(--r-sm) 0}
+.doc blockquote p{margin:.2rem 0;color:var(--text-primary)}
+.doc blockquote.warn{border-left-color:#f59e0b;background:rgba(245,158,11,.12)}
+.doc a{color:var(--accent)}
+.doc .lesson-nav{display:flex;justify-content:space-between;gap:.5rem;margin-top:2rem;padding-top:1rem;border-top:1px solid var(--border)}
 .pane{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r-lg);display:flex;flex-direction:column;min-height:0;
   backdrop-filter:blur(18px) saturate(140%);-webkit-backdrop-filter:blur(18px) saturate(140%);
   box-shadow:var(--shadow);transition:border-color var(--t),box-shadow var(--t-slow)}
@@ -287,11 +324,15 @@ html.mf-no-motion .pg-view,html.mf-no-motion .dlg.show,html.mf-no-motion .dlg.sh
   .pg-hint{display:none}
   .tb .tb-gap.grow{display:none}
   .ws,.ws.wide-ed{grid-template-columns:1fr;height:auto}
+  .ws,.ws.wide-ed{gap:.75rem}
+  .split{display:none}
+  .toc-toggle{display:block}
+  .toc nav:not(.open){display:none}
   .ws .pane{height:62vh;min-height:380px}
   .tb .sep{display:none}
   .docs{grid-template-columns:1fr}
   .toc{position:static;max-height:none}
-  .toc nav{max-height:40vh;overflow:auto}
+  .toc nav{max-height:50vh;overflow:auto}
 }
 </style>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
@@ -334,6 +375,10 @@ html.mf-no-motion .pg-view,html.mf-no-motion .dlg.show,html.mf-no-motion .dlg.sh
         <button class="btn ghost" id="bTemplates" aria-haspopup="menu" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>Шаблоны</button>
         <div class="menu" id="tplMenu" role="menu" hidden></div>
       </div>
+      <div class="menu-wrap">
+        <button class="btn ghost" id="bScenes" aria-haspopup="menu" aria-expanded="false" title="Сохранённые в браузере сцены"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 3h11l3 3v15H5z"/><path d="M8 3v5h7V3"/><path d="M8 14h8v7H8z"/></svg>Мои сцены</button>
+        <div class="menu scenes-menu" id="scMenu" role="menu" hidden></div>
+      </div>
       <button class="btn ghost" id="bExamples"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5z"/><path d="M4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5"/></svg>Примеры справочника</button>
       <span class="tb-gap grow"></span>
       <div class="ib-group" role="group" aria-label="Файл">
@@ -343,6 +388,8 @@ html.mf-no-motion .pg-view,html.mf-no-motion .dlg.show,html.mf-no-motion .dlg.sh
         <button class="ib" id="bShare" title="Скопировать ссылку с кодом" aria-label="Скопировать ссылку с кодом"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 14a4.5 4.5 0 0 0 6.4 0l3.2-3.2a4.5 4.5 0 0 0-6.4-6.4l-1.1 1.1"/><path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3.2 3.2a4.5 4.5 0 0 0 6.4 6.4l1.1-1.1"/></svg></button>
       </div>
       <div class="ib-group" role="group" aria-label="Вид">
+        <button class="ib" id="bFind" title="Найти и заменить (Ctrl+F)" aria-label="Найти и заменить"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/></svg></button>
+        <button class="ib" id="bKeys" title="Горячие клавиши" aria-label="Горячие клавиши"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/></svg></button>
         <button class="ib" id="bFormat" title="Выровнять отступы" aria-label="Выровнять отступы"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M10 12h10M10 18h10"/><path d="m4 10 3 2-3 2"/></svg></button>
         <button class="ib" id="bFull" title="Во весь экран (Esc — выйти)" aria-label="Во весь экран"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
       </div>
@@ -355,9 +402,21 @@ html.mf-no-motion .pg-view,html.mf-no-motion .dlg.show,html.mf-no-motion .dlg.sh
           <span class="chip" id="fileName">scene.gms</span><span class="grow"></span>
           <span class="status" id="status"></span>
         </div>
+        <div class="findbar" id="findBar" hidden>
+          <input type="search" id="fFind" placeholder="Найти" aria-label="Найти" />
+          <input type="search" id="fRepl" placeholder="Заменить на" aria-label="Заменить на" />
+          <span class="status" id="fCount"></span>
+          <button class="mini" id="fPrev" title="Предыдущее (Shift+Enter)" aria-label="Предыдущее">↑</button>
+          <button class="mini" id="fNext" title="Следующее (Enter)" aria-label="Следующее">↓</button>
+          <label class="f-case" title="Учитывать регистр"><input type="checkbox" id="fCase" />Aa</label>
+          <button class="mini" id="fOne">Заменить</button>
+          <button class="mini" id="fAll">Все</button>
+          <button class="mini" id="fClose" aria-label="Закрыть поиск">✕</button>
+        </div>
         <div class="ed">
           <div class="gutter" id="gutter">1</div>
           <div class="code-wrap" id="codeWrap">
+            <pre id="fm" class="fm" aria-hidden="true"></pre>
             <pre id="hl" aria-hidden="true"></pre>
             <textarea id="code" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" aria-label="Код GMS"></textarea>
             <div class="sug" id="sug" role="listbox"></div>
@@ -365,10 +424,12 @@ html.mf-no-motion .pg-view,html.mf-no-motion .dlg.show,html.mf-no-motion .dlg.sh
         </div>
         <div class="errs" id="errs"></div>
       </div>
+      <div class="split" id="split" role="separator" aria-orientation="vertical" aria-label="Ширина редактора" title="Потяните, чтобы изменить ширину; двойной щелчок — по умолчанию" tabindex="0"></div>
 
       <div class="pane mf-ticks">
         <div class="pane-h">
           <b>Сцена</b><span class="grow"></span>
+          <button class="ib sm" id="pvShot" title="Сохранить снимок сцены (.png)" aria-label="Сохранить снимок сцены"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></button>
           <button class="ib sm" id="pvReload" title="Перезапустить сцену" aria-label="Перезапустить сцену"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.7"/><path d="M20 4v5h-5"/></svg></button>
         </div>
         <div class="prev">
@@ -424,7 +485,12 @@ html.mf-no-motion .pg-view,html.mf-no-motion .dlg.show,html.mf-no-motion .dlg.sh
   <section id="viewDocs" class="pg-view" hidden>
     <div class="docs">
       <aside class="toc">
+        <div class="doc-switch" role="tablist" aria-label="Раздел документации">
+          <button type="button" role="tab" class="mini on" id="dTut" aria-selected="true">Учебник</button>
+          <button type="button" role="tab" class="mini" id="dRef" aria-selected="false">Справочник</button>
+        </div>
         <input type="search" id="docSearch" placeholder="Поиск по документации" aria-label="Поиск по документации" />
+        <button type="button" class="mini toc-toggle" id="tocToggle" aria-expanded="false">Содержание</button>
         <nav id="tocNav"></nav>
       </aside>
       <article class="doc" id="doc"><p class="nores">Загрузка документации…</p></article>
@@ -442,6 +508,13 @@ html.mf-no-motion .pg-view,html.mf-no-motion .dlg.show,html.mf-no-motion .dlg.sh
     <div class="dlg-list" id="exList"></div>
   </div>
 </div>
+<div class="dlg" id="keysDlg" role="dialog" aria-modal="true" aria-label="Горячие клавиши">
+  <div class="dlg-box keys-box">
+    <div class="dlg-h"><b>Горячие клавиши</b><span class="grow"></span><button class="btn small" id="keysClose" aria-label="Закрыть">✕</button></div>
+    <div class="keys-list" id="keysList"></div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <div id="app-footer"></div>

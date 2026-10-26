@@ -200,6 +200,7 @@ function renderEditor() {
 }
 function syncScroll() {
   hl.scrollTop = code.scrollTop; hl.scrollLeft = code.scrollLeft;
+  const fm = $('fm'); if (fm) { fm.scrollTop = code.scrollTop; fm.scrollLeft = code.scrollLeft; }
   gutter.scrollTop = code.scrollTop;
 }
 code.addEventListener('scroll', syncScroll);
@@ -260,6 +261,10 @@ function run(force) {
   errsEl.innerHTML = '';
   errorLines = new Set();
   if (!res.success) {
+    // Незакрытая или лишняя скобка — самая частая причина непонятных сообщений
+    // компилятора («Неизвестный ключ …»), поэтому показываем её первой.
+    const br = bracketProblem(code.value);
+    if (br && !res.errors.some((e) => e === br)) res.errors.unshift(br);
     for (const e of res.errors) {
       const d = document.createElement('div');
       d.textContent = '✕ ' + e;
@@ -280,6 +285,26 @@ function run(force) {
   }
   return res.html;
 }
+// Проверка парности скобок ( ) [ ] { } без учёта строк и комментариев.
+function bracketProblem(src) {
+  const OPEN = { '(': ')', '[': ']', '{': '}' }, CLOSE = { ')': '(', ']': '[', '}': '{' };
+  const st = []; let line = 1;
+  for (let i = 0; i < src.length; i++) {
+    const ch = src[i];
+    if (ch === '\n') { line++; continue; }
+    if (ch === '/' && src[i + 1] === '/') { while (i < src.length && src[i] !== '\n') i++; i--; continue; }
+    if (ch === '/' && src[i + 1] === '*') { const e = src.indexOf('*/', i + 2); const end = e < 0 ? src.length : e + 2; line += (src.slice(i, end).match(/\n/g) || []).length; i = end - 1; continue; }
+    if (ch === '"') { i++; while (i < src.length && src[i] !== '"' && src[i] !== '\n') { if (src[i] === '\\') i++; i++; } if (src[i] === '\n') line++; continue; }
+    if (OPEN[ch]) st.push({ ch, line });
+    else if (CLOSE[ch]) {
+      const top = st.pop();
+      if (!top) return `Лишняя закрывающая скобка «${ch}» (строка ${line})`;
+      if (top.ch !== CLOSE[ch]) return `Скобка «${top.ch}» из строки ${top.line} закрыта скобкой «${ch}» (строка ${line}) — ожидалась «${OPEN[top.ch]}»`;
+    }
+  }
+  if (st.length) { const t = st[st.length - 1]; return `Не закрыта скобка «${t.ch}» (строка ${t.line}) — добавьте «${OPEN[t.ch]}»`; }
+  return null;
+}
 function plural(n, a, b, c) {
   const m10 = n % 10, m100 = n % 100;
   return m10 === 1 && m100 !== 11 ? a : (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14) ? b : c);
@@ -293,21 +318,26 @@ $('bAuto').onchange = () => { autoRun = $('bAuto').checked; store.set(LS_AUTO, a
 let editTimer = null, saveTimer = null;
 function onEdit() {
   renderEditor();
+  if (!findBar.hidden) findAll(false);
   clearTimeout(saveTimer); saveTimer = setTimeout(() => store.set(LS_CODE, code.value), 300);
   if (autoRun) { clearTimeout(editTimer); editTimer = setTimeout(() => run(), 700); }
 }
-code.addEventListener('input', () => { onEdit(); updateSuggest(false); });
+code.addEventListener('input', () => { if (programmatic) return; onEdit(); updateSuggest(false); });
 
 /* ==========================================================================
    Редактирование: отступы, скобки, комментарии
    ========================================================================== */
+let programmatic = false;   // правка из кода: не показывать подсказки на событии input
 function replaceRange(start, end, text, selStart, selEnd) {
   code.focus();
   code.setSelectionRange(start, end);
   // execCommand сохраняет историю отмены (Ctrl+Z); если недоступен — прямая замена.
-  if (!document.execCommand || !document.execCommand('insertText', false, text)) {
-    code.setRangeText(text, start, end, 'end');
-  }
+  programmatic = true;
+  try {
+    if (!document.execCommand || !document.execCommand('insertText', false, text)) {
+      code.setRangeText(text, start, end, 'end');
+    }
+  } finally { programmatic = false; }
   if (selStart !== undefined) code.setSelectionRange(selStart, selEnd === undefined ? selStart : selEnd);
   onEdit();
 }
@@ -318,8 +348,10 @@ function jumpToLine(ln) {
   for (let i = 0; i < ln - 1 && i < lines.length; i++) pos += lines[i].length + 1;
   code.focus();
   code.setSelectionRange(pos, pos + (lines[ln - 1] || '').length);
-  code.scrollTop = Math.max(0, (ln - 5) * 19.5);
+  code.scrollTop = Math.max(0, (ln - 5) * lineH());
 }
+// Высота строки берётся из CSS: она меняется вместе с размером шрифта (Ctrl + / Ctrl −).
+function lineH() { return parseFloat(getComputedStyle(code).lineHeight) || 19.5; }
 function indentSelection(outdent) {
   const v = code.value, s = code.selectionStart, e = code.selectionEnd;
   const a = lineStart(s);
@@ -345,6 +377,14 @@ code.addEventListener('keydown', (e) => {
   if (mod && (e.key === 's' || e.key === 'ы')) { e.preventDefault(); store.set(LS_CODE, code.value); toast('Сохранено в браузере'); return; }
   if (mod && e.key === '/') { e.preventDefault(); toggleComment(); return; }
   if (mod && e.code === 'Space') { e.preventDefault(); updateSuggest(true); return; }
+  if (mod && !e.altKey && (e.key === 'f' || e.key === 'а' || e.key === 'h' || e.key === 'р')) { e.preventDefault(); openFind(e.key === 'h' || e.key === 'р'); return; }
+  if (mod && (e.key === 'g' || e.key === 'п')) { e.preventDefault(); goToLine(); return; }
+  if (mod && (e.key === 'd' || e.key === 'в')) { e.preventDefault(); duplicateLines(); return; }
+  if (e.altKey && !mod && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) { e.preventDefault(); moveLines(e.key === 'ArrowUp' ? -1 : 1); return; }
+  if (mod && (e.key === '=' || e.key === '+')) { e.preventDefault(); setFont(fontPx + 1); return; }
+  if (mod && e.key === '-') { e.preventDefault(); setFont(fontPx - 1); return; }
+  if (mod && e.key === '0') { e.preventDefault(); setFont(13); return; }
+  if (e.key === 'F1') { e.preventDefault(); openKeys(); return; }
   const s = code.selectionStart, en = code.selectionEnd, v = code.value;
   if (e.key === 'Tab') {
     e.preventDefault();
@@ -383,6 +423,48 @@ code.addEventListener('keydown', (e) => {
     if (/^\s+$/.test(v.slice(ls, s))) { e.preventDefault(); const ind = v.slice(ls, s).replace(/ {1,2}$/, ''); replaceRange(ls, s, ind + '}'); return; }
   }
 });
+// Границы целых строк, задетых выделением: [a, b) без последнего перевода строки.
+function selLines() {
+  const v = code.value, s = code.selectionStart, e = code.selectionEnd;
+  const a = lineStart(s);
+  let b = v.indexOf('\n', e > s && v[e - 1] === '\n' ? e - 1 : e); if (b < 0) b = v.length;
+  return { a, b };
+}
+function duplicateLines() {
+  const { a, b } = selLines(), v = code.value, block = v.slice(a, b);
+  const s = code.selectionStart, e = code.selectionEnd, d = block.length + 1;
+  replaceRange(b, b, '\n' + block, s + d, e + d);
+}
+function moveLines(dir) {
+  const { a, b } = selLines(), v = code.value, s = code.selectionStart, e = code.selectionEnd;
+  if (dir < 0) {
+    if (a === 0) return;
+    const pa = lineStart(a - 1), prev = v.slice(pa, a - 1), block = v.slice(a, b);
+    const d = prev.length + 1;
+    replaceRange(pa, b, block + '\n' + prev, s - d, e - d);
+  } else {
+    if (b >= v.length) return;
+    let nb = v.indexOf('\n', b + 1); if (nb < 0) nb = v.length;
+    const next = v.slice(b + 1, nb), block = v.slice(a, b), d = next.length + 1;
+    replaceRange(a, nb, next + '\n' + block, s + d, e + d);
+  }
+}
+function goToLine() {
+  const n = code.value.split('\n').length;
+  const r = prompt('Перейти к строке (1–' + n + '):', '');
+  const ln = parseInt(r, 10);
+  if (ln >= 1) jumpToLine(Math.min(ln, n));
+}
+// Размер шрифта редактора: Ctrl + / Ctrl − / Ctrl 0, запоминается.
+const LS_FONT = 'mf-playground-font';
+let fontPx = +store.get(LS_FONT) || 13;
+function setFont(px) {
+  fontPx = Math.max(10, Math.min(24, px));
+  const ed = code.closest('.ed');
+  ed.style.fontSize = fontPx + 'px'; ed.style.lineHeight = (fontPx * 1.5) + 'px';
+  _cw = 0; store.set(LS_FONT, String(fontPx));
+  renderEditor();
+}
 $('bFormat').onclick = () => {
   let depth = 0;
   const out = code.value.split('\n').map((raw) => {
@@ -535,7 +617,8 @@ function updateSuggest(force) {
     items = f.map((x) => ({ text: x, insert: x + ' = ', hint: 'поле ' + ctx.type }));
   } else {
     const after = /\b(new|draw)\s+[A-Za-z0-9]*$/.test(lineHead);
-    if (after) items = TYPE_WORDS.map((x) => ({ text: x, hint: 'тип' }));
+    // Сначала базовые типы (Point), потом варианты Point2D / Point3D.
+    if (after) items = TYPE_WORDS.slice().sort((a, b) => (/(2D|3D)$/.test(a) - /(2D|3D)$/.test(b)) || a.localeCompare(b)).map((x) => ({ text: x, hint: 'тип' }));
     else {
       const names = namesInCode().map((x) => ({ text: x, hint: 'имя' }));
       const kws = [...PREFIX_WORDS, ...DECL_WORDS, 'true', 'false'].map((x) => ({ text: x, hint: 'слово' }));
@@ -560,10 +643,11 @@ function renderSug() {
   const ln = v.slice(0, pos).split('\n').length - 1;
   const col = pos - lineStart(pos);
   const cw = charWidth();
-  let left = 12 + col * cw - code.scrollLeft, top = 10 + (ln + 1) * 19.5 - code.scrollTop + 2;
+  const lh = lineH();
+  let left = 12 + col * cw - code.scrollLeft, top = 10 + (ln + 1) * lh - code.scrollTop + 2;
   const wrap = $('codeWrap').getBoundingClientRect();
   left = Math.max(4, Math.min(left, wrap.width - 230));
-  if (top + 200 > wrap.height) top = Math.max(4, top - 19.5 - 205);
+  if (top + 200 > wrap.height) top = Math.max(4, top - lh - 205);
   sug.style.left = left + 'px'; sug.style.top = top + 'px';
   sug.style.display = 'block';
   const el = sug.children[sugSel]; if (el) el.scrollIntoView({ block: 'nearest' });
@@ -694,6 +778,7 @@ tplMenu.addEventListener('click', (e) => {
   setTplMenu(false);
   if (code.value.trim() && !confirm('Заменить текущий код шаблоном «' + k + '»? Несохранённые изменения пропадут.')) return;
   setCode(TEMPLATES[k], 'scene.gms');
+  store.set(LS_CODE + '-pristine', TEMPLATES[k]);
 });
 
 // ---- примеры справочника (data/examples/*.gms, список — data/gms-docs/examples-index.json)
@@ -755,7 +840,7 @@ $('bFull').onclick = () => {
   if (on) toast('Esc — выйти из полноэкранного режима');
 };
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && $('ws').classList.contains('fs') && !sugVisible()) { $('ws').classList.remove('fs'); $('bFull').classList.remove('on'); }
+  if (e.key === 'Escape' && $('ws').classList.contains('fs') && !sugVisible() && !document.querySelector('.dlg.show') && $('findBar').hidden) { $('ws').classList.remove('fs'); $('bFull').classList.remove('on'); }
 });
 
 let toastTimer = null;
@@ -763,6 +848,246 @@ function toast(t) {
   const el = $('toast'); el.textContent = t; el.classList.add('show');
   clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('show'), 2200);
 }
+
+/* ==========================================================================
+   Поиск и замена (Ctrl+F, Ctrl+H)
+   ========================================================================== */
+const findBar = $('findBar'), fFind = $('fFind'), fRepl = $('fRepl');
+let fHits = [], fIdx = -1;
+function openFind(replace) {
+  findBar.hidden = false;
+  const sel = code.value.slice(code.selectionStart, code.selectionEnd);
+  if (sel && !sel.includes('\n')) fFind.value = sel;
+  (replace && fFind.value ? fRepl : fFind).focus();
+  fFind.select && !replace && fFind.select();
+  findAll(true);
+}
+function closeFind() { findBar.hidden = true; fHits = []; paintHits(); code.focus(); }
+function findAll(keepPos) {
+  const q = fFind.value, v = code.value;
+  fHits = [];
+  if (q) {
+    const hay = $('fCase').checked ? v : v.toLowerCase(), nd = $('fCase').checked ? q : q.toLowerCase();
+    for (let i = hay.indexOf(nd); i >= 0 && fHits.length < 5000; i = hay.indexOf(nd, i + nd.length)) fHits.push(i);
+  }
+  fFind.classList.toggle('bad', !!q && !fHits.length);
+  if (keepPos) { const c = code.selectionStart; fIdx = fHits.findIndex((x) => x >= c); if (fIdx < 0) fIdx = fHits.length ? 0 : -1; }
+  else if (fIdx >= fHits.length) fIdx = fHits.length - 1;
+  $('fCount').textContent = q ? (fHits.length ? (fIdx + 1) + ' из ' + fHits.length : 'нет') : '';
+  paintHits();
+}
+// Слой под текстом: подсветка всех совпадений, текущее — ярче.
+function paintHits() {
+  const fm = $('fm');
+  if (findBar.hidden || !fHits.length) { fm.innerHTML = ''; return; }
+  const v = code.value, n = fFind.value.length;
+  let out = '', last = 0;
+  fHits.forEach((at, k) => { out += esc(v.slice(last, at)) + '<mark' + (k === fIdx ? ' class="cur"' : '') + '>' + esc(v.slice(at, at + n)) + '</mark>'; last = at + n; });
+  fm.innerHTML = out + esc(v.slice(last)) + '\n';
+  syncScroll();
+}
+function selectHit(focusCode) {
+  if (fIdx < 0 || !fHits.length) return;
+  const at = fHits[fIdx], len = fFind.value.length;
+  code.setSelectionRange(at, at + len);
+  const ln = code.value.slice(0, at).split('\n').length;
+  const lh = lineH(), top = (ln - 1) * lh;
+  if (top < code.scrollTop || top > code.scrollTop + code.clientHeight - 2 * lh) code.scrollTop = Math.max(0, top - code.clientHeight / 3);
+  if (focusCode) code.focus();
+  $('fCount').textContent = (fIdx + 1) + ' из ' + fHits.length;
+  paintHits();
+}
+function findStep(dir) {
+  findAll(false);
+  if (!fHits.length) return;
+  fIdx = (fIdx + dir + fHits.length) % fHits.length;
+  selectHit(false);
+}
+function replaceOne() {
+  findAll(false);
+  if (!fHits.length) return;
+  const s = code.selectionStart, e = code.selectionEnd, q = fFind.value;
+  const cur = code.value.slice(s, e);
+  const same = $('fCase').checked ? cur === q : cur.toLowerCase() === q.toLowerCase();
+  if (!same) { selectHit(false); return; }   // сначала показываем, что заменим
+  const r = fRepl.value;
+  replaceRange(s, e, r, s + r.length);
+  fFind.focus();
+  findAll(false);
+  fIdx = fHits.findIndex((x) => x >= s + r.length); if (fIdx < 0) fIdx = fHits.length ? 0 : -1;
+  selectHit(false);
+}
+function replaceAll() {
+  findAll(false);
+  if (!fHits.length) return;
+  const q = fFind.value, r = fRepl.value, n = fHits.length;
+  let out = '', last = 0;
+  for (const at of fHits) { out += code.value.slice(last, at) + r; last = at + q.length; }
+  out += code.value.slice(last);
+  replaceRange(0, code.value.length, out, 0);
+  findAll(false);
+  toast('Заменено: ' + n);
+}
+$('bFind').onclick = () => (findBar.hidden ? openFind(false) : closeFind());
+fFind.addEventListener('input', () => { findAll(true); selectHit(false); });
+$('fCase').onchange = () => { findAll(true); selectHit(false); };
+$('fNext').onclick = () => findStep(1);
+$('fPrev').onclick = () => findStep(-1);
+$('fOne').onclick = replaceOne;
+$('fAll').onclick = replaceAll;
+$('fClose').onclick = closeFind;
+findBar.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') { e.preventDefault(); closeFind(); }
+  else if (e.key === 'Enter' && e.target === fFind) { e.preventDefault(); findStep(e.shiftKey ? -1 : 1); }
+  else if (e.key === 'Enter' && e.target === fRepl) { e.preventDefault(); (e.ctrlKey || e.metaKey) ? replaceAll() : replaceOne(); }
+});
+code.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !findBar.hidden && !sugVisible()) closeFind();
+  if (e.key === 'F3') { e.preventDefault(); if (findBar.hidden) openFind(false); else findStep(e.shiftKey ? -1 : 1); }
+});
+
+/* ==========================================================================
+   Мои сцены: несколько именованных сцен в браузере (localStorage)
+   ========================================================================== */
+const LS_SCENES = 'mf-playground-scenes';
+function loadScenes() { try { const a = JSON.parse(store.get(LS_SCENES) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
+function saveScenes(a) {
+  try { localStorage.setItem(LS_SCENES, JSON.stringify(a)); return true; }
+  catch (e) { toast('Не хватает места в браузере — удалите старые сцены'); return false; }
+}
+const scMenu = $('scMenu'), bSc = $('bScenes');
+function fmtDate(t) { try { return new Date(t).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }); } catch (e) { return ''; } }
+function renderScenes() {
+  const list = loadScenes().sort((a, b) => b.t - a.t);
+  scMenu.innerHTML = `<button type="button" role="menuitem" data-act="save">Сохранить текущую…<small>Под новым именем или поверх старой</small></button><hr>` +
+    (list.length ? list.map((x) => `<div class="sc-row"><button type="button" role="menuitem" data-open="${esc(x.name)}"><span>${esc(x.name)}</span><small>${esc(fmtDate(x.t))} · ${x.code.split('\n').length} строк</small></button>` +
+      `<button type="button" data-del="${esc(x.name)}" title="Удалить" aria-label="Удалить сцену ${esc(x.name)}">✕</button></div>`).join('')
+      : '<div class="sc-empty">Здесь появятся сохранённые сцены. Они хранятся только в этом браузере.</div>');
+}
+function setScMenu(open) {
+  if (open) renderScenes();
+  scMenu.hidden = !open; bSc.setAttribute('aria-expanded', open);
+  if (open) { const f = scMenu.querySelector('button'); if (f) f.focus(); }
+}
+function saveSceneAs() {
+  const def = fileName.replace(/\.gms$/, '');
+  const name = (prompt('Название сцены:', def) || '').trim();
+  if (!name) return;
+  const list = loadScenes(), i = list.findIndex((x) => x.name === name);
+  if (i >= 0 && !confirm('Сцена «' + name + '» уже есть. Заменить?')) return;
+  const item = { name, code: code.value, t: Date.now() };
+  if (i >= 0) list[i] = item; else list.push(item);
+  if (saveScenes(list)) { setFileName(name + '.gms'); toast('Сцена «' + name + '» сохранена'); }
+}
+bSc.onclick = (e) => { e.stopPropagation(); setScMenu(scMenu.hidden); };
+document.addEventListener('click', (e) => { if (!scMenu.hidden && !scMenu.contains(e.target)) setScMenu(false); });
+scMenu.addEventListener('keydown', (e) => {
+  const items = [...scMenu.querySelectorAll('button')], i = items.indexOf(document.activeElement);
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); items[(i + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length].focus(); }
+  if (e.key === 'Escape') { setScMenu(false); bSc.focus(); }
+});
+scMenu.addEventListener('click', (e) => {
+  e.stopPropagation();
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.act === 'save') { setScMenu(false); saveSceneAs(); return; }
+  if (b.dataset.del !== undefined) {
+    const n = b.dataset.del;
+    if (!confirm('Удалить сцену «' + n + '»?')) return;
+    saveScenes(loadScenes().filter((x) => x.name !== n)); renderScenes(); return;
+  }
+  if (b.dataset.open !== undefined) {
+    const x = loadScenes().find((y) => y.name === b.dataset.open); setScMenu(false);
+    if (!x) return;
+    if (code.value.trim() && code.value !== x.code && code.value !== store.get(LS_CODE + '-pristine') && !confirm('Открыть сцену «' + x.name + '»? Текущий код будет заменён.')) return;
+    setCode(x.code, x.name + '.gms');
+    store.set(LS_CODE + '-pristine', x.code);
+  }
+});
+
+/* ==========================================================================
+   Снимок сцены (.png): все холсты сцены сводятся в одну картинку
+   ========================================================================== */
+$('pvShot').onclick = () => {
+  const root = sceneHost.shadowRoot;
+  const canvases = root ? [...root.querySelectorAll('canvas')].filter((c) => c.width && c.height && c.offsetParent !== null) : [];
+  if (!canvases.length) { toast('Сначала запустите сцену'); return; }
+  // Снимаем в кадре анимации: у WebGL-холста буфер ещё не очищен.
+  requestAnimationFrame(() => {
+    const hr = sceneHost.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+    const out = document.createElement('canvas');
+    out.width = Math.round(hr.width * dpr); out.height = Math.round(hr.height * dpr);
+    const g = out.getContext('2d');
+    g.fillStyle = getComputedStyle(document.body).backgroundColor || '#fff';
+    g.fillRect(0, 0, out.width, out.height);
+    for (const c of canvases) {
+      const r = c.getBoundingClientRect();
+      try { g.drawImage(c, (r.left - hr.left) * dpr, (r.top - hr.top) * dpr, r.width * dpr, r.height * dpr); } catch (e) {}
+    }
+    out.toBlob((blob) => {
+      if (!blob) { toast('Не удалось сделать снимок'); return; }
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob); a.download = fileName.replace(/\.gms$/, '') + '.png';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+      toast('Снимок сохранён');
+    }, 'image/png');
+  });
+};
+
+/* ==========================================================================
+   Разделитель панелей: ширина редактора (мышь, касание, стрелки)
+   ========================================================================== */
+const LS_SPLIT = 'mf-playground-split';
+const ws = $('ws'), split = $('split');
+function setSplit(fr, save) {
+  if (fr == null) { ws.style.removeProperty('--ed-fr'); if (save) store.set(LS_SPLIT, ''); return; }
+  fr = Math.max(0.35, Math.min(4, fr));
+  ws.style.setProperty('--ed-fr', fr.toFixed(3) + 'fr');
+  if (save) store.set(LS_SPLIT, fr.toFixed(3));
+}
+{ const v = parseFloat(store.get(LS_SPLIT)); if (v > 0) setSplit(v, false); }
+function frFromX(x) {
+  const r = ws.getBoundingClientRect(), w = r.width - split.offsetWidth;
+  const left = Math.max(200, Math.min(w - 200, x - r.left - split.offsetWidth / 2));
+  return left / (w - left);   // правая колонка — 1fr
+}
+split.addEventListener('pointerdown', (e) => {
+  e.preventDefault(); split.setPointerCapture(e.pointerId);
+  split.classList.add('drag'); document.body.classList.add('pg-resizing');
+  const move = (ev) => setSplit(frFromX(ev.clientX), false);
+  const up = (ev) => {
+    split.removeEventListener('pointermove', move); split.removeEventListener('pointerup', up); split.removeEventListener('pointercancel', up);
+    split.classList.remove('drag'); document.body.classList.remove('pg-resizing');
+    setSplit(frFromX(ev.clientX), true);
+  };
+  split.addEventListener('pointermove', move); split.addEventListener('pointerup', up); split.addEventListener('pointercancel', up);
+});
+split.addEventListener('dblclick', () => setSplit(null, true));
+split.addEventListener('keydown', (e) => {
+  if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+  e.preventDefault();
+  const cur = parseFloat(ws.style.getPropertyValue('--ed-fr')) || 1.4;
+  setSplit(cur * (e.key === 'ArrowLeft' ? 0.92 : 1.08), true);
+});
+
+/* ==========================================================================
+   Окно «Горячие клавиши» (кнопка с клавиатурой или F1)
+   ========================================================================== */
+const KEYS = [
+  ['Запуск и файлы', [['Запустить сцену', 'Ctrl+Enter'], ['Сохранить в браузере', 'Ctrl+S'], ['Справка по клавишам', 'F1']]],
+  ['Правка', [['Подсказки (автодополнение)', 'Ctrl+Space'], ['Принять подсказку', 'Enter / Tab'], ['Отступ / убрать отступ', 'Tab / Shift+Tab'],
+    ['Закомментировать строки', 'Ctrl+/'], ['Дублировать строку', 'Ctrl+D'], ['Переместить строку', 'Alt+↑ / Alt+↓'], ['Отменить / повторить', 'Ctrl+Z / Ctrl+Y']]],
+  ['Поиск и навигация', [['Найти', 'Ctrl+F'], ['Заменить', 'Ctrl+H'], ['Следующее / предыдущее', 'Enter / Shift+Enter, F3'], ['Перейти к строке', 'Ctrl+G'], ['Перейти к ошибке', 'щелчок по ошибке']]],
+  ['Вид', [['Крупнее / мельче шрифт', 'Ctrl + / Ctrl −'], ['Обычный шрифт', 'Ctrl+0'], ['Ширина редактора', 'потянуть разделитель'], ['Выйти из полноэкранного режима', 'Esc']]],
+];
+$('keysList').innerHTML = KEYS.map(([h, rows]) => '<h4>' + esc(h) + '</h4>' + rows.map(([a, k]) =>
+  '<div><span>' + esc(a) + '</span><span>' + k.split(' / ').map((x) => '<kbd>' + esc(x) + '</kbd>').join(' / ') + '</span></div>').join('')).join('');
+function openKeys() { $('keysDlg').classList.add('show'); $('keysClose').focus(); }
+function closeKeys() { $('keysDlg').classList.remove('show'); }
+$('bKeys').onclick = openKeys;
+$('keysClose').onclick = closeKeys;
+$('keysDlg').addEventListener('click', (e) => { if (e.target === $('keysDlg')) closeKeys(); });
+$('keysDlg').addEventListener('keydown', (e) => { if (e.key === 'Escape') closeKeys(); });
 
 /* ==========================================================================
    Документация: Markdown → HTML, оглавление, поиск
@@ -787,6 +1112,7 @@ function showView(name, push) {
   }
   movePill();
   if (name === 'docs') loadDocs();
+  if (name !== 'editor' && !findBar.hidden) { findBar.hidden = true; fHits = []; paintHits(); }
   if (name === 'builder' && window.mfBuilder) window.mfBuilder.show();
   if (push) history.replaceState(null, '', location.pathname + location.search + (name === 'editor' ? '' : '#' + name));
 }
@@ -809,11 +1135,14 @@ window.mfPlayground = {
 };
 
 function inline(s) {
-  // экранирование + `код`, **жирный**, *курсив*
+  // экранирование + `код`, **жирный**, *курсив*, [ссылка](адрес) — адрес #якорь, /путь или https://
   const parts = s.split(/(`[^`]+`)/g);
   return parts.map((p) => {
     if (/^`[^`]+`$/.test(p)) return '<code>' + esc(p.slice(1, -1)) + '</code>';
-    return esc(p).replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>').replace(/(^|[^*])\*([^*\s][^*]*)\*/g, '$1<i>$2</i>');
+    return esc(p)
+      .replace(/\[([^\]]+)\]\((#[\w\u0400-\u04FF-]+|\/[^\s)]*|https?:\/\/[^\s)]+)\)/g, (m, t, u) =>
+        '<a href="' + u.replace(/"/g, '%22') + '"' + (u[0] === '#' ? ' data-anchor="' + u.slice(1) + '"' : (/^https?:/.test(u) ? ' target="_blank" rel="noopener"' : '')) + '>' + t + '</a>')
+      .replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>').replace(/(^|[^*\w])\*([^*\s][^*]*)\*/g, '$1<i>$2</i>');
   }).join('');
 }
 function slug(t, used) {
@@ -872,6 +1201,15 @@ function renderMarkdown(md) {
         body.map((r) => '<tr>' + r.map((c) => '<td>' + inline(c) + '</td>').join('') + '</tr>').join('') + '</tbody></table></div>');
       continue;
     }
+    if (/^>\s?/.test(l)) {
+      // Врезка: «> текст». Первая строка «> **Внимание:** …» делает её предупреждением.
+      const buf = [];
+      while (i < lines.length && /^>\s?/.test(lines[i])) buf.push(lines[i++].replace(/^>\s?/, ''));
+      const paras = buf.join('\n').split(/\n\s*\n/).map((x) => '<p>' + inline(x.replace(/\n/g, ' ')) + '</p>').join('');
+      const warn = /^\*\*(Внимание|Важно|Осторожно)/.test(buf[0] || '');
+      out.push('<blockquote' + (warn ? ' class="warn"' : '') + '>' + paras + '</blockquote>');
+      continue;
+    }
     if (/^\s*(-|\d+\.)\s+/.test(l)) {
       const ordered = /^\s*\d+\./.test(l);
       const items = [];
@@ -885,38 +1223,76 @@ function renderMarkdown(md) {
     }
     if (!l.trim()) { i++; continue; }
     const para = [];
-    while (i < lines.length && lines[i].trim() && !/^(```|#|\||\s*(-|\d+\.)\s)/.test(lines[i])) para.push(lines[i++]);
+    while (i < lines.length && lines[i].trim() && !/^(```|#|\||>|\s*(-|\d+\.)\s)/.test(lines[i])) para.push(lines[i++]);
     out.push('<p>' + inline(para.join(' ')) + '</p>');
   }
   return { html: out.join('\n'), toc, codes };
 }
 
-let docsLoaded = false, docCodes = [], docHtml = '';
-async function loadDocs() {
-  if (docsLoaded) return;
-  docsLoaded = true;
+// Два документа: учебник (по шагам, для начинающих) и полный справочник языка.
+const DOCS = { tut: '/data/gms-docs/tutorial.md', ref: '/data/gms-docs/reference.md' };
+const LS_DOC = 'mf-playground-doc';
+const docCache = {};
+let docKind = null, docCodes = [], docHtml = '', docLoading = null;
+async function fetchDoc(kind) {
+  if (!docCache[kind]) {
+    const r = await fetch(DOCS[kind]);
+    if (!r.ok) throw new Error(r.status);
+    docCache[kind] = renderMarkdown(await r.text());
+  }
+  return docCache[kind];
+}
+// Ищем якорь из адреса в обоих документах и открываем тот, где он есть.
+async function loadDocs(kind) {
+  const target = decodeURIComponent(location.hash.slice(1));
+  if (!kind) {
+    if (target && target !== 'docs') {
+      for (const k of ['tut', 'ref']) { try { const d = await fetchDoc(k); if (d.html.includes('id="' + target + '"')) { kind = k; break; } } catch (e) {} }
+    }
+    kind = kind || docKind || (store.get(LS_DOC) === 'ref' ? 'ref' : 'tut');
+  }
+  if (kind === docKind && $('doc').childElementCount && !docLoading) return;
+  docKind = kind; store.set(LS_DOC, kind);
+  for (const [k, id] of [['tut', 'dTut'], ['ref', 'dRef']]) { $(id).classList.toggle('on', k === kind); $(id).setAttribute('aria-selected', String(k === kind)); }
+  $('docSearch').value = '';
+  const seq = docLoading = Symbol();
   try {
-    const md = await (await fetch('/data/gms-docs/reference.md')).text();
-    const r = renderMarkdown(md);
+    const r = await fetchDoc(kind);
+    if (docLoading !== seq) return;
     docCodes = r.codes; docHtml = r.html;
     $('doc').innerHTML = r.html;
     $('tocNav').innerHTML = r.toc.map((t) => `<a href="#${t.id}" class="l${t.lvl}" data-id="${t.id}">${inline(t.text)}</a>`).join('');
     trackToc();
-    const target = decodeURIComponent(location.hash.slice(1));
     if (target && target !== 'docs' && document.getElementById(target)) document.getElementById(target).scrollIntoView();
   } catch (e) {
-    docsLoaded = false;
-    $('doc').innerHTML = '<p class="nores">Не удалось загрузить документацию</p>';
-  }
+    $('doc').innerHTML = '<p class="nores">Не удалось загрузить документацию. Проверьте подключение и откройте вкладку ещё раз.</p>';
+    $('tocNav').innerHTML = '';
+  } finally { if (docLoading === seq) docLoading = null; }
 }
+$('dTut').onclick = () => { history.replaceState(null, '', '#docs'); loadDocs('tut').then(() => window.scrollTo({ top: 0 })); };
+$('dRef').onclick = () => { history.replaceState(null, '', '#docs'); loadDocs('ref').then(() => window.scrollTo({ top: 0 })); };
+$('tocToggle').onclick = () => { const o = $('tocNav').classList.toggle('open'); $('tocToggle').setAttribute('aria-expanded', String(o)); };
 $('tocNav').addEventListener('click', (e) => {
   const a = e.target.closest('a'); if (!a) return;
   e.preventDefault();
   const el = document.getElementById(a.dataset.id);
   if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'start' }); history.replaceState(null, '', '#' + a.dataset.id); }
+  $('tocNav').classList.remove('open'); $('tocToggle').setAttribute('aria-expanded', 'false');
 });
 $('doc').addEventListener('click', async (e) => {
-  const o = e.target.closest('[data-open]'), c = e.target.closest('[data-copy]');
+  const o = e.target.closest('[data-open]'), c = e.target.closest('[data-copy]'), an = e.target.closest('a[data-anchor]');
+  if (an) {
+    // Ссылка на раздел: ищем его в текущем документе, иначе — в другом.
+    e.preventDefault();
+    const id = an.dataset.anchor;
+    if (!document.getElementById(id)) {
+      const other = docKind === 'tut' ? 'ref' : 'tut';
+      try { const d = await fetchDoc(other); if (d.html.includes('id="' + id + '"')) await loadDocs(other); } catch (err) {}
+    }
+    const el = document.getElementById(id);
+    if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'start' }); history.replaceState(null, '', '#' + id); }
+    return;
+  }
   if (o) {
     const src = docCodes[+o.dataset.open];
     if (code.value.trim() && code.value !== src && code.value !== store.get(LS_CODE + '-pristine') &&
@@ -928,10 +1304,12 @@ $('doc').addEventListener('click', async (e) => {
     try { await navigator.clipboard.writeText(docCodes[+c.dataset.copy]); toast('Скопировано'); } catch (err) { toast('Не удалось скопировать'); }
   }
 });
+let tocIO = null;
 function trackToc() {
+  if (tocIO) tocIO.disconnect();
   const heads = [...$('doc').querySelectorAll('h2, h3')];
   const links = new Map([...$('tocNav').querySelectorAll('a')].map((a) => [a.dataset.id, a]));
-  const io = new IntersectionObserver((ents) => {
+  const io = tocIO = new IntersectionObserver((ents) => {
     for (const en of ents) if (en.isIntersecting) {
       links.forEach((a) => a.classList.remove('on'));
       const a = links.get(en.target.id); if (a) a.classList.add('on');
@@ -984,6 +1362,7 @@ function markWords(els, words) {
    Старт
    ========================================================================== */
 refreshAuto();
+if (fontPx !== 13) setFont(fontPx);
 movePill();
 setFileName(fileName);
 (async function boot() {
