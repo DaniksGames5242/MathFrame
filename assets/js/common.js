@@ -1986,7 +1986,7 @@ const MF_PATH_PAGES = [
     [/^\/(playground\/|pages\/playground\.html)/, 'playground'],
     [/^\/(board\/|pages\/board\.html)/, 'board'],
     [/^\/(admin\/|pages\/admin\/)/, 'admin'],
-    [/^\/(support\/|pages\/support\.html)/, 'support'],
+    [/^\/(support\/|privacy\/|terms\/|pages\/(support|privacy|terms)\.html)/, 'support'],
 ];
 function mfPageFromUrl(url) {
     for (const [re, page] of MF_PATH_PAGES) if (re.test(url.pathname)) return page;

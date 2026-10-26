@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-<script>/* MathFrame: тема до первого кадра (см. common.js) */(function(){var d=document.documentElement;try{var t=localStorage.getItem('theme');if(t==='light'||(t!=='dark'&&!matchMedia('(prefers-color-scheme: dark)').matches))d.classList.add('light');}catch(e){}})();</script>
+<script>/* MathFrame: тема до первого кадра + маска перехода между страницами (см. common.js › PAGE TRANSITIONS) */(function(){var d=document.documentElement;try{var t=localStorage.getItem('theme');if(t==='light'||(t!=='dark'&&!matchMedia('(prefers-color-scheme: dark)').matches))d.classList.add('light');}catch(e){}try{var s=sessionStorage.getItem('mf-veil');if(!s)return;sessionStorage.removeItem('mf-veil');var v=JSON.parse(s),n=performance.getEntriesByType&&performance.getEntriesByType('navigation')[0];if(!v||!v.fill||Date.now()-v.t>8000||(n&&n.type&&n.type!=='navigate'))return;window.__mfVeil=v;d.style.setProperty('--mf-veil-fill',v.fill);d.classList.add('mf-veil-on');setTimeout(function(){d.classList.remove('mf-veil-on')},4000);}catch(e){}})();</script>
 <title>Пользовательское соглашение — MathFrame</title>
 <link rel="icon" href="/favicon.ico" sizes="any" />
 <link rel="icon" type="image/png" sizes="32x32" href="/assets/img/favicon-32.png" />
@@ -26,6 +26,12 @@ main{max-width:760px;margin:0 auto;padding:1.6rem 1rem 4rem}
 .legal ul{padding-left:1.2rem;margin:.4rem 0}
 .legal a{color:var(--accent);text-decoration:underline;text-underline-offset:2px}
 .legal .legal-date{font-size:.85rem;color:var(--text-tertiary);margin:0 0 1rem}
+.legal{animation:legRise .6s var(--e-out,ease-out) backwards}
+.legal>*{animation:legRise .5s var(--e-out,ease-out) backwards}
+.legal>:nth-child(1){animation-delay:100ms}.legal>:nth-child(2){animation-delay:140ms}.legal>:nth-child(3){animation-delay:180ms}.legal>:nth-child(4){animation-delay:220ms}.legal>:nth-child(5){animation-delay:260ms}.legal>:nth-child(6){animation-delay:300ms}.legal>:nth-child(7){animation-delay:340ms}.legal>:nth-child(8){animation-delay:380ms}.legal>:nth-child(9){animation-delay:420ms}.legal>:nth-child(10){animation-delay:460ms}.legal>:nth-child(11){animation-delay:500ms}.legal>:nth-child(12){animation-delay:540ms}
+.legal>:nth-child(n+13){animation-delay:.55s}
+@keyframes legRise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.legal,.legal>*{animation:none}}
 </style>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
