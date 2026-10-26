@@ -1547,7 +1547,7 @@
   }
   function gmsStage(host, opts) {
     opts = opts || {};
-    var token = 0, current = null, timer = 0;
+    var token = 0, current = null, pending = null, timer = 0;
     var status = el('div', 'gms-stage-status', host);
     function show(src, onVar) {
       var my = ++token;
@@ -1555,16 +1555,25 @@
         return G.compileScene(src).then(function (r) {
           if (my !== token) return;
           if (!r.success) { status.textContent = opts.errorText || 'Не удалось построить чертёж.'; status.hidden = false; return; }
+          // недогруженный предыдущий кадр больше не нужен
+          if (pending) { pending.destroy(); pending = null; }
           var h = G.mountHtml(host, r.html, { onVar: onVar, className: 'gms-stage-frame', title: opts.title, flush: true });
+          pending = h;
           h.frame.style.opacity = '0';
-          h.frame.addEventListener('load', function () {
-            if (my !== token) { h.destroy(); return; }
+          if (current) { h.frame.style.position = 'absolute'; h.frame.style.inset = '0'; }
+          var done = false;
+          function reveal() {
+            if (done) return; done = true;
+            if (my !== token || pending !== h) { if (pending !== h) h.destroy(); return; }
             status.hidden = true;
             if (current) current.destroy();
-            current = h;
-            h.frame.style.position = ''; h.frame.style.opacity = '';
-          }, { once: true });
-          if (current) { h.frame.style.position = 'absolute'; h.frame.style.inset = '0'; }
+            current = h; pending = null;
+            h.frame.style.position = ''; h.frame.style.inset = ''; h.frame.style.opacity = '';
+            host.classList.remove('gms-stage-dim');
+          }
+          h.frame.addEventListener('load', function () { setTimeout(reveal, 30); }, { once: true });
+          // событие load может не прийти (кадр создан в момент перерисовки) — показываем всё равно
+          setTimeout(reveal, 2500);
         });
       }).catch(function () {
         if (my !== token) return;
@@ -1576,9 +1585,12 @@
         clearTimeout(timer);
         if (delay) timer = setTimeout(function () { show(src, onVar); }, delay); else show(src, onVar);
       },
-      clear: function () { token++; clearTimeout(timer); if (current) { current.destroy(); current = null; } },
+      // ввод недописан — прежний график остаётся (приглушённым), а не пропадает
+      dim: function () { token++; clearTimeout(timer); if (pending) { pending.destroy(); pending = null; } host.classList.toggle('gms-stage-dim', !!current); },
+      clear: function () { token++; clearTimeout(timer); if (pending) { pending.destroy(); pending = null; } if (current) { current.destroy(); current = null; } host.classList.remove('gms-stage-dim'); },
     };
   }
+
   // Цвета кривых и отметок — те же, что у сцен GMS по умолчанию.
   // Первая кривая — без явного цвета: берётся цвет кривой текущей темы сцены.
   var PLOT_C1 = null, PLOT_C2 = '#16a34a', PLOT_MARK = '#ea580c', PLOT_EXT = '#9333ea';
@@ -1803,12 +1815,12 @@
       // Чертёж: те же кривые и точки — сценой GMS. Обзор подбирается так, чтобы
       // отмеченные точки попадали в кадр (но не мельче ±5 и не крупнее ±40).
       function renderScene(delay) {
-        if (!scene) { stage.clear(); return; }
+        if (!scene) { if (mf.field.isEmpty()) stage.clear(); else stage.dim(); return; }
         loadGmsEmbed().then(function (G) {
           var curves;
           try {
             curves = scene.curves.map(function (c) { return { kind: c.kind, expr: G.exprToGms(c.ast, c.rename), color: c.color }; });
-          } catch (e) { stage.clear(); return; }
+          } catch (e) { stage.dim(); return; }
           var span = 5;
           // по ближайшим к началу координат точкам: у tg x их десятки — кадр не должен из-за них отъезжать
           scene.marks.slice().sort(function (a, b) { return Math.hypot(a.x, a.y) - Math.hypot(b.x, b.y); }).slice(0, 6)
