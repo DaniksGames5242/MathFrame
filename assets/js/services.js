@@ -2180,6 +2180,9 @@
       var text = ta.value.trim();
       try { sessionStorage.setItem('mf-geo-problem', ta.value); } catch (e) {}
       if (!text) { setStatus('Введите условие задачи.', 'err'); return; }
+      // несколько задач (с фото — через «---»): решаем каждую отдельно
+      var many = text.split(/\n?\s*-{3,}\s*\n?/).map(function (x) { return x.trim(); }).filter(Boolean);
+      if (many.length > 1) { solveMany(many); return; }
       var my = ++token;
       solveBtn.disabled = true;
       setStatus('Решаю…', 'busy');
@@ -2199,6 +2202,28 @@
         if (my !== token) return;
         setStatus('Ошибка: ' + (e && e.message ? e.message : e), 'err');
       }).then(function () { if (my === token) solveBtn.disabled = false; });
+    }
+    function solveMany(list) {
+      var my = ++token;
+      out.innerHTML = ''; setStatus('Решаю задачи: ' + list.length + '…', 'busy');
+      solveBtn.disabled = true;
+      var outer = out;
+      loadGeoSolver().then(function (mods) {
+        var gp = mods[0], ai = mods[1], gms = mods[2];
+        return list.reduce(function (pr, t, i) {
+          return pr.then(function () {
+            if (my !== token) return;
+            var box = el('div', 'alg-photo-item', outer);
+            el('div', 'gp-h', box, 'Задача ' + (i + 1));
+            el('div', 'gp-note', box).textContent = t;
+            var sub = el('div', 'gp-out', box);
+            return gp.solveGeometryProblem(t, { theme: siteTheme(), aiSolve: function (x) { return ai.aiSolveGeometry(x); }, ai: function (x, d) { return ai.aiParseGeometry(x, d); } })
+              .then(function (r) { out = sub; render(r, gms, gp); out = outer; })
+              .catch(function (e) { el('div', 'err', sub).textContent = 'Ошибка: ' + (e && e.message ? e.message : e); });
+          });
+        }, Promise.resolve());
+      }).then(function () { if (my === token) setStatus('', ''); }, function (e) { setStatus('Ошибка: ' + (e && e.message ? e.message : e), 'err'); })
+        .then(function () { out = outer; if (my === token) solveBtn.disabled = false; });
     }
     solveBtn.addEventListener('click', solve);
     ta.addEventListener('keydown', function (e) { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); solve(); } });
