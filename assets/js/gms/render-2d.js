@@ -11700,6 +11700,7 @@ function generate2D(params, pointsData, linesData, figuresData, clustersData, an
             '            clearOverlay: false,\n',
             '            trackWrapper: true,\n',
             '            numberStepSnap: true,\n',
+            '            smoothing: ', String(dragSmoothing), ',\n',
             '            numberInputBlur: true,\n',
             '            getVar: function(name) { return getNestedValue(window, name); },\n',
             '            setVar: function(name, val) { setNestedValue(window, name, val); },\n',

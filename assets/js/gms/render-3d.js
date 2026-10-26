@@ -3913,6 +3913,7 @@ function generate3D(params, pointsData, linesData, figuresData, clustersData, dr
             '      clearOverlay: true,\n',
             '      trackWrapper: false,\n',
             '      numberStepSnap: false,\n',
+            '      smoothing: ', String(dragSmoothing), ',\n',
             '      numberInputBlur: false,\n',
             '      getVar: function(name) { return g3GetVar(name); },\n',
             '      setVar: function(name, val) { g3SetVar(name, val); },\n',
