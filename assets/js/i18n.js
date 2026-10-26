@@ -164,6 +164,67 @@
     }
   }
 
+  /* ---------- перевод встроенным переводчиком браузера (Translator API, Chrome 138+) ----------
+     Бесплатно, без лимитов сервера и без отправки текста куда-либо. Если браузер его не поддерживает или языковой пакет
+     ещё не скачан (скачивание требует клика пользователя — первый клик по странице запускает его), используется нейросеть сайта. */
+  var btPromise = null;
+  function browserTranslator() {
+    if (btPromise) return btPromise;
+    btPromise = (async function () {
+      try {
+        var T = self.Translator;
+        if (!T || !T.create) return null;
+        var opts = { sourceLanguage: 'ru', targetLanguage: 'en' };
+        var av = T.availability ? await T.availability(opts) : 'available';
+        if (av === 'unavailable') return null;
+        if (av === 'available') return await T.create(opts);
+        // 'downloadable' / 'downloading': нужен жест пользователя — создадим при первом клике и в этот раз вернём null
+        document.addEventListener('pointerdown', function once() {
+          document.removeEventListener('pointerdown', once, true);
+          try { T.create(opts).then(function () { btPromise = null; }, function () {}); } catch (e) {}
+        }, true);
+        return null;
+      } catch (e) { return null; }
+    })();
+    return btPromise;
+  }
+  var MATH_RE = /(\$\$[\s\S]*?\$\$|\$[^$\n]*\$)/;
+  function btText(tr, text) {
+    // формулы $…$ не переводим; пробелы по краям сохраняем
+    return Promise.all(text.split(MATH_RE).map(function (part, i) {
+      if (i % 2 === 1 || !CYR.test(part)) return part;
+      var m = /^(\s*)([\s\S]*?)(\s*)$/.exec(part);
+      return tr.translate(m[2]).then(function (r) { return m[1] + r + m[3]; });
+    })).then(function (a) { return a.join(''); });
+  }
+  function callStrings(batch) {
+    return browserTranslator().then(function (tr) {
+      var okBt = tr && batch.every(function (k) { return !/\{\d+\}/.test(k); });
+      if (okBt) {
+        return Promise.all(batch.map(function (k) { return btText(tr, k); })).then(function (items) { return { items: items }; }, function () { return null; });
+      }
+      return null;
+    }).then(function (res) {
+      if (res) return res;
+      return fetch('/api/translate', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ kind: 'strings', items: batch }) })
+        .then(function (r) { return r.ok ? r.json() : null; });
+    });
+  }
+  function callHtml(chunk) {
+    return browserTranslator().then(function (tr) {
+      if (!tr) return null;
+      var doc = new DOMParser().parseFromString('<body>' + chunk + '</body>', 'text/html');
+      var nodes = [], tw = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT), n;
+      while ((n = tw.nextNode())) { if (CYR.test(n.nodeValue) && !n.parentElement.closest('script,style,pre,code')) nodes.push(n); }
+      return Promise.all(nodes.map(function (node) { return btText(tr, node.nodeValue).then(function (r) { node.nodeValue = r; }); }))
+        .then(function () { return doc.body.innerHTML; }, function () { return null; });
+    }).then(function (res) {
+      if (res) return { text: res };
+      return fetch('/api/translate', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ kind: 'html', text: chunk }) })
+        .then(function (r) { return r.ok ? r.json() : null; });
+    });
+  }
+
   /* ---------- нейросеть для недостающего ---------- */
   // В нейросеть уходит только то, что человек видит: невидимые (свёрнутое дерево тем, закрытые окна) и далёкие по прокрутке
   // элементы ждут, пока не покажутся на экране (IntersectionObserver), — иначе справочник отправил бы на перевод все 2000+ названий тем.
@@ -220,8 +281,7 @@
   }
   function send(batch) {
     batch.forEach(function (k) { inflight.add(k); tried.add(k); });
-    fetch('/api/translate', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ kind: 'strings', items: batch }) })
-      .then(function (r) { return r.ok ? r.json() : null; })
+    callStrings(batch)
       .then(function (d) {
         if (!d || !Array.isArray(d.items) || d.items.length !== batch.length || d.skipped) { batch.forEach(function (k) { inflight.delete(k); pending.delete(k); }); return; }
         var store = {};
@@ -256,8 +316,7 @@
     var key = hashKey(chunk);
     return idbGet([key]).then(function (hit) {
       if (hit[key]) return hit[key];
-      return fetch('/api/translate', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ kind: 'html', text: chunk }) })
-        .then(function (r) { return r.ok ? r.json() : null; })
+      return callHtml(chunk)
         .then(function (d) {
           if (!d || typeof d.text !== 'string' || d.skipped) return chunk;
           var o = {}; o[key] = d.text; idbPut(o); return d.text;
@@ -319,8 +378,7 @@
       var jobs = [];
       for (var i = 0; i < rest.length; i += AI_BATCH) jobs.push(rest.slice(i, i + AI_BATCH));
       return Promise.all(jobs.map(function (batch) {
-        return fetch('/api/translate', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ kind: 'strings', items: batch }) })
-          .then(function (r) { return r.ok ? r.json() : null; })
+        return callStrings(batch)
           .then(function (d) {
             if (!d || !Array.isArray(d.items) || d.items.length !== batch.length || d.skipped) return;
             var store = {};
