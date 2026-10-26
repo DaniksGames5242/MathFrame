@@ -323,3 +323,10 @@ html.mf-no-motion .svc-bar, html.mf-no-motion .mf-copy { transition: none; }
 .gp-algai { margin: .4rem 0 .8rem; }
 .gp-algai summary { cursor: pointer; font-size: .86rem; color: var(--text-secondary); margin-bottom: .5rem; }
 .gp-ai-try { display: block; margin-top: .5rem; }
+
+/* несколько примеров с одного фото */
+.alg-photo-list:empty { display: none; }
+.alg-photo-list { margin: .8rem 0; display: grid; gap: .8rem; }
+.alg-photo-item { border: 1px solid var(--border, rgba(127,127,127,.25)); border-radius: 12px; padding: .7rem .8rem; display: grid; gap: .5rem; }
+.alg-photo-head { display: flex; gap: .6rem; align-items: baseline; flex-wrap: wrap; overflow-x: auto; }
+.alg-photo-num { font-weight: 700; color: var(--accent, #3e8bff); }

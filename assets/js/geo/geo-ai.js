@@ -54,11 +54,33 @@ export function fileToDataUrl(file, maxSide) {
 }
 
 export async function recognizePhoto(file, mode) {
-  const image = await fileToDataUrl(file);
+  const image = await fileToDataUrl(file, 2000);
   const d = await post({ task: 'ocr', mode: mode === 'geometry' ? 'geometry' : 'algebra', image });
   const text = String(d.text || '').trim();
   if (!text) throw new Error('на фото не нашлось ' + (mode === 'geometry' ? 'условия задачи' : 'примера'));
   return text;
+}
+// Распознанный текст → список задач (разделитель «---»).
+export function splitProblems(text) {
+  return String(text || '').split(/\n?\s*-{3,}\s*\n?/).map(t => t.trim().replace(/^(?:№\s*\d+[.)]?|\d+[.)]|[а-я]\))\s*/i, '')).filter(Boolean);
+}
+// Одна распознанная задача → { text, formula }: formula — запись для калькулятора
+// (LaTeX между $…$ переводится MFMath.fromLatex), null — текстовая задача.
+export function problemFormula(item) {
+  const M = window.MFMath;
+  const segs = [];
+  const words = String(item).replace(/\$\$([\s\S]+?)\$\$|\$([^$]+)\$|\\\[([\s\S]+?)\\\]|\\\(([\s\S]+?)\\\)/g, (m, a, b, c, d) => { segs.push(a || b || c || d); return ' § '; });
+  const rest = words.replace(/§/g, '').replace(/[.,:;!?\s]+/g, ' ').trim();
+  const isTask = /^(?:(?:пожалуйста\s*)?(?:реши(?:те)?|решить|найди(?:те)?|найти|вычисли(?:те)?|вычислить|упрости(?:те)?|упростить|посчитай(?:те)?|разложи(?:те)?(?: на множители)?|раскрой(?:те)?(?: скобки)?|сократи(?:те)?(?: дробь)?|докажи(?:те)?(?: тождество)?|выполни(?:те)?(?: действия)?)\s*(?:уравнени[ея]|неравенств[оа]|систему(?: уравнений| неравенств)?|выражени[ея]|значение(?: выражения)?|пример|корни(?: уравнения)?|дробь)?\s*(?:и|;)?\s*)?$/i.test(rest);
+  if (segs.length && M && M.fromLatex && (isTask || !rest)) {
+    const f = segs.map(x => M.fromLatex(x)).filter(Boolean).join(';');
+    if (f) return { text: item, formula: f };
+  }
+  if (!segs.length) {
+    const f = extractFormula(item);
+    if (f && M) return { text: item, formula: M.normalizeLinear(f) };
+  }
+  return { text: item, formula: null };
 }
 
 // Полное решение нейросетью (для задач вне модели локального решателя).

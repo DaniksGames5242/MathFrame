@@ -862,10 +862,50 @@
       // Распознавание примера с фото (нейросеть, api/ai-task.js): результат — в поле ввода.
       var photoRow = el('div', 'gp-row gp-row-tight', p);
       var photoStatus = el('div', 'gp-status', p);
+      var photoList = el('div', 'alg-photo-list', p);
       photoButton(photoRow, 'algebra', function (text) {
-        try { mf.field.setExpr(window.MFMath && MFMath.normalizeLinear ? MFMath.normalizeLinear(text) : text); } catch (e) { photoStatus.textContent = 'Не удалось вставить распознанный пример: ' + text; photoStatus.className = 'gp-status gp-err'; return; }
-        recompute();
+        import('/assets/js/geo/geo-ai.js').then(function (m) {
+          var probs = m.splitProblems(text).map(m.problemFormula);
+          photoList.innerHTML = '';
+          if (!probs.length) { photoStatus.textContent = 'На фото не нашлось примеров.'; photoStatus.className = 'gp-status gp-err'; return; }
+          var first = probs[0];
+          if (probs.length === 1) {
+            if (first.formula) { try { mf.field.setExpr(first.formula); recompute(null, true); } catch (e) {} }
+            else { aiBox.open = true; aiTa.value = first.text; aiSolve(first.text); }
+            return;
+          }
+          // несколько примеров на фото — решаем все, каждый отдельным блоком
+          el('div', 'gp-h', photoList, 'С фото: ' + probs.length + ' ' + (probs.length < 5 ? 'примера' : 'примеров'));
+          probs.forEach(function (pr, i) {
+            var box = el('div', 'alg-photo-item', photoList);
+            var head = el('div', 'alg-photo-head', box);
+            el('span', 'alg-photo-num', head, '№' + (i + 1));
+            el('span', 'alg-photo-src', head).innerHTML = pr.formula ? texToHtml(formulaTex(pr.formula)) : richText(pr.text);
+            var body = el('div', 'alg-photo-body', box);
+            if (pr.formula) {
+              var rows = pr.formula.indexOf(';') >= 0 ? pr.formula.split(';') : null;
+              var r = rows ? MFSolver.solve({ rows: rows }, { dec: set.dec }) : MFSolver.solve({ linear: pr.formula }, { dec: set.dec });
+              if (r.error) { el('div', 'alg-err', body).innerHTML = richText('Не получилось: ' + r.error); }
+              else {
+                renderSolution(el('div', 'alg-steps', body), r.steps, set);
+                var ans = el('div', 'alg-answer', body);
+                el('div', 'alg-answer-label', ans, r.answer.label || 'Ответ');
+                r.answer.items.forEach(function (it) { var rr = el('div', 'alg-answer-root', ans); el('span', 'alg-answer-big', rr).innerHTML = texToHtml(it.tex); if (it.approx) el('span', 'alg-answer-approx', rr, (it.approxExact ? '= ' : '≈ ') + it.approx); });
+              }
+              var open = el('button', 'mini', box, 'Открыть в поле ввода'); open.type = 'button';
+              open.addEventListener('click', function () { try { mf.field.setExpr(pr.formula); recompute(null, true); mf.field.host.scrollIntoView({ block: 'center' }); } catch (e) {} });
+            } else {
+              aiSolveRemote(pr.text, body);
+            }
+          });
+          if (first.formula) { try { mf.field.setExpr(first.formula); recompute(); } catch (e) {} }
+        });
       }, function (text, kind) { photoStatus.textContent = text || ''; photoStatus.className = 'gp-status' + (kind ? ' gp-' + kind : ''); });
+      function formulaTex(f) {
+        return f.split(';').map(function (row) {
+          try { var rel = MFAlgebra.splitRelation(row); if (!rel) return MFMath.tex(MFMath.parse(row)); return MFMath.tex(MFMath.parse(rel.lhs)) + ' ' + ({ '<=': '\\le', '>=': '\\ge', '!=': '\\ne', '≤': '\\le', '≥': '\\ge', '≠': '\\ne' }[rel.op] || rel.op) + ' ' + MFMath.tex(MFMath.parse(rel.rhs)); } catch (e) { return row; }
+        }).join(';\\quad ');
+      }
       // Формулировка, которую калькулятор не понимает (текстовая задача, нестандартная
       // запись), — решает нейросеть; всё нематематическое отклоняется.
       var aiBox = el('details', 'gp-algai', p);
@@ -894,10 +934,16 @@
           aiSolveRemote(text);
         });
       }
-      function aiSolveRemote(text) {
-        aiStatus.className = 'gp-status gp-busy'; aiStatus.textContent = 'Решаю с помощью нейросети…';
-        aiBtn.disabled = true;
+      function aiSolveRemote(text, into) {
+        var aiOut0 = aiOut, aiStatus0 = aiStatus;
+        if (into) { aiOut = el('div', 'gp-out', into); aiStatus = el('div', 'gp-status', into); }
+        var outNow = aiOut, statusNow = aiStatus;
+        aiOut = aiOut0; aiStatus = aiStatus0;
+        statusNow.className = 'gp-status gp-busy'; statusNow.textContent = 'Решаю с помощью нейросети…';
+        if (!into) aiBtn.disabled = true;
+        var aiOut1 = outNow, aiStatus1 = statusNow;
         import('/assets/js/geo/geo-ai.js').then(function (m) { return m.aiSolveAlgebra(text); }).then(function (d) {
+          var aiOut = aiOut1, aiStatus = aiStatus1;
           aiStatus.textContent = ''; aiStatus.className = 'gp-status';
           el('div', 'gp-h', aiOut, 'Решение');
           var ol = el('ol', 'gp-steps', aiOut);
@@ -911,8 +957,8 @@
             use.addEventListener('click', function () { try { mf.field.setExpr(d.linear); recompute(null, true); } catch (e) {} });
           }
         }).catch(function (e) {
-          aiStatus.className = 'gp-status gp-err'; aiStatus.textContent = (e && e.message) || String(e);
-        }).then(function () { aiBtn.disabled = false; });
+          aiStatus1.className = 'gp-status gp-err'; aiStatus1.textContent = (e && e.message) || String(e);
+        }).then(function () { if (!into) aiBtn.disabled = false; });
       }
       aiBtn.addEventListener('click', function () { aiSolve(aiTa.value.trim()); });
       // В отличие от построителя графиков, здесь система ДОЛЖНА быть доступна —

@@ -34,12 +34,12 @@ const DEFAULT_TIER = 'medium';
 // Models for automatic functions (the visitor doesn't choose them):
 //   geometry  — turning a geometry problem the local parser didn't understand
 //               into structured data: needs reliable reasoning → medium tier;
-//   vision    — reading a problem from a photo: gpt-4o-mini reads printed and
-//               handwritten maths well and is the cheapest vision model;
+//   vision    — reading a problem from a photo: gpt-4o-mini often misread
+//               exponents, fractions and handwriting, so the large model is used;
 //   simplify  — retelling a handbook topic: the medium tier.
 const TASK_MODELS = {
   geometry: () => tierModel('medium'),
-  vision:   () => process.env.NGROK_MODEL_VISION || 'openai:gpt-4o-mini',
+  vision:   () => process.env.NGROK_MODEL_VISION || tierModel('large'),
   // solve — полное решение задачи вне возможностей локального решателя (окружности,
   //           ГМТ, преобразования): нужна сильная модель → «Большая».
   solve:    () => tierModel('large'),

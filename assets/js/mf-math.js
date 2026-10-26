@@ -2091,8 +2091,105 @@
     return s;
   }
 
+
+  /* LaTeX (как его выдаёт распознавание фото, MathJax, KaTeX) → линейная запись
+     калькулятора: \frac{a}{b} → ((a)/(b)), \sqrt[3]{x} → root(3,x), x^{2}, \cdot,
+     \left( \right), \le, \log_{2}, системы \begin{cases}…\end{cases} → «;»,
+     смешанные числа 2\frac13 → (2+1/3), хвост «= ?» у примера убирается. */
+  function fromLatex(src) {
+    var s = String(src || '').trim();
+    s = s.replace(/^\$\$?|\$\$?$/g, '').replace(/^\\\[|\\\]$/g, '').replace(/^\\\(|\\\)$/g, '');
+    s = s.replace(/\\begin\{(cases|aligned|array|gathered|align\*?|system)\}(\{[^}]*\})?/g, '\u0001').replace(/\\end\{[a-z*]+\}/g, '\u0002');
+    s = s.replace(/\\left\\?\{\s*\u0001/g, '\u0001').replace(/\\right\.?/g, function (m) { return m === '\\right.' ? '' : m; });
+    function grp(i) {
+      while (s[i] === ' ') i++;
+      if (s[i] !== '{') {
+        if (s[i] === '\\') { var m = s.slice(i).match(/^\\[A-Za-z]+/); if (m) return { b: m[0], e: i + m[0].length }; }
+        return { b: s[i] || '', e: i + 1 };
+      }
+      var d = 0;
+      for (var j = i; j < s.length; j++) { if (s[j] === '{') d++; else if (s[j] === '}') { d--; if (!d) return { b: s.slice(i + 1, j), e: j + 1 }; } }
+      return { b: s.slice(i + 1), e: s.length };
+    }
+    var CM = { cdot: '*', times: '*', ast: '*', div: '/', colon: '/', le: '<=', leq: '<=', leqslant: '<=', ge: '>=', geq: '>=', geqslant: '>=', ne: '!=', neq: '!=',
+      pi: 'pi', infty: 'inf', pm: '±', mp: '∓', lt: '<', gt: '>', alpha: 'α', beta: 'β', gamma: 'γ', varphi: 'φ', phi: 'φ', theta: 'θ', lambda: 'λ', mu: 'μ',
+      sin: 'sin', cos: 'cos', tan: 'tg', tg: 'tg', cot: 'ctg', ctg: 'ctg', arcsin: 'arcsin', arccos: 'arccos', arctan: 'arctg', arctg: 'arctg', arcctg: 'arcctg',
+      ln: 'ln', lg: 'lg', exp: 'exp', circ: '°', degree: '°', percent: '%', '%': '%', ',': '', ';': '', '!': '', ' ': '', quad: ' ', qquad: ' ', '{': '(', '}': ')', '|': '|', vert: '|', lvert: '|', rvert: '|', mid: '|',
+      left: '', right: '', big: '', Big: '', bigl: '', bigr: '', Bigl: '', Bigr: '', displaystyle: '', textstyle: '', limits: '', cr: ';', newline: ';', hline: '', approx: '=', equiv: '=' };
+    function conv(t) {
+      var save = s; s = t; var out = '', i = 0;
+      while (i < s.length) {
+        var c = s[i];
+        if (c === '\\') {
+          if (s[i + 1] === '\\') { out += ';'; i += 2; continue; }
+          var m = s.slice(i + 1).match(/^([A-Za-z]+|.)/), nm = m ? m[1] : ''; i += 1 + nm.length;
+          if (/^[dt]?frac$|^cfrac$/.test(nm)) {
+            var a = grp(i), b = grp(a.e); i = b.e;
+            var whole = out.match(/(\d+)\s*$/);
+            var fr = '((' + conv(a.b) + ')/(' + conv(b.b) + '))';
+            if (whole && !/[\d.)]/.test(out.slice(0, out.length - whole[0].length).slice(-1)) && /^\d+$/.test(a.b.trim()) && /^\d+$/.test(b.b.trim())) {
+              // смешанное число 2\frac{1}{3}
+              out = out.slice(0, out.length - whole[0].length) + '(' + whole[1] + '+' + fr + ')';
+            } else out += fr;
+            continue;
+          }
+          if (nm === 'sqrt') {
+            var deg = null; while (s[i] === ' ') i++;
+            if (s[i] === '[') { var e = s.indexOf(']', i); deg = s.slice(i + 1, e); i = e + 1; }
+            var r = grp(i); i = r.e;
+            out += deg ? 'root(' + conv(deg) + ',' + conv(r.b) + ')' : 'sqrt(' + conv(r.b) + ')';
+            continue;
+          }
+          if (nm === 'log') {
+            while (s[i] === ' ') i++;
+            if (s[i] === '_') { var bs = grp(i + 1); i = bs.e; out += 'log_(' + conv(bs.b) + ')'; } else out += 'lg';
+            continue;
+          }
+          if (/^(text|mathrm|mathbf|mathit|operatorname|textbf|boldsymbol|mathnormal|textrm)$/.test(nm)) {
+            var g = grp(i); i = g.e; var inner = g.b.trim();
+            if (nm === 'operatorname') out += ({ tg: 'tg', ctg: 'ctg', arctg: 'arctg', arcctg: 'arcctg', sh: 'sinh', ch: 'cosh' }[inner] || inner);
+            else if (/^[а-яё\s.,:;!?]+$/i.test(inner)) out += ' ';     // слова «и», «при» — не формула
+            else out += conv(inner);
+            continue;
+          }
+          if (/^(overline|bar|vec|overrightarrow|hat|widehat)$/.test(nm)) { var g2 = grp(i); i = g2.e; out += conv(g2.b); continue; }
+          if (CM[nm] !== undefined) {
+            var v = CM[nm];
+            out += /^[a-z]{2,}$/.test(v) && v !== 'pi' && v !== 'inf' ? v + ' ' : v; continue;
+          }
+          if (!/[A-Za-z]/.test(nm)) out += nm;
+          continue;
+        }
+        if (c === '^') {
+          var x = grp(i + 1); i = x.e; var xb = conv(x.b).trim();
+          if (xb === '°' || /^\\circ$/.test(x.b.trim())) { out += '°'; continue; }
+          out += '^(' + xb + ')'; continue;
+        }
+        if (c === '_') { var y = grp(i + 1); i = y.e; out += conv(y.b).replace(/\s/g, ''); continue; }
+        if (c === '{') { var z = grp(i); i = z.e; out += '(' + conv(z.b) + ')'; continue; }
+        if (c === '}') { i++; continue; }
+        if (c === '&' || c === '~') { i++; continue; }
+        if (c === '\u0001' || c === '\u0002') { out += ';'; i++; continue; }
+        out += c; i++;
+      }
+      s = save; return out;
+    }
+    var lin = conv(s);
+    // градусы → радианы для тригонометрии: 30° → (30*pi/180)
+    lin = lin.replace(/(\d+(?:[.,]\d+)?)\s*°/g, function (m, d) {
+      var n = parseFloat(d.replace(',', '.'));
+      if (!Number.isInteger(n)) return '(' + n + '*pi/180)';
+      var g = gcd(n, 180) || 1, a = n / g, b = 180 / g;
+      return '(' + (a === 1 ? '' : a) + 'pi' + (b === 1 ? '' : '/' + b) + ')';
+    });
+    lin = lin.replace(/\(\s*\)/g, '').replace(/\s+/g, ' ').replace(/;\s*;+/g, ';').replace(/^\s*;|;\s*$/g, '').trim();
+    lin = lin.replace(/[,;]\s*$/, '');
+    // «4·2³ =», «2+3 = ?» — у примера без переменных хвост «=» не уравнение
+    lin = lin.replace(/\s*=\s*(\?|…|\.\.\.|_+|\(\s*\?\s*\))?\s*$/, '');
+    return lin.split(';').map(function (r) { return r.trim(); }).filter(Boolean).join(';');
+  }
   global.MFMath = {
-    normalizeLinear: normalizeLinear,
+    normalizeLinear: normalizeLinear, fromLatex: fromLatex,
     parse: parse, evalAst: evalAst, compile: compile,
     d: d, simplify: simplify, tex: tex, fmtNum: fmtNum,
     varsIn: function (n) { return Object.keys(varsIn(n)); },
