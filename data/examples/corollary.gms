@@ -39,7 +39,7 @@ draw Angle { name = "arcE"; angle = "angE" }
 draw Angle { name = "arcF"; angle = "angF" }
 new Claster { name = "tabCor"; elements = (D, E, F, de, ef, fd, def, arcD, arcE, arcF); active = false }
 
-new UI { name = "btnGen"; type = button; label = "Общая theorem"; action = "tab = 1; tabGen.active = true; tabCor.active = false" }
+new UI { name = "btnGen"; type = button; label = "Общая теорема"; action = "tab = 1; tabGen.active = true; tabCor.active = false" }
 new UI { name = "btnCor"; type = button; label = "Следствие"; action = "tab = 2; tabGen.active = false; tabCor.active = true" }
 
 float tab = 1;
