@@ -65,5 +65,16 @@ for (const [text, expected] of CASES) {
   console.log((pass ? 'ok   ' : 'FAIL ') + text.slice(0, 90) + (pass ? '' : '\n     ' + (r.ok ? 'ответ ' + got.join(', ') + ' (ожидалось ' + expected.join(', ') + '), метод ' + r.method + ', чертёж ' + (gmsOk ? 'ok' : 'ошибка') : r.error)));
   if (verbose && r.ok) r.steps.forEach((s, i) => console.log('       ' + (i + 1) + '. ' + strip(s.html)));
 }
+// Школьные задачи без обозначений точек (решатель по формулам): ответ и чертёж, если он есть.
+const basic = (await import('./corpus5.mjs')).default;
+for (const [text, expected] of basic) {
+  const r = await solveGeometryProblem(text, {});
+  const got = r.ok ? r.answers.map(a => a.value) : [];
+  const ok = r.ok && expected.every(e => got.some(g => Math.abs(g - e) < 1e-6 * Math.max(1, Math.abs(e))));
+  let gmsOk = true;
+  if (r.ok && r.gms) { try { gmsOk = compile(r.gms).success; } catch (e) { gmsOk = false; } }
+  if (!(ok && gmsOk)) { fail++; console.log('FAIL ' + text.slice(0, 90) + '\n     ' + (r.ok ? 'ответ ' + got.join(', ') + ', чертёж ' + (gmsOk ? 'ok' : 'ошибка') : r.error)); }
+}
+console.log('школьных задач по формулам: ' + basic.length);
 console.log(fail ? '\n' + fail + ' из ' + CASES.length + ' не прошли' : '\nВсе ' + CASES.length + ' задач решены верно');
 process.exit(fail ? 1 : 0);

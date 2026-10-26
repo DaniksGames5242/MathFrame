@@ -950,9 +950,16 @@ function collectSteps(state, targets) {
     for (const i of c.inputs) visit(i);
   };
   targets.forEach(visit);
-  const order = Array.from(need).filter(k => known.get(k).eq.kind !== 'given');
-  order.sort((a, b) => known.get(a).round - known.get(b).round);
-  return order;
+  // по раундам, но так, чтобы каждая величина шла после тех, из которых она найдена
+  const byRound = Array.from(need).sort((a, b) => known.get(a).round - known.get(b).round);
+  const order = [], done = new Set();
+  const place = k => {
+    if (done.has(k)) return; done.add(k);
+    known.get(k).inputs.filter(i => need.has(i)).sort((a, b) => known.get(a).round - known.get(b).round).forEach(place);
+    order.push(k);
+  };
+  byRound.forEach(place);
+  return order.filter(k => known.get(k).eq.kind !== 'given');
 }
 
 /* ================= текст шагов ================= */
@@ -1288,14 +1295,18 @@ function renderX(step, Q, unit) {
   const rest = step.exprs.filter(x => x.key !== c.k && needed.has(x.key));
   step.exprs = step.exprs.filter(x => x.key === c.k || needed.has(x.key));
   if (rest.length) {
-    html += 'Тогда ' + rest.map(x => nm(x.key) + ' = ' + affS(x.key) + (x.eq.why && x.eq.kind !== 'segsum' ? ' (' + x.eq.why + ')' : x.eq.kind === 'ratio' ? ' (по условию)' : '')).join(', ') + '. ';
+    html += 'Тогда ' + rest.map(x => nm(x.key) + ' = ' + affS(x.key) + (x.eq.why && x.eq.kind !== 'segsum' ? ' (' + x.eq.why + ')' : x.eq.kind === 'ratio' ? ' (по условию)' : x.eq.kind === 'segsum' ? ' (отрезки складываются)' : x.eq.kind === 'eq' ? ' (эти отрезки равны)' : '')).join(', ') + '. ';
   }
   const e = step.solveEq;
   if (e.type === 'fn') {
     const nmx = k => { const t = affS(k); return /^[\d,]+$/.test(t) || t === 'x' ? t : '(' + t + ')'; };
     let eqText = '';
     if (e.kind === 'pyth') eqText = 'по теореме Пифагора ' + nmx(e.vars[1]) + '² + ' + nmx(e.vars[2]) + '² = ' + nmx(e.vars[0]) + '²';
-    else eqText = 'получаем уравнение относительно x';
+    else {
+      const EXPL = { area_bh: 'площадь равна половине произведения основания на высоту', area_legs: 'площадь прямоугольного треугольника — половина произведения катетов', area_mid: 'площадь трапеции равна произведению средней линии на высоту', area_midv: 'площадь трапеции равна произведению средней линии на высоту', area_trap: 'площадь трапеции равна полусумме оснований, умноженной на высоту', bisector_thm: 'по свойству биссектрисы треугольника', circR: 'по формуле радиуса описанной окружности', euler: 'по формуле Эйлера', gmean: 'по свойству среднего пропорционального в прямоугольном треугольнике', inr: 'по формуле радиуса вписанной окружности', rtrig: 'из прямоугольного треугольника (отношение сторон через угол)', sineR: 'по теореме синусов', trigOfAngle: 'по определению тригонометрической функции угла' };
+      const vs = e.vars.map(k => nm(k) + ' = ' + affS(k)).join(', ');
+      eqText = (EXPL[e.kind] ? EXPL[e.kind][0].toUpperCase() + EXPL[e.kind].slice(1) + ' (' + vs + ')' : 'Связываем величины ' + vs) + ' — получаем уравнение';
+    }
     html += eqText[0].toUpperCase() + eqText.slice(1) + ', откуда <b>x = ' + num(step.x) + '</b>.';
     const vals2 = step.exprs.map(x => nm(x.key) + ' = ' + withUnit(num(aff.get(x.key).a * step.x + aff.get(x.key).b), Q.vars.get(x.key), unit));
     return html + ' Значит, ' + [nm(c.k) + ' = ' + withUnit(num(aff.get(c.k).a * step.x), Q.vars.get(c.k), unit)].concat(vals2).join(', ') + '.';

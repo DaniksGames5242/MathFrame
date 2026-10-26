@@ -2224,15 +2224,28 @@
       }
       // оговорки (недостающие данные, нераспознанная часть условия) — до решения
       r.notes.forEach(function (n) { el('div', 'gp-note gp-warn', out).textContent = n; });
-      // решение
+      // решение (если способов несколько — выбор, как у алгебраического калькулятора)
       el('div', 'gp-h', out, 'Решение');
+      if (r.methods && r.methods.length > 1) {
+        var mrow = el('div', 'geo-subchips alg-method-row', out);
+        r.methods.forEach(function (m, i) {
+          var b = el('button', 'geo-subchip' + (i ? '' : ' on'), mrow, 'Способ ' + (i + 1) + ': ' + m.label); b.type = 'button';
+          b.addEventListener('click', function () {
+            Array.prototype.forEach.call(mrow.children, function (x) { x.classList.toggle('on', x === b); });
+            fillSteps(m.steps, m.answers);
+          });
+        });
+      }
       var ol = el('ol', 'gp-steps', out);
-      if (r.stepsMd) r.stepsMd.forEach(function (s) { el('li', null, ol, aiTex(s)); });
-      else r.steps.forEach(function (s) { el('li', null, ol, geoFormulas(s.html)); });
-      // ответ
       var ans = el('div', 'gp-answer', out);
-      el('span', 'gp-answer-lbl', ans, 'Ответ');
-      el('span', 'gp-answer-val', ans, r.answerMd !== undefined ? aiTex(r.answerMd) : geoFormulas(r.answers.map(gp.answerText).join('; ')));
+      function fillSteps(steps, answers) {
+        ol.innerHTML = ''; ans.innerHTML = '';
+        if (r.stepsMd) r.stepsMd.forEach(function (s) { el('li', null, ol, aiTex(s)); });
+        else steps.forEach(function (s) { el('li', null, ol, geoFormulas(s.html)); });
+        el('span', 'gp-answer-lbl', ans, 'Ответ');
+        el('span', 'gp-answer-val', ans, r.answerMd !== undefined ? aiTex(r.answerMd) : geoFormulas(answers.map(gp.answerText).join('; ')));
+      }
+      fillSteps(r.steps, r.answers);
       if (r.method === 'coords') el('div', 'gp-note', out, 'Решение методом координат: подходящей цепочки школьных теорем решатель не нашёл.');
     }
     if (ta.value.trim()) solve();

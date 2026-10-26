@@ -14,6 +14,7 @@ import { normalizeMarkup } from './geo-markup.js';
 import { buildModel, evalQ, isDetermined, assumedQuantities } from './geo-model.js';
 import { solveProblem, coordinateSolution, num, I, ANG, italicNames } from './geo-reason.js';
 import { buildGms, sketchToGms } from './geo-gms.js';
+import { solveBasic } from './geo-basic.js';
 
 const FIG_TYPES = ['triangle', 'parallelogram', 'rhombus', 'rectangle', 'square', 'trapezoid', 'quadrilateral'];
 const RU_Q = { length: 'отрезок', angle: 'угол', area: 'площадь', perimeter: 'периметр', inradius: 'радиус вписанной окружности', circumradius: 'радиус описанной окружности', centersDist: 'расстояние между центрами' };
@@ -129,8 +130,58 @@ function auxText(cs) {
   return 'Проведём ' + (cs.length > 1 && cs.every(c => c.kind === 'altitude') ? 'высоты ' + cs.map(c => I(c.vertex + c.point)).join(' и ') + ' к ' + I(cs[0].target) : parts.join(' и ')) + '.';
 }
 
+// Эскиз нейросети подгоняем под вид фигуры из условия («квадрат ABCD» — настоящий
+// квадрат): аффинное преобразование по трём вершинам сохраняет середины, точки на
+// сторонах, параллельность и пересечения.
+export function fixSketch(sk, text) {
+  if (!sk || !sk.points) return sk;
+  const t = normalizeMarkup(String(text || ''));
+  const m = t.match(/(квадрат|прямоугольник|ромб)\S*\s+([A-Z])([A-Z])([A-Z])([A-Z])/i);
+  if (!m) return sk;
+  const P = sk.points, [A, B, , D] = [m[2], m[3], m[4], m[5]].map(n => P[n] && { x: +P[n][0], y: +P[n][1] });
+  if (!A || !B || !D) return sk;
+  const u = { x: B.x - A.x, y: B.y - A.y }, w = { x: D.x - A.x, y: D.y - A.y };
+  const det = u.x * w.y - u.y * w.x;
+  if (Math.abs(det) < 1e-9) return sk;
+  const lu = Math.hypot(u.x, u.y), lw = Math.hypot(w.x, w.y), sgn = det > 0 ? 1 : -1;
+  const kind = m[1].toLowerCase();
+  // новые векторы AB', AD'
+  const perp = { x: -u.y * sgn, y: u.x * sgn };
+  let w2;
+  if (/квадрат/.test(kind)) w2 = perp;
+  else if (/прямоуг/.test(kind)) w2 = { x: perp.x / lu * lw, y: perp.y / lu * lw };
+  else { const cs = (u.x * w.x + u.y * w.y) / (lu * lw); const ang = Math.acos(Math.max(-1, Math.min(1, cs))); w2 = { x: (u.x * Math.cos(ang) - u.y * Math.sin(ang) * sgn), y: (u.x * Math.sin(ang) * sgn + u.y * Math.cos(ang)) }; }
+  // p = A + a·u + b·w  →  A + a·u + b·w2
+  const pts = {};
+  for (const [n, v] of Object.entries(P)) {
+    if (!Array.isArray(v)) { pts[n] = v; continue; }
+    const px = v[0] - A.x, py = v[1] - A.y;
+    const a = (px * w.y - py * w.x) / det, b = (u.x * py - u.y * px) / det;
+    pts[n] = [A.x + a * u.x + b * w2.x, A.y + a * u.y + b * w2.y];
+  }
+  return Object.assign({}, sk, { points: pts });
+}
+
+// Школьная задача без обозначений точек — по формулам (с чертежом, если фигуру можно построить).
+function basicOrNull(text, opts) {
+  if (checkProblemText(text)) return null;
+  let b;
+  try { b = solveBasic(normalizeMarkup(text)); } catch (e) { b = null; }
+  if (!b) return null;
+  b.gms = '';
+  if (b.draw) {
+    try {
+      const ir = validateIr(JSON.parse(JSON.stringify(b.draw)));
+      const m = buildModel(ir);
+      if (m.consistent) b.gms = buildGms(ir, m, null, { theme: opts.theme });
+    } catch (e) { b.gms = ''; }
+  }
+  return b;
+}
 export async function solveGeometryProblem(text, opts) {
   opts = opts || {};
+  const basic = basicOrNull(text, opts);
+  if (basic) return basic;
   const r = await solveLocalOrIr(text, opts);
   if (r.ok || r.invalid || !opts.aiSolve) return r;
   // Задача вне модели решателя (окружности, ГМТ, преобразования, буквенные данные):
@@ -138,7 +189,7 @@ export async function solveGeometryProblem(text, opts) {
   try {
     const d = await opts.aiSolve(text);
     let gms = '';
-    try { gms = sketchToGms(d.sketch, { theme: opts.theme }); } catch (e) { gms = ''; }
+    try { gms = sketchToGms(fixSketch(d.sketch, text), { theme: opts.theme }); } catch (e) { gms = ''; }
     return { ok: true, source: 'ai-solve', method: 'ai', steps: [], stepsMd: d.steps, answerMd: d.answer, answers: [], gms, sketch: d.sketch || null, notes: ['Эту задачу решила нейросеть: локальный решатель пока не умеет ' + (r.error ? 'разбирать такие условия' : 'такие построения') + '. Проверьте рассуждения.'] };
   } catch (e) {
     return Object.assign({}, r, { error: r.error + ' Нейросеть тоже не помогла: ' + (e && e.message ? e.message : e) });
@@ -272,6 +323,7 @@ function solveIrUnsafe(ir, opts) {
 
 // Ответ одной строкой (для заголовка): «EF = 6 см».
 export function answerText(a) {
+  if (a.text) return a.text;
   return a.name + ' = ' + num(a.value) + (a.unit === '°' ? '°' : a.unit ? ' ' + a.unit : '');
 }
 export { ANG };
