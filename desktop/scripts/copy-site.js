@@ -43,7 +43,7 @@ html = html.replace(/(<script[^>]+firebase-auth-compat[^>]*><\/script>)/, '$1\n<
 html = html.replace(/<script[^>]+src="\/assets\/js\/auth\.js"[^>]*><\/script>\s*/g, '');
 html = html.replace(/<script[^>]+src="\/assets\/js\/common\.js"[^>]*><\/script>\s*/g, '');
 html = html.replace(/<\/head>/i, '<script defer src="/assets/js/desk-collab.js"></script>\n</head>');
-html = html.replace('<button class="bd-btn" id="bdSearchBtn"', '<button class="bd-btn" id="bdProfile" title="Профиль" aria-label="Профиль">👤</button>\n        <button class="bd-btn" id="bdSearchBtn"');
+html = html.replace('<button class="bd-btn" id="bdSearchBtn"', '<button class="bd-btn" id="bdProfile" title="Профиль" aria-label="Профиль"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></button>\n        <button class="bd-btn" id="bdSearchBtn"');
 html = html.replace(/<title>[^<]*<\/title>/i, '<title>MathFrame — Доска</title>');
 fs.mkdirSync(path.join(OUT, 'board'), { recursive: true });
 fs.writeFileSync(path.join(OUT, 'board', 'index.html'), html);

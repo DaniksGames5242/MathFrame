@@ -44,16 +44,15 @@
         dlg = document.createElement('div');
         dlg.className = 'bd-dlg';
         dlg.innerHTML =
-            '<div class="bd-dlg-card" role="dialog" aria-modal="true" aria-labelledby="dcTtl">' +
-            '<h2 id="dcTtl">Вход в аккаунт MathFrame</h2>' +
-            '<p>Общие доски хранятся на сервере — войдите с той же почтой, что и на сайте (или зарегистрируйтесь).</p>' +
-            '<div style="display:grid;gap:8px;margin:10px 0">' +
-            '<input id="dcMail" type="email" placeholder="Почта" autocomplete="email" style="padding:8px 10px">' +
-            '<input id="dcPass" type="password" placeholder="Пароль" autocomplete="current-password" style="padding:8px 10px">' +
-            '<small id="dcErr" style="color:#e5484d;min-height:1.2em"></small></div>' +
-            '<div class="bd-dlg-act"><button class="mini-btn bd-ghost" id="dcReg">Регистрация</button>' +
-            '<button class="mini-btn bd-ghost" id="dcReset">Забыли пароль</button>' +
-            '<button class="mini-btn" id="dcLogin">Войти</button><button class="mini-btn bd-ghost" data-close>Закрыть</button></div></div>';
+            '<div class="bd-dlg-card dc-auth" role="dialog" aria-modal="true" aria-labelledby="dcTtl">' +
+            '<div class="modal-header"><h2 id="dcTtl">Вход</h2><button type="button" class="modal-close" data-close aria-label="Закрыть">✕</button></div>' +
+            '<p>Войдите с почтой и паролем аккаунта MathFrame.</p>' +
+            '<div class="login-form"><label class="auth-field"><span>Email</span><input id="dcMail" type="email" placeholder="you@mail.ru" autocomplete="email"></label>' +
+            '<label class="auth-field"><span>Пароль</span><input id="dcPass" type="password" placeholder="••••••" autocomplete="current-password"></label>' +
+            '<small id="dcErr" role="status" style="color:#e5484d"></small>' +
+            '<button type="button" class="btn primary" id="dcLogin">Войти</button>' +
+            '<button type="button" class="auth-link" id="dcReset">Забыли пароль?</button>' +
+            '<button type="button" class="auth-link" id="dcReg">Создать аккаунт</button></div></div>';
         document.body.appendChild(dlg);
         const $ = (id) => dlg.querySelector('#' + id), err = (m) => { $('dcErr').textContent = m || ''; };
         const run = async (fn) => {

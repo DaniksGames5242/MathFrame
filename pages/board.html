@@ -314,11 +314,23 @@ html.bd-fs #app-header{visibility:hidden}
 .bd-dock .bd-shbtn i{width:20px;height:20px}
 .bd-sep{height:1px;background:var(--border);margin:.2rem .2rem}
 .bd-props{position:absolute;z-index:6;left:50%;bottom:10px;transform:translateX(-50%);display:flex;align-items:center;gap:.35rem;
-  padding:.25rem .5rem;border-radius:999px;border:1px solid var(--border);background:var(--pnl);box-shadow:var(--pnl-sh);max-width:calc(100% - 200px);overflow-x:auto;scrollbar-width:none}
+  padding:.5rem .65rem;border-radius:999px;border:1px solid var(--border);background:var(--pnl);box-shadow:var(--pnl-sh);max-width:calc(100% - 200px);overflow-x:auto;scrollbar-width:none}
 .bd-props::-webkit-scrollbar{display:none}
 .bd-props .bd-grp{border-right:1px solid var(--border);padding-right:.35rem;margin:0;gap:.2rem;flex:none}
 .bd-props .bd-grp:last-child{border-right:0;padding-right:0}
-.bd-props .bd-sw{width:22px;height:22px}
+.bd-props .bd-sw{width:22px;height:22px;min-width:22px;min-height:22px;margin:3px;flex-shrink:0}
+.bd-props .bd-sw input{position:absolute;inset:0;width:100%;height:100%}
+.bd-props label.bd-sw{position:relative}
+.bd-props .bd-sw.on{outline-offset:2px;transform:none}
+.dc-auth{width:min(452px,100%);padding:1.9rem;background:var(--bg-raised);border:1px solid var(--border-strong);box-shadow:var(--shadow-lg)}
+.dc-auth .modal-header{margin-bottom:1rem}
+.dc-auth p{font-family:var(--font-sans);font-size:.9rem}
+.dc-auth .login-form{margin-top:1rem}
+.dc-auth .auth-link{margin:0}
+.bd-bar .bd-lead,.bd-bar .bd-leave{font-size:0;min-width:34px;padding:0}
+.bd-bar .bd-lead::before{content:'▶';font-size:16px}
+.bd-bar .bd-lead.on::before{content:'■'}
+.bd-bar .bd-leave::before{content:'⌂';font-size:22px;line-height:1}
 .bd-props .bd-btn{min-width:28px;height:28px}
 .bd-props .bd-range-w input{width:70px}
 .bd-pages{left:auto!important;right:10px;transform:none!important}
