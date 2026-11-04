@@ -445,41 +445,45 @@
     let inLayer = false;
     const layerCv = document.createElement('canvas');
     const outlineCv = document.createElement('canvas');
-    function drawContrastLayer(c, layer) {
-        if (outlineCv.width !== layer.width || outlineCv.height !== layer.height) { outlineCv.width = layer.width; outlineCv.height = layer.height; }
+    function contrastRect(c, it) {
+        const b = bounds(it), m = c.getTransform();
+        const pts = [[b.x,b.y],[b.x+b.w,b.y],[b.x,b.y+b.h],[b.x+b.w,b.y+b.h]]
+            .map(([x,y]) => ({x:m.a*x+m.c*y+m.e,y:m.b*x+m.d*y+m.f}));
+        const pad = Math.max(2, Math.ceil(dpr * 2), Math.ceil((it.w || 0) * Math.hypot(m.a,m.b) / 2));
+        const x = Math.max(0, Math.floor(Math.min(...pts.map(p=>p.x))) - pad);
+        const y = Math.max(0, Math.floor(Math.min(...pts.map(p=>p.y))) - pad);
+        const right = Math.min(c.canvas.width, Math.ceil(Math.max(...pts.map(p=>p.x))) + pad);
+        const bottom = Math.min(c.canvas.height, Math.ceil(Math.max(...pts.map(p=>p.y))) + pad);
+        return {x,y,w:Math.max(0,right-x),h:Math.max(0,bottom-y)};
+    }
+    function drawContrastLayer(c, layer, rect = {x:0,y:0,w:layer.width,h:layer.height}, cropped = false) {
+        const {x,y,w,h} = rect;
+        if (!w || !h) return;
+        if (outlineCv.width !== w || outlineCv.height !== h) { outlineCv.width = w; outlineCv.height = h; }
         const o = outlineCv.getContext('2d');
-        o.setTransform(1, 0, 0, 1, 0, 0); o.clearRect(0, 0, outlineCv.width, outlineCv.height);
-        o.drawImage(layer, 0, 0); o.globalCompositeOperation = 'source-in'; o.fillStyle = '#000'; o.fillRect(0, 0, outlineCv.width, outlineCv.height); o.globalCompositeOperation = 'source-over';
+        o.clearRect(0, 0, w, h);
+        const sx = cropped ? 0 : x, sy = cropped ? 0 : y;
+        o.drawImage(layer, sx, sy, w, h, 0, 0, w, h);
+        o.globalCompositeOperation = 'source-in'; o.fillStyle = '#000'; o.fillRect(0, 0, w, h); o.globalCompositeOperation = 'source-over';
         const edge = Math.max(1, Math.round(dpr));
-        for (const [x, y] of [[-edge,0],[edge,0],[0,-edge],[0,edge],[-edge,-edge],[-edge,edge],[edge,-edge],[edge,edge]]) c.drawImage(outlineCv, x, y);
-        c.drawImage(layer, 0, 0);
+        for (const [dx,dy] of [[-edge,0],[edge,0],[0,-edge],[0,edge],[-edge,-edge],[-edge,edge],[edge,-edge],[edge,edge]]) c.drawImage(outlineCv, x+dx, y+dy);
+        c.drawImage(layer, sx, sy, w, h, x, y, w, h);
     }
     function drawList(c, list) {
-        let run = null;
-        const flush = () => {
-            if (!run) return;
-            const lc = layerCv.getContext('2d');
-            c.save(); c.setTransform(1, 0, 0, 1, 0, 0);
-            drawContrastLayer(c, layerCv); c.restore();
-            run = null;
-            lc.setTransform(1, 0, 0, 1, 0, 0); lc.clearRect(0, 0, layerCv.width, layerCv.height);
-        };
         for (const it of list) {
             if (!it) continue;
-            if (it.c === 'contrast') {
-                const lc = layerCv.getContext('2d');
-                if (!run) {
-                    if (layerCv.width !== c.canvas.width || layerCv.height !== c.canvas.height) { layerCv.width = c.canvas.width; layerCv.height = c.canvas.height; }
-                    else { lc.setTransform(1, 0, 0, 1, 0, 0); lc.clearRect(0, 0, layerCv.width, layerCv.height); }
-                    run = true;
-                }
-                lc.setTransform(c.getTransform());
-                inLayer = true; drawItem(lc, it); inLayer = false;
-                // Каждому штриху нужна собственная кайма, в том числе на пересечениях.
-                flush();
-            } else { flush(); drawItem(c, it); }
+            if (it.c !== 'contrast') { drawItem(c, it); continue; }
+            const r = contrastRect(c, it);
+            if (!r.w || !r.h) continue;
+            if (layerCv.width !== r.w || layerCv.height !== r.h) { layerCv.width = r.w; layerCv.height = r.h; }
+            const lc = layerCv.getContext('2d'), m = c.getTransform();
+            lc.setTransform(1,0,0,1,0,0); lc.clearRect(0,0,r.w,r.h);
+            lc.setTransform(m.a,m.b,m.c,m.d,m.e-r.x,m.f-r.y);
+            inLayer = true;
+            try { drawItem(lc, it); } finally { inLayer = false; }
+            c.save(); c.setTransform(1,0,0,1,0,0);
+            drawContrastLayer(c, layerCv, r, true); c.restore();
         }
-        flush();
     }
     function drawItem(c, it) {
         c.save();
@@ -989,8 +993,9 @@
             liveCtx.fill(path, 'nonzero');
             live.n = n;
         }
+        const rect = contrastRect(liveCtx, it);
         ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0);
-        if (it.c === 'contrast') drawContrastLayer(ctx, liveCv);
+        if (it.c === 'contrast') drawContrastLayer(ctx, liveCv, rect);
         else ctx.drawImage(liveCv, 0, 0);
         ctx.restore();
     }
@@ -3507,6 +3512,8 @@
         const L = shared.lead;
         b.classList.toggle('on', !!L && (leadIsMe() || following));
         b.textContent = !L ? 'Вести урок' : leadIsMe() ? 'Вы ведёте · стоп' : (following ? 'Следую за: ' : 'Следовать за: ') + (L.name || 'ведущим');
+        b.setAttribute('aria-label', b.textContent);
+        b.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="13" rx="2"/><path d="M8 21h8m-4-5v5"/>' + (L && (leadIsMe() || following) ? '<rect x="9" y="7" width="6" height="5" fill="currentColor" stroke="none"/>' : '<path d="m10 7 5 3-5 3z" fill="currentColor" stroke="none"/>') + '</svg>';
         b.title = !L ? 'Все участники будут видеть ваш лист и вашу область доски' : leadIsMe() ? 'Перестать вести урок' : following ? 'Нажмите, чтобы перестать следовать' : 'Снова видеть то же, что ведущий';
     }
     function leadClick() {
@@ -4746,7 +4753,7 @@
 
         $('bdColors').innerHTML = COLORS.map((c) =>
             `<button class="bd-sw${c === 'contrast' ? ' bd-sw-x' : ''}" data-c="${c}" title="${c === 'ink' ? 'Основной: белый на тёмной теме, чёрный на светлой' : c === 'contrast' ? 'Контрастный: сам подстраивается под фон и всё, что под линией' : c}" aria-label="Цвет ${c === 'ink' ? 'основной' : c === 'contrast' ? 'контрастный' : c}"></button>`).join('') +
-            '<label class="bd-sw" title="Свой цвет" style="background:conic-gradient(red,yellow,lime,cyan,blue,magenta,red)"><input type="color" id="bdPick" aria-label="Свой цвет"></label>';
+            '<label class="bd-sw bd-palette" title="Свой цвет"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 3a9 9 0 1 0 0 18h1a2 2 0 0 0 1-3.7 1.5 1.5 0 0 1 .8-2.8H17a4 4 0 0 0 4-4C21 6.4 17 3 12 3Z"/><circle cx="7" cy="10" r="1.5" fill="#3e8bff" stroke="none"/><circle cx="11" cy="7" r="1.5" fill="#e5484d" stroke="none"/><circle cx="16" cy="9" r="1.5" fill="#30a46c" stroke="none"/></svg><input type="color" id="bdPick" aria-label="Свой цвет"></label>';
         const paintSw = () => document.querySelectorAll('#bdColors [data-c]').forEach((b) => {
             if (b.dataset.c !== 'contrast') b.style.background = paint(b.dataset.c);
             b.classList.toggle('on', b.dataset.c === color);

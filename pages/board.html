@@ -321,6 +321,8 @@ html.bd-fs #app-header{visibility:hidden}
 .bd-props .bd-sw{width:22px;height:22px;min-width:22px;min-height:22px;margin:3px;flex-shrink:0}
 .bd-props .bd-sw input{position:absolute;inset:0;width:100%;height:100%}
 .bd-props label.bd-sw{position:relative}
+.bd-props .bd-palette{border:0;color:var(--text-secondary);background:transparent}
+.bd-palette svg{width:22px;height:22px;pointer-events:none}
 .bd-props .bd-sw.on{outline-offset:2px;transform:none}
 .dc-auth{width:min(452px,100%);padding:1.9rem;background:var(--bg-raised);border:1px solid var(--border-strong);box-shadow:var(--shadow-lg)}
 .dc-auth .modal-header{margin-bottom:1rem}
@@ -328,9 +330,7 @@ html.bd-fs #app-header{visibility:hidden}
 .dc-auth .login-form{margin-top:1rem}
 .dc-auth .auth-link{margin:0}
 .bd-bar .bd-lead,.bd-bar .bd-leave{font-size:0;min-width:34px;padding:0}
-.bd-bar .bd-lead::before{content:'▶';font-size:16px}
-.bd-bar .bd-lead.on::before{content:'■'}
-.bd-bar .bd-leave::before{content:'⌂';font-size:22px;line-height:1}
+.bd-bar .bd-lead svg,.bd-bar .bd-leave svg{width:19px;height:19px}
 .bd-props .bd-btn{min-width:28px;height:28px}
 .bd-props .bd-range-w input{width:70px}
 .bd-pages{left:auto!important;right:10px;transform:none!important}
@@ -492,7 +492,7 @@ html.mf-desktop .bd{height:100dvh!important;border:0;border-radius:0}
         <span class="bd-ro" id="bdRo" hidden title="Владелец доски включил режим «только просмотр»: доступны выбор, сдвиг и указка">👁 Только просмотр</span>
         <div class="bd-people" id="bdPeople"></div>
         <button class="bd-btn bd-share" id="bdShare" title="Поделиться ссылкой — рисовать вместе"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4"/></svg><span>Поделиться</span></button>
-        <button class="bd-btn bd-leave" id="bdLeave" title="Вернуться к своей личной доске">Моя доска</button>
+        <button class="bd-btn bd-leave" id="bdLeave" title="Вернуться к своей личной доске" aria-label="Моя доска"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/><path d="M9 21v-8h6v8"/></svg></button>
       </div>
     </div>
     <div class="bd-menu bd-moremenu" id="bdMoreMenu" hidden>
