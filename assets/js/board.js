@@ -51,8 +51,7 @@
     // инструменты из меню «Фигуры» — со своими горячими клавишами
     const EXTRA_KEYS = { c: 'circle', o: 'ellipse', g: 'poly', u: 'angle', r: 'shape' };
     // 'ink' — цвет «по теме»: светлый на тёмной доске, тёмный на светлой.
-    // 'contrast' — особый цвет: рисуется в режиме «разность» поверх белого, поэтому
-    // на любом фоне (доска, картинка, другие линии) выходит противоположный, контрастный цвет.
+    // 'contrast' — белый цвет с чёрной каймой для светлых и тёмных фонов.
     const COLORS = ['ink', 'contrast', '#e5484d', '#3e8bff', '#30a46c', '#f2a25c', '#9b6bff'];
     const SIZES = [2, 4, 8, 16];
     const PEER_COLORS = ['#e5484d', '#3e8bff', '#30a46c', '#f2a25c', '#9b6bff', '#d6409f', '#12a594', '#e38d2c'];
@@ -442,18 +441,26 @@
         return { x: cx + dx * co - dy * si, y: cy + dx * si + dy * co };
     };
 
-    // «Контрастные» объекты, идущие подряд, рисуются белым в отдельный слой, а слой
-    // накладывается на холст разностью один раз — так линии контрастного цвета не
-    // «контрастируют» друг с другом (на пересечениях не пропадают), а только с фоном под ними.
+    // Белая линия с чёрной каймой остаётся видимой на светлом, тёмном и сером фоне.
     let inLayer = false;
     const layerCv = document.createElement('canvas');
+    const outlineCv = document.createElement('canvas');
+    function drawContrastLayer(c, layer) {
+        if (outlineCv.width !== layer.width || outlineCv.height !== layer.height) { outlineCv.width = layer.width; outlineCv.height = layer.height; }
+        const o = outlineCv.getContext('2d');
+        o.setTransform(1, 0, 0, 1, 0, 0); o.clearRect(0, 0, outlineCv.width, outlineCv.height);
+        o.drawImage(layer, 0, 0); o.globalCompositeOperation = 'source-in'; o.fillStyle = '#000'; o.fillRect(0, 0, outlineCv.width, outlineCv.height); o.globalCompositeOperation = 'source-over';
+        const edge = Math.max(1, Math.round(dpr));
+        for (const [x, y] of [[-edge,0],[edge,0],[0,-edge],[0,edge],[-edge,-edge],[-edge,edge],[edge,-edge],[edge,edge]]) c.drawImage(outlineCv, x, y);
+        c.drawImage(layer, 0, 0);
+    }
     function drawList(c, list) {
         let run = null;
         const flush = () => {
             if (!run) return;
             const lc = layerCv.getContext('2d');
-            c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.globalCompositeOperation = 'difference';
-            c.drawImage(layerCv, 0, 0); c.restore();
+            c.save(); c.setTransform(1, 0, 0, 1, 0, 0);
+            drawContrastLayer(c, layerCv); c.restore();
             run = null;
             lc.setTransform(1, 0, 0, 1, 0, 0); lc.clearRect(0, 0, layerCv.width, layerCv.height);
         };
@@ -981,8 +988,8 @@
             live.n = n;
         }
         ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0);
-        if (it.c === 'contrast') ctx.globalCompositeOperation = 'difference';
-        ctx.drawImage(liveCv, 0, 0);
+        if (it.c === 'contrast') drawContrastLayer(ctx, liveCv);
+        else ctx.drawImage(liveCv, 0, 0);
         ctx.restore();
     }
     // «хвост» от последней точки штриха до пера (и чуть вперёд — по предсказанию браузера):
@@ -995,11 +1002,11 @@
         if (!pts.length || n < 2) return;
         ctx.save();
         ctx.setTransform(dpr * view.k, 0, 0, dpr * view.k, -view.x * view.k * dpr, -view.y * view.k * dpr);
-        if (it.c === 'contrast') ctx.globalCompositeOperation = 'difference';
         ctx.strokeStyle = paint(it.c); ctx.lineCap = ctx.lineJoin = 'round';
         ctx.lineWidth = Math.max(.6, (live && live.lr ? live.lr * 2 : it.w));
         ctx.beginPath(); ctx.moveTo(it.p[n - 2], it.p[n - 1]);
         for (const q of pts) ctx.lineTo(q.x, q.y);
+        if (it.c === 'contrast') { ctx.save(); ctx.strokeStyle = '#000'; ctx.lineWidth += 2 / view.k; ctx.stroke(); ctx.restore(); }
         ctx.stroke();
         ctx.restore();
     }
