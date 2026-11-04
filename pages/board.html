@@ -302,10 +302,10 @@ html.bd-fs #app-header{visibility:hidden}
 .bd-boards{max-width:230px;font-weight:600;color:var(--text-primary)}
 .bd-boards span{font-size:.86rem}
 .bd-dock{position:absolute;z-index:6;left:8px;top:8px;display:flex;flex-direction:column;gap:.15rem;padding:.25rem;
-  border-radius:14px;border:1px solid var(--border);background:var(--pnl);box-shadow:var(--pnl-sh);max-height:calc(100% - 16px);overflow-y:auto;scrollbar-width:none}
+  border-radius:14px;border:1px solid var(--border);background:var(--pnl);box-shadow:var(--pnl-sh);max-height:calc(100% - 16px);overflow-y:auto;scrollbar-width:thin;overscroll-behavior:contain}
 .bd-dock::-webkit-scrollbar{display:none}
-.bd-dock .bd-grp{flex-direction:column;border:0;padding:0;margin:0;gap:.1rem}
-.bd-dock .bd-btn{width:36px;min-width:36px;height:36px;padding:0}
+.bd-dock .bd-grp{flex-direction:column;flex:none;border:0;padding:0;margin:0;gap:.1rem}
+.bd-dock .bd-btn{width:36px;min-width:36px;height:36px;flex:none;padding:0}
 .bd-dock .bd-mbtn span,.bd-dock .bd-shbtn b{display:none}
 .bd-dock .bd-shbtn i{width:20px;height:20px}
 .bd-sep{height:1px;background:var(--border);margin:.2rem .2rem}
@@ -326,7 +326,7 @@ html.bd-fs #app-header{visibility:hidden}
 .bd-wide{justify-content:flex-start;gap:.5rem;width:100%;font-size:.86rem;color:var(--text-primary)}
 .bd-danger2{color:#e5484d}
 .bd-toast{bottom:60px!important}
-.bd-status{left:58px!important}
+.bd-status{left:calc(58px * var(--bdz,1));right:auto;max-width:calc(100% - 75px);line-height:1.35;box-shadow:0 2px 8px rgba(0,0,0,.12)}
 .bd.present .bd-dock,.bd.present .bd-props{display:none}
 @media (max-width:640px){
   .bd-dock{top:auto;bottom:54px;left:6px;right:6px;flex-direction:row;overflow-x:auto;overflow-y:hidden;max-height:none;border-radius:12px}
@@ -342,12 +342,12 @@ html.bd-fs #app-header{visibility:hidden}
   .bd-bar .bd-right{border-left:0}
   .bd-boards{max-width:120px}
   .bd-toast{bottom:110px!important}
-  .bd-status{left:8px!important}
+  .bd-status{left:8px;max-width:calc(100% - 16px)}
 }
 /* полный экран и рисование: никаких эффектов вокруг (см. mathframe-ui.js — фон сайта на паузе) */
 /* Щипок по доске и её панелям не масштабирует страницу */
 .bd,.bd *{touch-action:none}
-.bd .bd-menu,.bd .bd-menu *,.bd-dlg-card,.bd-dlg-card *,.bd .bd-cmts,.bd .bd-cmts *,.bd #bdSearchRes,.bd #bdSearchRes *,.bd .bd-bar,.bd .bd-bar *,.bd .bd-selmenu,.bd .bd-selmenu *{touch-action:pan-x pan-y}
+.bd .bd-menu,.bd .bd-menu *,.bd-dlg-card,.bd-dlg-card *,.bd .bd-cmts,.bd .bd-cmts *,.bd #bdSearchRes,.bd #bdSearchRes *,.bd .bd-bar,.bd .bd-bar *,.bd .bd-dock,.bd .bd-dock *,.bd .bd-selmenu,.bd .bd-selmenu *{touch-action:pan-x pan-y}
 .bd-menu,.bd-dlg-card,.bd-cmts,#bdSearchRes{user-select:none;-webkit-user-select:none;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
 /* Масштаб интерфейса (интерактивные доски, 4K): --bdz ставит board.js — «Размер интерфейса» в настройках */
 .bd-bar,.bd-dock,.bd-props,.bd-pages,.bd-menu,.bd-selmenu,.bd-cmt,.bd-search,.bd-toast,.bd-dlg-card,.bd-fx,.bd-text,.bd-lbl,.bd-fxbtn{zoom:var(--bdz,1)}
@@ -663,7 +663,7 @@ html.mf-desktop .bd{height:100dvh!important;border:0;border-radius:0}
 /* Прокрутка меню и списков перетаскиванием: на интерактивных досках касание часто приходит как «мышь»
    или перо — тогда браузер сам не листает. Сдвиг больше 6 px — листаем и гасим щелчок. */
 (function () {
-  const SC = '.bd-menu,.bd-dlg-card,.bd-cmts,#bdSearchRes,.bd-bar,.bd-blist';
+  const SC = '.bd-menu,.bd-dlg-card,.bd-cmts,#bdSearchRes,.bd-bar,.bd-dock,.bd-blist';
   let d = null;
   const scrollable = (el) => {
     for (; el && el !== document.body; el = el.parentElement) {
