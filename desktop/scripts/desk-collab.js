@@ -3,7 +3,15 @@
 // для совместной работы нужен интернет; личные доски по-прежнему работают офлайн.
 (function () {
     'use strict';
-    if (!window.firebase) return;   // нет сети — совместные доски недоступны, остальное работает
+    if (!window.firebase) {
+        document.addEventListener('DOMContentLoaded', function () {
+            const button = document.getElementById('bdProfile');
+            if (button) button.addEventListener('click', function () {
+                alert('Сервис входа недоступен. Проверьте подключение к интернету и перезапустите приложение.');
+            });
+        });
+        return;
+    }
     firebase.initializeApp({
         apiKey: 'AIzaSyBaxewKo6Aoi5nTOcjkZfvg0IyKssWR5us',
         authDomain: 'mathframe-ff436.firebaseapp.com',
@@ -65,4 +73,22 @@
         dlg.addEventListener('click', (e) => { if (e.target === dlg || e.target.closest('[data-close]')) dlg.hidden = true; });
         dlg.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') $('dcLogin').click(); });
     };
+    document.addEventListener('DOMContentLoaded', function () {
+        const button = document.getElementById('bdProfile');
+        if (!button) return;
+        button.addEventListener('click', function () {
+            const user = firebase.auth().currentUser;
+            if (!user) { window.openAuthModal(); return; }
+            const profile = document.createElement('div');
+            profile.className = 'bd-dlg';
+            profile.innerHTML = '<div class="bd-dlg-card" role="dialog" aria-modal="true" aria-labelledby="dcProfileTitle"><h2 id="dcProfileTitle">Профиль</h2><p id="dcProfileEmail"></p><div class="bd-dlg-act"><button class="mini-btn bd-ghost" data-close>Закрыть</button><button class="mini-btn" id="dcSignOut">Выйти</button></div></div>';
+            profile.querySelector('#dcProfileEmail').textContent = user.email || user.displayName || 'Аккаунт MathFrame';
+            profile.addEventListener('click', function (e) { if (e.target === profile || e.target.closest('[data-close]')) profile.remove(); });
+            profile.querySelector('#dcSignOut').onclick = async function () {
+                try { await firebase.auth().signOut(); location.reload(); }
+                catch (e) { profile.querySelector('#dcProfileEmail').textContent = (e && e.message) || 'Не удалось выйти'; }
+            };
+            document.body.appendChild(profile);
+        });
+    });
 })();

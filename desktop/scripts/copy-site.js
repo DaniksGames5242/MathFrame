@@ -41,7 +41,9 @@ if (!html.includes('MF_DESKTOP')) throw new Error('не найден <head> в b
 html = html.replace(/<script[^>]+firebase-storage-compat[^>]*><\/script>\s*/g, '');
 html = html.replace(/(<script[^>]+firebase-auth-compat[^>]*><\/script>)/, '$1\n<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>');
 html = html.replace(/<script[^>]+src="\/assets\/js\/auth\.js"[^>]*><\/script>\s*/g, '');
+html = html.replace(/<script[^>]+src="\/assets\/js\/common\.js"[^>]*><\/script>\s*/g, '');
 html = html.replace(/<\/head>/i, '<script src="/assets/js/desk-collab.js"></script>\n</head>');
+html = html.replace('<button class="bd-btn" id="bdSearchBtn"', '<button class="bd-btn" id="bdProfile" title="Профиль" aria-label="Профиль">👤</button>\n        <button class="bd-btn" id="bdSearchBtn"');
 html = html.replace(/<title>[^<]*<\/title>/i, '<title>MathFrame — Доска</title>');
 fs.mkdirSync(path.join(OUT, 'board'), { recursive: true });
 fs.writeFileSync(path.join(OUT, 'board', 'index.html'), html);
