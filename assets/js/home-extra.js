@@ -29,36 +29,49 @@
     g += '<line class="ax" x1="0" y1="' + H / 2 + '" x2="' + W + '" y2="' + H / 2 + '"/><line class="ax" x1="' + W / 2 + '" y1="0" x2="' + W / 2 + '" y2="' + H + '"/>';
     svg.insertAdjacentHTML('afterbegin', g);
     /* Значения плавно догоняют ползунки (rAF), график строится по каждому пикселю. */
-    var shown = null, raf = 0, dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    var shown = null, raf = 0, curve = null, morph = null, formulaTimer = 0, dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
     dot.setAttribute('class', 'dot'); dot.setAttribute('r', 4.5); svg.appendChild(dot);
     var target = function () { return [].map.call(sl.querySelectorAll('input'), function (n) { return +n.value; }); };
-    var render = function (v) {
-      var d = FN[cur], pts = [], pen = false;
+    var render = function (v, progress) {
+      var d = FN[cur], pts = [], pen = false, next = [];
+      var mix = progress == null ? 1 : 1 - Math.pow(1 - progress, 3);
       for (var px = 0; px <= W; px += 1) {
         var x = (px - W / 2) / S, py = H / 2 - d.y.apply(null, [x].concat(v)) * S;
-        if (!isFinite(py) || py < -H || py > 2 * H) { pen = false; continue; }
+        py = isFinite(py) ? Math.max(-H * 2, Math.min(H * 3, py)) : H * 3;
+        if (morph) py = morph.from[px] + (py - morph.from[px]) * mix;
+        next.push(py);
+        if (py < -H || py > 2 * H) { pen = false; continue; }
         pts.push((pen ? 'L' : 'M') + px + ' ' + py.toFixed(2)); pen = true;
       }
+      curve = next;
       path.setAttribute('d', pts.join(''));
+      var vx = W / 2 + (d.vx ? d.vx(v) : 0) * S;
       var vy = H / 2 - d.y.apply(null, [d.vx ? d.vx(v) : 0].concat(v)) * S;
-      dot.setAttribute('cx', W / 2 + (d.vx ? d.vx(v) : 0) * S); dot.setAttribute('cy', vy);
+      if (morph) { vx = morph.dotX + (vx - morph.dotX) * mix; vy = morph.dotY + (vy - morph.dotY) * mix; }
+      dot.setAttribute('cx', vx); dot.setAttribute('cy', vy);
       dot.style.opacity = vy > 0 && vy < H ? 1 : 0;
       [].forEach.call(sl.querySelectorAll('output'), function (o, k) { o.textContent = (+target()[k].toFixed(2)).toString().replace('.', ','); });
     };
-    var tick = function () {
+    var tick = function (now) {
       var t = target(), done = true;
       shown = shown && shown.length === t.length ? shown : t.slice();
       for (var k = 0; k < t.length; k++) {
         var diff = t[k] - shown[k];
         if (Math.abs(diff) > 1e-4) { shown[k] += diff * .22; done = false; } else shown[k] = t[k];
       }
-      render(shown);
-      raf = done ? 0 : requestAnimationFrame(tick);
+      var progress = morph ? Math.min(1, (now - morph.start) / 500) : 1;
+      render(shown, progress);
+      if (morph && progress >= 1) morph = null;
+      raf = done && !morph ? 0 : requestAnimationFrame(tick);
     };
     var draw = function () { if (!raf) raf = requestAnimationFrame(tick); };
     var pick = function (k) {
-      var first = !cur || cur === k && !sl.children.length; cur = k; var d = FN[k];
-      fx.classList.add('sw'); setTimeout(function () { fx.textContent = d.f; fx.classList.remove('sw'); }, first ? 0 : 200);
+      if (!FN[k] || cur === k) return;
+      var first = !cur, reduced = matchMedia('(prefers-reduced-motion: reduce)').matches || document.documentElement.classList.contains('mf-no-motion');
+      morph = !first && !reduced && curve ? {from: curve.slice(), dotX: +dot.getAttribute('cx'), dotY: +dot.getAttribute('cy'), start: performance.now()} : null;
+      cur = k; var d = FN[k];
+      clearTimeout(formulaTimer);
+      fx.classList.add('sw'); formulaTimer = setTimeout(function () { fx.textContent = d.f; fx.classList.remove('sw'); }, first || reduced ? 0 : 200);
       note.textContent = d.note; shown = null;
       sl.innerHTML = d.p.map(function (p) {
         return '<div class="hx-sl"><label for="hx-' + p[0] + '">' + p[0] + '</label><input id="hx-' + p[0] + '" type="range" min="' + p[1] + '" max="' + p[2] + '" step="' + p[3] + '" value="' + p[4] + '"><output></output></div>';
