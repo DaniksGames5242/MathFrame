@@ -150,7 +150,7 @@
         lsSet(CUR, localId);
         const s = await idbGet(localId).catch(() => null);
         if (s && Array.isArray(s.items)) {
-            items = s.items.map((it, i) => Object.assign({ id: rid(12), z: i }, it));
+            items = s.items.map((it, i) => Object.assign({ z: i }, it, { id: it.id || rid(12) }));
             bg = s.bg || 'cells';
             if (s.view) { view = s.view; viewSet = true; }
             if (Array.isArray(s.pages) && s.pages.length) pages = s.pages;
@@ -5180,15 +5180,16 @@
         }, syncError));
         shared.unsub.push(ref.collection('items').onSnapshot((snap) => {
             if (first) { items = []; first = false; }
+            const byItemId = new Map(items.map((it) => [it.id, it]));
             snap.docChanges().forEach((ch) => {
                 const it = ch.doc.data();
                 // объект, который я сейчас тяну или правлю, не перетираю своим же эхом
                 if (drag && drag.before.id === it.id) return;
                 if (textEd && textEd.existing && textEd.existing.id === it.id) return;
-                const i = items.findIndex((x) => x.id === it.id);
-                if (ch.type === 'removed') { if (i >= 0) items.splice(i, 1); sel = sel.filter((x) => x !== it.id); }
-                else if (i >= 0) items[i] = it; else items.push(it);
+                if (ch.type === 'removed') { byItemId.delete(it.id); sel = sel.filter((x) => x !== it.id); }
+                else byItemId.set(it.id, it);
             });
+            items = Array.from(byItemId.values());
             sortItems();
             render();
             setStatus('ok', 'Общая доска');
