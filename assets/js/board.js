@@ -470,8 +470,8 @@
     let inLayer = false;
     const layerCv = document.createElement('canvas');
     const outlineCv = document.createElement('canvas');
-    function contrastRect(c, it) {
-        const b = bounds(it), m = c.getTransform();
+    function contrastRect(c, it, box) {
+        const b = box || bounds(it), m = c.getTransform();
         const pts = [[b.x,b.y],[b.x+b.w,b.y],[b.x,b.y+b.h],[b.x+b.w,b.y+b.h]]
             .map(([x,y]) => ({x:m.a*x+m.c*y+m.e,y:m.b*x+m.d*y+m.f}));
         const pad = Math.max(2, Math.ceil(dpr * 2), Math.ceil((it.w || 0) * Math.hypot(m.a,m.b) / 2));
@@ -494,20 +494,41 @@
         for (const [dx,dy] of [[-edge,0],[edge,0],[0,-edge],[0,edge],[-edge,-edge],[-edge,edge],[edge,-edge],[edge,edge]]) c.drawImage(outlineCv, x+dx, y+dy);
         c.drawImage(layer, sx, sy, w, h, x, y, w, h);
     }
+    const contrastSprites = new Map();
+    let contrastSpritePixels = 0;
     function drawList(c, list) {
         for (const it of list) {
             if (!it) continue;
             if (it.c !== 'contrast') { drawItem(c, it); continue; }
             const r = contrastRect(c, it);
             if (!r.w || !r.h) continue;
-            if (layerCv.width !== r.w || layerCv.height !== r.h) { layerCv.width = r.w; layerCv.height = r.h; }
             const lc = layerCv.getContext('2d'), m = c.getTransform();
+            const key = JSON.stringify([it, r.w, r.h, m.a, m.b, m.c, m.d, m.e-r.x, m.f-r.y, dpr]);
+            const cached = contrastSprites.get(it);
+            if (cached && cached.key === key) {
+                c.save(); c.setTransform(1,0,0,1,0,0); c.drawImage(cached.image,r.x,r.y); c.restore();
+                continue;
+            }
+
+            if (layerCv.width !== r.w || layerCv.height !== r.h) { layerCv.width = r.w; layerCv.height = r.h; }
             lc.setTransform(1,0,0,1,0,0); lc.clearRect(0,0,r.w,r.h);
             lc.setTransform(m.a,m.b,m.c,m.d,m.e-r.x,m.f-r.y);
             inLayer = true;
             try { drawItem(lc, it); } finally { inLayer = false; }
             c.save(); c.setTransform(1,0,0,1,0,0);
-            drawContrastLayer(c, layerCv, r, true); c.restore();
+            // Большие объекты не удерживаем в памяти. Кэш ограничен 8 млн пикселей.
+            if (r.w*r.h <= 1000000) {
+                const image = document.createElement('canvas'); image.width = r.w; image.height = r.h;
+                drawContrastLayer(image.getContext('2d'), layerCv, {x:0,y:0,w:r.w,h:r.h}, true);
+                if (cached) { contrastSpritePixels -= cached.image.width*cached.image.height; contrastSprites.delete(it); }
+                while (contrastSprites.size && contrastSpritePixels + r.w*r.h > 8000000) {
+                    const first = contrastSprites.keys().next().value, entry = contrastSprites.get(first);
+                    contrastSpritePixels -= entry.image.width*entry.image.height; contrastSprites.delete(first);
+                }
+                contrastSprites.set(it, {key,image}); contrastSpritePixels += r.w*r.h;
+                c.drawImage(image,r.x,r.y);
+            } else drawContrastLayer(c, layerCv, r, true);
+            c.restore();
         }
     }
     function drawItem(c, it) {
@@ -989,7 +1010,7 @@
         if (!live || live.it !== it || live.key !== cacheKey) {
             if (liveCv.width !== canvas.width || liveCv.height !== canvas.height) { liveCv.width = canvas.width; liveCv.height = canvas.height; }
             liveCtx.setTransform(1, 0, 0, 1, 0, 0); liveCtx.clearRect(0, 0, liveCv.width, liveCv.height);
-            live = { it, key: cacheKey, n: 0, dist: 0, lx: 0, ly: 0 };
+            live = { it, key: cacheKey, n: 0, dist: 0, lx: 0, ly: 0, minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
         }
         const p = it.p, n = p.length / 2, th = it.th === undefined ? .5 : it.th, tp = it.tp === undefined ? .4 : it.tp;
         if (n > live.n) {
@@ -1002,6 +1023,8 @@
                 const x = p[2 * i], y = p[2 * i + 1];
                 if (i > 0) live.dist += Math.hypot(x - live.lx, y - live.ly);
                 const r = rad(i, live.dist);
+                live.minX = Math.min(live.minX, x-r); live.minY = Math.min(live.minY, y-r);
+                live.maxX = Math.max(live.maxX, x+r); live.maxY = Math.max(live.maxY, y+r);
                 path.moveTo(x + r, y); path.arc(x, y, r, 0, Math.PI * 2);
                 if (i > 0) {
                     const dx = x - live.lx, dy = y - live.ly, d = Math.hypot(dx, dy);
@@ -1018,7 +1041,7 @@
             liveCtx.fill(path, 'nonzero');
             live.n = n;
         }
-        const rect = contrastRect(liveCtx, it);
+        const rect = contrastRect(liveCtx, it, {x:live.minX,y:live.minY,w:live.maxX-live.minX,h:live.maxY-live.minY});
         ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0);
         if (it.c === 'contrast') drawContrastLayer(ctx, liveCv, rect);
         else ctx.drawImage(liveCv, 0, 0);
