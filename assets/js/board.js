@@ -475,6 +475,8 @@
                 }
                 lc.setTransform(c.getTransform());
                 inLayer = true; drawItem(lc, it); inLayer = false;
+                // Каждому штриху нужна собственная кайма, в том числе на пересечениях.
+                flush();
             } else { flush(); drawItem(c, it); }
         }
         flush();
