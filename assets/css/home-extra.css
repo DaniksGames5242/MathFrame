@@ -84,7 +84,7 @@
 .hx-reveal.in .hx-card,.hx-reveal.in .hx-head>*{opacity:1;transform:none}
 .hx-reveal.in .hx-step:hover{transform:translateY(-5px)}
 .hx-reveal{opacity:1;transform:none}
-.hx-plot .fn{stroke-dasharray:1600;stroke-dashoffset:1600}
+.hx-plot .fn{stroke-dasharray:1;stroke-dashoffset:1}
 .hx-reveal.in .hx-plot .fn{animation:hxDraw 1.6s var(--e-out) .3s forwards}
 @keyframes hxDraw{to{stroke-dashoffset:0}}
 .hx-plot .dot{fill:var(--accent);filter:drop-shadow(0 0 6px var(--accent-glow))}
