@@ -74,7 +74,8 @@
     // видимый сейчас объект: на текущем листе и не скрытое решение
     const inView = (it) => !it.hid && (it.pg || 'p1') === curPage;
     // можно ли менять доску (общая доска «только просмотр» — менять может только владелец)
-    const canEdit = () => !shared || shared.owner || shared.mode !== 'view';
+    const canEdit = () => !previewPending && (!shared || shared.owner || shared.mode !== 'view');
+    let previewPending = false;
     let spaceDown = false, panDrag = null;
     const pointers = new Map();
     let pinch = null;
@@ -127,6 +128,30 @@
     const idbGet = (id) => idbDo('readonly', (st) => st.get(id));
     const idbPut = (id, v) => idbDo('readwrite', (st) => st.put(v, id));
     const idbDel = (id) => idbDo('readwrite', (st) => st.delete(id));
+    // Кэш привязан к вкладке: не показываем его в другой сессии браузера.
+    const cacheSession = (() => { try { let v = sessionStorage.getItem('mf-board-cache-session'); if (!v) { v = rid(20); sessionStorage.setItem('mf-board-cache-session', v); } return v; } catch (e) { return null; } })();
+    let cloudCacheTimer = 0;
+    function cacheShared() {
+        clearTimeout(cloudCacheTimer);
+        cloudCacheTimer = setTimeout(() => {
+            if (!shared || previewPending || !cacheSession) return;
+            idbPut('shared:' + shared.id, { session: cacheSession, items, bg, pages, view, name: shared.name }).catch(() => {});
+        }, 200);
+    }
+    async function previewShared(id) {
+        previewPending = true;
+        const saved = await idbGet('shared:' + id).catch(() => null);
+        if (!saved || saved.session !== cacheSession || !Array.isArray(saved.items)) return;
+        items = saved.items; bg = saved.bg || 'cells';
+        if (saved.pages && saved.pages.length) pages = saved.pages;
+        if (saved.view) { view = saved.view; viewSet = true; }
+        setTitle(saved.name); pageBar(); render();
+        setStatus('wait', 'Сохранённая копия · подключение…');
+    }
+    function clearSharedPreview(id) {
+        items = []; previewPending = true; render();
+        idbDel('shared:' + id).catch(() => {});
+    }
     const localList = () => lsGet(IDX, []);
     function newLocal(name, data) {
         const list = localList(), id = rid(12), now = Date.now();
@@ -4752,7 +4777,7 @@
         buildMenus();
 
         $('bdColors').innerHTML = COLORS.map((c) =>
-            `<button class="bd-sw${c === 'contrast' ? ' bd-sw-x' : ''}" data-c="${c}" title="${c === 'ink' ? 'Основной: белый на тёмной теме, чёрный на светлой' : c === 'contrast' ? 'Контрастный: сам подстраивается под фон и всё, что под линией' : c}" aria-label="Цвет ${c === 'ink' ? 'основной' : c === 'contrast' ? 'контрастный' : c}"></button>`).join('') +
+            `<button class="bd-sw${c === 'contrast' ? ' bd-sw-x' : ''}" data-c="${c}" title="${c === 'ink' ? 'Основной: белый на тёмной теме, чёрный на светлой' : c === 'contrast' ? 'Контрастный: сам подстраивается под фон и всё, что под линией' : c}" aria-label="Цвет ${c === 'ink' ? 'основной' : c === 'contrast' ? 'контрастный' : c}">${c === 'contrast' ? '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="white" stroke="#64748b" stroke-width="1.5"/><path d="M12 3a9 9 0 0 0 0 18Z" fill="#111827"/></svg>' : ''}</button>`).join('') +
             '<label class="bd-sw bd-palette" title="Свой цвет"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 3a9 9 0 1 0 0 18h1a2 2 0 0 0 1-3.7 1.5 1.5 0 0 1 .8-2.8H17a4 4 0 0 0 4-4C21 6.4 17 3 12 3Z"/><circle cx="7" cy="10" r="1.5" fill="#3e8bff" stroke="none"/><circle cx="11" cy="7" r="1.5" fill="#e5484d" stroke="none"/><circle cx="16" cy="9" r="1.5" fill="#30a46c" stroke="none"/></svg><input type="color" id="bdPick" aria-label="Свой цвет"></label>';
         const paintSw = () => document.querySelectorAll('#bdColors [data-c]').forEach((b) => {
             if (b.dataset.c !== 'contrast') b.style.background = paint(b.dataset.c);
@@ -5031,6 +5056,7 @@
     }
     function syncError(err) {
         console.error('[board]', err);
+        if (err && err.code === 'permission-denied' && shared) clearSharedPreview(shared.id);
         setStatus('error', err && err.code === 'permission-denied'
             ? 'Нет доступа к общей доске (правила Firestore)'
             : 'Ошибка синхронизации — изменения могут не дойти');
@@ -5137,6 +5163,7 @@
         const au = await waitUser();
         db = db || au.db;
         if (!au.user) {
+            clearSharedPreview(id);
             setStatus('error', 'Общая доска — войдите в аккаунт, чтобы открыть её');
             needLogin('Чтобы рисовать на общей доске, войдите в аккаунт');
             firebase.auth().onAuthStateChanged((u) => { if (u) location.reload(); });
@@ -5151,12 +5178,13 @@
         undo = []; redo = []; syncHistory();
         try { const v = JSON.parse(sessionStorage.getItem('mf-board-view-' + id) || 'null'); if (v) { view = v; $('bdZoom').textContent = Math.round(v.k * 100) + '%'; } } catch (e) {}
         boardEl.classList.add('is-shared');
-        setStatus('wait', 'Подключаюсь…');
+        setStatus('wait', previewPending && items.length ? 'Сохранённая копия · подключение…' : 'Подключаюсь…');
 
         const boardSnap = await ref.get();
         if (!boardSnap.exists) {
             setStatus('error', 'Доска не найдена — ссылка неверная или доску удалили');
             shared = null;
+            clearSharedPreview(id);
             return;
         }
         const bd = boardSnap.data() || {};
@@ -5192,6 +5220,7 @@
                 const m = data.mode === 'view' ? 'view' : 'edit';
                 if (m !== shared.mode) { shared.mode = m; modeUi(); syncOwnerCfg(); if (!shared.owner) toast(m === 'view' ? 'Владелец включил режим «только просмотр»' : 'Владелец разрешил рисовать'); }
             }
+            cacheShared();
             if (data && !!data.noSolve !== !!shared.noSolve) { shared.noSolve = !!data.noSolve; syncOwnerCfg(); render(); }
         }, syncError));
         shared.unsub.push(ref.collection('items').onSnapshot((snap) => {
@@ -5208,6 +5237,8 @@
             items = Array.from(byItemId.values());
             sortItems();
             render();
+            previewPending = false;
+            cacheShared();
             setStatus('ok', 'Общая доска');
         }, syncError));
         shared.unsub.push(ref.collection('peers').onSnapshot((snap) => {
@@ -5359,6 +5390,7 @@
     const sharedId = (params.get('b') || '').replace(/[^A-Za-z0-9]/g, '');
     (async () => {
     if (!sharedId) await loadLocal(params.get('l')).catch(() => {});
+    else await previewShared(sharedId);
     buildBar();
     setTool('pen');
     syncHistory();
@@ -5367,7 +5399,7 @@
     applyUiZ();
     resize();
     window.addEventListener('resize', () => { if (bcfg.ui === 'auto' || !bcfg.ui) applyUiZ(); });
-    if (sharedId) joinShared(sharedId).catch(syncError);
+    if (sharedId) joinShared(sharedId).catch(e => { if (e && e.code === 'permission-denied') clearSharedPreview(sharedId); syncError(e); });
     if (items.some((i) => i.t === 'tex' || i.t === 'plot')) loadMathJax().then(render, () => {});
     })();
 })();
