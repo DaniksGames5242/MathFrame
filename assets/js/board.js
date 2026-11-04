@@ -3533,7 +3533,7 @@
 
     // ================= ВЕДУЩИЙ =================
     // «Вести урок»: остальные видят тот же лист и ту же область доски (пока сами не сдвинут вид).
-    let following = true, leadSent = '';
+    let following = false, leadSent = '';
     const leadIsMe = () => shared && shared.lead && shared.lead.peer === shared.peerId;
     function leadSend() {
         if (!leadIsMe()) return;
@@ -3581,7 +3581,7 @@
         const ro = shared && !canEdit();
         boardEl.classList.toggle('readonly', !!ro);
         const b = $('bdRo'); if (b) b.hidden = !ro;
-        if (ro && !['select', 'pan', 'laser'].includes(tool)) setTool('laser');
+        if (ro && !previewPending && !['select', 'pan', 'laser'].includes(tool)) setTool('laser');
     }
     // ================= КОММЕНТАРИИ И РЕАКЦИИ =================
     // У объекта: cm — [{ a: имя, t: текст, ts }], rx — { '👍': [имена] }. Значок с числом — у объекта;
@@ -4800,7 +4800,7 @@
         buildMenus();
 
         $('bdColors').innerHTML = COLORS.map((c) =>
-            `<button class="bd-sw${c === 'contrast' ? ' bd-sw-x' : ''}" data-c="${c}" title="${c === 'ink' ? 'Основной: белый на тёмной теме, чёрный на светлой' : c === 'contrast' ? 'Контрастный: сам подстраивается под фон и всё, что под линией' : c}" aria-label="Цвет ${c === 'ink' ? 'основной' : c === 'contrast' ? 'контрастный' : c}">${c === 'contrast' ? '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="white" stroke="#64748b" stroke-width="1.5"/><path d="M12 3a9 9 0 0 0 0 18Z" fill="#111827"/></svg>' : ''}</button>`).join('') +
+            `<button class="bd-sw${c === 'contrast' ? ' bd-sw-x' : ''}" data-c="${c}" title="${c === 'ink' ? 'Основной: белый на тёмной теме, чёрный на светлой' : c === 'contrast' ? 'Контрастный: сам подстраивается под фон и всё, что под линией' : c}" aria-label="Цвет ${c === 'ink' ? 'основной' : c === 'contrast' ? 'контрастный' : c}">${c === 'contrast' ? '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="white" stroke="#64748b" stroke-width="1.5"/><path d="M12 1a11 11 0 0 0 0 22Z" fill="#111827"/></svg>' : ''}</button>`).join('') +
             '<label class="bd-sw bd-palette" title="Свой цвет"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 3a9 9 0 1 0 0 18h1a2 2 0 0 0 1-3.7 1.5 1.5 0 0 1 .8-2.8H17a4 4 0 0 0 4-4C21 6.4 17 3 12 3Z"/><circle cx="7" cy="10" r="1.5" fill="#3e8bff" stroke="none"/><circle cx="11" cy="7" r="1.5" fill="#e5484d" stroke="none"/><circle cx="16" cy="9" r="1.5" fill="#30a46c" stroke="none"/></svg><input type="color" id="bdPick" aria-label="Свой цвет"></label>';
         const paintSw = () => document.querySelectorAll('#bdColors [data-c]').forEach((b) => {
             if (b.dataset.c !== 'contrast') b.style.background = paint(b.dataset.c);
@@ -5195,7 +5195,8 @@
         const noLimit = await adminOf(au.user);
         const ref = db.collection('boards').doc(id);
         let peerId;
-        try { peerId = sessionStorage.getItem('mf-board-peer') || rid(12); sessionStorage.setItem('mf-board-peer', peerId); } catch (e) { peerId = rid(12); }
+        // Новое подключение не должно автоматически становиться прежним ведущим.
+        peerId = rid(12);
         const me = { name: myName(), color: PEER_COLORS[Math.floor(Math.random() * PEER_COLORS.length)] };
         shared = { id, db, ref, peerId, peerRef: ref.collection('peers').doc(peerId), peers: new Map(), unsub: [], me, noLimit, owner: false };
         undo = []; redo = []; syncHistory();
@@ -5222,7 +5223,6 @@
         const rec = lsGet(RECENT, []).filter((r) => r.id !== id);
         rec.unshift({ id, name: shared.name, own: shared.owner, t: Date.now() });
         lsSet(RECENT, rec.slice(0, 30));
-        let first = true;
         shared.unsub.push(ref.onSnapshot((d) => {
             const data = d.data();
             if (data && data.bg && data.bg !== bg) { bg = data.bg; $('bdBg').value = bg; render(); }
@@ -5236,8 +5236,8 @@
             if (data) {
                 const L = data.lead || null;
                 if (JSON.stringify(L) !== JSON.stringify(shared.lead || null)) {
-                    shared.lead = L; following = true; leadSent = '';
-                    if (L && L.peer !== shared.peerId) { toast((L.name || 'Участник') + ' ведёт урок — вы видите то же, что и ведущий'); leadApply(shared.peers.get(L.peer)); }
+                    shared.lead = L; following = false; leadSent = '';
+                    if (L && L.peer !== shared.peerId) { toast((L.name || 'Участник') + ' ведёт урок — нажмите кнопку урока, чтобы следовать'); leadApply(shared.peers.get(L.peer)); }
                     leadUi();
                 }
                 const m = data.mode === 'view' ? 'view' : 'edit';
@@ -5246,23 +5246,20 @@
             cacheShared();
             if (data && !!data.noSolve !== !!shared.noSolve) { shared.noSolve = !!data.noSolve; syncOwnerCfg(); render(); }
         }, syncError));
-        shared.unsub.push(ref.collection('items').onSnapshot((snap) => {
-            if (first) { items = []; first = false; }
-            const byItemId = new Map(items.map((it) => [it.id, it]));
-            snap.docChanges().forEach((ch) => {
-                const it = ch.doc.data();
-                // объект, который я сейчас тяну или правлю, не перетираю своим же эхом
-                if (drag && drag.before.id === it.id) return;
-                if (textEd && textEd.existing && textEd.existing.id === it.id) return;
-                if (ch.type === 'removed') { byItemId.delete(it.id); sel = sel.filter((x) => x !== it.id); }
-                else byItemId.set(it.id, it);
-            });
-            items = Array.from(byItemId.values());
-            sortItems();
-            render();
-            previewPending = false;
-            cacheShared();
-            setStatus('ok', 'Общая доска');
+        shared.unsub.push(ref.collection('items').onSnapshot({ includeMetadataChanges: true }, (snap) => {
+            // Полный снимок заменяет предпросмотр целиком, включая удаления и новые
+            // объекты других участников. Идентификатор документа — источник истины.
+            const active = new Set([drag && drag.before && drag.before.id, textEd && textEd.existing && textEd.existing.id].filter(Boolean));
+            const local = new Map(items.filter(it => active.has(it.id)).map(it => [it.id,it]));
+            items = snap.docs.map(doc => local.get(doc.id) || Object.assign({},doc.data(),{id:doc.id}));
+            const ids = new Set(items.map(it=>it.id));
+            sel = sel.filter(id=>ids.has(id));
+            sortItems(); render();
+            const fromCache = snap.metadata && snap.metadata.fromCache;
+            previewPending = !!fromCache;
+            modeUi();
+            if (!fromCache) cacheShared();
+            setStatus(fromCache ? 'wait' : 'ok', fromCache ? 'Сохранённая копия · обновление…' : 'Общая доска');
         }, syncError));
         shared.unsub.push(ref.collection('peers').onSnapshot((snap) => {
             snap.docChanges().forEach((ch) => {
