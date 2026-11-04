@@ -4907,6 +4907,7 @@
     function toggleFull() {
         const on = !boardEl.classList.contains('full');
         boardEl.classList.toggle('full', on);
+        try { sessionStorage.setItem('mf-board-full', on ? '1' : '0'); } catch (e) {}
         // шапка сайта (fixed, свой z-index) перекрывала панель доски — и кнопку выхода
         document.documentElement.classList.toggle('bd-fs', on);
         $('bdFull').classList.toggle('on', on);
@@ -5412,6 +5413,7 @@
     if (!sharedId) await loadLocal(params.get('l')).catch(() => {});
     else await previewShared(sharedId);
     buildBar();
+    try { if (sessionStorage.getItem('mf-board-full') === '1') toggleFull(); } catch (e) {}
     setTool('pen');
     syncHistory();
     $('bdZoom').textContent = Math.round(view.k * 100) + '%';
