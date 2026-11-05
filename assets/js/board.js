@@ -750,6 +750,28 @@
             o.push(pts[pts.length - 1]);
             pts = o;
         }
+        // После сглаживания соседние точки почти совпадают. Убираем только те,
+        // что отклоняются от отрезка менее чем на 0.025 единицы, учитывая нажим.
+        // Это сокращает число перекрывающихся окружностей при заливке Path2D.
+        if (pts.length > 2) {
+            const keep = new Uint8Array(pts.length), stack = [[0,pts.length-1]];
+            keep[0] = keep[pts.length-1] = 1;
+            const pressureScale = it.w || 1, tolerance2 = .025 * .025;
+            while (stack.length) {
+                const [a,b] = stack.pop(), u = pts[a], v = pts[b];
+                const dx=v[0]-u[0],dy=v[1]-u[1],dz=(v[2]-u[2])*pressureScale;
+                const len=dx*dx+dy*dy+dz*dz;
+                let max=tolerance2,index=-1;
+                for (let i=a+1;i<b;i++) {
+                    const q=pts[i],x=q[0]-u[0],y=q[1]-u[1],z=(q[2]-u[2])*pressureScale;
+                    const t=len ? Math.max(0,Math.min(1,(x*dx+y*dy+z*dz)/len)) : 0;
+                    const d=(x-t*dx)**2+(y-t*dy)**2+(z-t*dz)**2;
+                    if(d>max){max=d;index=i;}
+                }
+                if(index>=0){keep[index]=1;stack.push([a,index],[index,b]);}
+            }
+            pts=pts.filter((_,i)=>keep[i]);
+        }
         const n = pts.length, dist = [0];
         for (let i = 1; i < n; i++) dist.push(dist[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
         const L = dist[n - 1], th = it.th === undefined ? .5 : it.th, tp = it.tp === undefined ? .4 : it.tp;
@@ -983,14 +1005,19 @@
     function frame() {
         rafId = 0;
         const key = [view.x, view.y, view.k, W, H, dpr, curPage].join('|');
-        if (needFull || key !== cacheKey) { drawScene(); cacheKey = key; needFull = false; }
-        drawOverlay();
+        const full = needFull || key !== cacheKey;
+        if (full) { drawScene(); cacheKey = key; needFull = false; }
+        const dirty = !full && !shared && cur && cur.t === 'pen' && cur.pr && live && live.it === cur && live.key === cacheKey && !hand.on && !sel.length ? inkDirtyRect() : null;
+        ctx.save();
+        if (dirty) { ctx.setTransform(1,0,0,1,0,0); ctx.beginPath(); ctx.rect(dirty.x,dirty.y,dirty.w,dirty.h); ctx.clip(); }
+        drawOverlay(dirty);
+        ctx.restore();
     }
     function drawScene() {
         if (cacheCv.width !== canvas.width || cacheCv.height !== canvas.height) { cacheCv.width = canvas.width; cacheCv.height = canvas.height; }
         const c = cacheCtx;
         c.setTransform(dpr, 0, 0, dpr, 0, 0);
-        // непрозрачная заливка нужна «контрастному» цвету: разность считается с тем, что уже на холсте
+        // Непрозрачный фон также позволяет восстанавливать отдельные участки при письме.
         c.fillStyle = boardFill();
         c.fillRect(0, 0, W, H);
         drawBg(c, W, H, view);
@@ -1005,7 +1032,16 @@
     // кусочки — время кадра не растёт с длиной линии (после отпускания штрих сглаживается целиком).
     const liveCv = document.createElement('canvas'), liveCtx = liveCv.getContext('2d');
     let live = null;
-    function drawLiveInk() {
+    function inkDirtyRect() {
+        let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
+        const add = (x,y) => { x1=Math.min(x1,x); y1=Math.min(y1,y); x2=Math.max(x2,x); y2=Math.max(y2,y); };
+        for (let i=Math.max(0,live.n-1)*2;i<cur.p.length;i+=2) add(cur.p[i],cur.p[i+1]);
+        for (const p of [cur.raw,cur.pred,...(live.tail || [])]) if (p) add(p.x,p.y);
+        // Включаем толщину пера, кайму и сглаженные края, а также предыдущий прогноз.
+        const pad = cur.w * 2 + 4 / view.k;
+        return contrastRect(liveCtx, cur, {x:x1-pad,y:y1-pad,w:x2-x1+2*pad,h:y2-y1+2*pad});
+    }
+    function drawLiveInk(dirty) {
         const it = cur;
         if (!live || live.it !== it || live.key !== cacheKey) {
             if (liveCv.width !== canvas.width || liveCv.height !== canvas.height) { liveCv.width = canvas.width; liveCv.height = canvas.height; }
@@ -1041,10 +1077,13 @@
             liveCtx.fill(path, 'nonzero');
             live.n = n;
         }
-        const rect = contrastRect(liveCtx, it, {x:live.minX,y:live.minY,w:live.maxX-live.minX,h:live.maxY-live.minY});
+        const rect = dirty ? {x:Math.max(0,dirty.x-Math.ceil(dpr)-2),y:Math.max(0,dirty.y-Math.ceil(dpr)-2),
+            w:Math.min(liveCv.width,dirty.x+dirty.w+Math.ceil(dpr)+2)-Math.max(0,dirty.x-Math.ceil(dpr)-2),
+            h:Math.min(liveCv.height,dirty.y+dirty.h+Math.ceil(dpr)+2)-Math.max(0,dirty.y-Math.ceil(dpr)-2)} : contrastRect(liveCtx, it, {x:live.minX,y:live.minY,w:live.maxX-live.minX,h:live.maxY-live.minY});
+        live.tail = [it.raw,it.pred].filter(Boolean).map(p=>({x:p.x,y:p.y}));
         ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0);
         if (it.c === 'contrast') drawContrastLayer(ctx, liveCv, rect);
-        else ctx.drawImage(liveCv, 0, 0);
+        else if (rect.w && rect.h) ctx.drawImage(liveCv, rect.x,rect.y,rect.w,rect.h,rect.x,rect.y,rect.w,rect.h);
         ctx.restore();
     }
     // «хвост» от последней точки штриха до пера (и чуть вперёд — по предсказанию браузера):
@@ -1065,15 +1104,16 @@
         ctx.stroke();
         ctx.restore();
     }
-    function drawOverlay() {
+    function drawOverlay(dirty) {
         ctx.setTransform(1, 0, 0, 1, 0, 0);
         ctx.globalCompositeOperation = 'copy';
-        ctx.drawImage(cacheCv, 0, 0);
+        if (dirty && dirty.w && dirty.h) ctx.drawImage(cacheCv,dirty.x,dirty.y,dirty.w,dirty.h,dirty.x,dirty.y,dirty.w,dirty.h);
+        else ctx.drawImage(cacheCv, 0, 0);
         ctx.globalCompositeOperation = 'source-over';
         ctx.setTransform(dpr * view.k, 0, 0, dpr * view.k, -view.x * view.k * dpr, -view.y * view.k * dpr);
         const extra = [];
         if (shared && bcfg.drafts) for (const p of shared.peers.values()) if (p.draft && fresh(p) && (p.pg || 'p1') === curPage) extra.push(p.draft);
-        if (cur && cur.t === 'pen' && cur.pr) { drawLiveInk(); drawInkTail(); }
+        if (cur && cur.t === 'pen' && cur.pr) { drawLiveInk(dirty); drawInkTail(); }
         else if (cur && cur.t !== 'erase') extra.push(cur);
         if (geo) extra.push(geo);
         if (extra.length) drawList(ctx, extra);

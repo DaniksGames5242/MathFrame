@@ -1386,6 +1386,8 @@
     snapPalette();
 
     var field = null, tracers = null;
+    // На доске ресурсы GPU нужны холсту, а не декоративному фону.
+    if (pageName() !== 'board') {
     try { field = initFlowField(lite); } catch (e) {}
     var host = document.querySelector('[data-mf-tracers]');
     if (host) {
@@ -1397,6 +1399,7 @@
     BG.booted = true;
     loadBgLayers();
     BG.queue.splice(0).forEach(BG_API.add);
+    }
 
     initCards();
     initRipple();
@@ -1417,7 +1420,7 @@
   }
 
   // 2D-слои начинаем качать сразу, параллельно разбору страницы
-  try { if (document.body) loadBgLayers(); } catch (e) {}
+  try { if (document.body && pageName() !== 'board') loadBgLayers(); } catch (e) {}
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', boot);
